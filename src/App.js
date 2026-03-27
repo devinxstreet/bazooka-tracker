@@ -46,15 +46,15 @@ const S = {
   card: { background:"#374151", border:"1px solid #4B5563", borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" },
   inp:  { background:"#1F2937", border:"1px solid #4B5563", borderRadius:7, padding:"8px 12px", color:"#F9FAFB", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#111827", color:"#E8B84B", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
+  th:   { padding:"9px 14px", background:"#111827", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
   td:   { padding:"8px 14px", borderBottom:"1px solid #111827", fontSize:13, color:"#F9FAFB" },
 };
 
 // ─── MICRO COMPONENTS ────────────────────────────────────────────
 function SectionLabel({ t }) {
   return (
-    <div style={{ fontSize:10, fontWeight:800, color:"#E8B84B", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-      <div style={{ width:14, height:2, background:"#E8B84B", borderRadius:1 }} />{t}
+    <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+      <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1 }} />{t}
     </div>
   );
 }
@@ -71,7 +71,7 @@ function ZoneBadge({ pct }) {
 
 function Btn({ children, onClick, variant="gold", disabled, style }) {
   const V = {
-    gold:  { bg:"#E8B84B", c:"#1a1a00", b:"#D4A434" },
+    gold:  { bg:"#E8317A", c:"#1a1a00", b:"#D4A434" },
     green: { bg:"#166534", c:"#ffffff", b:"#14532d" },
     ghost: { bg:"#F3F4F6", c:"#6B7280", b:"#E5E7EB" },
     red:   { bg:"#FEE2E2", c:"#991b1b", b:"#fca5a5" },
@@ -291,9 +291,9 @@ function LotComp({ onAccept }) {
   if (custView) return (
     <div>
       <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
-      <div style={{ ...S.card, border:"2px solid #E8B84B88", maxWidth:680 }}>
+      <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:680 }}>
         <div style={{ textAlign:"center", marginBottom:20, padding:"16px", background:"#1A1A2E", borderRadius:10 }}>
-          <div style={{ fontSize:30, fontWeight:900, color:"#E8B84B", letterSpacing:3 }}>⚡ BAZOOKA</div>
+          <div style={{ fontSize:30, fontWeight:900, color:"#E8317A", letterSpacing:3 }}>⚡ BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ background:"#1F2937", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -313,7 +313,9 @@ function LotComp({ onAccept }) {
                     <td style={{ ...S.td, fontWeight:700 }}>{r.name}</td>
                     <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
                     <td style={{ ...S.td, color:"#9CA3AF" }}>{r.qty||1}</td>
+                    <td style={{ ...S.td, color:"#6B7280" }}>{parseInt(r.qty)||1}</td>
                     <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${mv.toFixed(2)}</td>
+                    <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(mv*(parseInt(r.qty)||1)).toFixed(2)}</td>
                     <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
                   </tr>
                 );
@@ -327,8 +329,8 @@ function LotComp({ onAccept }) {
           </div>
         ))}
         <div style={{ display:"flex", justifyContent:"space-between", padding:"13px 16px", background:"#1A1A2E", borderRadius:8, marginTop:6 }}>
-          <span style={{ color:"#E8B84B", fontWeight:800, fontSize:15 }}>Bazooka's Offer</span>
-          <span style={{ color:"#E8B84B", fontWeight:900, fontSize:18 }}>${dispOffer.toFixed(2)}</span>
+          <span style={{ color:"#E8317A", fontWeight:800, fontSize:15 }}>Bazooka's Offer</span>
+          <span style={{ color:"#E8317A", fontWeight:900, fontSize:18 }}>${dispOffer.toFixed(2)}</span>
         </div>
         <div style={{ marginTop:12, textAlign:"center", color:"#9CA3AF", fontSize:11, fontStyle:"italic" }}>
           This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!
@@ -397,9 +399,10 @@ function LotComp({ onAccept }) {
                     <td style={{ ...S.td, width:70 }}>
                       <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:60 }}/>
                     </td>
-                    <td style={{ ...S.td, width:120 }}>
-                      <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:90 }}/>
+                    <td style={{ ...S.td, width:110 }}>
+                      <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:85 }}/>
                     </td>
+                    <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${((mv)*(parseInt(r.qty)||1)).toFixed(2)}</td>
                     <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
                     <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>—</span>}</td>
                     <td style={{ ...S.td, textAlign:"center" }}>
@@ -416,13 +419,13 @@ function LotComp({ onAccept }) {
         </div>
       </div>
 
-      <div style={{ ...S.card, border:"2px solid #E8B84B55" }}>
+      <div style={{ ...S.card, border:"2px solid #E8317A55" }}>
         <SectionLabel t="Final Offer" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
           <TextInput label="Final Offer Price ($) — blank uses calculated amount" type="number" value={finalOffer} onChange={setFOffer} placeholder="0.00"/>
           <div>
             <label style={S.lbl}>Lot Zone</label>
-            <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`2px solid ${lotZone?.color||"#E8B84B"}`, color:lotZone?.color||"#92400e", fontWeight:900, fontSize:14 }}>
+            <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`2px solid ${lotZone?.color||"#E8317A"}`, color:lotZone?.color||"#92400e", fontWeight:900, fontSize:14 }}>
               {lotZone?lotZone.label:"—"}
             </div>
           </div>
@@ -687,12 +690,12 @@ export default function App() {
       <div style={{ background:"#1A1A2E", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span style={{ fontSize:20, fontWeight:900, color:"#E8B84B", letterSpacing:2 }}>BAZOOKA</span>
+            <span style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
             <span style={{ fontSize:10, color:"#4a4a6a", borderLeft:"1px solid #2a2a4a", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
             {TABS.map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"#2a2a4a":"transparent", border:"none", color:tab===t.id?"#E8B84B":"#6B7280", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8B84B":"2px solid transparent", transition:"all 0.1s" }}>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"#2a2a4a":"transparent", border:"none", color:tab===t.id?"#E8317A":"#6B7280", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", transition:"all 0.1s" }}>
                 {t.label}
               </button>
             ))}
@@ -700,7 +703,7 @@ export default function App() {
           <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8B84B" }}/>}
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
               <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
               <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #2a2a4a", color:"#6B7280", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
