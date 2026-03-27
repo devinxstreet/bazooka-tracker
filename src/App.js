@@ -548,7 +548,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={14}/> :
+              {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={10}/> :
                 filtered.map((c,i) => {
                   const used=usedIds.has(c.id);
                   const isSel=selected.has(c.id);
@@ -561,9 +561,6 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                       <td style={{ ...S.td, fontWeight:700 }}>{c.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#6B2D8B" }}>${(c.costPerCard||0).toFixed(2)}</td>
-                      <td style={{ ...S.td, fontWeight:700, color:getZone(c.buyPct)?.color||"#9CA3AF" }}>{c.buyPct?(c.buyPct*100).toFixed(1)+"%":"—"}</td>
-                      <td style={S.td}><ZoneBadge pct={c.buyPct}/></td>
                       <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.source||"—"}</td>
