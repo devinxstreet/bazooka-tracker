@@ -1689,7 +1689,7 @@ export default function App() {
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
-        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={getUserRole(user)}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} comps={comps} user={user} userRole={getUserRole(user)} dark={darkMode}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
         {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user} dark={darkMode}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} inventory={inventory} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
