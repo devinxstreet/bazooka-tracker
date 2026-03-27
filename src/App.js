@@ -162,8 +162,128 @@ function Dashboard({ inventory, breaks }) {
   const oPct   = totMkt > 0 ? totInv/totMkt : null;
   const oz     = getZone(oPct);
 
+  // Health check calculations
+  const totalCards = inventory.length;
+  const usedCount  = [...usedIds].length;
+  const availCount = totalCards - usedCount;
+
+  // Days of runway per card type (based on monthly targets)
+  const runway = {};
+  CARD_TYPES.forEach(ct => {
+    const avail = (stats[ct].total - stats[ct].used);
+    const { monthly, buffer } = TARGETS[ct];
+    const dailyBurn = monthly / 30;
+    runway[ct] = dailyBurn > 0 ? Math.floor(avail / dailyBurn) : 999;
+  });
+
+  // Reorder alerts
+  const alerts = CARD_TYPES.filter(ct => {
+    const avail = stats[ct].total - stats[ct].used;
+    return avail < TARGETS[ct].buffer;
+  });
+
+  // Monthly pace (used this month vs target)
+  const pace = {};
+  CARD_TYPES.forEach(ct => {
+    const used = stats[ct].used;
+    const target = TARGETS[ct].monthly;
+    pace[ct] = target > 0 ? used / target : 0;
+  });
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* ── HEALTH CHECK ── */}
+      <div style={{ ...S.card, border: alerts.length > 0 ? "2px solid #FCA5A5" : "2px solid #D6F4E3", background: alerts.length > 0 ? "#FFFAFA" : "#FAFFFA" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <SectionLabel t="Inventory Health Check" />
+          <span style={{ fontSize:12, fontWeight:700, padding:"4px 12px", borderRadius:20, background: alerts.length===0 ? "#D6F4E3" : alerts.length<=2 ? "#FFF9DB" : "#FEE2E2", color: alerts.length===0 ? "#166534" : alerts.length<=2 ? "#92400e" : "#991b1b" }}>
+            {alerts.length===0 ? "✅ All Good" : alerts.length<=2 ? `⚠️ ${alerts.length} Alert${alerts.length>1?"s":""}` : `🚨 ${alerts.length} Critical`}
+          </span>
+        </div>
+
+        {/* Top row — key numbers */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16 }}>
+          {[
+            { l:"Total Cards", v:totalCards, c:"#111827" },
+            { l:"Available",   v:availCount, c:"#166534" },
+            { l:"Used",        v:usedCount,  c:"#991b1b" },
+            { l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" },
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Reorder alerts */}
+        {alerts.length > 0 && (
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#991b1b", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>🚨 Restock Needed</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {alerts.map(ct => {
+                const avail = stats[ct].total - stats[ct].used;
+                const cc = CC[ct];
+                return (
+                  <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}`, borderRadius:8, padding:"8px 14px", display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontWeight:700, color:cc.text, fontSize:12 }}>{ct}</span>
+                    <span style={{ fontSize:11, color:cc.text }}>{avail} left / {TARGETS[ct].buffer} min</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Runway + pace per card type */}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {CARD_TYPES.map(ct => {
+            const cc = CC[ct];
+            const days = runway[ct];
+            const pct = pace[ct];
+            const avail = stats[ct].total - stats[ct].used;
+            const { buffer, monthly } = TARGETS[ct];
+            const runwayColor = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
+            const runwayBg    = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
+            const barW = Math.min(pct * 100, 100);
+            const barC = pct >= 1 ? "#991b1b" : pct >= 0.7 ? "#92400e" : "#166534";
+            return (
+              <div key={ct} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:9, padding:"10px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                  <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>{avail} avail</span>
+                    <span style={{ background:runwayBg, color:runwayColor, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
+                      {days >= 999 ? "No usage yet" : `~${days}d runway`}
+                    </span>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>Monthly pace: {(pct*100).toFixed(0)}%</span>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div style={{ height:5, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${barW}%`, background:barC, borderRadius:3, transition:"width 0.6s ease" }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Value summary */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
+          {[
+            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
+            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
+            { l:"Unrealized Margin",  v:totMkt>0?`$${(totMkt-totInv).toFixed(2)}`:"—", c: totMkt>totInv?"#166534":"#991b1b" },
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {[
           { l:"Cards in Inventory", v:inventory.length,          c:"#000000" },
@@ -586,6 +706,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
   const [breaker,  setBreaker]  = useState("");
   const [date,     setDate]     = useState(new Date().toISOString().split("T")[0]);
   const [cardId,   setCardId]   = useState("");
+  const [cardSearch,setCardSearch]=useState("");
   const [usage,    setUsage]    = useState("");
   const [notes,    setNotes]    = useState("");
   const [bulkMode, setBulkMode] = useState(false);
@@ -598,7 +719,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
   function handleAdd() {
     if (!breaker||!cardId) return;
     onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString() });
-    setCardId(""); setUsage(""); setNotes("");
+    setCardId(""); setCardSearch(""); setUsage(""); setNotes("");
   }
 
   function toggleBulkCard(id) {
@@ -629,19 +750,41 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
           <SelectInput label="Usage Type" value={usage}   onChange={setUsage}   options={USAGE_TYPES}/>
         </div>
         <div style={{ marginBottom:12 }}>
-          <Field label="Card (select from available inventory)">
-            <select value={cardId} onChange={e=>setCardId(e.target.value)} style={{ ...S.inp, color:cardId?"#111827":"#9CA3AF", cursor:"pointer" }}>
-              <option value="">Select a card...</option>
-              {CARD_TYPES.map(ct => {
-                const ctCards = available.filter(c => c.cardType===ct);
-                if (ctCards.length===0) return null;
-                return (
-                  <optgroup key={ct} label={ct}>
-                    {ctCards.map(c => <option key={c.id} value={c.id}>{c.cardName} — ${(c.marketValue||0).toFixed(2)}</option>)}
-                  </optgroup>
-                );
-              })}
-            </select>
+          <Field label="Card (search and select from available inventory)">
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              <input
+                value={cardSearch}
+                onChange={e => { setCardSearch(e.target.value); setCardId(""); }}
+                placeholder="Search card name..."
+                style={{ ...S.inp }}
+              />
+              {cardSearch.length > 0 && (
+                <div style={{ border:"1px solid #F0D0DC", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#FFFFFF", boxShadow:"0 4px 12px rgba(232,49,122,0.1)" }}>
+                  {available.filter(c => c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).length === 0
+                    ? <div style={{ padding:"12px 16px", color:"#9CA3AF", fontSize:13 }}>No cards found</div>
+                    : available
+                        .filter(c => c.cardName.toLowerCase().includes(cardSearch.toLowerCase()))
+                        .map(c => {
+                          const cc = CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                          const isSel = cardId === c.id;
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => { setCardId(c.id); setCardSearch(c.cardName); }}
+                              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", cursor:"pointer", background:isSel?"#FFF0F5":"#FFFFFF", borderBottom:"1px solid #FFF0F5", transition:"background 0.1s" }}
+                            >
+                              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                <span style={{ fontWeight:700, fontSize:13, color:"#111827" }}>{c.cardName}</span>
+                                <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
+                              </div>
+                              <span style={{ fontSize:12, color:"#92400e", fontWeight:600 }}>${(c.marketValue||0).toFixed(2)}</span>
+                            </div>
+                          );
+                        })
+                  }
+                </div>
+              )}
+            </div>
           </Field>
         </div>
         {selCard && (
