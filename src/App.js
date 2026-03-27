@@ -5,25 +5,6 @@ import {
   collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy
 } from "firebase/firestore";
 
-// ─── DYNAMIC STYLES (dark mode) ──────────────────────────────────
-function getS(dark) {
-  if (!dark) return {
-    card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
-    inp:  { background:"#FFFFFF", border:"1px solid #F0D0DC", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-    lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-    th:   { padding:"9px 14px", background:"#FFF0F5", color:"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
-    td:   { padding:"8px 14px", borderBottom:"1px solid #FFE8F0", fontSize:13, color:"#111827" },
-  };
-  return {
-    card: { background:"#13131f", border:"1px solid #1e1e3a", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.12)", transition:"background 0.3s ease" },
-    inp:  { background:"#0d0d1a", border:"1px solid #1e1e3a", borderRadius:7, padding:"8px 12px", color:"#e2e8f0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-    lbl:  { fontSize:10, fontWeight:700, color:"#4a4a6a", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-    th:   { padding:"9px 14px", background:"#0d0d1a", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #1e1e3a" },
-    td:   { padding:"8px 14px", borderBottom:"1px solid #13131f", fontSize:13, color:"#e2e8f0" },
-  };
-}
-
-
 // ─── CONSTANTS ───────────────────────────────────────────────────
 const CARD_TYPES = ["Giveaway/Standard Cards","First-Timer Cards","Chaser Cards"];
 const BREAKERS   = ["Dev","Dre","Krystal"];
@@ -203,7 +184,6 @@ function LoginScreen({ onLogin }) {
 
 // ─── DASHBOARD ────────────────────────────────────────────────────
 function Dashboard({ inventory, breaks, user, userRole, dark=false }) {
-  const S = getS(dark);
   const usedIds = new Set(breaks.map(b => b.inventoryId));
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, invested:0, market:0 }; });
@@ -847,7 +827,6 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
 // ─── INVENTORY ────────────────────────────────────────────────────
 function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, dark=false }) {
-  const S = getS(dark);
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [selected, setSelected] = useState(new Set());
@@ -1040,7 +1019,6 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
 
 // ─── BREAK LOG ────────────────────────────────────────────────────
 function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user, dark=false }) {
-  const S = getS(dark);
   const userName = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,  setBreaker]  = useState(matchedBreaker);
@@ -1218,7 +1196,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user, dark=false }) {
 // ─── APP ROOT ─────────────────────────────────────────────────────
 // ─── PERFORMANCE ─────────────────────────────────────────────────
 function Performance({ breaks, inventory, user, userRole, dark=false }) {
-  const S = getS(dark);
   const isAdmin = ["Admin"].includes(userRole?.role);
   const currentUser = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
@@ -1399,10 +1376,10 @@ function Performance({ breaks, inventory, user, userRole, dark=false }) {
 }
 
 // ── GLOBAL STYLES ────────────────────────────────────────────────
-const GlobalStyles = ({ darkMode }) => {
+const GlobalStyles = () => {
   useEffect(() => {
     const style = document.createElement('style');
-    const dm = darkMode;
+    const dm = false;
     style.textContent = `
       * { box-sizing: border-box; }
       :root {
@@ -1555,7 +1532,7 @@ const GlobalStyles = ({ darkMode }) => {
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
-  }, [darkMode]);
+  }, []);
   return null;
 };
 
@@ -1567,8 +1544,6 @@ export default function App() {
   const [breaks,    setBreaks]    = useState([]);
   const [comps,     setComps]     = useState([]);
   const [toast,     setToast]     = useState(null);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="1");
 
   // Auth listener
   useEffect(() => {
@@ -1600,7 +1575,7 @@ export default function App() {
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
   function toggleDark() {
-    const next = !darkMode;
+
     setDarkMode(next);
     localStorage.setItem("bzk_dark", String(next));
   }
@@ -1668,8 +1643,8 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:darkMode?"#0a0a12":"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:darkMode?"#e2e8f0":"#111827", transition:"background 0.3s ease, color 0.3s ease" }}>
-      <GlobalStyles darkMode={darkMode} />
+    <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
+      <GlobalStyles />
       <div style={{ background:"#000000", padding:"0 12px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
@@ -1695,11 +1670,6 @@ export default function App() {
                 </div>;
               })()}
               <button onClick={toggleDark} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Toggle dark mode">
-                {darkMode ? "☀️" : "🌙"}
-              </button>
-              <button onClick={()=>{const nd=!darkMode;setDarkMode(nd);localStorage.setItem("bzk_dark",nd?"1":"0");}} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Toggle dark mode">
-              {darkMode?"☀️":"🌙"}
-            </button>
           <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
@@ -1707,11 +1677,11 @@ export default function App() {
       </div>
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
-        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
-        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={getUserRole(user)} dark={darkMode}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
-        {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user} dark={darkMode}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="performance" && <Performance breaks={breaks} inventory={inventory} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
+        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)}/>}
+        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={getUserRole(user)}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)}/>}
+        {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="performance" && <Performance breaks={breaks} inventory={inventory} user={user} userRole={getUserRole(user)}/>}
       </div>
 
       {toast && (
