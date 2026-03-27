@@ -771,7 +771,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
           );
         })()}
 
-        {invTab==="cards" && <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+        {invTab==="cards" && <>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
           <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#111827":"#9CA3AF", cursor:"pointer" }}>
             <option value="">All Types</option>
@@ -832,6 +833,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
           </table>
         </div>
       </div>
+      </>
+      }
     </div>
   );
 }
