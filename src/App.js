@@ -419,14 +419,16 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
   const calcOffer = totalMkt * pctNum;
   const offerAmt  = parseFloat(finalOffer) || 0;
-  const dispOffer = offerAmt > 0 ? offerAmt : calcOffer;
-  const lotZone   = totalMkt > 0 ? getZone(dispOffer/totalMkt) : null;
+  const counterAmt = parseFloat(counterOffer) || 0;
+  // Counter offer overrides final offer which overrides calculated
+  const dispOffer  = counterAmt > 0 ? counterAmt : offerAmt > 0 ? offerAmt : calcOffer;
+  const dispPct    = totalMkt > 0 ? dispOffer / totalMkt : pctNum;
+  const lotZone    = totalMkt > 0 ? getZone(dispOffer/totalMkt) : null;
   const totalCards = included.reduce((s,r) => s+(parseInt(r.qty)||1), 0);
   const quickTotal     = (parseFloat(quickMktVal)||0) * (parseInt(quickCards)||0);
   const quickCalcOffer = quickTotal * (parseFloat(quickPct)/100 || 0.60);
   const quickOfferAmt  = parseFloat(quickOffer) || quickCalcOffer;
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
-  const counterAmt     = parseFloat(counterOffer) || 0;
   const counterZone    = totalMkt > 0 && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
@@ -497,7 +499,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       <td style={{ padding:"8px 10px" }}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
                       <td style={{ padding:"8px 10px", color:"#6B7280", textAlign:"center" }}>{parseInt(r.qty)||1}</td>
                       <td style={{ padding:"8px 10px", color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
-                      <td style={{ padding:"8px 10px", color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
+                      <td style={{ padding:"8px 10px", color:"#166534", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
                     </tr>
                   );
                 })
@@ -506,7 +508,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </table>
         </div>
         <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
-          {/* Notes / comment box — only shown in edit mode (not printed), visible to customer */}
+          {/* Editable notes — textarea only, no duplicate preview */}
           <div style={{ marginBottom:14 }}>
             <label style={{ ...S.lbl, color:"#E8317A" }}>Notes for Seller (optional)</label>
             <textarea
@@ -517,10 +519,11 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               style={{ ...S.inp, resize:"vertical", lineHeight:1.5, fontSize:12 }}
             />
           </div>
+          {/* Notes rendered in the quote — shown once, only when there's content */}
           {custNote.trim() && (
-            <div style={{ marginBottom:14, padding:"12px 16px", background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:8 }}>
+            <div style={{ marginBottom:14, padding:"12px 16px", background:"#FAFAFA", border:"1px solid #F0E0E8", borderLeft:"3px solid #E8317A", borderRadius:8 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
-              <p style={{ margin:0, fontSize:13, color:"#374151", lineHeight:1.6 }}>{custNote}</p>
+              <p style={{ margin:0, fontSize:13, color:"#374151", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{custNote}</p>
             </div>
           )}
           {[[`Total Cards`,totalCards],...(canSeeFinancials?[[`Total Market Value`,`$${totalMkt.toFixed(2)}`]]:[])] .map(([l,v]) => (
@@ -532,6 +535,15 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#1A1A2E", borderRadius:10 }}>
             <span style={{ color:"#E8317A", fontWeight:800, fontSize:16 }}>Bazooka's Offer</span>
             <span style={{ color:"#FFFFFF", fontWeight:900, fontSize:22 }}>${dispOffer.toFixed(2)}</span>
+          </div>
+          {/* Ship-to address */}
+          <div style={{ marginTop:14, padding:"12px 16px", background:"#F9FAFB", border:"1px solid #F0E0E8", borderRadius:8 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
+            <div style={{ fontSize:13, color:"#111827", fontWeight:700, lineHeight:1.8 }}>
+              Devin — Bazooka<br/>
+              425 Prosperity Dr<br/>
+              Warsaw, IN 46582
+            </div>
           </div>
           <div style={{ marginTop:12, textAlign:"center", color:"#9CA3AF", fontSize:11, fontStyle:"italic" }}>This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!</div>
         </div>
@@ -674,7 +686,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
                   const qty = parseInt(r.qty)||1;
-                  const cz  = mv > 0 ? getZone(pctNum) : null;
+                  const cz  = mv > 0 ? getZone(dispPct) : null;
                   return (
                     <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
@@ -688,7 +700,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:55 }}/></td>
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
+                      <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
                       <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>—</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
@@ -717,13 +729,22 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green">✅ Accept & Import {totalCards} card{totalCards!==1?"s":""}</Btn>
           </div>
           <div style={{ borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>Counter Offer Calculator</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
-              <div><label style={S.lbl}>Seller's Counter ($)</label><input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={S.inp}/></div>
-              <div><label style={S.lbl}>Counter Zone</label><div style={{ ...S.inp, background:counterZone?.bg||"#F9FAFB", border:`1.5px solid ${counterZone?.color||"#E5E7EB"}`, color:counterZone?.color||"#9CA3AF", fontWeight:700 }}>{counterZone?counterZone.label:totalMkt>0?"Enter counter":"Add cards first"}</div></div>
-              <div><label style={S.lbl}>Counter Buy %</label><div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>{counterAmt>0&&totalMkt>0?`${((counterAmt/totalMkt)*100).toFixed(1)}%`:"—"}</div></div>
-              <div><label style={S.lbl}>vs Your Offer</label><div style={{ ...S.inp, color:counterAmt>dispOffer?"#991b1b":"#166534", fontWeight:700 }}>{counterAmt>0&&dispOffer>0?`$${Math.abs(counterAmt-dispOffer).toFixed(2)} ${counterAmt>dispOffer?"over":"under"}`:"—"}</div></div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
+              {counterAmt > 0 && <span style={{ background:"#FFF9DB", color:"#92400e", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active — overrides your offer</span>}
             </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
+              <div><label style={S.lbl}>Seller's Counter ($)</label><input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={{ ...S.inp, border:counterAmt>0?"2px solid #E8317A":S.inp.border }}/></div>
+              <div><label style={S.lbl}>Counter Zone</label><div style={{ ...S.inp, background:counterZone?.bg||"#F9FAFB", border:`1.5px solid ${counterZone?.color||"#E5E7EB"}`, color:counterZone?.color||"#9CA3AF", fontWeight:700 }}>{counterZone?counterZone.label:totalMkt>0?"Enter counter":"Add cards first"}</div></div>
+              <div><label style={S.lbl}>Counter Buy %</label><div style={{ ...S.inp, color:counterAmt>0?(counterZone?.color||"#6B2D8B"):"#9CA3AF", fontWeight:700 }}>{counterAmt>0&&totalMkt>0?`${((counterAmt/totalMkt)*100).toFixed(1)}%`:"—"}</div></div>
+              <div><label style={S.lbl}>vs Your Offer</label><div style={{ ...S.inp, color:counterAmt>(offerAmt>0?offerAmt:calcOffer)?"#991b1b":"#166534", fontWeight:700 }}>{counterAmt>0&&(offerAmt>0||calcOffer>0)?`$${Math.abs(counterAmt-(offerAmt>0?offerAmt:calcOffer)).toFixed(2)} ${counterAmt>(offerAmt>0?offerAmt:calcOffer)?"over":"under"}`:"—"}</div></div>
+            </div>
+            {counterAmt > 0 && totalMkt > 0 && (
+              <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:12, color:"#9CA3AF" }}>Active offer: <strong style={{color:"#111827"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
+                <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
+              </div>
+            )}
           </div>
         </div>
       </>}
