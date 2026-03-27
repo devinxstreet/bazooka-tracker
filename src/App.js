@@ -771,70 +771,73 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
           );
         })()}
 
-        {invTab==="cards" && <>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
-          <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#111827":"#9CA3AF", cursor:"pointer" }}>
-            <option value="">All Types</option>
-            {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
-          </select>
-          <span style={{ color:"#9CA3AF", fontSize:12, whiteSpace:"nowrap" }}>{filtered.length} cards</span>
-          {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
-            <button onClick={handleBulkDelete} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              🗑 Delete {selected.size} selected
-            </button>
-          )}
-        </div>
       </div>
-      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:920 }}>
-            <thead>
-              <tr>
-                <th style={{ ...S.th, width:40, textAlign:"center" }}>
-                  <input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll} style={{ cursor:"pointer" }}/>
-                </th>
-                {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={10}/> :
-                filtered.map((c,i) => {
-                  const used=usedIds.has(c.id);
-                  const isSel=selected.has(c.id);
-                  const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
-                  const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24)) : null;
-                  const isAging = !used && daysIn !== null && daysIn >= 60;
-                  return (
-                    <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
-                      <td style={{ ...S.td, textAlign:"center" }}>
-                        <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
-                      </td>
-                      <td style={{ ...S.td, fontWeight:700 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                          {c.cardName}
-                          {isAging && <span style={{ background:"#FEF3C7", color:"#92400e", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>⏰ {daysIn}d</span>}
-                        </div>
-                      </td>
-                      <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
-                      <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
-                      <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.source||"—"}</td>
-                      <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
-                      <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
-                      <td style={S.td}><Badge bg={used?"#FEE2E2":"#D6F4E3"} color={used?"#991b1b":"#166534"}>{used?"Used":"Available"}</Badge></td>
-                      <td style={S.td}>{CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }}>✕</button>}</td>
-                    </tr>
-                  );
-                })
-              }
-            </tbody>
-          </table>
+
+      {invTab==="cards" && <>
+        <div style={{ ...S.card }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
+            <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#111827":"#9CA3AF", cursor:"pointer" }}>
+              <option value="">All Types</option>
+              {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
+            </select>
+            <span style={{ color:"#9CA3AF", fontSize:12, whiteSpace:"nowrap" }}>{filtered.length} cards</span>
+            {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
+              <button onClick={handleBulkDelete} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                🗑 Delete {selected.size} selected
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-      </>
-      }
+        <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:920 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...S.th, width:40, textAlign:"center" }}>
+                    <input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll} style={{ cursor:"pointer" }}/>
+                  </th>
+                  {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={10}/> :
+                  filtered.map((c,i) => {
+                    const used=usedIds.has(c.id);
+                    const isSel=selected.has(c.id);
+                    const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                    const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24)) : null;
+                    const isAging = !used && daysIn !== null && daysIn >= 60;
+                    return (
+                      <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
+                        <td style={{ ...S.td, textAlign:"center" }}>
+                          <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
+                        </td>
+                        <td style={{ ...S.td, fontWeight:700 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            {c.cardName}
+                            {isAging && <span style={{ background:"#FEF3C7", color:"#92400e", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>⏰ {daysIn}d</span>}
+                          </div>
+                        </td>
+                        <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
+                        <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
+                        <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
+                        <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
+                        <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.source||"—"}</td>
+                        <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
+                        <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
+                        <td style={{ ...S.td, color:"#9CA3AF", fontSize:12 }}>{c.addedBy||"—"}</td>
+                        <td style={S.td}><Badge bg={used?"#FEE2E2":"#D6F4E3"} color={used?"#991b1b":"#166534"}>{used?"Used":"Available"}</Badge></td>
+                        <td style={S.td}>{CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }}>✕</button>}</td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>}
     </div>
   );
 }
