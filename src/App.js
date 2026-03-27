@@ -681,7 +681,97 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", marginBottom:12 }}>
+          <button onClick={()=>setInvTab("cards")} style={{ background:invTab==="cards"?"#1A1A2E":"transparent", color:invTab==="cards"?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab==="cards"?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📦 Cards</button>
+          <button onClick={()=>setInvTab("lots")} style={{ background:invTab==="lots"?"#1A1A2E":"transparent", color:invTab==="lots"?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab==="lots"?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗂 Lot History</button>
+          <button onClick={()=>setInvTab("aging")} style={{ background:invTab==="aging"?"#1A1A2E":"transparent", color:invTab==="aging"?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab==="aging"?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>⏰ Aging</button>
+        </div>
+
+        {invTab==="lots" && (() => {
+          // Group cards by seller + date
+          const lots = {};
+          inventory.forEach(c => {
+            const key = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
+            if (!lots[key]) lots[key] = { seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"—", payment:c.payment||"—", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"—" };
+            lots[key].cards.push(c);
+          });
+          const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {lotList.length===0 ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div> :
+                lotList.map((lot,i) => {
+                  const usedInLot = lot.cards.filter(c=>usedIds.has(c.id)).length;
+                  const availInLot = lot.cards.length - usedInLot;
+                  return (
+                    <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, padding:"14px 18px", background:"#FAFAFA" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                        <div>
+                          <span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{lot.seller}</span>
+                          <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{lot.date}</span>
+                        </div>
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <span style={{ fontSize:12, color:"#6B7280" }}>via {lot.source}</span>
+                          <span style={{ fontSize:12, color:"#6B7280" }}>{lot.payment}</span>
+                          <span style={{ fontWeight:700, color:"#6B2D8B", fontSize:13 }}>${lot.lotPaid.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Total cards: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{availInLot}</strong></span>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Added by: <strong style={{color:"#111827"}}>{lot.addedBy}</strong></span>
+                      </div>
+                      <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {CARD_TYPES.map(ct => {
+                          const count = lot.cards.filter(c=>c.cardType===ct).length;
+                          if (count===0) return null;
+                          const cc = CC[ct];
+                          return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          );
+        })()}
+
+        {invTab==="aging" && (() => {
+          const agingCards = inventory.filter(c => {
+            if (usedIds.has(c.id)) return false;
+            const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24)) : null;
+            return daysIn !== null && daysIn >= 30;
+          }).sort((a,b) => new Date(a.dateAdded)-new Date(b.dateAdded));
+          return (
+            <div>
+              {agingCards.length===0
+                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>🎉 No aging cards — all inventory is fresh!</div>
+                : <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {agingCards.map((c,i) => {
+                      const daysIn = Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24));
+                      const cc = CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                      const urgency = daysIn >= 90 ? {bg:"#FEE2E2",color:"#991b1b"} : daysIn >= 60 ? {bg:"#FEF3C7",color:"#92400e"} : {bg:"#F9FAFB",color:"#6B7280"};
+                      return (
+                        <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:urgency.bg, border:`1px solid ${urgency.color}22`, borderRadius:8 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <span style={{ fontWeight:700, color:"#111827" }}>{c.cardName}</span>
+                            <span style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 6px", fontSize:10, fontWeight:700 }}>{c.cardType}</span>
+                          </div>
+                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Added {c.date||"—"}</span>
+                            <span style={{ fontWeight:700, color:urgency.color, fontSize:13 }}>{daysIn} days in stock</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+              }
+            </div>
+          );
+        })()}
+
+        {invTab==="cards" && <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
           <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#111827":"#9CA3AF", cursor:"pointer" }}>
             <option value="">All Types</option>
@@ -712,12 +802,19 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                   const used=usedIds.has(c.id);
                   const isSel=selected.has(c.id);
                   const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                  const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24)) : null;
+                  const isAging = !used && daysIn !== null && daysIn >= 60;
                   return (
                     <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
                       <td style={{ ...S.td, textAlign:"center" }}>
                         <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
                       </td>
-                      <td style={{ ...S.td, fontWeight:700 }}>{c.cardName}</td>
+                      <td style={{ ...S.td, fontWeight:700 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          {c.cardName}
+                          {isAging && <span style={{ background:"#FEF3C7", color:"#92400e", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>⏰ {daysIn}d</span>}
+                        </div>
+                      </td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
                       <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
