@@ -183,7 +183,8 @@ function LoginScreen({ onLogin }) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────
-function Dashboard({ inventory, breaks, user }) {
+function Dashboard({ inventory, breaks, user, userRole, dark=false }) {
+  const S = getS(dark);
   const usedIds = new Set(breaks.map(b => b.inventoryId));
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, invested:0, market:0 }; });
@@ -408,7 +409,7 @@ function Dashboard({ inventory, breaks, user }) {
 }
 
 // ─── LOT COMP ─────────────────────────────────────────────────────
-function LotComp({ onAccept, onSaveComp, comps, user }) {
+function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) {
   const [seller,     setSeller]  = useState({ name:"", contact:"", date:"", source:"", payment:"" });
   const [lotPct,     setLotPct]  = useState("");
   const [finalOffer, setFOffer]  = useState("");
@@ -644,6 +645,11 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
                         <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                           📥 Load into Builder
                         </button>
+                        {CAN_DELETE.includes(userRole?.role) && (
+                          <button onClick={()=>{ if(window.confirm("Delete this comp from history?")) onDeleteComp(c.id); }} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                            🗑
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
@@ -821,7 +827,8 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
 
 
 // ─── INVENTORY ────────────────────────────────────────────────────
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, dark=false }) {
+  const S = getS(dark);
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [selected, setSelected] = useState(new Set());
@@ -1013,7 +1020,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
 }
 
 // ─── BREAK LOG ────────────────────────────────────────────────────
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user, dark=false }) {
+  const S = getS(dark);
   const userName = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,  setBreaker]  = useState(matchedBreaker);
@@ -1321,6 +1329,23 @@ const GlobalStyles = ({ darkMode }) => {
       ::-webkit-scrollbar-thumb { background: #F0D0DC; border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: #E8317A; }
 
+      /* Dark mode overrides */
+      .bzk-dark .bzk-card { background: #13131f !important; border-color: #1e1e3a !important; box-shadow: 0 2px 12px rgba(232,49,122,0.08) !important; }
+      .bzk-dark input, .bzk-dark select { background: #0d0d1a !important; border-color: #1e1e3a !important; color: #e2e8f0 !important; }
+      .bzk-dark input::placeholder { color: #4a4a6a !important; }
+      .bzk-dark table thead tr { background: #0d0d1a !important; }
+      .bzk-dark table th { background: #0d0d1a !important; color: #E8317A !important; border-color: #1e1e3a !important; }
+      .bzk-dark table td { border-color: #13131f !important; color: #e2e8f0 !important; }
+      .bzk-dark .inv-row:hover { background: #1a1a2e !important; }
+      .bzk-dark .break-row:hover { background: #1a1a2e !important; }
+      .bzk-dark .tab-content { background: transparent; }
+      .bzk-dark .bzk-inp { background: #0d0d1a !important; border-color: #1e1e3a !important; color: #e2e8f0 !important; }
+      .bzk-dark .bzk-th { background: #0d0d1a !important; color: #E8317A !important; }
+      .bzk-dark .bzk-td { border-bottom-color: #13131f !important; }
+      .bzk-dark .bzk-fafafa { background: #0d0d1a !important; }
+      .bzk-dark button:not(.nav-tab):not(.bzk-pill) { filter: brightness(0.85) saturate(1.2); }
+      .bzk-dark .empty-state { color: #2a2a4a !important; }
+
       /* Empty state */
       .empty-state { 
         padding: 60px 0; text-align: center; color: #D1D5DB;
@@ -1342,6 +1367,7 @@ export default function App() {
   const [comps,     setComps]     = useState([]);
   const [toast,     setToast]     = useState(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="1");
   const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="true");
 
   // Auth listener
@@ -1394,6 +1420,11 @@ export default function App() {
   async function handleBulkRemove(ids) {
     for (const id of ids) { await deleteDoc(doc(db,"inventory",id)); }
     showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
+  }
+
+  async function handleDeleteComp(id) {
+    await deleteDoc(doc(db,"comps",id));
+    showToast("🗑 Comp deleted");
   }
 
   async function handleSaveComp(comp) {
@@ -1465,17 +1496,20 @@ export default function App() {
               <button onClick={toggleDark} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Toggle dark mode">
                 {darkMode ? "☀️" : "🌙"}
               </button>
-              <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+              <button onClick={()=>{const nd=!darkMode;setDarkMode(nd);localStorage.setItem("bzk_dark",nd?"1":"0");}} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Toggle dark mode">
+              {darkMode?"☀️":"🌙"}
+            </button>
+          <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
-        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)}/>}
-        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} comps={comps} user={user}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)}/>}
-        {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
+        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={getUserRole(user)}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
+        {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user} dark={darkMode}/> : <AccessDenied msg="Break Log access is restricted." />)}
       </div>
 
       {toast && (
