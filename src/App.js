@@ -9,7 +9,11 @@ import {
 const CARD_TYPES = ["Giveaway Cards","First-Timer Cards","Insurance Cards","Chaser Cards"];
 const BREAKERS   = ["Dev","Dre","Krystal"];
 const USAGE_TYPES = ["Giveaway","First-Timer Pack","Insurance Pull","Chaser Pull"];
-const SOURCES    = ["Facebook","Discord","Estate Sale","Local Buy","Other"];
+const SOURCES    = ["Discord","Facebook","Other"];
+
+const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash","Other"];
+
+const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash","Other"];
 
 const TARGETS = {
   "Giveaway Cards":    { monthly:2000, buffer:500  },
@@ -43,17 +47,17 @@ function getZone(pct) {
 
 // ─── STYLES ──────────────────────────────────────────────────────
 const S = {
-  card: { background:"#FFFFFF", border:"1px solid #E5E7EB", borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.06)" },
-  inp:  { background:"#F9FAFB", border:"1px solid #D1D5DB", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+  card: { background:"#374151", border:"1px solid #4B5563", borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" },
+  inp:  { background:"#1F2937", border:"1px solid #4B5563", borderRadius:7, padding:"8px 12px", color:"#F9FAFB", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#F3F4F6", color:"#374151", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
-  td:   { padding:"8px 14px", borderBottom:"1px solid #F3F4F6", fontSize:13, color:"#111827" },
+  th:   { padding:"9px 14px", background:"#111827", color:"#E8B84B", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
+  td:   { padding:"8px 14px", borderBottom:"1px solid #111827", fontSize:13, color:"#F9FAFB" },
 };
 
 // ─── MICRO COMPONENTS ────────────────────────────────────────────
 function SectionLabel({ t }) {
   return (
-    <div style={{ fontSize:10, fontWeight:800, color:"#1A1A2E", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+    <div style={{ fontSize:10, fontWeight:800, color:"#E8B84B", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
       <div style={{ width:14, height:2, background:"#E8B84B", borderRadius:1 }} />{t}
     </div>
   );
@@ -124,11 +128,11 @@ function LoginScreen({ onLogin }) {
   }
 
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#F3F4F6", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
-      <div style={{ background:"#FFFFFF", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 24px rgba(0,0,0,0.1)", textAlign:"center", maxWidth:380, width:"100%" }}>
-        <img src="/Bazooka_Logo.png" alt="Bazooka" style={{ width:220, height:"auto", marginBottom:16 }}/>
-        <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:32, fontStyle:"italic" }}>Bo Jackson Battle Arena · Tracker</div>
-        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FFFFFF", border:"2px solid #E5E7EB", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#374151", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#111827", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+      <div style={{ background:"#374151", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 24px rgba(0,0,0,0.1)", textAlign:"center", maxWidth:380, width:"100%" }}>
+        <div style={{ fontSize:36, fontWeight:900, color:"#F9FAFB", letterSpacing:3, marginBottom:4 }}>BAZOOKA</div>
+        <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:32, fontStyle:"italic" }}>Bazooka Inventory Tracker</div>
+        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#1F2937", border:"2px solid #4B5563", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#F9FAFB", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
             <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
@@ -163,7 +167,7 @@ function Dashboard({ inventory, breaks }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {[
-          { l:"Cards in Inventory", v:inventory.length,          c:"#1A1A2E" },
+          { l:"Cards in Inventory", v:inventory.length,          c:"#F9FAFB" },
           { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#6B2D8B" },
           { l:"Portfolio Zone",     v:oz?oz.label:"No data",     c:oz?.color||"#9CA3AF" },
         ].map(({ l, v, c }) => (
@@ -248,16 +252,17 @@ function Dashboard({ inventory, breaks }) {
 
 // ─── LOT COMP ─────────────────────────────────────────────────────
 function LotComp({ onAccept }) {
-  const [seller, setSeller]     = useState({ name:"", contact:"", date:"", source:"" });
+  const [seller, setSeller]     = useState({ name:"", contact:"", date:"", source:"", payment:"" });
+  const [cardQty, setCardQty]   = useState(1);
   const [lotPct, setLotPct]     = useState("");
   const [finalOffer, setFOffer] = useState("");
   const [custView, setCustView] = useState(false);
-  const [rows, setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", include:true })));
+  const [rows, setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
 
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
-  const totalMkt  = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0), 0);
-  const calcOffer = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*pctNum, 0);
+  const totalMkt  = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
+  const calcOffer = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1)*pctNum, 0);
   const offerAmt  = parseFloat(finalOffer)||0;
   const dispOffer = offerAmt||calcOffer;
   const lotZone   = totalMkt>0&&dispOffer>0 ? getZone(dispOffer/totalMkt) : null;
@@ -267,16 +272,23 @@ function LotComp({ onAccept }) {
   function doAccept() {
     if (included.length===0) return;
     const n = included.length;
-    const cards = included.map(r => ({
-      id:uid(), cardName:r.name, cardType:r.cardType,
-      marketValue:parseFloat(r.mktVal)||0,
-      lotTotalPaid:dispOffer, cardsInLot:n,
-      costPerCard:dispOffer/n,
-      buyPct:(dispOffer/n)/(parseFloat(r.mktVal)||1),
-      date:seller.date||new Date().toLocaleDateString(),
-      source:seller.source, seller:seller.name,
-      dateAdded:new Date().toISOString(),
-    }));
+    const cards = [];
+    included.forEach(r => {
+      const qty = parseInt(r.qty) || cardQty || 1;
+      for (let i = 0; i < qty; i++) {
+        cards.push({
+          id:uid(), cardName:r.name, cardType:r.cardType,
+          marketValue:parseFloat(r.mktVal)||0,
+          lotTotalPaid:dispOffer, cardsInLot:n,
+          costPerCard:dispOffer/n,
+          buyPct:(dispOffer/n)/(parseFloat(r.mktVal)||1),
+          date:seller.date||new Date().toLocaleDateString(),
+          source:seller.source, seller:seller.name,
+          payment:seller.payment,
+          dateAdded:new Date().toISOString(),
+        });
+      }
+    });
     onAccept(cards, seller);
   }
 
@@ -288,22 +300,23 @@ function LotComp({ onAccept }) {
           <div style={{ fontSize:30, fontWeight:900, color:"#E8B84B", letterSpacing:3 }}>⚡ BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
-        <div style={{ background:"#F9FAFB", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+        <div style={{ background:"#1F2937", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#111827" }}>{seller.name||"—"}</strong></div>
           <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Date: </span><strong style={{ color:"#111827" }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
         <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:14 }}>
-          <thead><tr>{["#","Card Name","Card Type","Market Value","Bazooka's Offer"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{["#","Card Name","Card Type","Qty","Market Value","Bazooka's Offer"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
             {included.length===0 ? <EmptyRow msg="No cards added." cols={5}/> :
               included.map((r,i) => {
                 const mv=parseFloat(r.mktVal)||0;
                 const cc=CC[r.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                 return (
-                  <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#F9FAFB" }}>
+                  <tr key={r.id} style={{ background:i%2===0?"#374151":"#2D3748" }}>
                     <td style={{ ...S.td, color:"#D1D5DB", textAlign:"center", width:36 }}>{i+1}</td>
                     <td style={{ ...S.td, fontWeight:700 }}>{r.name}</td>
                     <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
+                    <td style={{ ...S.td, color:"#9CA3AF" }}>{r.qty||1}</td>
                     <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${mv.toFixed(2)}</td>
                     <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
                   </tr>
@@ -313,7 +326,7 @@ function LotComp({ onAccept }) {
           </tbody>
         </table>
         {[["Total Cards",included.length],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
-          <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#F9FAFB", borderRadius:6, marginBottom:4 }}>
+          <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#1F2937", borderRadius:6, marginBottom:4 }}>
             <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span><span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
           </div>
         ))}
@@ -337,6 +350,8 @@ function LotComp({ onAccept }) {
           <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
           <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
           <SelectInput label="Source" value={seller.source} onChange={v => setSeller(p=>({...p,source:v}))} options={SOURCES} />
+          <SelectInput label="Payment Method" value={seller.payment} onChange={v => setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
+          <TextInput label="Qty Per Card Name (e.g. 50 Silver Battlefoils = 50)" type="number" value={String(cardQty)} onChange={v => setCardQty(parseInt(v)||1)} placeholder="1" />
         </div>
       </div>
 
@@ -361,13 +376,13 @@ function LotComp({ onAccept }) {
         <SectionLabel t="Cards in This Lot" />
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", minWidth:620 }}>
-            <thead><tr>{["#","Card Name","Card Type","Market Value ($)","Offer/Card ($)","Zone","Include"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["#","Card Name","Card Type","Qty","Market Value ($)","Offer/Card ($)","Zone","Include"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((r,i) => {
                 const mv=parseFloat(r.mktVal)||0;
                 const cz=mv>0?getZone(pctNum):null;
                 return (
-                  <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#F9FAFB", opacity:r.include?1:0.35 }}>
+                  <tr key={r.id} style={{ background:i%2===0?"#374151":"#2D3748", opacity:r.include?1:0.35 }}>
                     <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                     <td style={{ ...S.td, width:200 }}>
                       <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12 }}/>
@@ -377,6 +392,12 @@ function LotComp({ onAccept }) {
                         <option value="">Type...</option>
                         {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
                       </select>
+                    </td>
+                    <td style={{ ...S.td, width:70 }}>
+                      <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:60 }}/>
+                    </td>
+                    <td style={{ ...S.td, width:60 }}>
+                      <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F9FAFB", width:50 }}/>
                     </td>
                     <td style={{ ...S.td, width:120 }}>
                       <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:90 }}/>
@@ -393,7 +414,7 @@ function LotComp({ onAccept }) {
           </table>
         </div>
         <div style={{ marginTop:10 }}>
-          <Btn onClick={()=>setRows(p=>[...p,{id:uid(),name:"",cardType:"",mktVal:"",include:true}])} variant="ghost">+ Add Row</Btn>
+          <Btn onClick={()=>setRows(p=>[...p,{id:uid(),name:"",cardType:"",mktVal:"",qty:1,include:true}])} variant="ghost">+ Add Row</Btn>
         </div>
       </div>
 
@@ -449,14 +470,14 @@ function Inventory({ inventory, breaks, onRemove }) {
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", minWidth:880 }}>
-            <thead><tr>{["Card Name","Type","Market Value","Cost/Card","Buy %","Zone","Lot Paid","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Card Name","Type","Market Value","Cost/Card","Buy %","Zone","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
               {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={12}/> :
                 filtered.map((c,i) => {
                   const used=usedIds.has(c.id);
                   const cc=CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   return (
-                    <tr key={c.id} style={{ background:i%2===0?"#FFFFFF":"#F9FAFB", opacity:used?0.45:1 }}>
+                    <tr key={c.id} style={{ background:i%2===0?"#374151":"#2D3748", opacity:used?0.45:1 }}>
                       <td style={{ ...S.td, fontWeight:700 }}>{c.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
@@ -464,6 +485,7 @@ function Inventory({ inventory, breaks, onRemove }) {
                       <td style={{ ...S.td, fontWeight:700, color:getZone(c.buyPct)?.color||"#9CA3AF" }}>{c.buyPct?(c.buyPct*100).toFixed(1)+"%":"—"}</td>
                       <td style={S.td}><ZoneBadge pct={c.buyPct}/></td>
                       <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
+                      <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.source||"—"}</td>
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
@@ -529,7 +551,7 @@ function BreakLog({ inventory, breaks, onAdd }) {
           </Field>
         </div>
         {selCard && (
-          <div style={{ marginBottom:12, padding:"10px 14px", background:"#F9FAFB", borderRadius:8, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ marginBottom:12, padding:"10px 14px", background:"#1F2937", borderRadius:8, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>
             <span style={{ color:"#6B7280", fontSize:12 }}>Card: <strong style={{ color:"#111827" }}>{selCard.cardName}</strong></span>
             <Badge bg={CC[selCard.cardType]?.bg} color={CC[selCard.cardType]?.text}>{selCard.cardType}</Badge>
             <span style={{ color:"#6B7280", fontSize:12 }}>Value: <strong style={{ color:"#92400e" }}>${(selCard.marketValue||0).toFixed(2)}</strong></span>
@@ -570,7 +592,7 @@ function BreakLog({ inventory, breaks, onAdd }) {
                   const bc=BC[b.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   return (
-                    <tr key={b.id} style={{ background:i%2===0?"#FFFFFF":"#F9FAFB" }}>
+                    <tr key={b.id} style={{ background:i%2===0?"#374151":"#2D3748" }}>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
@@ -663,12 +685,12 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:"#F3F4F6", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
+    <div style={{ background:"#1F2937", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
       <div style={{ background:"#1A1A2E", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
-          <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <img src="/Bazooka_Logo.png" alt="Bazooka" style={{ height:40, width:"auto" }}/>
-            <span style={{ fontSize:10, color:"#4a4a6a", borderLeft:"1px solid #2a2a4a", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BJBA Tracker</span>
+          <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:20, fontWeight:900, color:"#E8B84B", letterSpacing:2 }}>BAZOOKA</span>
+            <span style={{ fontSize:10, color:"#4a4a6a", borderLeft:"1px solid #2a2a4a", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
             {TABS.map(t => (
