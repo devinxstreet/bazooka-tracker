@@ -545,7 +545,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                 <th style={{ ...S.th, width:40, textAlign:"center" }}>
                   <input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll} style={{ cursor:"pointer" }}/>
                 </th>
-                {["Card Name","Type","Market Value","Cost/Card","Buy %","Zone","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+                {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
