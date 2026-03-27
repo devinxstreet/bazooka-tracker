@@ -729,6 +729,11 @@ export default function App() {
     await deleteDoc(doc(db,"inventory",id));
   }
 
+  async function handleBulkRemove(ids) {
+    for (const id of ids) { await deleteDoc(doc(db,"inventory",id)); }
+    showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
+  }
+
   async function handleAddBreak(b) {
     await setDoc(doc(db,"breaks",b.id), b);
     showToast(`✅ ${b.cardName} logged out by ${b.breaker}`);
