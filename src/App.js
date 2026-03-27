@@ -33,7 +33,7 @@ const BC = {
 };
 const CAN_DELETE        = ["Admin"];
 const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement"];
-const CAN_VIEW_LOT_COMP = ["Admin","Procurement"];
+const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"];
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 function getUserRole(user) {
@@ -186,7 +186,9 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user }) {
+function Dashboard({ inventory, breaks, user, userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
   const usedIds = new Set(breaks.map(b => b.inventoryId));
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, invested:0, market:0 }; });
@@ -223,12 +225,12 @@ function Dashboard({ inventory, breaks, user }) {
             {alerts.length===0 ? "✅ All Good" : `🚨 ${alerts.length} Critical`}
           </span>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?4:3},1fr)`, gap:10, marginBottom:16 }}>
           {[
             { l:"Total Cards",    v:inventory.length, c:"#111827" },
             { l:"Available",      v:availCount,       c:"#166534" },
             { l:"Used",           v:usedCount,        c:"#991b1b" },
-            { l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" },
+            ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
               <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
@@ -278,6 +280,7 @@ function Dashboard({ inventory, breaks, user }) {
             );
           })}
         </div>
+        {canSeeFinancials && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
           {[
             { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
@@ -290,6 +293,7 @@ function Dashboard({ inventory, breaks, user }) {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       <div style={S.card}>
@@ -318,7 +322,7 @@ function Dashboard({ inventory, breaks, user }) {
                   </div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <ZoneBadge pct={pct} />
+                  {canSeeFinancials && <ZoneBadge pct={pct} />}
                   <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{sl}</span>
                 </div>
               </div>
@@ -352,6 +356,7 @@ function Dashboard({ inventory, breaks, user }) {
         </div>
       </div>
 
+      {canSeeFinancials && (
       <div style={S.card}>
         <SectionLabel t="Portfolio Health" />
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
@@ -370,7 +375,9 @@ function Dashboard({ inventory, breaks, user }) {
           <span style={{ fontWeight:700, color:oz.color, fontSize:13 }}>Portfolio {oz.label}{oPct<0.65?" — Healthy":oPct<=0.70?" — Watch blended rate":" — Review purchases"}</span>
         </div>}
       </div>
+      )}
 
+      {canSeeFinancials && (
       <div style={S.card}>
         <SectionLabel t="Buying Zone Reference" />
         {[
@@ -385,11 +392,13 @@ function Dashboard({ inventory, breaks, user }) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
 
 function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"" });
   const [lotPct,       setLotPct]       = useState("");
@@ -496,7 +505,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </table>
         </div>
         <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
-          {[["Total Cards",totalCards],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
+          {[["Total Cards",totalCards],...(canSeeFinancials?[["Total Market Value",`$${totalMkt.toFixed(2)}`]]:[])] .map(([l,v]) => (
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #FFF0F5" }}>
               <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span>
               <span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
@@ -532,12 +541,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             <div><label style={S.lbl}>Buy % (blank=60%)</label><input type="number" value={quickPct} onChange={e=>setQuickPct(e.target.value)} placeholder="60" style={S.inp}/></div>
             <div><label style={S.lbl}>Your Final Offer ($)</label><input type="number" value={quickOffer} onChange={e=>setQuickOffer(e.target.value)} placeholder={quickCalcOffer.toFixed(2)} style={S.inp}/></div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?4:2},1fr)`, gap:10 }}>
             {[
-              { l:"Total Market Value", v:`$${quickTotal.toFixed(2)}`,     c:"#92400e" },
-              { l:"Calculated Offer",   v:`$${quickCalcOffer.toFixed(2)}`, c:"#166534" },
-              { l:"Your Offer",         v:`$${quickOfferAmt.toFixed(2)}`,  c:"#6B2D8B" },
-              { l:"Lot Zone",           v:quickZone?quickZone.label:"—",   c:quickZone?.color||"#9CA3AF" },
+              ...(canSeeFinancials ? [
+                { l:"Total Market Value", v:`$${quickTotal.toFixed(2)}`,     c:"#92400e" },
+                { l:"Calculated Offer",   v:`$${quickCalcOffer.toFixed(2)}`, c:"#166534" },
+              ] : []),
+              { l:"Your Offer",  v:`$${quickOfferAmt.toFixed(2)}`,  c:"#6B2D8B" },
+              { l:"Lot Zone",    v:quickZone?quickZone.label:"—",   c:quickZone?.color||"#9CA3AF" },
             ].map(({l,v,c}) => (
               <div key={l} style={{ background:"#F9FAFB", border:"1px solid #F0D0DC", borderRadius:10, padding:"12px", textAlign:"center" }}>
                 <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
@@ -554,30 +565,42 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>No comps saved yet.</div>
             : comps.map(c => {
                 const z = getZone(c.blendedPct);
+                const savedByRole = Object.entries(ROLES).find(([k]) => (c.savedBy||"").toLowerCase().includes(k))?.[1];
+                const savedAt = c.dateAdded ? new Date(c.dateAdded).toLocaleString() : c.date;
                 return (
                   <div key={c.id} style={{ ...S.card, border:`1px solid ${z?.color||"#F0D0DC"}33` }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                       <div>
-                        <span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{c.seller||"Unknown"}</span>
-                        <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{c.date}</span>
-                        <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>by {c.savedBy}</span>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                          <span style={{ fontWeight:800, fontSize:15, color:"#111827" }}>{c.seller||"Unknown Seller"}</span>
+                          <span style={{ background:c.status==="accepted"?"#D6F4E3":c.status==="passed"?"#FEE2E2":"#FFF9DB", color:c.status==="accepted"?"#166534":c.status==="passed"?"#991b1b":"#92400e", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
+                            {c.status==="accepted"?"✅ Accepted":c.status==="passed"?"❌ Passed":"💾 Saved"}
+                          </span>
+                          {z && canSeeFinancials && <span style={{ background:z.bg, color:z.color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{z.label}</span>}
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                          <span style={{ fontSize:11, color:"#9CA3AF" }}>Saved by</span>
+                          <span style={{ fontWeight:700, fontSize:12, color:"#111827" }}>{c.savedBy||"—"}</span>
+                          {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
+                          <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
+                          <span style={{ fontSize:11, color:"#9CA3AF" }}>{savedAt}</span>
+                        </div>
                       </div>
-                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                        <span style={{ background:c.status==="accepted"?"#D6F4E3":c.status==="passed"?"#FEE2E2":"#FFF9DB", color:c.status==="accepted"?"#166534":c.status==="passed"?"#991b1b":"#92400e", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
-                          {c.status==="accepted"?"✅ Accepted":c.status==="passed"?"❌ Passed":"💾 Saved"}
-                        </span>
-                        {z && <span style={{ background:z.bg, color:z.color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{z.label}</span>}
+                      <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
                         <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📥 Load into Builder</button>
-                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm("Delete this comp?")) onDeleteComp(c.id); }} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
+                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm(`Delete this comp from history?\n\nSaved by: ${c.savedBy||"Unknown"}\nSeller: ${c.seller||"Unknown"}\n\nThis action will be logged.`)) onDeleteComp(c.id); }} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", gap:16, flexWrap:"wrap", paddingTop:8, borderTop:"1px solid #FFF0F5" }}>
                       <span style={{ fontSize:12, color:"#9CA3AF" }}>Cards: <strong style={{color:"#111827"}}>{c.totalCards}</strong></span>
-                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
-                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
-                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
-                      <span style={{ fontSize:11, color: c.cards&&c.cards.length>0 ? "#166534" : "#92400e", fontWeight:700 }}>
-                        {c.cards&&c.cards.length>0 ? `✓ ${c.cards.length} card detail${c.cards.length!==1?"s":""} saved` : "⚠ No card details — can re-import manually"}
+                      {canSeeFinancials && <>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
+                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
+                      </>}
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Source: <strong style={{color:"#111827"}}>{c.source||"—"}</strong></span>
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>
+                        {c.cards&&c.cards.length>0 ? <span style={{color:"#166534",fontWeight:700}}>✓ {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#92400e",fontWeight:700}}>⚠ No card details</span>}
                       </span>
                     </div>
                   </div>
@@ -661,13 +684,13 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
         <div style={{ ...S.card, border:"2px solid #E8317A33" }}>
           <SectionLabel t="Final Offer" />
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
+          <div style={{ display:"grid", gridTemplateColumns:`1fr 1fr${canSeeFinancials?" 1fr":""}`, gap:12, alignItems:"end", marginBottom:16 }}>
             <div>
               <label style={S.lbl}>Final Offer ($) — blank uses calculated</label>
               <input type="number" value={finalOffer} onChange={e=>setFOffer(e.target.value)} placeholder={`${calcOffer.toFixed(2)} (auto)`} style={{ ...S.inp, fontWeight:700, fontSize:15 }}/>
             </div>
             <div><label style={S.lbl}>Lot Zone</label><div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`2px solid ${lotZone?.color||"#E8317A"}`, color:lotZone?.color||"#9CA3AF", fontWeight:900, fontSize:14 }}>{lotZone?lotZone.label:"—"}</div></div>
-            <div><label style={S.lbl}>Est. Margin</label><div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>{dispOffer>0&&totalMkt>0?`$${(totalMkt-dispOffer).toFixed(2)}`:"—"}</div></div>
+            {canSeeFinancials && <div><label style={S.lbl}>Est. Margin</label><div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>{dispOffer>0&&totalMkt>0?`$${(totalMkt-dispOffer).toFixed(2)}`:"—"}</div></div>}
           </div>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
             <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
@@ -691,6 +714,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 }
 
 function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
@@ -737,7 +761,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
                     <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, padding:"14px 18px", background:"#FAFAFA" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
                         <div><span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{lot.seller}</span><span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
-                        <div style={{ display:"flex", gap:8 }}><span style={{ fontSize:12, color:"#6B7280" }}>{lot.source} · {lot.payment}</span><span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span></div>
+                        <div style={{ display:"flex", gap:8 }}><span style={{ fontSize:12, color:"#6B7280" }}>{lot.source}{canSeeFinancials ? ` · ${lot.payment}` : ""}</span>{canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span>}</div>
                       </div>
                       <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
                         <span style={{ fontSize:12, color:"#9CA3AF" }}>Total: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
@@ -811,7 +835,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
               <thead>
                 <tr>
                   <th style={{ ...S.th, width:40, textAlign:"center" }}><input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll}/></th>
-                  {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+                  {["Card Name","Type",...(canSeeFinancials?["Market Value","Lot Paid","Payment"]:[]),"Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -832,9 +856,11 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
                           </div>
                         </td>
                         <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
-                        <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
-                        <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
-                        <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
+                        {canSeeFinancials && <>
+                          <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
+                          <td style={{ ...S.td, color:"#6B7280" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
+                          <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.payment||"—"}</td>
+                        </>}
                         <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.source||"—"}</td>
                         <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
                         <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
@@ -854,7 +880,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,    setBreaker]    = useState(matchedBreaker);
@@ -919,7 +946,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) 
                             <span style={{ fontWeight:700, fontSize:13 }}>{c.cardName}</span>
                             <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
                           </div>
-                          <span style={{ fontSize:12, color:"#92400e", fontWeight:600 }}>${(c.marketValue||0).toFixed(2)}</span>
+                          {canSeeFinancials && <span style={{ fontSize:12, color:"#92400e", fontWeight:600 }}>${(c.marketValue||0).toFixed(2)}</span>}
                         </div>
                       );
                     })
@@ -932,7 +959,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) 
           <div style={{ marginBottom:12, padding:"10px 14px", background:"#F9FAFB", borderRadius:8, display:"flex", gap:14, alignItems:"center", flexWrap:"wrap" }}>
             <span style={{ fontSize:12, color:"#6B7280" }}>Selected: <strong style={{color:"#111827"}}>{selCard.cardName}</strong></span>
             <Badge bg={CC[selCard.cardType]?.bg} color={CC[selCard.cardType]?.text}>{selCard.cardType}</Badge>
-            <span style={{ fontSize:12, color:"#6B7280" }}>Value: <strong style={{color:"#92400e"}}>${(selCard.marketValue||0).toFixed(2)}</strong></span>
+            {canSeeFinancials && <span style={{ fontSize:12, color:"#6B7280" }}>Value: <strong style={{color:"#92400e"}}>${(selCard.marketValue||0).toFixed(2)}</strong></span>}
           </div>
         )}
         <div style={{ display:"flex", gap:10, alignItems:"end" }}>
@@ -1184,7 +1211,14 @@ export default function App() {
     await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
     showToast("💾 Comp saved to history");
   }
-  async function handleDeleteComp(id) { await deleteDoc(doc(db,"comps",id)); showToast("🗑 Comp deleted"); }
+  async function handleDeleteComp(id) {
+    const comp = comps.find(c => c.id === id);
+    if (comp) {
+      await setDoc(doc(db,"comp_log",uid()), { ...comp, action:"deleted", actionBy:user?.displayName||"Unknown", actionByEmail:user?.email||"", actionAt:new Date().toISOString() });
+    }
+    await deleteDoc(doc(db,"comps",id));
+    showToast("🗑 Comp deleted");
+  }
   async function handleAddBreak(b) {
     await setDoc(doc(db,"breaks",b.id), b);
     showToast(`✅ ${b.cardName} logged out by ${b.breaker}`);
@@ -1237,10 +1271,10 @@ export default function App() {
       </div>
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} />}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole}/>}
-        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
 
