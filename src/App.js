@@ -10,6 +10,7 @@ const CARD_TYPES = ["Giveaway Cards","First-Timer Cards","Insurance Cards","Chas
 const BREAKERS   = ["Dev","Dre","Krystal"];
 const USAGE_TYPES = ["Giveaway","First-Timer Pack","Insurance Pull","Chaser Pull"];
 const SOURCES    = ["Discord","Facebook","Other"];
+const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
 
 const TARGETS = {
   "Giveaway Cards":    { monthly:2000, buffer:500  },
@@ -73,6 +74,7 @@ function Btn({ children, onClick, variant="gold", disabled, style }) {
   const V = {
     gold:  { bg:"#E8317A", c:"#1a1a00", b:"#D4A434" },
     green: { bg:"#166534", c:"#ffffff", b:"#14532d", shadow:"0 0 16px rgba(22,101,52,0.3)" },
+    red:   { bg:"#FEE2E2", c:"#991b1b", b:"#fca5a5" },
     ghost: { bg:"#FFF0F5", c:"#6B7280", b:"#F0D0DC" },
     red:   { bg:"#FEE2E2", c:"#991b1b", b:"#fca5a5" },
   };
@@ -343,7 +345,7 @@ function LotComp({ onAccept }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <SectionLabel t="Seller Information" />
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
           <TextInput label="Seller Name"  value={seller.name}    onChange={v => setSeller(p=>({...p,name:v}))} />
           <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
           <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
@@ -499,12 +501,14 @@ function Inventory({ inventory, breaks, onRemove }) {
 }
 
 // ─── BREAK LOG ────────────────────────────────────────────────────
-function BreakLog({ inventory, breaks, onAdd }) {
-  const [breaker, setBreaker] = useState("");
-  const [date,    setDate]    = useState(new Date().toISOString().split("T")[0]);
-  const [cardId,  setCardId]  = useState("");
-  const [usage,   setUsage]   = useState("");
-  const [notes,   setNotes]   = useState("");
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
+  const [breaker,  setBreaker]  = useState("");
+  const [date,     setDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [cardId,   setCardId]   = useState("");
+  const [usage,    setUsage]    = useState("");
+  const [notes,    setNotes]    = useState("");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSel,  setBulkSel]  = useState(new Set());
 
   const usedIds   = new Set(breaks.map(b => b.inventoryId));
   const available = inventory.filter(c => !usedIds.has(c.id));
@@ -514,6 +518,20 @@ function BreakLog({ inventory, breaks, onAdd }) {
     if (!breaker||!cardId) return;
     onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString() });
     setCardId(""); setUsage(""); setNotes("");
+  }
+
+  function toggleBulkCard(id) {
+    setBulkSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  }
+
+  function handleBulkLog() {
+    if (!breaker || bulkSel.size===0) return;
+    const entries = [...bulkSel].map(id => {
+      const card = inventory.find(c=>c.id===id);
+      return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString() };
+    });
+    onBulkAdd(entries);
+    setBulkSel(new Set());
   }
 
   const sum = {};
@@ -555,7 +573,34 @@ function BreakLog({ inventory, breaks, onAdd }) {
         <div style={{ display:"flex", gap:10, alignItems:"end" }}>
           <div style={{ flex:1 }}><TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="e.g. Break #2"/></div>
           <Btn onClick={handleAdd} disabled={!breaker||!cardId} variant="green">Log Card Out</Btn>
+          <Btn onClick={()=>{setBulkMode(p=>!p);setBulkSel(new Set());}} variant="ghost">{bulkMode?"Cancel Bulk":"Bulk Log Out"}</Btn>
         </div>
+
+        {bulkMode && (
+          <div style={{ marginTop:16, borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>Select cards to log out in bulk</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px,1fr))", gap:8, maxHeight:280, overflowY:"auto", marginBottom:12 }}>
+              {available.map(c => {
+                const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                const isSel=bulkSel.has(c.id);
+                return (
+                  <div key={c.id} onClick={()=>toggleBulkCard(c.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:isSel?"#FFF0F5":"#FAFAFA", border:`1.5px solid ${isSel?"#E8317A":"#F0D0DC"}`, borderRadius:8, cursor:"pointer" }}>
+                    <input type="checkbox" checked={isSel} onChange={()=>toggleBulkCard(c.id)} style={{ cursor:"pointer" }}/>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#111827" }}>{c.cardName}</div>
+                      <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {bulkSel.size > 0 && (
+              <Btn onClick={handleBulkLog} disabled={!breaker} variant="green">
+                ✅ Log Out {bulkSel.size} Card{bulkSel.size!==1?"s":""}
+              </Btn>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
@@ -657,6 +702,11 @@ export default function App() {
     showToast(`✅ ${b.cardName} logged out by ${b.breaker}`);
   }
 
+  async function handleBulkAddBreak(entries) {
+    for (const b of entries) { await setDoc(doc(db,"breaks",b.id), b); }
+    showToast(`✅ ${entries.length} cards logged out by ${entries[0]?.breaker}`);
+  }
+
   async function handleSignOut() {
     await signOut(auth);
     setInventory([]);
@@ -708,8 +758,8 @@ export default function App() {
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks}/>}
         {tab==="comp"      && <LotComp   onAccept={handleAccept}/>}
-        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove}/>}
-        {tab==="breaks"    && <BreakLog  inventory={inventory} breaks={breaks} onAdd={handleAddBreak}/>}
+        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove}/>}
+        {tab==="breaks"    && <BreakLog  inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak}/>}
       </div>
 
       {toast && (
