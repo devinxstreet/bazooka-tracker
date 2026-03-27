@@ -861,10 +861,12 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null); // lotKey being edited
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
+  const [notesEdit,      setNotesEdit]      = useState(null);
+  const [notesForm,      setNotesForm]      = useState("");
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
@@ -925,6 +927,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const isEditing = trackingEdit === lot.key;
                     const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#9CA3AF" };
 
+                    const lotNote    = lotNotes[lot.key] || {};
+                    const isEditingNote = notesEdit === lot.key;
                     return (
                       <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, overflow:"hidden", background:"#FFFFFF" }}>
                         {/* Lot header */}
@@ -934,6 +938,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                               <span style={{ fontSize:12, color:"#6B7280" }}>{lot.source}{canSeeFinancials?` · ${lot.payment}`:""}</span>
                               {canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span>}
+                              {CAN_DELETE.includes(userRole?.role) && (
+                                <button
+                                  onClick={() => onDeleteLot(lot.key, lot.cards.map(c=>c.id))}
+                                  style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                  title="Delete entire lot">🗑 Delete Lot</button>
+                              )}
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
@@ -1005,6 +1015,46 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                 >💾 Save Tracking</button>
                                 <button
                                   onClick={() => setTrackingEdit(null)}
+                                  style={{ background:"#F3F4F6", color:"#6B7280", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                >Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Notes section */}
+                        <div style={{ borderTop:"1px solid #F0E0E8", padding:"10px 18px", background:"#FFFFFF" }}>
+                          {!isEditingNote ? (
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:10, flex:1 }}>
+                                <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, whiteSpace:"nowrap" }}>📝 Notes</span>
+                                {lotNote.notes
+                                  ? <span style={{ fontSize:12, color:"#374151", lineHeight:1.5 }}>{lotNote.notes}</span>
+                                  : <span style={{ fontSize:12, color:"#D1D5DB" }}>No notes yet</span>
+                                }
+                              </div>
+                              <button
+                                onClick={() => { setNotesEdit(lot.key); setNotesForm(lotNote.notes||""); }}
+                                style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                              >{lotNote.notes ? "✏️ Edit" : "+ Add Notes"}</button>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📝 Edit Notes</div>
+                              <textarea
+                                value={notesForm}
+                                onChange={e=>setNotesForm(e.target.value)}
+                                placeholder="e.g. Seller was great, cards were well stored, bulk lot from estate sale..."
+                                rows={3}
+                                style={{ ...S.inp, resize:"vertical", lineHeight:1.5, fontSize:12, marginBottom:8 }}
+                              />
+                              <div style={{ display:"flex", gap:8 }}>
+                                <button
+                                  onClick={() => { onSaveLotNotes(lot.key, notesForm); setNotesEdit(null); }}
+                                  style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                >💾 Save Notes</button>
+                                <button
+                                  onClick={() => setNotesEdit(null)}
                                   style={{ background:"#F3F4F6", color:"#6B7280", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
                                 >Cancel</button>
                               </div>
@@ -1420,6 +1470,7 @@ export default function App() {
   const [comps,     setComps]     = useState([]);
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
+  const [lotNotes,     setLotNotes]     = useState({});
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1431,8 +1482,9 @@ export default function App() {
     const u1 = onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")),  snap => setInventory(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u2 = onSnapshot(query(collection(db,"breaks"),    orderBy("dateAdded","asc")),  snap => setBreaks(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    const u4 = onSnapshot(collection(db,"lot_tracking"),                                  snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
-    return () => { u1(); u2(); u3(); u4(); };
+    const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
+    const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
+    return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -1476,6 +1528,17 @@ export default function App() {
     await setDoc(doc(db,"lot_tracking",lotKey), { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast("📦 Tracking info saved");
   }
+  async function handleSaveLotNotes(lotKey, notes) {
+    await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
+    showToast("📝 Notes saved");
+  }
+  async function handleDeleteLot(lotKey, cardIds) {
+    if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
+    for (const id of cardIds) await deleteDoc(doc(db,"inventory",id));
+    await deleteDoc(doc(db,"lot_tracking",lotKey)).catch(()=>{});
+    await deleteDoc(doc(db,"lot_notes",lotKey)).catch(()=>{});
+    showToast(`🗑 Lot deleted — ${cardIds.length} card${cardIds.length!==1?"s":""} removed`);
+  }
 
   const userRole = getUserRole(user);
   const TABS = [
@@ -1518,7 +1581,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
