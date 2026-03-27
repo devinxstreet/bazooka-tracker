@@ -408,7 +408,7 @@ function Dashboard({ inventory, breaks, user }) {
 }
 
 // ─── LOT COMP ─────────────────────────────────────────────────────
-function LotComp({ onAccept, user }) {
+function LotComp({ onAccept, onSaveComp, comps, user }) {
   const [seller,     setSeller]  = useState({ name:"", contact:"", date:"", source:"", payment:"" });
   const [lotPct,     setLotPct]  = useState("");
   const [finalOffer, setFOffer]  = useState("");
@@ -429,6 +429,19 @@ function LotComp({ onAccept, user }) {
 
   function upd(id, f, v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
+
+  function saveComp(status) {
+    const comp = {
+      seller: seller.name, contact: seller.contact, date: seller.date||new Date().toLocaleDateString(),
+      source: seller.source, payment: seller.payment,
+      totalCards: included.reduce((s,r)=>s+(parseInt(r.qty)||1),0),
+      totalMarket: totalMkt, offer: dispOffer,
+      blendedPct: totalMkt>0?dispOffer/totalMkt:0,
+      zone: lotZone?.label||"—", status,
+      cards: included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 }))
+    };
+    onSaveComp(comp);
+  }
 
   function doAccept() {
     if (included.length === 0) return;
@@ -457,6 +470,16 @@ function LotComp({ onAccept, user }) {
   }
 
   // ── CUSTOMER VIEW ──────────────────────────────────────────────
+  // ── QUICK MODE ──────────────────────────────────────────────────
+  const quickTotal    = (parseFloat(quickMktVal)||0) * (parseInt(quickCards)||0);
+  const quickCalcOffer = quickTotal * (parseFloat(quickPct)/100||0.60);
+  const quickOfferAmt  = parseFloat(quickOffer)||quickCalcOffer;
+  const quickZone      = quickTotal>0&&quickOfferAmt>0 ? getZone(quickOfferAmt/quickTotal) : null;
+
+  // ── COUNTER OFFER ────────────────────────────────────────────────
+  const counterAmt    = parseFloat(counterOffer)||0;
+  const counterZone   = totalMkt>0&&counterAmt>0 ? getZone(counterAmt/totalMkt) : null;
+
   if (custView) return (
     <div>
       <div style={{ marginBottom:14 }}>
@@ -1155,6 +1178,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [breaks,    setBreaks]    = useState([]);
+  const [comps,     setComps]     = useState([]);
   const [toast,     setToast]     = useState(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
@@ -1178,7 +1202,11 @@ export default function App() {
       query(collection(db, "breaks"), orderBy("dateAdded","asc")),
       snap => setBreaks(snap.docs.map(d => ({ id:d.id, ...d.data() })))
     );
-    return () => { invUnsub(); brkUnsub(); };
+    const compUnsub = onSnapshot(
+      query(collection(db, "comps"), orderBy("dateAdded","desc")),
+      snap => setComps(snap.docs.map(d => ({ id:d.id, ...d.data() })))
+    );
+    return () => { invUnsub(); brkUnsub(); compUnsub(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -1198,6 +1226,12 @@ export default function App() {
   async function handleBulkRemove(ids) {
     for (const id of ids) { await deleteDoc(doc(db,"inventory",id)); }
     showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
+  }
+
+  async function handleSaveComp(comp) {
+    const id = uid();
+    await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
+    showToast("💾 Comp saved to history");
   }
 
   async function handleAddBreak(b) {
@@ -1268,7 +1302,7 @@ export default function App() {
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)}/>}
-        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} user={user}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} comps={comps} user={user}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)}/>}
         {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
       </div>
