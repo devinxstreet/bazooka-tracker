@@ -44,7 +44,7 @@ function getZone(pct) {
 
 // ─── STYLES ──────────────────────────────────────────────────────
 const S = {
-  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding: window.innerWidth<768 ? "12px" : "18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
+  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
   inp:  { background:"#FFFFFF", border:"1px solid #F0D0DC", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
   th:   { padding:"9px 14px", background:"#FFF0F5", color:"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
@@ -163,7 +163,7 @@ function Dashboard({ inventory, breaks }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {[
           { l:"Cards in Inventory", v:inventory.length,          c:"#000000" },
           { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#000000" },
@@ -187,7 +187,7 @@ function Dashboard({ inventory, breaks }) {
             const sc    = ok?"#166534":warn?"#92400e":"#991b1b";
             const sl    = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
             return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"10px 14px", display:"flex", flexWrap:"wrap", alignItems:"center", gap:6 }}>
+              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"10px 14px", display:"grid", gridTemplateColumns:"1fr 65px 65px 65px 65px 160px 110px", alignItems:"center", gap:6 }}>
                 <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                 {[{ v:d.total, l:"stock" },{ v:d.used, l:"used", c:"#991b1b" },{ v:avail, l:"avail", c:sc }].map(({ v, l, c:c2 }) => (
                   <div key={l} style={{ textAlign:"center" }}>
@@ -209,7 +209,7 @@ function Dashboard({ inventory, breaks }) {
 
       <div style={S.card}>
         <SectionLabel t="Portfolio Health" />
-        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:16, marginBottom:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
           {[
             { l:"Total Invested",    v:`$${totInv.toFixed(2)}`, c:"#000000" },
             { l:"Total Market Value",v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
@@ -436,7 +436,7 @@ function LotComp({ onAccept }) {
 
       <div style={{ ...S.card, border:"2px solid #E8317A55" }}>
         <SectionLabel t="Final Offer" />
-        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
           <div>
             <label style={S.lbl}>Final Offer Price ($) — blank uses 60% calculated</label>
             <input
@@ -663,7 +663,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {BREAKERS.map(b => {
           const bc=BC[b]; const s=sum[b];
           return (
@@ -822,7 +822,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding: window.innerWidth < 768 ? "12px 8px" : "20px" }}>
+      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks}/>}
         {tab==="comp"      && <LotComp   onAccept={handleAccept}/>}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove}/>}
