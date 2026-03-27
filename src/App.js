@@ -128,7 +128,7 @@ function LoginScreen({ onLogin }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#F8F8F8", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
       <div style={{ background:"#FFFFFF", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
-        <div style={{ fontSize:36, fontWeight:900, color:"#FFF5F8", letterSpacing:3, marginBottom:4 }}>BAZOOKA</div>
+        <div style={{ fontSize:40, fontWeight:900, color:"#000000", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
         <div style={{ fontSize:11, color:"#E8317A", marginBottom:32, fontWeight:700, textTransform:"uppercase", letterSpacing:3 }}>Inventory Tracker</div>
         <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FFFFFF", border:"2px solid #F0D0DC", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#374151", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
@@ -165,8 +165,8 @@ function Dashboard({ inventory, breaks }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {[
-          { l:"Cards in Inventory", v:inventory.length,          c:"#FFF5F8" },
-          { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#6B2D8B" },
+          { l:"Cards in Inventory", v:inventory.length,          c:"#000000" },
+          { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#000000" },
           { l:"Portfolio Zone",     v:oz?oz.label:"No data",     c:oz?.color||"#9CA3AF" },
         ].map(({ l, v, c }) => (
           <div key={l} style={{ ...S.card, textAlign:"center", boxShadow:"0 2px 20px rgba(232,49,122,0.08)" }}>
@@ -211,7 +211,7 @@ function Dashboard({ inventory, breaks }) {
         <SectionLabel t="Portfolio Health" />
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
           {[
-            { l:"Total Invested",    v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
+            { l:"Total Invested",    v:`$${totInv.toFixed(2)}`, c:"#000000" },
             { l:"Total Market Value",v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
             { l:"Blended Buy %",     v:oPct?(oPct*100).toFixed(1)+"%":"—", c:oz?.color||"#9CA3AF" },
           ].map(({ l, v, c }) => (
@@ -295,7 +295,7 @@ function LotComp({ onAccept }) {
       <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
       <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:680 }}>
         <div style={{ textAlign:"center", marginBottom:20, padding:"16px", background:"#1A1A2E", borderRadius:10 }}>
-          <div style={{ fontSize:30, fontWeight:900, color:"#E8317A", letterSpacing:3 }}>⚡ BAZOOKA</div>
+          <div style={{ fontSize:30, fontWeight:900, color:"#000000", letterSpacing:3 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ background:"#FFF5F8", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
