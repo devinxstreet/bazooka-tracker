@@ -404,6 +404,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   const [lotPct,       setLotPct]       = useState("");
   const [finalOffer,   setFOffer]       = useState("");
   const [custView,     setCustView]     = useState(false);
+  const [custNote,     setCustNote]     = useState("");
   const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
@@ -505,7 +506,24 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </table>
         </div>
         <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
-          {[["Total Cards",totalCards],...(canSeeFinancials?[["Total Market Value",`$${totalMkt.toFixed(2)}`]]:[])] .map(([l,v]) => (
+          {/* Notes / comment box — only shown in edit mode (not printed), visible to customer */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ ...S.lbl, color:"#E8317A" }}>Notes for Seller (optional)</label>
+            <textarea
+              value={custNote}
+              onChange={e=>setCustNote(e.target.value)}
+              placeholder="e.g. Condition notes, grade estimates, any special considerations..."
+              rows={3}
+              style={{ ...S.inp, resize:"vertical", lineHeight:1.5, fontSize:12 }}
+            />
+          </div>
+          {custNote.trim() && (
+            <div style={{ marginBottom:14, padding:"12px 16px", background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
+              <p style={{ margin:0, fontSize:13, color:"#374151", lineHeight:1.6 }}>{custNote}</p>
+            </div>
+          )}
+          {[[`Total Cards`,totalCards],...(canSeeFinancials?[[`Total Market Value`,`$${totalMkt.toFixed(2)}`]]:[])] .map(([l,v]) => (
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #FFF0F5" }}>
               <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span>
               <span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
