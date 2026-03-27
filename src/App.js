@@ -400,7 +400,7 @@ function Dashboard({ inventory, breaks, user, userRole }) {
 function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
-  const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"" });
+  const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
   const [lotPct,       setLotPct]       = useState("");
   const [finalOffer,   setFOffer]       = useState("");
   const [custView,     setCustView]     = useState(false);
@@ -435,7 +435,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
 
   function loadComp(comp) {
-    setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"" });
+    setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
     setRows(hasCards
       ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
@@ -451,7 +451,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   function saveComp(status) {
     onSaveComp({
       seller:seller.name, contact:seller.contact, date:seller.date||new Date().toLocaleDateString(),
-      source:seller.source, payment:seller.payment, totalCards, totalMarket:totalMkt,
+      source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle, totalCards, totalMarket:totalMkt,
       offer:dispOffer, blendedPct:totalMkt>0?dispOffer/totalMkt:0,
       zone:lotZone?.label||"—", status,
       cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 }))
@@ -495,8 +495,13 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   return (
                     <tr key={r.id} style={{ borderBottom:"1px solid #FFF0F5" }}>
                       <td style={{ padding:"8px 10px", color:"#D1D5DB", fontSize:11, width:32, textAlign:"center" }}>{i+1}</td>
-                      <td style={{ padding:"8px 10px", fontWeight:700 }}>{r.name}</td>
-                      <td style={{ padding:"8px 10px" }}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
+                      <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{r.name}</td>
+                      <td style={{ padding:"8px 10px" }}>
+                        {r.cardType
+                          ? <span style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.text}33`, borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{r.cardType}</span>
+                          : <span style={{ color:"#D1D5DB", fontSize:12 }}>—</span>
+                        }
+                      </td>
                       <td style={{ padding:"8px 10px", color:"#6B7280", textAlign:"center" }}>{parseInt(r.qty)||1}</td>
                       <td style={{ padding:"8px 10px", color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
                       <td style={{ padding:"8px 10px", color:"#166534", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
@@ -534,6 +539,69 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               Warsaw, IN 46582
             </div>
           </div>
+
+          {/* Payment section — shows when payment method + handle entered */}
+          {seller.payment && seller.paymentHandle && (() => {
+            const handle = seller.paymentHandle.trim();
+            const amt    = dispOffer > 0 ? dispOffer.toFixed(2) : "";
+            const note   = encodeURIComponent(`Bazooka card purchase - ${seller.name||"lot"}`);
+            const cleanHandle = handle.replace(/^@/,"");
+
+            const paymentConfig = {
+              PayPal: {
+                color: "#003087",
+                label: "Send via PayPal",
+                hint:  `To: ${handle}`,
+                href:  `https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}`,
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .761-.641h6.927c2.34 0 4.02.646 4.956 1.92.434.588.676 1.24.728 1.98.056.812-.07 1.766-.376 2.838-.79 2.764-2.723 4.168-5.745 4.168H9.87a.77.77 0 0 0-.761.641l-.87 5.49a.641.641 0 0 1-.633.54l-.53.001z" fill="#003087"/><path d="M19.612 8.2c-.056-.392-.163-.758-.32-1.094-.62 3.4-2.76 5.13-6.354 5.13H10.71l-1.04 6.567h2.197a.641.641 0 0 0 .633-.54l.87-5.49a.77.77 0 0 1 .761-.641h1.325c2.594 0 4.325-1.068 5.03-3.208.323-.98.37-1.822.126-2.724z" fill="#0070E0"/></svg>,
+              },
+              Venmo: {
+                color: "#3D95CE",
+                label: "Send via Venmo",
+                hint:  `To: @${cleanHandle}`,
+                href:  `venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}`,
+                webHref: `https://venmo.com/${cleanHandle}`,
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#3D95CE"/><path d="M18.5 5.5c.4.7.6 1.4.6 2.3 0 2.9-2.5 6.6-4.5 9.2H10L8 5.8l4-.4 1 7.2c.9-1.5 2-3.8 2-5.4 0-.9-.2-1.5-.4-2l3.9-.7z" fill="white"/></svg>,
+              },
+              Zelle: {
+                color: "#6D1ED4",
+                label: "Send via Zelle",
+                hint:  `To: ${handle}`,
+                href:  null, // Zelle has no deep link
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#6D1ED4"/><path d="M16.5 6H7.5L6 9h7.2L6 15h1.8L16.5 9v-.5L18 6h-1.5zm0 3h-7.2L16.5 15H18L16.5 9z" fill="white"/></svg>,
+              },
+            };
+
+            const cfg = paymentConfig[seller.payment];
+            if (!cfg) return null;
+
+            return (
+              <div style={{ marginTop:14, padding:"14px 16px", background:"#FFFFFF", border:`2px solid ${cfg.color}33`, borderRadius:10 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>
+                  Payment — <span style={{ color:cfg.color }}>{seller.payment}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    {cfg.icon}
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:14, color:cfg.color }}>{cfg.hint}</div>
+                      {amt && <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2 }}>Amount: <strong style={{color:"#111827"}}>${amt}</strong></div>}
+                    </div>
+                  </div>
+                  {cfg.href
+                    ? <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
+                        {cfg.icon} {cfg.label} →
+                      </a>
+                    : <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+                        <div style={{ background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
+                        <div style={{ fontSize:11, color:"#9CA3AF" }}>Send to: <strong style={{color:"#111827"}}>{handle}</strong></div>
+                      </div>
+                  }
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ marginTop:12, textAlign:"center", color:"#9CA3AF", fontSize:11, fontStyle:"italic" }}>This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!</div>
         </div>
       </div>
@@ -652,8 +720,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             <TextInput label="Seller Name"      value={seller.name}    onChange={v=>setSeller(p=>({...p,name:v}))} />
             <TextInput label="Contact"          value={seller.contact} onChange={v=>setSeller(p=>({...p,contact:v}))} />
             <TextInput label="Date" type="date" value={seller.date}    onChange={v=>setSeller(p=>({...p,date:v}))} />
+            <SelectInput label="Payment Method" value={seller.payment} onChange={v=>setSeller(p=>({...p,payment:v,paymentHandle:""}))} options={PAYMENT_METHODS} />
+            <TextInput
+              label={seller.payment==="Venmo" ? "Venmo Handle (e.g. @username)" : seller.payment==="PayPal" ? "PayPal Username / Email" : seller.payment==="Zelle" ? "Zelle Email or Phone" : "Payment Handle / Info"}
+              value={seller.paymentHandle}
+              onChange={v=>setSeller(p=>({...p,paymentHandle:v}))}
+              placeholder={seller.payment==="Venmo" ? "@theirhandle" : seller.payment==="PayPal" ? "username or email" : seller.payment==="Zelle" ? "email or phone" : "handle or account info"}
+            />
             <SelectInput label="Source"         value={seller.source}  onChange={v=>setSeller(p=>({...p,source:v}))}  options={SOURCES} />
-            <SelectInput label="Payment Method" value={seller.payment} onChange={v=>setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
           </div>
         </div>
 
