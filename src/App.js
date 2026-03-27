@@ -146,7 +146,7 @@ function LoginScreen({ onLogin }) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────
-function Dashboard({ inventory, breaks }) {
+function Dashboard({ inventory, breaks, user }) {
   const usedIds = new Set(breaks.map(b => b.inventoryId));
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, invested:0, market:0 }; });
@@ -165,13 +165,23 @@ function Dashboard({ inventory, breaks }) {
   const usedCount  = [...usedIds].length;
   const availCount = totalCards - usedCount;
 
-  // Days of runway per card type (based on monthly targets)
+  // Days of runway per card type (based on ACTUAL burn rate from break log)
   const runway = {};
   CARD_TYPES.forEach(ct => {
-    const avail = (stats[ct].total - stats[ct].used);
-    const { monthly, buffer } = TARGETS[ct];
-    const dailyBurn = monthly / 30;
-    runway[ct] = dailyBurn > 0 ? Math.floor(avail / dailyBurn) : 999;
+    const avail = stats[ct].total - stats[ct].used;
+    // Find earliest break date to calculate days of logging
+    const ctBreaks = breaks.filter(b => b.cardType === ct);
+    if (ctBreaks.length === 0) {
+      runway[ct] = 999; // no usage data yet
+    } else {
+      const earliest = ctBreaks.reduce((min, b) => {
+        const d = new Date(b.dateAdded || b.date);
+        return d < min ? d : min;
+      }, new Date());
+      const daysSinceFirst = Math.max(1, Math.floor((new Date() - earliest) / (1000 * 60 * 60 * 24)));
+      const actualDailyBurn = ctBreaks.length / daysSinceFirst;
+      runway[ct] = actualDailyBurn > 0 ? Math.floor(avail / actualDailyBurn) : 999;
+    }
   });
 
   // Reorder alerts
@@ -368,7 +378,7 @@ function Dashboard({ inventory, breaks }) {
 }
 
 // ─── LOT COMP ─────────────────────────────────────────────────────
-function LotComp({ onAccept }) {
+function LotComp({ onAccept, user }) {
   const [seller,     setSeller]  = useState({ name:"", contact:"", date:"", source:"", payment:"" });
   const [lotPct,     setLotPct]  = useState("");
   const [finalOffer, setFOffer]  = useState("");
@@ -413,7 +423,7 @@ function LotComp({ onAccept }) {
         });
       }
     });
-    onAccept(cards, seller);
+    onAccept(cards, seller, user);
   }
 
   // ── CUSTOMER VIEW ──────────────────────────────────────────────
@@ -663,7 +673,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                 <th style={{ ...S.th, width:40, textAlign:"center" }}>
                   <input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll} style={{ cursor:"pointer" }}/>
                 </th>
-                {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+                {["Card Name","Type","Market Value","Lot Paid","Payment","Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -700,8 +710,10 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
 }
 
 // ─── BREAK LOG ────────────────────────────────────────────────────
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
-  const [breaker,  setBreaker]  = useState("");
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
+  const userName = user?.displayName?.split(" ")[0] || "";
+  const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
+  const [breaker,  setBreaker]  = useState(matchedBreaker);
   const [date,     setDate]     = useState(new Date().toISOString().split("T")[0]);
   const [cardId,   setCardId]   = useState("");
   const [cardSearch,setCardSearch]=useState("");
@@ -716,7 +728,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
 
   function handleAdd() {
     if (!breaker||!cardId) return;
-    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString() });
+    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", loggedByEmail:user?.email||"" });
     setCardId(""); setCardSearch(""); setUsage(""); setNotes("");
   }
 
@@ -728,7 +740,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
     if (!breaker || bulkSel.size===0) return;
     const entries = [...bulkSel].map(id => {
       const card = inventory.find(c=>c.id===id);
-      return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString() };
+      return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", loggedByEmail:user?.email||"" };
     });
     onBulkAdd(entries);
     setBulkSel(new Set());
@@ -847,9 +859,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
         <div style={{ padding:"16px 20px 0" }}><SectionLabel t="Break History"/></div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["Date","Breaker","Card Name","Card Type","Usage","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Date","Breaker","Card Name","Card Type","Usage","Logged By","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
-              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={6}/> :
+              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={7}/> :
                 [...breaks].reverse().map((b,i) => {
                   const bc=BC[b.breaker]||{bg:"#FFF0F5",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
@@ -1037,9 +1049,9 @@ export default function App() {
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
-  async function handleAccept(cards) {
+  async function handleAccept(cards, seller, user) {
     for (const card of cards) {
-      await setDoc(doc(db,"inventory",card.id), card);
+      await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: user?.displayName||"Unknown", addedByEmail: user?.email||"" });
     }
     showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
     setTab("inventory");
@@ -1115,10 +1127,10 @@ export default function App() {
       </div>
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
-        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks}/>}
-        {tab==="comp"      && <LotComp   onAccept={handleAccept}/>}
-        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove}/>}
-        {tab==="breaks"    && <BreakLog  inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak}/>}
+        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user}/>}
+        {tab==="comp"      && <LotComp   onAccept={handleAccept} user={user}/>}
+        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user}/>}
+        {tab==="breaks"    && <BreakLog  inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/>}
       </div>
 
       {toast && (
