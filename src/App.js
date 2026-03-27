@@ -293,49 +293,68 @@ function LotComp({ onAccept }) {
   if (custView) return (
     <div>
       <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
-      <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:800 }}>
-        <div style={{ textAlign:"center", marginBottom:20, padding:"16px", background:"#1A1A2E", borderRadius:10 }}>
-          <div style={{ fontSize:30, fontWeight:900, color:"#FFFFFF", letterSpacing:3 }}>BAZOOKA</div>
-          <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
+      <div style={{ background:"#FFFFFF", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
+        {/* Header */}
+        <div style={{ background:"#1A1A2E", padding:"28px 32px", textAlign:"center" }}>
+          <div style={{ fontSize:32, fontWeight:900, color:"#FFFFFF", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
+          <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", letterSpacing:1 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
-        <div style={{ background:"#FFF5F8", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#111827" }}>{seller.name||"—"}</strong></div>
-          <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Date: </span><strong style={{ color:"#111827" }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
+        {/* Seller info */}
+        <div style={{ padding:"16px 24px", borderBottom:"1px solid #F0E0E8", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, background:"#FAFAFA" }}>
+          <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for </span><strong style={{ color:"#111827", fontSize:13 }}>{seller.name||"—"}</strong></div>
+          <div style={{ textAlign:"right" }}><span style={{ color:"#9CA3AF", fontSize:11 }}>Date </span><strong style={{ color:"#111827", fontSize:13 }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
-        <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:14 }}>
-          <thead><tr>{["#","Card Name","Card Type","Qty","Market Value","Bazooka's Offer"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {included.length===0 ? <EmptyRow msg="No cards added." cols={5}/> :
-              included.map((r,i) => {
-                const mv=parseFloat(r.mktVal)||0;
-                const cc=CC[r.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
-                return (
-                  <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
-                    <td style={{ ...S.td, color:"#D1D5DB", textAlign:"center", width:36 }}>{i+1}</td>
-                    <td style={{ ...S.td, fontWeight:700 }}>{r.name}</td>
-                    <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
-                    <td style={{ ...S.td, color:"#9CA3AF" }}>{r.qty||1}</td>
-                    <td style={{ ...S.td, color:"#6B7280" }}>{parseInt(r.qty)||1}</td>
-                    <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${mv.toFixed(2)}</td>
-                    <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(mv*(parseInt(r.qty)||1)).toFixed(2)}</td>
-                    <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
-                  </tr>
-                );
-              })
-            }
-          </tbody>
-        </table>
-        {[["Total Cards",included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
-          <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#FFF5F8", borderRadius:6, marginBottom:4 }}>
-            <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span><span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
+        {/* Card table */}
+        <div style={{ padding:"0 24px" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", marginTop:8 }}>
+            <thead>
+              <tr>
+                {["#","Card Name","Card Type","Qty","Value/Card","Our Offer/Card"].map(h => (
+                  <th key={h} style={{ ...S.th, background:"transparent", borderBottom:"2px solid #F0E0E8", color:"#9CA3AF", fontSize:10 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {included.length===0
+                ? <EmptyRow msg="No cards added." cols={6}/>
+                : included.map((r,i) => {
+                    const mv = parseFloat(r.mktVal)||0;
+                    const qty = parseInt(r.qty)||1;
+                    const offerPerCard = mv * pctNum;
+                    const cc = CC[r.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                    return (
+                      <tr key={r.id} style={{ borderBottom:"1px solid #FFF0F5" }}>
+                        <td style={{ ...S.td, color:"#D1D5DB", textAlign:"center", width:32, fontSize:11 }}>{i+1}</td>
+                        <td style={{ ...S.td, fontWeight:700, color:"#111827" }}>{r.name}</td>
+                        <td style={{ ...S.td }}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
+                        <td style={{ ...S.td, color:"#6B7280", textAlign:"center" }}>{qty}</td>
+                        <td style={{ ...S.td, color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
+                        <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${offerPerCard.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+        {/* Totals */}
+        <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
+          {[
+            ["Total Cards", included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)],
+            ["Total Market Value", `$${totalMkt.toFixed(2)}`],
+          ].map(([l,v]) => (
+            <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #FFF0F5" }}>
+              <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span>
+              <span style={{ color:"#111827", fontWeight:700, fontSize:13 }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#1A1A2E", borderRadius:10 }}>
+            <span style={{ color:"#E8317A", fontWeight:800, fontSize:16 }}>Bazooka's Offer</span>
+            <span style={{ color:"#FFFFFF", fontWeight:900, fontSize:22 }}>${dispOffer.toFixed(2)}</span>
           </div>
-        ))}
-        <div style={{ display:"flex", justifyContent:"space-between", padding:"13px 16px", background:"#1A1A2E", borderRadius:8, marginTop:6 }}>
-          <span style={{ color:"#E8317A", fontWeight:800, fontSize:15 }}>Bazooka's Offer</span>
-          <span style={{ color:"#E8317A", fontWeight:900, fontSize:18 }}>${dispOffer.toFixed(2)}</span>
-        </div>
-        <div style={{ marginTop:12, textAlign:"center", color:"#9CA3AF", fontSize:11, fontStyle:"italic" }}>
-          This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!
+          <div style={{ marginTop:12, textAlign:"center", color:"#9CA3AF", fontSize:11, fontStyle:"italic" }}>
+            This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!
+          </div>
         </div>
       </div>
     </div>
