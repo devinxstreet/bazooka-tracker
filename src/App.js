@@ -271,7 +271,7 @@ function LotComp({ onAccept }) {
 
   function doAccept() {
     if (included.length===0) return;
-    const n = included.length;
+    const n = included.reduce((s,r) => s+(parseInt(r.qty)||1), 0);
     const cards = [];
     included.forEach(r => {
       const qty = parseInt(r.qty) || cardQty || 1;
@@ -398,6 +398,9 @@ function LotComp({ onAccept }) {
                     </td>
                     <td style={{ ...S.td, width:60 }}>
                       <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F9FAFB", width:50 }}/>
+                    </td>
+                    <td style={{ ...S.td, width:70 }}>
+                      <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:60 }}/>
                     </td>
                     <td style={{ ...S.td, width:120 }}>
                       <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:90 }}/>
