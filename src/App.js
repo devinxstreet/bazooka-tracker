@@ -821,6 +821,36 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               <span style={{ fontSize:12, color:"#9CA3AF" }}>Per Card: <strong style={{color:"#166534"}}>${totalCards>0?(dispOffer/totalCards).toFixed(2):"—"}</strong></span>
             </div>
           )}
+          {/* Pay button — appears when payment method + handle are filled */}
+          {seller.payment && seller.paymentHandle && (() => {
+            const handle      = seller.paymentHandle.trim();
+            const cleanHandle = handle.replace(/^@/,"");
+            const amt         = dispOffer > 0 ? dispOffer.toFixed(2) : "";
+            const note        = encodeURIComponent(`Bazooka card purchase - ${seller.name||"lot"}`);
+            const PCFG = {
+              Venmo:      { color:"#3D95CE", bg:"#E8F5FF", label:"Send via Venmo",    hint:`@${cleanHandle}`, href:`venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}` },
+              PayPal:     { color:"#003087", bg:"#E8EEFF", label:"Send via PayPal",   hint:handle,            href:`https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}` },
+              Zelle:      { color:"#6D1ED4", bg:"#F3EEFF", label:"Open Zelle",        hint:handle,            href:null },
+              "Cash App": { color:"#00C244", bg:"#E6FFF0", label:"Send via Cash App", hint:`$${cleanHandle}`, href:`https://cash.app/$${cleanHandle}${amt?"/"+amt:""}` },
+              Cash:       { color:"#166534", bg:"#D6F4E3", label:"Cash Payment",      hint:`$${amt||"—"} cash`, href:null },
+            };
+            const cfg = PCFG[seller.payment];
+            if (!cfg) return null;
+            return (
+              <div style={{ marginBottom:16, padding:"14px 16px", background:cfg.bg, border:`2px solid ${cfg.color}33`, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>💸 Send Payment</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:cfg.color }}>{cfg.hint}</div>
+                  {amt && <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2 }}>Amount: <strong style={{color:"#111827"}}>${amt}</strong></div>}
+                </div>
+                {cfg.href
+                  ? <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
+                  : <div style={{ background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} → ${cfg.hint}`}</div>
+                }
+              </div>
+            );
+          })()}
+
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
             <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
             <Btn onClick={()=>saveComp("saved")} variant="ghost">💾 Save Comp</Btn>
