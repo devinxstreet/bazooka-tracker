@@ -44,7 +44,7 @@ function getZone(pct) {
 
 // ─── STYLES ──────────────────────────────────────────────────────
 const S = {
-  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
+  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding: window.innerWidth<768 ? "12px" : "18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
   inp:  { background:"#FFFFFF", border:"1px solid #F0D0DC", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
   th:   { padding:"9px 14px", background:"#FFF0F5", color:"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
@@ -163,7 +163,7 @@ function Dashboard({ inventory, breaks }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:12 }}>
         {[
           { l:"Cards in Inventory", v:inventory.length,          c:"#000000" },
           { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#000000" },
@@ -187,7 +187,7 @@ function Dashboard({ inventory, breaks }) {
             const sc    = ok?"#166534":warn?"#92400e":"#991b1b";
             const sl    = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
             return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"10px 14px", display:"grid", gridTemplateColumns:"1fr 65px 65px 65px 65px 160px 110px", alignItems:"center", gap:6 }}>
+              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"10px 14px", display:"flex", flexWrap:"wrap", alignItems:"center", gap:6 }}>
                 <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                 {[{ v:d.total, l:"stock" },{ v:d.used, l:"used", c:"#991b1b" },{ v:avail, l:"avail", c:sc }].map(({ v, l, c:c2 }) => (
                   <div key={l} style={{ textAlign:"center" }}>
@@ -209,7 +209,7 @@ function Dashboard({ inventory, breaks }) {
 
       <div style={S.card}>
         <SectionLabel t="Portfolio Health" />
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:16, marginBottom:12 }}>
           {[
             { l:"Total Invested",    v:`$${totInv.toFixed(2)}`, c:"#000000" },
             { l:"Total Market Value",v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
@@ -345,7 +345,7 @@ function LotComp({ onAccept }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <SectionLabel t="Seller Information" />
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12 }}>
           <TextInput label="Seller Name"  value={seller.name}    onChange={v => setSeller(p=>({...p,name:v}))} />
           <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
           <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
@@ -356,7 +356,7 @@ function LotComp({ onAccept }) {
 
       <div style={S.card}>
         <SectionLabel t="Lot-Level Controls" />
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end" }}>
+        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12, alignItems:"end" }}>
           <TextInput label="Lot Buy % Override (blank = 60% default)" value={lotPct} onChange={setLotPct} placeholder="60" />
           <div>
             <label style={S.lbl}>Calculated Offer</label>
@@ -417,7 +417,7 @@ function LotComp({ onAccept }) {
 
       <div style={{ ...S.card, border:"2px solid #E8317A55" }}>
         <SectionLabel t="Final Offer" />
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
           <div>
             <label style={S.lbl}>Final Offer Price ($) — blank uses 60% calculated</label>
             <input
@@ -644,7 +644,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "repeat(3,1fr)", gap:12 }}>
         {BREAKERS.map(b => {
           const bc=BC[b]; const s=sum[b];
           return (
@@ -700,6 +700,7 @@ export default function App() {
   const [inventory, setInventory] = useState([]);
   const [breaks,    setBreaks]    = useState([]);
   const [toast,     setToast]     = useState(null);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
   // Auth listener
   useEffect(() => {
@@ -760,11 +761,12 @@ export default function App() {
     setTab("dashboard");
   }
 
+  const isMob = window.innerWidth < 768;
   const TABS = [
-    { id:"dashboard", label:"📊 Dashboard" },
-    { id:"comp",      label:"🧮 Lot Comp"   },
-    { id:"inventory", label:"📦 Inventory"  },
-    { id:"breaks",    label:"🎯 Break Log"  },
+    { id:"dashboard", label: isMob ? "📊" : "📊 Dashboard" },
+    { id:"comp",      label: isMob ? "🧮" : "🧮 Lot Comp"   },
+    { id:"inventory", label: isMob ? "📦" : "📦 Inventory"  },
+    { id:"breaks",    label: isMob ? "🎯" : "🎯 Break Log"  },
   ];
 
   if (!authReady) return (
@@ -777,7 +779,7 @@ export default function App() {
 
   return (
     <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
-      <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
+      <div style={{ background:"#000000", padding:"0 12px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <span style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2, textShadow:"0 0 20px rgba(232,49,122,0.5)" }}>BAZOOKA</span>
@@ -794,14 +796,14 @@ export default function App() {
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A", boxShadow:"0 0 8px rgba(232,49,122,0.4)" }}/>}
-              <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
+              {window.innerWidth >= 768 && <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>}
               <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
+      <div style={{ maxWidth:1200, margin:"0 auto", padding: window.innerWidth < 768 ? "12px 8px" : "20px" }}>
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks}/>}
         {tab==="comp"      && <LotComp   onAccept={handleAccept}/>}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove}/>}
