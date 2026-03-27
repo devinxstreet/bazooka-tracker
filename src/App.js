@@ -418,11 +418,20 @@ function LotComp({ onAccept }) {
       <div style={{ ...S.card, border:"2px solid #E8317A55" }}>
         <SectionLabel t="Final Offer" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
-          <TextInput label="Final Offer Price ($) — blank uses calculated amount" type="number" value={finalOffer} onChange={setFOffer} placeholder="0.00"/>
+          <div>
+            <label style={S.lbl}>Final Offer Price ($) — blank uses 60% calculated</label>
+            <input
+              type="number"
+              value={finalOffer}
+              onChange={e => setFOffer(e.target.value)}
+              placeholder={`$${calcOffer.toFixed(2)} (calculated)`}
+              style={{ ...S.inp, fontWeight:700, fontSize:15, color:"#111827" }}
+            />
+          </div>
           <div>
             <label style={S.lbl}>Lot Zone</label>
             <div style={{ ...S.inp, background:lotZone?.bg||"#FFF5F8", border:`2px solid ${lotZone?.color||"#E8317A"}`, color:lotZone?.color||"#92400e", fontWeight:900, fontSize:14 }}>
-              {lotZone?lotZone.label:"—"}
+              {lotZone ? lotZone.label : totalMkt > 0 ? getZone(calcOffer/totalMkt)?.label || "—" : "—"}
             </div>
           </div>
           <div>
