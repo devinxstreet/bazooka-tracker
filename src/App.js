@@ -935,6 +935,22 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           });
           const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
 
+          // Find any note keys that don't match a current lot key (orphaned from old format)
+          const currentLotKeys = new Set(lotList.map(l => l.key));
+          const orphanedNotes  = Object.entries(lotNotes).filter(([k]) => !currentLotKeys.has(k));
+          async function migrateNotes() {
+            let fixed = 0;
+            for (const [oldKey, noteData] of orphanedNotes) {
+              const sellerName = oldKey.split("__")[0];
+              const match = lotList.find(l => l.seller.toLowerCase() === sellerName.toLowerCase());
+              if (match && !lotNotes[match.key]) {
+                await onSaveLotNotes(match.key, noteData.notes);
+                fixed++;
+              }
+            }
+            alert(`Migrated ${fixed} note${fixed!==1?"s":""} to correct lot keys.`);
+          }
+
           const CARRIERS = ["USPS","UPS","FedEx","DHL","Other"];
           const TRACKING_STATUSES = ["Ordered","Label Created","Shipped","In Transit","Out for Delivery","Delivered","Exception"];
           const STATUS_COLORS = {
@@ -949,6 +965,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
 
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:12 }}>
+              {orphanedNotes.length > 0 && CAN_DELETE.includes(userRole?.role) && (
+                <div style={{ marginBottom:12, padding:"10px 16px", background:"#FFF9DB", border:"1.5px solid #92400e33", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                  <span style={{ fontSize:12, color:"#92400e" }}>⚠ {orphanedNotes.length} note{orphanedNotes.length!==1?"s":""} from previous lots couldn't be matched automatically.</span>
+                  <button onClick={migrateNotes} style={{ background:"#92400e", color:"#fff", border:"none", borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Fix Now</button>
+                </div>
+              )}
               {lotList.length===0
                 ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div>
                 : lotList.map((lot,i) => {
@@ -957,7 +979,10 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const isEditing = trackingEdit === lot.key;
                     const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#9CA3AF" };
 
-                    const lotNote    = lotNotes[lot.key] || {};
+                    // Try exact key first, then fuzzy match by seller name prefix (handles old mismatched key formats)
+                    const lotNote = lotNotes[lot.key]
+                      || Object.entries(lotNotes).find(([k]) => k.toLowerCase().startsWith(lot.seller.toLowerCase()+"__"))?.[1]
+                      || {};
                     const isEditingNote = notesEdit === lot.key;
                     return (
                       <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, overflow:"hidden", background:"#FFFFFF" }}>
