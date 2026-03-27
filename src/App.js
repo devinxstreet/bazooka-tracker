@@ -111,7 +111,7 @@ function SelectInput({ label, value, onChange, options }) {
 }
 
 function EmptyRow({ msg, cols=10 }) {
-  return <tr><td colSpan={cols}><div className="empty-state"><div style={{ fontSize:32, marginBottom:8 }}>📭</div><div style={{ fontSize:13, color:"#D1D5DB" }}>{msg}</div></div></td></tr>;
+  return <tr><td colSpan={cols} style={{ padding:"48px 0", textAlign:"center", color:"#D1D5DB", fontSize:13, fontStyle:"italic" }}>{msg}</td></tr>;
 }
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────
@@ -786,10 +786,10 @@ const GlobalStyles = () => {
       }
 
       /* Critical status pulse */
-      .status-critical { animation: pulsCritical 1.5s ease-in-out infinite; }
+      .status-critical { animation: pulsCritical 2.5s ease-in-out infinite; }
       @keyframes pulsCritical {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(153,27,27,0.4); }
-        50%       { box-shadow: 0 0 0 8px rgba(153,27,27,0); }
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.7), 0 0 0 0 rgba(220,38,38,0.4); }
+        50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0.1), 0 0 12px 4px rgba(220,38,38,0.3); }
       }
 
       /* Accept offer shimmer */
