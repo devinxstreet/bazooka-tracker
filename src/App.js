@@ -1197,6 +1197,188 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user, dark=false }) {
 }
 
 // ─── APP ROOT ─────────────────────────────────────────────────────
+// ─── PERFORMANCE ─────────────────────────────────────────────────
+function Performance({ breaks, inventory, user, userRole, dark=false }) {
+  const S = getS(dark);
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const currentUser = user?.displayName?.split(" ")[0] || "";
+  const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
+
+  // Admins see all breakers, streamers only see themselves
+  const visibleBreakers = isAdmin ? BREAKERS : (matchedBreaker ? [matchedBreaker] : []);
+
+  // Date helpers
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear  = now.getFullYear();
+
+  function getBreakStats(breaker) {
+    const all    = breaks.filter(b => b.breaker===breaker);
+    const month  = all.filter(b => { const d=new Date(b.dateAdded||b.date); return d.getMonth()===thisMonth&&d.getFullYear()===thisYear; });
+
+    // By card type
+    const byType = {};
+    CARD_TYPES.forEach(ct => { byType[ct] = all.filter(b=>b.cardType===ct).length; });
+    const byTypeMonth = {};
+    CARD_TYPES.forEach(ct => { byTypeMonth[ct] = month.filter(b=>b.cardType===ct).length; });
+
+    // By day of week
+    const byDay = [0,0,0,0,0,0,0];
+    all.forEach(b => { const d=new Date(b.dateAdded||b.date); if(!isNaN(d)) byDay[d.getDay()]++; });
+
+    // Last 7 days
+    const last7 = [];
+    for (let i=6; i>=0; i--) {
+      const d = new Date(); d.setDate(d.getDate()-i);
+      const count = all.filter(b => {
+        const bd = new Date(b.dateAdded||b.date);
+        return bd.toDateString()===d.toDateString();
+      }).length;
+      last7.push({ date:d.toLocaleDateString("en",{weekday:"short",month:"numeric",day:"numeric"}), count });
+    }
+
+    // Streak
+    let streak = 0;
+    const today = new Date();
+    for (let i=0; i<30; i++) {
+      const d = new Date(); d.setDate(today.getDate()-i);
+      const hasBreak = all.some(b => new Date(b.dateAdded||b.date).toDateString()===d.toDateString());
+      if (hasBreak) streak++;
+      else if (i>0) break;
+    }
+
+    // Most used card type
+    const topType = CARD_TYPES.reduce((a,ct) => byType[ct]>byType[a]?ct:a, CARD_TYPES[0]);
+
+    return { all, month, byType, byTypeMonth, byDay, last7, streak, topType };
+  }
+
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {visibleBreakers.length===0 && (
+        <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>📈</div>
+          <div style={{ fontSize:16, fontWeight:700, color:dark?"#e2e8f0":"#111827", marginBottom:8 }}>No Performance Data</div>
+          <div style={{ fontSize:13, color:"#9CA3AF" }}>Your account isn't linked to a streamer profile yet.</div>
+        </div>
+      )}
+
+      {visibleBreakers.map(breaker => {
+        const bc = BC[breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+        const stats = getBreakStats(breaker);
+        const isYou = !isAdmin || (matchedBreaker===breaker);
+
+        return (
+          <div key={breaker}>
+            {/* Breaker header */}
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+              <div style={{ width:44, height:44, borderRadius:"50%", background:bc.bg, border:`2px solid ${bc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:900, color:bc.text }}>
+                {breaker[0]}
+              </div>
+              <div>
+                <div style={{ fontSize:18, fontWeight:900, color:dark?"#e2e8f0":"#111827" }}>
+                  {breaker} {isYou&&!isAdmin&&<span style={{ fontSize:12, color:"#9CA3AF" }}>(You)</span>}
+                </div>
+                <div style={{ fontSize:11, color:"#9CA3AF" }}>Streamer · {stats.all.length} total cards logged</div>
+              </div>
+              {stats.streak>0&&<div style={{ marginLeft:"auto", background:bc.bg, border:`1.5px solid ${bc.border}`, borderRadius:10, padding:"6px 14px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:bc.text }}>🔥 {stats.streak}</div>
+                <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Day Streak</div>
+              </div>}
+            </div>
+
+            {/* KPI row */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
+              {[
+                { l:"Total Cards Used",   v:stats.all.length,    c:bc.text },
+                { l:"This Month",         v:stats.month.length,  c:bc.text },
+                { l:"Top Card Type",      v:stats.topType.replace(" Cards",""), c:CC[stats.topType]?.text||bc.text },
+                { l:"Active Streak",      v:stats.streak>0?`${stats.streak}d`:"—", c:stats.streak>0?"#E8317A":"#9CA3AF" },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{ ...S.card, textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+                  <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Card type breakdown + last 7 days */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+
+              {/* Card type breakdown */}
+              <div style={S.card}>
+                <SectionLabel t="Card Type Breakdown" />
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {CARD_TYPES.map(ct => {
+                    const cc = CC[ct];
+                    const total = stats.byType[ct];
+                    const pct = stats.all.length>0 ? total/stats.all.length : 0;
+                    return (
+                      <div key={ct}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:cc.text }}>{ct}</span>
+                          <span style={{ fontSize:12, color:"#9CA3AF" }}>{total} ({(pct*100).toFixed(0)}%)</span>
+                        </div>
+                        <div style={{ height:6, background:dark?"#1e1e3a":"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${pct*100}%`, background:cc.border, borderRadius:3, transition:"width 0.6s ease" }}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Last 7 days chart */}
+              <div style={S.card}>
+                <SectionLabel t="Last 7 Days" />
+                <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:100 }}>
+                  {stats.last7.map((d,i) => {
+                    const max = Math.max(...stats.last7.map(x=>x.count), 1);
+                    const h = Math.max((d.count/max)*80, d.count>0?8:2);
+                    return (
+                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:d.count>0?bc.text:"#9CA3AF" }}>{d.count||""}</div>
+                        <div style={{ width:"100%", height:h, background:d.count>0?bc.border:(dark?"#1e1e3a":"#F0E0E8"), borderRadius:"3px 3px 0 0", transition:"height 0.4s ease" }}/>
+                        <div style={{ fontSize:9, color:"#9CA3AF", textAlign:"center", whiteSpace:"nowrap" }}>{d.date.split(",")[0]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Day of week heatmap */}
+            <div style={{ ...S.card, marginBottom: isAdmin&&breaker!==visibleBreakers[visibleBreakers.length-1]?24:0 }}>
+              <SectionLabel t="Activity by Day of Week" />
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:8 }}>
+                {DAYS.map((day,i) => {
+                  const count = stats.byDay[i];
+                  const max   = Math.max(...stats.byDay, 1);
+                  const intensity = count/max;
+                  const bg = count===0 ? (dark?"#1e1e3a":"#F0E0E8") : `rgba(${parseInt(bc.border.slice(1,3),16)},${parseInt(bc.border.slice(3,5),16)},${parseInt(bc.border.slice(5,7),16)},${0.2+intensity*0.8})`;
+                  return (
+                    <div key={day} style={{ textAlign:"center", padding:"10px 4px", background:bg, borderRadius:8, border:`1px solid ${dark?"#1e1e3a":"#F0E0E8"}` }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:count>0?bc.text:"#9CA3AF" }}>{day}</div>
+                      <div style={{ fontSize:16, fontWeight:900, color:count>0?bc.text:"#D1D5DB", marginTop:2 }}>{count}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {isAdmin && breaker!==visibleBreakers[visibleBreakers.length-1] && (
+              <div style={{ height:1, background:dark?"#1e1e3a":"#F0E0E8", margin:"8px 0 20px" }}/>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── GLOBAL STYLES ────────────────────────────────────────────────
 const GlobalStyles = ({ darkMode }) => {
   useEffect(() => {
@@ -1455,6 +1637,7 @@ export default function App() {
     { id:"comp",      label: isMob ? "🧮" : "🧮 Lot Comp"   },
     { id:"inventory", label: isMob ? "📦" : "📦 Inventory"  },
     { id:"breaks",    label: isMob ? "🎯" : "🎯 Break Log"  },
+    { id:"performance", label: isMob ? "📈" : "📈 Performance" },
   ];
 
   if (!authReady) return (
@@ -1509,6 +1692,7 @@ export default function App() {
         {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={getUserRole(user)}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
         {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user} dark={darkMode}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="performance" && <Performance breaks={breaks} inventory={inventory} user={user} userRole={getUserRole(user)} dark={darkMode}/>}
       </div>
 
       {toast && (
