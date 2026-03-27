@@ -67,7 +67,8 @@ function Badge({ children, bg="#FFF0F5", color="#6B7280" }) {
 function ZoneBadge({ pct }) {
   const z = getZone(pct);
   if (!z) return <span style={{ color:"#D1D5DB", fontSize:11 }}>—</span>;
-  return <Badge bg={z.bg} color={z.color}>{z.label} · {(pct*100).toFixed(1)}%</Badge>;
+  const cls = pct >= 0.70 ? "zone-red" : pct >= 0.65 ? "zone-yellow" : "";
+  return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} · {(pct*100).toFixed(1)}%</span>;
 }
 
 function Btn({ children, onClick, variant="gold", disabled, style }) {
@@ -110,7 +111,7 @@ function SelectInput({ label, value, onChange, options }) {
 }
 
 function EmptyRow({ msg, cols=10 }) {
-  return <tr><td colSpan={cols} style={{ padding:"48px 0", textAlign:"center", color:"#D1D5DB", fontSize:13 }}>{msg}</td></tr>;
+  return <tr><td colSpan={cols}><div className="empty-state"><div style={{ fontSize:32, marginBottom:8 }}>📭</div><div style={{ fontSize:13, color:"#D1D5DB" }}>{msg}</div></div></td></tr>;
 }
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────
@@ -169,7 +170,7 @@ function Dashboard({ inventory, breaks }) {
           { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#000000" },
           { l:"Portfolio Zone",     v:oz?oz.label:"No data",     c:oz?.color||"#9CA3AF" },
         ].map(({ l, v, c }) => (
-          <div key={l} style={{ ...S.card, textAlign:"center", boxShadow:"0 2px 20px rgba(232,49,122,0.08)" }}>
+          <div key={l} style={{ ...S.card, textAlign:"center", boxShadow:"0 2px 20px rgba(232,49,122,0.08)" }} className="stat-card count-up">
             <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
             <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
           </div>
@@ -200,7 +201,7 @@ function Dashboard({ inventory, breaks }) {
                   <div style={{ fontSize:9, color:"#D1D5DB" }}>min</div>
                 </div>
                 <ZoneBadge pct={pct} />
-                <Badge bg={ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2"} color={sc}>{sl}</Badge>
+                <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{sl}</span>
               </div>
             );
           })}
@@ -482,7 +483,7 @@ function LotComp({ onAccept }) {
         </div>
         <div style={{ display:"flex", gap:10 }}>
           <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
-          <Btn onClick={doAccept} disabled={included.length===0} variant="green">
+          <Btn onClick={doAccept} disabled={included.length===0} variant="green" style={{ position:"relative", overflow:"hidden" }}>
             ✅ Accept Offer — Import {totalCards} card{totalCards!==1?"s":""} to Inventory
           </Btn>
         </div>
@@ -554,7 +555,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                   const isSel=selected.has(c.id);
                   const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
+                    <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
                       <td style={{ ...S.td, textAlign:"center" }}>
                         <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
                       </td>
@@ -712,7 +713,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
                   const bc=BC[b.breaker]||{bg:"#FFF0F5",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={b.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                    <tr key={b.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", transition:"background 0.15s ease" }} className="break-row">
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
@@ -732,6 +733,135 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd }) {
 }
 
 // ─── APP ROOT ─────────────────────────────────────────────────────
+// ── GLOBAL STYLES ────────────────────────────────────────────────
+const GlobalStyles = () => {
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      * { box-sizing: border-box; }
+
+      /* Smooth page transitions */
+      .tab-content { animation: fadeSlideUp 0.25s ease forwards; }
+      @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Toast slide in */
+      .toast { animation: toastIn 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      @keyframes toastIn {
+        from { opacity: 0; transform: translateY(20px) scale(0.95); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      /* Table row hover */
+      .inv-row:hover { background: #FFF0F5 !important; transition: background 0.15s ease; }
+      .break-row:hover { background: #FFF0F5 !important; transition: background 0.15s ease; }
+
+      /* Button lift */
+      .btn-lift { transition: transform 0.15s ease, box-shadow 0.15s ease !important; }
+      .btn-lift:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(232,49,122,0.25) !important; }
+      .btn-lift:active:not(:disabled) { transform: translateY(0px); }
+
+      /* Nav tab hover */
+      .nav-tab { transition: color 0.15s ease, background 0.15s ease !important; }
+      .nav-tab:hover { color: #E8317A !important; background: rgba(232,49,122,0.08) !important; }
+
+      /* Card hover */
+      .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease !important; }
+      .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(232,49,122,0.12) !important; }
+
+      /* Zone badge pulse on red */
+      .zone-red { animation: pulsRed 2s ease-in-out infinite; }
+      @keyframes pulsRed {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(153,27,27,0.3); }
+        50%       { box-shadow: 0 0 0 6px rgba(153,27,27,0); }
+      }
+
+      /* Zone badge pulse on yellow */
+      .zone-yellow { animation: pulsYellow 2.5s ease-in-out infinite; }
+      @keyframes pulsYellow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(146,64,14,0.3); }
+        50%       { box-shadow: 0 0 0 5px rgba(146,64,14,0); }
+      }
+
+      /* Critical status pulse */
+      .status-critical { animation: pulsCritical 1.5s ease-in-out infinite; }
+      @keyframes pulsCritical {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(153,27,27,0.4); }
+        50%       { box-shadow: 0 0 0 8px rgba(153,27,27,0); }
+      }
+
+      /* Accept offer shimmer */
+      .btn-accept { position: relative; overflow: hidden; }
+      .btn-accept::after {
+        content: '';
+        position: absolute; top: 0; left: -100%;
+        width: 60%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        animation: shimmer 2.5s ease-in-out infinite;
+      }
+      @keyframes shimmer {
+        0%   { left: -100%; }
+        100% { left: 200%; }
+      }
+
+      /* Number count up */
+      .count-up { animation: countPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      @keyframes countPop {
+        from { transform: scale(0.7); opacity: 0; }
+        to   { transform: scale(1);   opacity: 1; }
+      }
+
+      /* Row fade out on delete */
+      .row-deleting { animation: fadeOut 0.3s ease forwards; }
+      @keyframes fadeOut {
+        from { opacity: 1; transform: translateX(0); }
+        to   { opacity: 0; transform: translateX(-20px); }
+      }
+
+      /* Pink glow on BAZOOKA nav */
+      .nav-bazooka {
+        text-shadow: 0 0 20px rgba(232,49,122,0.6), 0 0 40px rgba(232,49,122,0.3);
+        transition: text-shadow 0.3s ease;
+      }
+      .nav-bazooka:hover {
+        text-shadow: 0 0 30px rgba(232,49,122,0.9), 0 0 60px rgba(232,49,122,0.5);
+      }
+
+      /* Checkbox animation */
+      input[type="checkbox"] { cursor: pointer; accent-color: #E8317A; transform-origin: center; transition: transform 0.15s ease; }
+      input[type="checkbox"]:checked { transform: scale(1.15); }
+
+      /* Input focus glow */
+      input:focus, select:focus { 
+        outline: none !important; 
+        border-color: #E8317A !important; 
+        box-shadow: 0 0 0 3px rgba(232,49,122,0.12) !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      /* Section label bar animation */
+      .section-bar { transition: width 0.3s ease; }
+
+      /* Scrollbar styling */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #fff; }
+      ::-webkit-scrollbar-thumb { background: #F0D0DC; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #E8317A; }
+
+      /* Empty state */
+      .empty-state { 
+        padding: 60px 0; text-align: center; color: #D1D5DB;
+        animation: fadeSlideUp 0.4s ease forwards;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+  return null;
+};
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [user,      setUser]      = useState(null);
@@ -818,10 +948,11 @@ export default function App() {
 
   return (
     <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
+      <GlobalStyles />
       <div style={{ background:"#000000", padding:"0 12px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2, textShadow:"0 0 20px rgba(232,49,122,0.5)" }}>BAZOOKA</span>
+            <span style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }} className="nav-bazooka">BAZOOKA</span>
             <span style={{ fontSize:10, color:"#666666", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
@@ -842,7 +973,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
+      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
         {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks}/>}
         {tab==="comp"      && <LotComp   onAccept={handleAccept}/>}
         {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove}/>}
@@ -850,7 +981,7 @@ export default function App() {
       </div>
 
       {toast && (
-        <div style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>
+        <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>
           {toast}
         </div>
       )}
