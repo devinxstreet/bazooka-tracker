@@ -469,7 +469,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       }
     });
-    onAccept(cards, seller, user);
+    onAccept(cards, seller, user, custNote);
   }
 
   if (custView) return (
@@ -1489,8 +1489,12 @@ export default function App() {
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
-  async function handleAccept(cards, seller, u) {
+  async function handleAccept(cards, seller, u, custNote) {
     for (const card of cards) await setDoc(doc(db,"inventory",card.id), { ...card, addedBy:u?.displayName||"Unknown" });
+    if (custNote && custNote.trim()) {
+      const lotKey = `${seller.name||"Unknown"}__${seller.date||new Date().toLocaleDateString()}`;
+      await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
+    }
     showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
     setTab("inventory");
   }
