@@ -250,86 +250,90 @@ function Dashboard({ inventory, breaks }) {
 
 // ─── LOT COMP ─────────────────────────────────────────────────────
 function LotComp({ onAccept }) {
-  const [seller, setSeller]     = useState({ name:"", contact:"", date:"", source:"", payment:"" });
-  const [cardQty, setCardQty]   = useState(1);
-  const [lotPct, setLotPct]     = useState("");
-  const [finalOffer, setFOffer] = useState("");
-  const [custView, setCustView] = useState(false);
-  const [rows, setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
+  const [seller,     setSeller]  = useState({ name:"", contact:"", date:"", source:"", payment:"" });
+  const [lotPct,     setLotPct]  = useState("");
+  const [finalOffer, setFOffer]  = useState("");
+  const [custView,   setCustView]= useState(false);
+  const [rows,       setRows]    = useState(() =>
+    Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
+  );
 
-  const pctNum    = parseFloat(lotPct)/100 || 0.60;
+  // Core calculations
+  const pctNum    = parseFloat(lotPct) / 100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
-  const totalMkt  = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
-  const calcOffer = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1)*pctNum, 0);
-  const offerAmt  = parseFloat(finalOffer)||0;
-  const dispOffer = offerAmt||calcOffer;
-  const lotZone   = totalMkt>0 ? getZone(dispOffer/totalMkt) : null;
+  const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0) * (parseInt(r.qty)||1), 0);
+  const calcOffer = totalMkt * pctNum;
+  const offerAmt  = parseFloat(finalOffer) || 0;
+  const dispOffer = offerAmt > 0 ? offerAmt : calcOffer;
+  const lotZone   = totalMkt > 0 ? getZone(dispOffer / totalMkt) : null;
+  const totalCards = included.reduce((s,r) => s + (parseInt(r.qty)||1), 0);
 
-  function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
+  function upd(id, f, v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
+  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
 
   function doAccept() {
-    if (included.length===0) return;
-    const n = included.reduce((s,r) => s+(parseInt(r.qty)||1), 0);
+    if (included.length === 0) return;
     const cards = [];
     included.forEach(r => {
-      const qty = parseInt(r.qty) || cardQty || 1;
+      const qty = parseInt(r.qty) || 1;
+      const mv  = parseFloat(r.mktVal) || 0;
+      const costPerCard = totalCards > 0 ? dispOffer / totalCards : 0;
       for (let i = 0; i < qty; i++) {
         cards.push({
           id:uid(), cardName:r.name, cardType:r.cardType,
-          marketValue:parseFloat(r.mktVal)||0,
-          lotTotalPaid:dispOffer, cardsInLot:n,
-          costPerCard:dispOffer/n,
-          buyPct:(dispOffer/n)/(parseFloat(r.mktVal)||1),
-          date:seller.date||new Date().toLocaleDateString(),
-          source:seller.source, seller:seller.name,
-          payment:seller.payment,
-          dateAdded:new Date().toISOString(),
+          marketValue: mv,
+          lotTotalPaid: dispOffer,
+          cardsInLot: totalCards,
+          costPerCard: costPerCard,
+          buyPct: mv > 0 ? costPerCard / mv : null,
+          date:    seller.date || new Date().toLocaleDateString(),
+          source:  seller.source,
+          seller:  seller.name,
+          payment: seller.payment,
+          dateAdded: new Date().toISOString(),
         });
       }
     });
     onAccept(cards, seller);
   }
 
+  // ── CUSTOMER VIEW ──────────────────────────────────────────────
   if (custView) return (
     <div>
-      <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
+      <div style={{ marginBottom:14 }}>
+        <Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn>
+      </div>
       <div style={{ background:"#FFFFFF", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
-        {/* Header */}
         <div style={{ background:"#1A1A2E", padding:"28px 32px", textAlign:"center" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#FFFFFF", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", letterSpacing:1 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
-        {/* Seller info */}
-        <div style={{ padding:"16px 24px", borderBottom:"1px solid #F0E0E8", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, background:"#FAFAFA" }}>
-          <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for </span><strong style={{ color:"#111827", fontSize:13 }}>{seller.name||"—"}</strong></div>
-          <div style={{ textAlign:"right" }}><span style={{ color:"#9CA3AF", fontSize:11 }}>Date </span><strong style={{ color:"#111827", fontSize:13 }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
+        <div style={{ padding:"14px 24px", borderBottom:"1px solid #F0E0E8", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#FAFAFA" }}>
+          <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#111827" }}>{seller.name||"—"}</strong></div>
+          <div style={{ textAlign:"right" }}><span style={{ color:"#9CA3AF", fontSize:11 }}>Date: </span><strong style={{ color:"#111827" }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
-        {/* Card table */}
-        <div style={{ padding:"0 24px" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", marginTop:8 }}>
+        <div style={{ padding:"8px 24px 0" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
-              <tr>
-                {["#","Card Name","Card Type","Qty","Value/Card","Our Offer/Card"].map(h => (
-                  <th key={h} style={{ ...S.th, background:"transparent", borderBottom:"2px solid #F0E0E8", color:"#9CA3AF", fontSize:10 }}>{h}</th>
-                ))}
-              </tr>
+              <tr>{["#","Card Name","Card Type","Qty","Value/Card","Offer/Card"].map(h =>
+                <th key={h} style={{ padding:"8px 10px", borderBottom:"2px solid #F0E0E8", color:"#9CA3AF", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left" }}>{h}</th>
+              )}</tr>
             </thead>
             <tbody>
-              {included.length===0
+              {included.length === 0
                 ? <EmptyRow msg="No cards added." cols={6}/>
                 : included.map((r,i) => {
-                    const mv = parseFloat(r.mktVal)||0;
+                    const mv  = parseFloat(r.mktVal)||0;
                     const qty = parseInt(r.qty)||1;
-                    const offerPerCard = mv * pctNum;
-                    const cc = CC[r.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
+                    const cc  = CC[r.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                     return (
                       <tr key={r.id} style={{ borderBottom:"1px solid #FFF0F5" }}>
-                        <td style={{ ...S.td, color:"#D1D5DB", textAlign:"center", width:32, fontSize:11 }}>{i+1}</td>
-                        <td style={{ ...S.td, fontWeight:700, color:"#111827" }}>{r.name}</td>
-                        <td style={{ ...S.td }}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
-                        <td style={{ ...S.td, color:"#6B7280", textAlign:"center" }}>{qty}</td>
-                        <td style={{ ...S.td, color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
-                        <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${offerPerCard.toFixed(2)}</td>
+                        <td style={{ padding:"8px 10px", color:"#D1D5DB", fontSize:11, width:32, textAlign:"center" }}>{i+1}</td>
+                        <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{r.name}</td>
+                        <td style={{ padding:"8px 10px" }}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
+                        <td style={{ padding:"8px 10px", color:"#6B7280", textAlign:"center" }}>{qty}</td>
+                        <td style={{ padding:"8px 10px", color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
+                        <td style={{ padding:"8px 10px", color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
                       </tr>
                     );
                   })
@@ -337,15 +341,11 @@ function LotComp({ onAccept }) {
             </tbody>
           </table>
         </div>
-        {/* Totals */}
         <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
-          {[
-            ["Total Cards", included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)],
-            ["Total Market Value", `$${totalMkt.toFixed(2)}`],
-          ].map(([l,v]) => (
+          {[["Total Cards", totalCards],["Total Market Value", `$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #FFF0F5" }}>
               <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span>
-              <span style={{ color:"#111827", fontWeight:700, fontSize:13 }}>{v}</span>
+              <span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
             </div>
           ))}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#1A1A2E", borderRadius:10 }}>
@@ -360,68 +360,93 @@ function LotComp({ onAccept }) {
     </div>
   );
 
+  // ── BUILDER VIEW ───────────────────────────────────────────────
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Seller Info */}
       <div style={S.card}>
         <SectionLabel t="Seller Information" />
-        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12 }}>
-          <TextInput label="Seller Name"  value={seller.name}    onChange={v => setSeller(p=>({...p,name:v}))} />
-          <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
-          <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
-          <SelectInput label="Source" value={seller.source} onChange={v => setSeller(p=>({...p,source:v}))} options={SOURCES} />
-          <SelectInput label="Payment Method" value={seller.payment||""} onChange={v => setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+          <TextInput label="Seller Name"     value={seller.name}    onChange={v=>setSeller(p=>({...p,name:v}))} />
+          <TextInput label="Contact"         value={seller.contact} onChange={v=>setSeller(p=>({...p,contact:v}))} />
+          <TextInput label="Date" type="date" value={seller.date}   onChange={v=>setSeller(p=>({...p,date:v}))} />
+          <SelectInput label="Source"         value={seller.source}  onChange={v=>setSeller(p=>({...p,source:v}))}  options={SOURCES} />
+          <SelectInput label="Payment Method" value={seller.payment} onChange={v=>setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
         </div>
       </div>
 
+      {/* Lot Controls */}
       <div style={S.card}>
         <SectionLabel t="Lot-Level Controls" />
-        <div style={{ display:"grid", gridTemplateColumns: window.innerWidth<768 ? "1fr" : "1fr 1fr 1fr", gap:12, alignItems:"end" }}>
-          <TextInput label="Lot Buy % Override (blank = 60% default)" value={lotPct} onChange={setLotPct} placeholder="60" />
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end" }}>
           <div>
-            <label style={S.lbl}>Calculated Offer</label>
-            <div style={{ ...S.inp, color:"#92400e", fontWeight:800, fontSize:15 }}>${calcOffer.toFixed(2)}</div>
+            <label style={S.lbl}>Lot Buy % (blank = 60% default)</label>
+            <input type="number" value={lotPct} onChange={e=>setLotPct(e.target.value)} placeholder="60"
+              style={{ ...S.inp, fontWeight:700 }}/>
+          </div>
+          <div>
+            <label style={S.lbl}>Calculated Offer (at {(pctNum*100).toFixed(0)}%)</label>
+            <div style={{ ...S.inp, color:"#166534", fontWeight:800, fontSize:15 }}>${calcOffer.toFixed(2)}</div>
           </div>
           <div>
             <label style={S.lbl}>Lot Zone</label>
-            <div style={{ ...S.inp, background:lotZone?.bg||"#FFF5F8", border:`1px solid ${lotZone?.color||"#D1D5DB"}`, color:lotZone?.color||"#9CA3AF", fontWeight:700 }}>
-              {lotZone?lotZone.label:"Enter cards to see zone"}
+            <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`1.5px solid ${lotZone?.color||"#D1D5DB"}`, color:lotZone?.color||"#9CA3AF", fontWeight:700 }}>
+              {lotZone ? lotZone.label : "Enter cards to see zone"}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Card Table */}
       <div style={S.card}>
         <SectionLabel t="Cards in This Lot" />
         <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:620 }}>
-            <thead><tr>{["#","Card Name","Card Type","Qty","Market Value ($)","Offer/Card ($)","Zone","Include"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
+            <thead>
+              <tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Offer/Card ($)","Card Zone","Include"].map(h=>
+                <th key={h} style={S.th}>{h}</th>
+              )}</tr>
+            </thead>
             <tbody>
               {rows.map((r,i) => {
-                const mv=parseFloat(r.mktVal)||0;
-                const cz=mv>0?getZone(pctNum):null;
+                const mv      = parseFloat(r.mktVal) || 0;
+                const qty     = parseInt(r.qty) || 1;
+                const total   = mv * qty;
+                const offer   = mv * pctNum;
+                const cardZone= mv > 0 ? getZone(pctNum) : null;
                 return (
                   <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:r.include?1:0.35 }}>
                     <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
-                    <td style={{ ...S.td, width:200 }}>
-                      <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12 }}/>
+                    <td style={{ ...S.td, width:180 }}>
+                      <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..."
+                        style={{ ...S.inp, padding:"5px 8px", fontSize:12 }}/>
                     </td>
-                    <td style={{ ...S.td, width:155 }}>
-                      <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#111827":"#9CA3AF", cursor:"pointer" }}>
+                    <td style={{ ...S.td, width:150 }}>
+                      <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)}
+                        style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#111827":"#9CA3AF", cursor:"pointer" }}>
                         <option value="">Type...</option>
                         {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
                       </select>
                     </td>
-                    <td style={{ ...S.td, width:70 }}>
-                      <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:60 }}/>
+                    <td style={{ ...S.td, width:65 }}>
+                      <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)}
+                        placeholder="1" min="1"
+                        style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#1B4F8A", width:55 }}/>
                     </td>
-                    <td style={{ ...S.td, width:110 }}>
-                      <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:85 }}/>
+                    <td style={{ ...S.td, width:100 }}>
+                      <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)}
+                        placeholder="0.00"
+                        style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#92400e", width:80 }}/>
                     </td>
-                    <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(mv*(parseInt(r.qty)||1)).toFixed(2)}</td>
-                    <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>${(mv*pctNum).toFixed(2)}</td>
-                    <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>—</span>}</td>
-                    <td style={{ ...S.td, textAlign:"center" }}>
-                      <input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)} style={{ cursor:"pointer", width:15, height:15 }}/>
+                    <td style={{ ...S.td, color:"#92400e", fontWeight:700, width:100 }}>${total.toFixed(2)}</td>
+                    <td style={{ ...S.td, color:"#166534", fontWeight:700, width:100 }}>${offer.toFixed(2)}</td>
+                    <td style={{ ...S.td, width:120 }}>
+                      {cardZone ? <Badge bg={cardZone.bg} color={cardZone.color}>{cardZone.label}</Badge> : <span style={{color:"#D1D5DB"}}>—</span>}
+                    </td>
+                    <td style={{ ...S.td, textAlign:"center", width:60 }}>
+                      <input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}
+                        style={{ cursor:"pointer", width:15, height:15 }}/>
                     </td>
                   </tr>
                 );
@@ -429,45 +454,43 @@ function LotComp({ onAccept }) {
             </tbody>
           </table>
         </div>
-        <div style={{ marginTop:10 }}>
-          <Btn onClick={()=>setRows(p=>[...p,{id:uid(),name:"",cardType:"",mktVal:"",qty:1,include:true}])} variant="ghost">+ Add Row</Btn>
-        </div>
+        <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>
       </div>
 
-      <div style={{ ...S.card, border:"2px solid #E8317A55" }}>
+      {/* Final Offer */}
+      <div style={{ ...S.card, border:"2px solid #E8317A33" }}>
         <SectionLabel t="Final Offer" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, alignItems:"end", marginBottom:16 }}>
           <div>
-            <label style={S.lbl}>Final Offer Price ($) — blank uses 60% calculated</label>
-            <input
-              type="number"
-              value={finalOffer}
-              onChange={e => setFOffer(e.target.value)}
-              placeholder={`$${calcOffer.toFixed(2)} (calculated)`}
-              style={{ ...S.inp, fontWeight:700, fontSize:15, color:"#111827" }}
-            />
+            <label style={S.lbl}>Your Final Offer ($) — leave blank to use calculated</label>
+            <input type="number" value={finalOffer} onChange={e=>setFOffer(e.target.value)}
+              placeholder={calcOffer > 0 ? `$${calcOffer.toFixed(2)} (auto)` : "0.00"}
+              style={{ ...S.inp, fontWeight:700, fontSize:14 }}/>
           </div>
           <div>
-            <label style={S.lbl}>Lot Zone</label>
-            <div style={{ ...S.inp, background:lotZone?.bg||"#FFF5F8", border:`2px solid ${lotZone?.color||"#E8317A"}`, color:lotZone?.color||"#92400e", fontWeight:900, fontSize:14 }}>
-              {lotZone ? lotZone.label : totalMkt > 0 ? getZone(calcOffer/totalMkt)?.label || "—" : "—"}
+            <label style={S.lbl}>Lot Zone (offer ÷ market value)</label>
+            <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`2px solid ${lotZone?.color||"#E8317A"}`, color:lotZone?.color||"#9CA3AF", fontWeight:900, fontSize:14 }}>
+              {lotZone ? lotZone.label : totalMkt > 0 ? "Enter offer above" : "Add cards first"}
             </div>
           </div>
           <div>
             <label style={S.lbl}>Est. Margin (internal)</label>
-            <div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>{dispOffer>0?`$${(totalMkt-dispOffer).toFixed(2)}`:"—"}</div>
+            <div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>
+              {dispOffer > 0 && totalMkt > 0 ? `$${(totalMkt - dispOffer).toFixed(2)}` : "—"}
+            </div>
           </div>
         </div>
         <div style={{ display:"flex", gap:10 }}>
           <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
           <Btn onClick={doAccept} disabled={included.length===0} variant="green">
-            ✅ Accept Offer — Import {included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)} card{included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)!==1?"s":""} to Inventory
+            ✅ Accept Offer — Import {totalCards} card{totalCards!==1?"s":""} to Inventory
           </Btn>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ─── INVENTORY ────────────────────────────────────────────────────
 function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
