@@ -6,24 +6,22 @@ import {
 } from "firebase/firestore";
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
-const CARD_TYPES = ["Giveaway Cards","First-Timer Cards","Insurance Cards","Chaser Cards"];
+const CARD_TYPES = ["Giveaway/Standard Cards","First-Timer Cards","Chaser Cards"];
 const BREAKERS   = ["Dev","Dre","Krystal"];
-const USAGE_TYPES = ["Giveaway","First-Timer Pack","Insurance Pull","Chaser Pull"];
+const USAGE_TYPES = ["Giveaway/Standard","First-Timer Pack","Chaser Pull"];
 const SOURCES    = ["Discord","Facebook","Other"];
 const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
 
 const TARGETS = {
-  "Giveaway Cards":    { monthly:2000, buffer:500  },
-  "First-Timer Cards": { monthly:200,  buffer:50   },
-  "Insurance Cards":   { monthly:2000, buffer:1000 },
-  "Chaser Cards":      { monthly:275,  buffer:70   },
+  "Giveaway/Standard Cards": { monthly:4000, buffer:500 },
+  "First-Timer Cards":       { monthly:200,  buffer:50  },
+  "Chaser Cards":            { monthly:275,  buffer:70  },
 };
 
 const CC = {
-  "Giveaway Cards":    { bg:"#D6F4E3", text:"#1A6B3A", border:"#2E7D52" },
-  "First-Timer Cards": { bg:"#FCE8F3", text:"#8B1A5A", border:"#9d174d" },
-  "Insurance Cards":   { bg:"#E8F0FB", text:"#1B4F8A", border:"#1e3a8a" },
-  "Chaser Cards":      { bg:"#FFF0CC", text:"#8B5E00", border:"#92400e" },
+  "Giveaway/Standard Cards": { bg:"#D6F4E3", text:"#1A6B3A", border:"#2E7D52" },
+  "First-Timer Cards":       { bg:"#FCE8F3", text:"#8B1A5A", border:"#9d174d" },
+  "Chaser Cards":            { bg:"#FFF0CC", text:"#8B5E00", border:"#92400e" },
 };
 
 const BC = {
@@ -272,9 +270,9 @@ function Dashboard({ inventory, breaks }) {
         {/* Value summary */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
           {[
-            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
-            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
-            { l:"Unrealized Margin",  v:totMkt>0?`$${(totMkt-totInv).toFixed(2)}`:"—", c: totMkt>totInv?"#166534":"#991b1b" },
+            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`,                                                    c:"#92400e" },
+            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,                                                    c:"#6B2D8B" },
+            { l:"Cards Used (Total)", v:usedCount,                                                                   c:"#991b1b" },
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
               <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
