@@ -400,7 +400,9 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   const [quickMktVal,  setQuickMktVal]  = useState("");
   const [quickPct,     setQuickPct]     = useState("");
   const [quickOffer,   setQuickOffer]   = useState("");
-  const [counterOffer, setCounterOffer] = useState("");
+  const [counterOffer,        setCounterOffer]        = useState("");
+  const [loadedCompId,        setLoadedCompId]        = useState(null);
+  const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
 
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
@@ -422,12 +424,16 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"" });
-    setRows(comp.cards && comp.cards.length > 0
+    const hasCards = comp.cards && comp.cards.length > 0;
+    setRows(hasCards
       ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
       : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
     );
     setFOffer(comp.offer ? String(comp.offer) : "");
+    setLoadedCompId(comp.id);
+    setLoadedCompHadCards(hasCards);
     setCompMode("builder");
+    setTimeout(() => { const el = document.getElementById("comp-builder-top"); if (el) el.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
   }
 
   function saveComp(status) {
@@ -570,6 +576,9 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       <span style={{ fontSize:12, color:"#9CA3AF" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
                       <span style={{ fontSize:12, color:"#9CA3AF" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
                       <span style={{ fontSize:12, color:"#9CA3AF" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
+                      <span style={{ fontSize:11, color: c.cards&&c.cards.length>0 ? "#166534" : "#92400e", fontWeight:700 }}>
+                        {c.cards&&c.cards.length>0 ? `✓ ${c.cards.length} card detail${c.cards.length!==1?"s":""} saved` : "⚠ No card details — can re-import manually"}
+                      </span>
                     </div>
                   </div>
                 );
@@ -579,7 +588,23 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
       )}
 
       {compMode==="builder" && <>
-        <div style={S.card}>
+        {loadedCompId && (
+          <div id="comp-builder-top" style={{ background: loadedCompHadCards ? "#D6F4E3" : "#FFF9DB", border: `1.5px solid ${loadedCompHadCards ? "#2E7D52" : "#92400e"}`, borderRadius:10, padding:"12px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:18 }}>{loadedCompHadCards ? "✅" : "⚠️"}</span>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color: loadedCompHadCards ? "#166534" : "#92400e" }}>
+                  {loadedCompHadCards ? "Comp loaded — ready to edit and import" : "Comp loaded — no card data saved"}
+                </div>
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>
+                  {loadedCompHadCards ? "All seller info, cards, and offer amount restored. Hit Accept & Import to add to inventory." : "Seller info and offer restored, but this comp was saved without per-card details. Add cards manually below."}
+                </div>
+              </div>
+            </div>
+            <button onClick={()=>setLoadedCompId(null)} style={{ background:"transparent", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>
+          </div>
+        )}
+        <div id="comp-builder-top" style={S.card}>
           <SectionLabel t="Seller Information" />
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
             <TextInput label="Seller Name"      value={seller.name}    onChange={v=>setSeller(p=>({...p,name:v}))} />
