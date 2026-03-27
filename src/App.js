@@ -416,6 +416,12 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
   const [rows,       setRows]    = useState(() =>
     Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
   );
+  const [compMode,      setCompMode]      = useState("builder");
+  const [quickCards,    setQuickCards]    = useState("");
+  const [quickMktVal,   setQuickMktVal]   = useState("");
+  const [quickPct,      setQuickPct]      = useState("");
+  const [quickOffer,    setQuickOffer]    = useState("");
+  const [counterOffer,  setCounterOffer]  = useState("");
 
   // Core calculations
   const pctNum    = parseFloat(lotPct) / 100 || 0.60;
@@ -428,6 +434,19 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
   const totalCards = included.reduce((s,r) => s + (parseInt(r.qty)||1), 0);
 
   function upd(id, f, v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
+
+  function saveComp(status) {
+    if (!onSaveComp) return;
+    onSaveComp({
+      seller:seller.name, contact:seller.contact,
+      date:seller.date||new Date().toLocaleDateString(),
+      source:seller.source, payment:seller.payment,
+      totalCards, totalMarket:totalMkt,
+      offer:dispOffer, blendedPct:totalMkt>0?dispOffer/totalMkt:0,
+      zone:lotZone?.label||"—", status,
+      cards:included.map(r=>({name:r.name,cardType:r.cardType,qty:parseInt(r.qty)||1,mktVal:parseFloat(r.mktVal)||0}))
+    });
+  }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
 
   function saveComp(status) {
@@ -546,7 +565,79 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* Seller Info */}
+      {/* Mode switcher */}
+      <div style={S.card}>
+        <div style={{ display:"flex", gap:8 }}>
+          {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],["history","📋 History"]].map(([mode,label])=>(
+            <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Mode */}
+      {compMode==="quick" && (
+        <div style={S.card}>
+          <SectionLabel t="Quick Lot Comp" />
+          <p style={{ fontSize:12, color:"#9CA3AF", marginBottom:16 }}>Enter total cards + avg market value per card for an instant offer.</p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:16 }}>
+            <div><label style={S.lbl}>Total Cards</label><input type="number" value={quickCards} onChange={e=>setQuickCards(e.target.value)} placeholder="0" style={S.inp}/></div>
+            <div><label style={S.lbl}>Avg Value/Card ($)</label><input type="number" value={quickMktVal} onChange={e=>setQuickMktVal(e.target.value)} placeholder="0.00" style={S.inp}/></div>
+            <div><label style={S.lbl}>Buy % (blank=60%)</label><input type="number" value={quickPct} onChange={e=>setQuickPct(e.target.value)} placeholder="60" style={S.inp}/></div>
+            <div><label style={S.lbl}>Your Final Offer ($)</label><input type="number" value={quickOffer} onChange={e=>setQuickOffer(e.target.value)} placeholder={quickCalcOffer.toFixed(2)} style={S.inp}/></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            {[
+              { l:"Total Market Value", v:`$${quickTotal.toFixed(2)}`,    c:"#92400e" },
+              { l:"Calculated Offer",   v:`$${quickCalcOffer.toFixed(2)}`, c:"#166534" },
+              { l:"Your Offer",         v:`$${quickOfferAmt.toFixed(2)}`,  c:"#6B2D8B" },
+              { l:"Lot Zone",           v:quickZone?quickZone.label:"—",   c:quickZone?.color||"#9CA3AF" },
+            ].map(({l,v,c})=>(
+              <div key={l} style={{ background:quickZone&&l==="Lot Zone"?quickZone.bg:"#F9FAFB", border:"1px solid #F0D0DC", borderRadius:10, padding:"12px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+                <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Comp History */}
+      {compMode==="history" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {(!comps||comps.length===0)
+            ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>No comps saved yet.</div>
+            : comps.map(c => {
+                const z = getZone(c.blendedPct);
+                return (
+                  <div key={c.id} style={{ ...S.card, border:`1px solid ${z?.color||"#F0D0DC"}33` }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <div>
+                        <span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{c.seller||"Unknown"}</span>
+                        <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{c.date}</span>
+                        <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>by {c.savedBy}</span>
+                      </div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <span style={{ background:c.status==="accepted"?"#D6F4E3":c.status==="passed"?"#FEE2E2":"#FFF9DB", color:c.status==="accepted"?"#166534":c.status==="passed"?"#991b1b":"#92400e", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
+                          {c.status==="accepted"?"✅ Accepted":c.status==="passed"?"❌ Passed":"💾 Saved"}
+                        </span>
+                        {z&&<span style={{ background:z.bg, color:z.color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{z.label}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Cards: <strong style={{color:"#111827"}}>{c.totalCards}</strong></span>
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
+                      <span style={{ fontSize:12, color:"#9CA3AF" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
+                    </div>
+                  </div>
+                );
+              })
+          }
+        </div>
+      )}
+
+      {/* Builder Mode */}
+      {compMode==="builder" && <>
       <div style={S.card}>
         <SectionLabel t="Seller Information" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
@@ -662,13 +753,45 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
             </div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:10 }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
           <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
-          <Btn onClick={doAccept} disabled={included.length===0} variant="green" style={{ position:"relative", overflow:"hidden" }}>
-            ✅ Accept Offer — Import {totalCards} card{totalCards!==1?"s":""} to Inventory
+          <Btn onClick={()=>saveComp("saved")} variant="ghost">💾 Save Comp</Btn>
+          <Btn onClick={()=>saveComp("passed")} variant="ghost">❌ Pass on Lot</Btn>
+          <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green" style={{ position:"relative", overflow:"hidden" }}>
+            ✅ Accept & Import {totalCards} card{totalCards!==1?"s":""} to Inventory
           </Btn>
         </div>
+
+        {/* Counter offer calculator */}
+        <div style={{ marginTop:16, paddingTop:16, borderTop:"1px solid #F0D0DC" }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>Counter Offer Calculator</div>
+          <div style={{ display:"flex", gap:12, alignItems:"end", flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:120 }}>
+              <label style={S.lbl}>Seller's Counter ($)</label>
+              <input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={S.inp}/>
+            </div>
+            <div style={{ flex:1, minWidth:120 }}>
+              <label style={S.lbl}>Counter Zone</label>
+              <div style={{ ...S.inp, background:counterZone?.bg||"#F9FAFB", border:`1.5px solid ${counterZone?.color||"#E5E7EB"}`, color:counterZone?.color||"#9CA3AF", fontWeight:700 }}>
+                {counterZone?counterZone.label:totalMkt>0?"Enter counter":"Add cards first"}
+              </div>
+            </div>
+            <div style={{ flex:1, minWidth:120 }}>
+              <label style={S.lbl}>Counter Buy %</label>
+              <div style={{ ...S.inp, color:"#6B2D8B", fontWeight:700 }}>
+                {counterAmt>0&&totalMkt>0?`${((counterAmt/totalMkt)*100).toFixed(1)}%`:"—"}
+              </div>
+            </div>
+            <div style={{ flex:1, minWidth:120 }}>
+              <label style={S.lbl}>vs Your Offer</label>
+              <div style={{ ...S.inp, color:counterAmt>dispOffer?"#991b1b":"#166534", fontWeight:700 }}>
+                {counterAmt>0&&dispOffer>0?`$${Math.abs(counterAmt-dispOffer).toFixed(2)} ${counterAmt>dispOffer?"over":"under"}`:"—"}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+      </>}
     </div>
   );
 }
