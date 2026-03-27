@@ -329,18 +329,7 @@ function Dashboard({ inventory, breaks, user }) {
         </div>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
-        {[
-          { l:"Cards in Inventory", v:inventory.length,          c:"#000000" },
-          { l:"Total Invested",     v:`$${totInv.toFixed(2)}`,   c:"#000000" },
-          { l:"Portfolio Zone",     v:oz?oz.label:"No data",     c:oz?.color||"#9CA3AF" },
-        ].map(({ l, v, c }) => (
-          <div key={l} style={{ ...S.card, textAlign:"center", boxShadow:"0 2px 20px rgba(232,49,122,0.08)" }} className="stat-card count-up">
-            <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-            <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-          </div>
-        ))}
-      </div>
+
 
       <div style={S.card}>
         <SectionLabel t="Inventory by Card Type" />
@@ -353,20 +342,24 @@ function Dashboard({ inventory, breaks, user }) {
             const sc    = ok?"#166534":warn?"#92400e":"#991b1b";
             const sl    = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
             return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"10px 14px", display:"grid", gridTemplateColumns:"1fr 65px 65px 65px 65px 160px 110px", alignItems:"center", gap:6 }}>
-                <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
-                {[{ v:d.total, l:"stock" },{ v:d.used, l:"used", c:"#991b1b" },{ v:avail, l:"avail", c:sc }].map(({ v, l, c:c2 }) => (
-                  <div key={l} style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:20, fontWeight:900, color:c2||cc.text }}>{v}</div>
-                    <div style={{ fontSize:9, color:"#9CA3AF" }}>{l}</div>
+              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                <span style={{ fontWeight:700, color:cc.text, fontSize:14, minWidth:180 }}>{ct}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:20, flex:1, justifyContent:"center" }}>
+                  {[{ v:d.total, l:"stock" },{ v:d.used, l:"used", c:"#991b1b" },{ v:avail, l:"avail", c:sc }].map(({ v, l, c:c2 }) => (
+                    <div key={l} style={{ textAlign:"center", minWidth:50 }}>
+                      <div style={{ fontSize:22, fontWeight:900, color:c2||cc.text }}>{v}</div>
+                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                    </div>
+                  ))}
+                  <div style={{ textAlign:"center", minWidth:50 }}>
+                    <div style={{ fontSize:14, color:"#9CA3AF", fontWeight:600 }}>{buffer}</div>
+                    <div style={{ fontSize:9, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>min</div>
                   </div>
-                ))}
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:13, color:"#9CA3AF" }}>{buffer}</div>
-                  <div style={{ fontSize:9, color:"#D1D5DB" }}>min</div>
                 </div>
-                <ZoneBadge pct={pct} />
-                <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{sl}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <ZoneBadge pct={pct} />
+                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{sl}</span>
+                </div>
               </div>
             );
           })}
