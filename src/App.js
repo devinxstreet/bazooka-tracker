@@ -1368,7 +1368,6 @@ export default function App() {
   const [toast,     setToast]     = useState(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="1");
-  const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="true");
 
   // Auth listener
   useEffect(() => {
