@@ -68,13 +68,14 @@ function getZone(pct) {
 }
 
 // ─── STYLES ──────────────────────────────────────────────────────
-const S = {
-  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
-  inp:  { background:"#FFFFFF", border:"1px solid #F0D0DC", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-  lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#FFF0F5", color:"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
-  td:   { padding:"8px 14px", borderBottom:"1px solid #FFE8F0", fontSize:13, color:"#111827" },
-};
+function getS(dark=false) { return {
+  card: { background:dark?"#13131f":"#FFFFFF", border:`1px solid ${dark?"#1e1e3a":"#F0E0E8"}`, borderRadius:12, padding:"18px 20px", boxShadow:`0 2px 12px rgba(232,49,122,${dark?0.12:0.06})`, transition:"background 0.3s ease" },
+  inp:  { background:dark?"#0d0d1a":"#FFFFFF", border:`1px solid ${dark?"#1e1e3a":"#F0D0DC"}`, borderRadius:7, padding:"8px 12px", color:dark?"#e2e8f0":"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+  lbl:  { fontSize:10, fontWeight:700, color:dark?"#4a4a6a":"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
+  th:   { padding:"9px 14px", background:dark?"#0d0d1a":"#FFF0F5", color:dark?"#E8317A":"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:`1px solid ${dark?"#1e1e3a":"#E5E7EB"}` },
+  td:   { padding:"8px 14px", borderBottom:`1px solid ${dark?"#13131f":"#FFE8F0"}`, fontSize:13, color:dark?"#e2e8f0":"#111827" },
+};}
+const S = getS(false);
 
 // ─── MICRO COMPONENTS ────────────────────────────────────────────
 function SectionLabel({ t }) {
