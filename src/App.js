@@ -712,7 +712,7 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
                 const offer   = mv * pctNum;
                 const cardZone= mv > 0 ? getZone(pctNum) : null;
                 return (
-                  <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:r.include?1:0.35 }}>
+                  <tr key={r.id} style={{ background:i%2===0?"var(--row-even,#FFFFFF)":"var(--row-odd,#FFF5F8)", opacity:r.include?1:0.35 }}>
                     <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                     <td style={{ ...S.td, width:180 }}>
                       <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..."
@@ -979,7 +979,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
                     const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/(1000*60*60*24)) : null;
                     const isAging = !used && daysIn !== null && daysIn >= 60;
                     return (
-                      <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
+                      <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"var(--row-even,#FFFFFF)":"var(--row-odd,#FFF5F8)", opacity:used?0.45:1, transition:"background 0.15s ease" }} className="inv-row">
                         <td style={{ ...S.td, textAlign:"center" }}>
                           <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
                         </td>
@@ -1169,7 +1169,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
                   const bc=BC[b.breaker]||{bg:"#FFF0F5",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={b.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", transition:"background 0.15s ease" }} className="break-row">
+                    <tr key={b.id} style={{ background:i%2===0?"var(--row-even,#FFFFFF)":"var(--row-odd,#FFF5F8)", transition:"background 0.15s ease" }} className="break-row">
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
@@ -1190,11 +1190,26 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
 
 // ─── APP ROOT ─────────────────────────────────────────────────────
 // ── GLOBAL STYLES ────────────────────────────────────────────────
-const GlobalStyles = () => {
+const GlobalStyles = ({ darkMode }) => {
   useEffect(() => {
     const style = document.createElement('style');
+    const dm = darkMode;
     style.textContent = `
       * { box-sizing: border-box; }
+      :root {
+        --card-bg: ${dm?"#13131f":"#FFFFFF"};
+        --card-border: ${dm?"#1e1e30":"#F0E0E8"};
+        --input-bg: ${dm?"#0d0d1a":"#F9FAFB"};
+        --input-border: ${dm?"#252538":"#F0D0DC"};
+        --input-color: ${dm?"#e2e8f0":"#111827"};
+        --text-primary: ${dm?"#e2e8f0":"#111827"};
+        --text-secondary: ${dm?"#888":"#6B7280"};
+        --text-muted: ${dm?"#555":"#9CA3AF"};
+        --row-even: ${dm?"#0d0d1a":"#FFFFFF"};
+        --row-odd: ${dm?"#111120":"#FFF5F8"};
+        --th-bg: ${dm?"#070710":"#FFF0F5"};
+        --section-bg: ${dm?"#F3F4F6":"#F3F4F6"};
+      }
 
       /* Smooth page transitions */
       .tab-content { animation: fadeSlideUp 0.25s ease forwards; }
@@ -1327,6 +1342,7 @@ export default function App() {
   const [comps,     setComps]     = useState([]);
   const [toast,     setToast]     = useState(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const [darkMode,  setDarkMode]  = useState(() => localStorage.getItem("bzk_dark")==="true");
 
   // Auth listener
   useEffect(() => {
@@ -1356,6 +1372,12 @@ export default function App() {
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
+
+  function toggleDark() {
+    const next = !darkMode;
+    setDarkMode(next);
+    localStorage.setItem("bzk_dark", String(next));
+  }
 
   async function handleAccept(cards, seller, user) {
     for (const card of cards) {
@@ -1406,7 +1428,7 @@ export default function App() {
   ];
 
   if (!authReady) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FFFFFF", color:"#1A1A2E", fontSize:18, fontWeight:700, fontFamily:"'Trebuchet MS',sans-serif" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#0a0a12", color:"#E8317A", fontSize:18, fontWeight:700, fontFamily:"'Trebuchet MS',sans-serif" }}>
       Loading...
     </div>
   );
@@ -1414,8 +1436,8 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
-      <GlobalStyles />
+    <div style={{ background:darkMode?"#0a0a12":"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:darkMode?"#e2e8f0":"#111827", transition:"background 0.3s ease, color 0.3s ease" }}>
+      <GlobalStyles darkMode={darkMode} />
       <div style={{ background:"#000000", padding:"0 12px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
@@ -1440,6 +1462,9 @@ export default function App() {
                   <span style={{ background:ur.bg, color:ur.color, border:`1px solid ${ur.color}44`, borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{ur.label}</span>
                 </div>;
               })()}
+              <button onClick={toggleDark} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Toggle dark mode">
+                {darkMode ? "☀️" : "🌙"}
+              </button>
               <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
