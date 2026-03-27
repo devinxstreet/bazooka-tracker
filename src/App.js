@@ -43,11 +43,11 @@ function getZone(pct) {
 
 // ─── STYLES ──────────────────────────────────────────────────────
 const S = {
-  card: { background:"#374151", border:"1px solid #4B5563", borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" },
-  inp:  { background:"#1F2937", border:"1px solid #4B5563", borderRadius:7, padding:"8px 12px", color:"#FFF5F8", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+  card: { background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:12, padding:"18px 20px", boxShadow:"0 2px 12px rgba(232,49,122,0.06)" },
+  inp:  { background:"#FFFFFF", border:"1px solid #F0D0DC", borderRadius:7, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#111827", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
-  td:   { padding:"8px 14px", borderBottom:"1px solid #111827", fontSize:13, color:"#FFF5F8" },
+  th:   { padding:"9px 14px", background:"#FFF0F5", color:"#1A1A2E", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid #E5E7EB" },
+  td:   { padding:"8px 14px", borderBottom:"1px solid #FFE8F0", fontSize:13, color:"#111827" },
 };
 
 // ─── MICRO COMPONENTS ────────────────────────────────────────────
@@ -59,7 +59,7 @@ function SectionLabel({ t }) {
   );
 }
 
-function Badge({ children, bg="#FFF0F5", color="#374151" }) {
+function Badge({ children, bg="#FFF0F5", color="#6B7280" }) {
   return <span style={{ background:bg, color, border:`1px solid ${color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{children}</span>;
 }
 
@@ -124,11 +124,11 @@ function LoginScreen({ onLogin }) {
   }
 
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#111827", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
-      <div style={{ background:"#374151", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 24px rgba(0,0,0,0.1)", textAlign:"center", maxWidth:380, width:"100%" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+      <div style={{ background:"#FFFFFF", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
         <div style={{ fontSize:36, fontWeight:900, color:"#FFF5F8", letterSpacing:3, marginBottom:4 }}>BAZOOKA</div>
         <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:32, fontStyle:"italic" }}>Bazooka Inventory Tracker</div>
-        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#1F2937", border:"2px solid #4B5563", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#FFF5F8", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
+        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FFFFFF", border:"2px solid #F0D0DC", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#374151", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
             <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
@@ -296,7 +296,7 @@ function LotComp({ onAccept }) {
           <div style={{ fontSize:30, fontWeight:900, color:"#E8317A", letterSpacing:3 }}>⚡ BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
-        <div style={{ background:"#1F2937", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+        <div style={{ background:"#FFF5F8", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#111827" }}>{seller.name||"—"}</strong></div>
           <div><span style={{ color:"#9CA3AF", fontSize:11 }}>Date: </span><strong style={{ color:"#111827" }}>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
@@ -308,7 +308,7 @@ function LotComp({ onAccept }) {
                 const mv=parseFloat(r.mktVal)||0;
                 const cc=CC[r.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                 return (
-                  <tr key={r.id} style={{ background:i%2===0?"#374151":"#2D3748" }}>
+                  <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
                     <td style={{ ...S.td, color:"#D1D5DB", textAlign:"center", width:36 }}>{i+1}</td>
                     <td style={{ ...S.td, fontWeight:700 }}>{r.name}</td>
                     <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{r.cardType||"—"}</Badge></td>
@@ -324,7 +324,7 @@ function LotComp({ onAccept }) {
           </tbody>
         </table>
         {[["Total Cards",included.length],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
-          <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#1F2937", borderRadius:6, marginBottom:4 }}>
+          <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#FFF5F8", borderRadius:6, marginBottom:4 }}>
             <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span><span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
           </div>
         ))}
@@ -472,7 +472,7 @@ function Inventory({ inventory, breaks, onRemove }) {
                   const used=usedIds.has(c.id);
                   const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={c.id} style={{ background:i%2===0?"#374151":"#2D3748", opacity:used?0.45:1 }}>
+                    <tr key={c.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
                       <td style={{ ...S.td, fontWeight:700 }}>{c.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
@@ -546,7 +546,7 @@ function BreakLog({ inventory, breaks, onAdd }) {
           </Field>
         </div>
         {selCard && (
-          <div style={{ marginBottom:12, padding:"10px 14px", background:"#1F2937", borderRadius:8, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ marginBottom:12, padding:"10px 14px", background:"#FFF5F8", borderRadius:8, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>
             <span style={{ color:"#6B7280", fontSize:12 }}>Card: <strong style={{ color:"#111827" }}>{selCard.cardName}</strong></span>
             <Badge bg={CC[selCard.cardType]?.bg} color={CC[selCard.cardType]?.text}>{selCard.cardType}</Badge>
             <span style={{ color:"#6B7280", fontSize:12 }}>Value: <strong style={{ color:"#92400e" }}>${(selCard.marketValue||0).toFixed(2)}</strong></span>
@@ -587,7 +587,7 @@ function BreakLog({ inventory, breaks, onAdd }) {
                   const bc=BC[b.breaker]||{bg:"#FFF0F5",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={b.id} style={{ background:i%2===0?"#374151":"#2D3748" }}>
+                    <tr key={b.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
@@ -680,7 +680,7 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:"#1F2937", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
+    <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
       <div style={{ background:"#1A1A2E", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 16px rgba(232,49,122,0.15), 0 1px 0 rgba(232,49,122,0.3)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
