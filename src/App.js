@@ -263,7 +263,7 @@ function LotComp({ onAccept }) {
   const calcOffer = included.reduce((s,r) => s+(parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1)*pctNum, 0);
   const offerAmt  = parseFloat(finalOffer)||0;
   const dispOffer = offerAmt||calcOffer;
-  const lotZone   = totalMkt>0&&dispOffer>0 ? getZone(dispOffer/totalMkt) : null;
+  const lotZone   = totalMkt>0 ? getZone(dispOffer/totalMkt) : null;
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
 
@@ -293,7 +293,7 @@ function LotComp({ onAccept }) {
   if (custView) return (
     <div>
       <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
-      <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:680 }}>
+      <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:800 }}>
         <div style={{ textAlign:"center", marginBottom:20, padding:"16px", background:"#1A1A2E", borderRadius:10 }}>
           <div style={{ fontSize:30, fontWeight:900, color:"#FFFFFF", letterSpacing:3 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
@@ -325,7 +325,7 @@ function LotComp({ onAccept }) {
             }
           </tbody>
         </table>
-        {[["Total Cards",included.length],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
+        {[["Total Cards",included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)],["Total Market Value",`$${totalMkt.toFixed(2)}`]].map(([l,v]) => (
           <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", background:"#FFF5F8", borderRadius:6, marginBottom:4 }}>
             <span style={{ color:"#6B7280", fontSize:13 }}>{l}</span><span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
           </div>
@@ -350,7 +350,7 @@ function LotComp({ onAccept }) {
           <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
           <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
           <SelectInput label="Source" value={seller.source} onChange={v => setSeller(p=>({...p,source:v}))} options={SOURCES} />
-          <TextInput label="Qty Per Card Name (e.g. 50 Silver Battlefoils = 50)" type="number" value={String(cardQty)} onChange={v => setCardQty(parseInt(v)||1)} placeholder="1" />
+          <SelectInput label="Payment Method" value={seller.payment||""} onChange={v => setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
         </div>
       </div>
 
@@ -433,7 +433,7 @@ function LotComp({ onAccept }) {
         <div style={{ display:"flex", gap:10 }}>
           <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
           <Btn onClick={doAccept} disabled={included.length===0} variant="green">
-            ✅ Accept Offer — Import {included.length} card{included.length!==1?"s":""} to Inventory
+            ✅ Accept Offer — Import {included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)} card{included.reduce((s,r)=>s+(parseInt(r.qty)||1),0)!==1?"s":""} to Inventory
           </Btn>
         </div>
       </div>
