@@ -731,8 +731,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const [trackingEdit,   setTrackingEdit]   = useState(null); // lotKey being edited
+  const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
@@ -766,33 +768,122 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
           const lots = {};
           inventory.forEach(c => {
             const key = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
-            if (!lots[key]) lots[key] = { seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"—", payment:c.payment||"—", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"—" };
+            if (!lots[key]) lots[key] = { key, seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"—", payment:c.payment||"—", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"—" };
             lots[key].cards.push(c);
           });
           const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
+
+          const CARRIERS = ["USPS","UPS","FedEx","DHL","Other"];
+          const TRACKING_STATUSES = ["Ordered","Label Created","Shipped","In Transit","Out for Delivery","Delivered","Exception"];
+          const STATUS_COLORS = {
+            "Ordered":            { bg:"#F3F4F6", color:"#6B7280" },
+            "Label Created":      { bg:"#EEF0FB", color:"#2C3E7A" },
+            "Shipped":            { bg:"#FFF0CC", color:"#8B5E00" },
+            "In Transit":         { bg:"#E0F7F4", color:"#0D6E6E" },
+            "Out for Delivery":   { bg:"#FCE8F3", color:"#8B1A5A" },
+            "Delivered":          { bg:"#D6F4E3", color:"#166534" },
+            "Exception":          { bg:"#FEE2E2", color:"#991b1b" },
+          };
+
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:12 }}>
-              {lotList.length===0 ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div> :
-                lotList.map((lot,i) => {
-                  const usedInLot = lot.cards.filter(c=>usedIds.has(c.id)).length;
-                  return (
-                    <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, padding:"14px 18px", background:"#FAFAFA" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                        <div><span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{lot.seller}</span><span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
-                        <div style={{ display:"flex", gap:8 }}><span style={{ fontSize:12, color:"#6B7280" }}>{lot.source}{canSeeFinancials ? ` · ${lot.payment}` : ""}</span>{canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span>}</div>
+              {lotList.length===0
+                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div>
+                : lotList.map((lot,i) => {
+                    const usedInLot = lot.cards.filter(c=>usedIds.has(c.id)).length;
+                    const tracking  = lotTracking[lot.key] || {};
+                    const isEditing = trackingEdit === lot.key;
+                    const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#9CA3AF" };
+
+                    return (
+                      <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, overflow:"hidden", background:"#FFFFFF" }}>
+                        {/* Lot header */}
+                        <div style={{ padding:"14px 18px", background:"#FAFAFA" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                            <div><span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{lot.seller}</span><span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
+                            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                              <span style={{ fontSize:12, color:"#6B7280" }}>{lot.source}{canSeeFinancials?` · ${lot.payment}`:""}</span>
+                              {canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span>}
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Total: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{lot.cards.length-usedInLot}</strong></span>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Added by: <strong style={{color:"#111827"}}>{lot.addedBy}</strong></span>
+                          </div>
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                            {CARD_TYPES.map(ct => { const count=lot.cards.filter(c=>c.cardType===ct).length; if(!count) return null; const cc=CC[ct]; return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>; })}
+                          </div>
+                        </div>
+
+                        {/* Tracking bar */}
+                        <div style={{ borderTop:"1px solid #F0E0E8", padding:"10px 18px", background:"#FFFFFF" }}>
+                          {!isEditing ? (
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                                <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
+                                {tracking.status
+                                  ? <>
+                                      <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
+                                      {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
+                                      {tracking.trackingNum && (
+                                        <a href={`https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+tracking.trackingNum)}`} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{tracking.trackingNum} ↗</a>
+                                      )}
+                                      {tracking.notes && <span style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic" }}>{tracking.notes}</span>}
+                                      {tracking.updatedBy && <span style={{ fontSize:10, color:"#D1D5DB" }}>· updated by {tracking.updatedBy}</span>}
+                                    </>
+                                  : <span style={{ fontSize:12, color:"#D1D5DB" }}>No tracking added yet</span>
+                                }
+                              </div>
+                              <button
+                                onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", notes:tracking.notes||"" }); }}
+                                style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                              >{tracking.status ? "✏️ Edit" : "+ Add Tracking"}</button>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>📦 Edit Tracking</div>
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:10, marginBottom:10 }}>
+                                <div>
+                                  <label style={S.lbl}>Carrier</label>
+                                  <select value={trackingForm.carrier} onChange={e=>setTrackingForm(p=>({...p,carrier:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.carrier?"#111827":"#9CA3AF" }}>
+                                    <option value="">Select...</option>
+                                    {CARRIERS.map(c=><option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={S.lbl}>Tracking Number</label>
+                                  <input value={trackingForm.trackingNum} onChange={e=>setTrackingForm(p=>({...p,trackingNum:e.target.value}))} placeholder="e.g. 9400111899..." style={S.inp}/>
+                                </div>
+                                <div>
+                                  <label style={S.lbl}>Status</label>
+                                  <select value={trackingForm.status} onChange={e=>setTrackingForm(p=>({...p,status:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.status?"#111827":"#9CA3AF" }}>
+                                    <option value="">Select...</option>
+                                    {TRACKING_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={S.lbl}>Notes (optional)</label>
+                                  <input value={trackingForm.notes} onChange={e=>setTrackingForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Expected Friday, seller dropped off Tuesday..." style={S.inp}/>
+                                </div>
+                              </div>
+                              <div style={{ display:"flex", gap:8 }}>
+                                <button
+                                  onClick={() => { onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
+                                  style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                >💾 Save Tracking</button>
+                                <button
+                                  onClick={() => setTrackingEdit(null)}
+                                  style={{ background:"#F3F4F6", color:"#6B7280", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                >Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
-                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Total: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
-                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{lot.cards.length-usedInLot}</strong></span>
-                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
-                        <span style={{ fontSize:12, color:"#9CA3AF" }}>Added by: <strong style={{color:"#111827"}}>{lot.addedBy}</strong></span>
-                      </div>
-                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                        {CARD_TYPES.map(ct => { const count=lot.cards.filter(c=>c.cardType===ct).length; if(!count) return null; const cc=CC[ct]; return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>; })}
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
               }
             </div>
           );
@@ -1197,7 +1288,8 @@ export default function App() {
   const [inventory, setInventory] = useState([]);
   const [breaks,    setBreaks]    = useState([]);
   const [comps,     setComps]     = useState([]);
-  const [toast,     setToast]     = useState(null);
+  const [toast,        setToast]        = useState(null);
+  const [lotTracking,  setLotTracking]  = useState({});
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1209,7 +1301,8 @@ export default function App() {
     const u1 = onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")),  snap => setInventory(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u2 = onSnapshot(query(collection(db,"breaks"),    orderBy("dateAdded","asc")),  snap => setBreaks(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    return () => { u1(); u2(); u3(); };
+    const u4 = onSnapshot(collection(db,"lot_tracking"),                                  snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
+    return () => { u1(); u2(); u3(); u4(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -1248,6 +1341,10 @@ export default function App() {
   async function handleDeleteBreak(id) {
     await deleteDoc(doc(db,"breaks",id));
     showToast("↩️ Break entry removed — card is available again");
+  }
+  async function handleSaveLotTracking(lotKey, data) {
+    await setDoc(doc(db,"lot_tracking",lotKey), { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
+    showToast("📦 Tracking info saved");
   }
 
   const userRole = getUserRole(user);
@@ -1291,7 +1388,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
