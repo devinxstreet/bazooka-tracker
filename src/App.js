@@ -693,13 +693,16 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }) {
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
+  const [statusF,  setStatusF]  = useState("available");
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState("cards");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
   const filtered = inventory.filter(c => {
-    const mn = c.cardName?.toLowerCase().includes(search.toLowerCase());
-    const mt = !typeF || c.cardType===typeF;
-    return mn && mt;
+    const mn   = c.cardName?.toLowerCase().includes(search.toLowerCase());
+    const mt   = !typeF || c.cardType===typeF;
+    const used = usedIds.has(c.id);
+    const ms   = statusF==="available" ? !used : statusF==="used" ? used : true;
+    return mn && mt && ms;
   });
   function toggleSelect(id) { setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function toggleAll() { setSelected(selected.size===filtered.length ? new Set() : new Set(filtered.map(c=>c.id))); }
@@ -791,6 +794,11 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
               <option value="">All Types</option>
               {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
             </select>
+            <div style={{ display:"flex", gap:4 }}>
+              {[["available","✅ Available"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
+                <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+              ))}
+            </div>
             <span style={{ color:"#9CA3AF", fontSize:12 }}>{filtered.length} cards</span>
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
               <button onClick={handleBulkDelete} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete {selected.size} selected</button>
@@ -846,7 +854,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) {
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,    setBreaker]    = useState(matchedBreaker);
@@ -964,9 +972,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
         <div style={{ padding:"16px 20px 0" }}><SectionLabel t="Break History"/></div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["Date","Breaker","Card Name","Card Type","Usage","Logged By","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Date","Breaker","Card Name","Card Type","Usage","Logged By","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
-              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={7}/> :
+              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={8}/> :
                 [...breaks].reverse().map((b,i) => {
                   const bc=BC[b.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -979,6 +987,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, user }) {
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{b.usage||"—"}</td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:12 }}>{b.loggedBy||"—"}</td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:12 }}>{b.notes||"—"}</td>
+                      <td style={S.td}>
+                        <button onClick={()=>{ if(window.confirm(`Remove "${b.cardName}" from break log? This will make the card available again.`)) onDeleteBreak(b.id); }} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }} title="Remove from break log">✕</button>
+                      </td>
                     </tr>
                   );
                 })
@@ -1156,6 +1167,10 @@ export default function App() {
     for (const b of entries) await setDoc(doc(db,"breaks",b.id), b);
     showToast(`✅ ${entries.length} cards logged out by ${entries[0]?.breaker}`);
   }
+  async function handleDeleteBreak(id) {
+    await deleteDoc(doc(db,"breaks",id));
+    showToast("↩️ Break entry removed — card is available again");
+  }
 
   const userRole = getUserRole(user);
   const TABS = [
@@ -1199,7 +1214,7 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} />}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole}/>}
-        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
 
