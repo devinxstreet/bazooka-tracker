@@ -865,6 +865,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) 
   const [notes,      setNotes]      = useState("");
   const [bulkMode,   setBulkMode]   = useState(false);
   const [bulkSel,    setBulkSel]    = useState(new Set());
+  const [histSel,    setHistSel]    = useState(new Set());
   const usedIds   = new Set(breaks.map(b => b.inventoryId));
   const available = inventory.filter(c => !usedIds.has(c.id));
   const selCard   = inventory.find(c => c.id===cardId);
@@ -879,6 +880,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) 
     if (!breaker||bulkSel.size===0) return;
     const entries = [...bulkSel].map(id => { const card=inventory.find(c=>c.id===id); return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" }; });
     onBulkAdd(entries); setBulkSel(new Set());
+  }
+  function toggleHistSel(id) { setHistSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
+  function toggleAllHist() { setHistSel(histSel.size===breaks.length ? new Set() : new Set(breaks.map(b=>b.id))); }
+  function handleBulkDeleteHist() {
+    if (histSel.size===0) return;
+    if (window.confirm(`Remove ${histSel.size} break log entr${histSel.size!==1?"ies":"y"}? These cards will become available again.`)) {
+      [...histSel].forEach(id => onDeleteBreak(id));
+      setHistSel(new Set());
+    }
   }
 
   const sum = {};
@@ -969,17 +979,33 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user }) 
       </div>
 
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        <div style={{ padding:"16px 20px 0" }}><SectionLabel t="Break History"/></div>
+        <div style={{ padding:"16px 20px 0" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+            <SectionLabel t="Break History"/>
+            {histSel.size > 0 && (
+              <button onClick={handleBulkDeleteHist} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>
+                🗑 Remove {histSel.size} selected
+              </button>
+            )}
+          </div>
+        </div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["Date","Breaker","Card Name","Card Type","Usage","Logged By","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>
+              <th style={{ ...S.th, width:40, textAlign:"center" }}>
+                <input type="checkbox" checked={breaks.length>0&&histSel.size===breaks.length} onChange={toggleAllHist}/>
+              </th>
+              {["Date","Breaker","Card Name","Card Type","Usage","Logged By","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+            </tr></thead>
             <tbody>
-              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={8}/> :
+              {breaks.length===0 ? <EmptyRow msg="No breaks logged yet." cols={9}/> :
                 [...breaks].reverse().map((b,i) => {
                   const bc=BC[b.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
+                  const isSel=histSel.has(b.id);
                   return (
-                    <tr key={b.id} className="break-row" style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                    <tr key={b.id} className="break-row" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                      <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
