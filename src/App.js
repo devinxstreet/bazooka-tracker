@@ -10,6 +10,33 @@ const CARD_TYPES = ["Giveaway/Standard Cards","First-Timer Cards","Chaser Cards"
 const BREAKERS   = ["Dev","Dre","Krystal"];
 const USAGE_TYPES = ["Giveaway/Standard","First-Timer Pack","Chaser Pull"];
 const SOURCES    = ["Discord","Facebook","Other"];
+
+// ─── ROLES ───────────────────────────────────────────────────────
+const ROLES = {
+  "devin":   { role:"Admin",       label:"CEO",                color:"#E8317A", bg:"#FFF0F5" },
+  "derrik":  { role:"Admin",       label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
+  "dre":     { role:"Streamer",    label:"Streamer",           color:"#6B2D8B", bg:"#F3EAF9" },
+  "krystal": { role:"Streamer",    label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
+  "john":    { role:"Procurement", label:"Procurement Mgr",    color:"#1B4F8A", bg:"#E8F0FB" },
+  "jake":    { role:"Shipping",    label:"Shipping/Logistics", color:"#8B5E00", bg:"#FFF0CC" },
+};
+
+function getUserRole(user) {
+  if (!user) return { role:"Viewer", label:"Viewer", color:"#9CA3AF", bg:"#F3F4F6" };
+  const name = (user.displayName||"").toLowerCase();
+  const email = (user.email||"").toLowerCase();
+  for (const [key, val] of Object.entries(ROLES)) {
+    if (name.includes(key) || email.includes(key)) return val;
+  }
+  return { role:"Viewer", label:"Viewer", color:"#9CA3AF", bg:"#F3F4F6" };
+}
+
+// Role permissions
+const CAN_ADD_INVENTORY  = ["Admin","Procurement"];
+const CAN_DELETE         = ["Admin"];
+const CAN_LOG_BREAKS     = ["Admin","Streamer","Procurement"];
+const CAN_VIEW_LOT_COMP  = ["Admin","Procurement"];
+const CAN_VIEW_FINANCIALS= ["Admin","Procurement"];
 const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
 
 const TARGETS = {
@@ -105,6 +132,16 @@ function SelectInput({ label, value, onChange, options }) {
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     </Field>
+  );
+}
+
+function AccessDenied({ msg }) {
+  return (
+    <div style={{ ...S.card, textAlign:"center", padding:"60px 40px" }}>
+      <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
+      <div style={{ fontSize:18, fontWeight:700, color:"#111827", marginBottom:8 }}>Access Restricted</div>
+      <div style={{ fontSize:13, color:"#9CA3AF" }}>{msg}</div>
+    </div>
   );
 }
 
@@ -658,7 +695,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
             {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
           </select>
           <span style={{ color:"#9CA3AF", fontSize:12, whiteSpace:"nowrap" }}>{filtered.length} cards</span>
-          {selected.size>0 && (
+          {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
             <button onClick={handleBulkDelete} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               🗑 Delete {selected.size} selected
             </button>
@@ -696,7 +733,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
                       <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
                       <td style={S.td}><Badge bg={used?"#FEE2E2":"#D6F4E3"} color={used?"#991b1b":"#166534"}>{used?"Used":"Available"}</Badge></td>
-                      <td style={S.td}><button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }}>✕</button></td>
+                      <td style={S.td}>{CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }}>✕</button>}</td>
                     </tr>
                   );
                 })
@@ -1119,7 +1156,13 @@ export default function App() {
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A", boxShadow:"0 0 8px rgba(232,49,122,0.4)" }}/>}
-              {window.innerWidth >= 768 && <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>}
+              {window.innerWidth >= 768 && (() => {
+                const ur = getUserRole(user);
+                return <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
+                  <span style={{ background:ur.bg, color:ur.color, border:`1px solid ${ur.color}44`, borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{ur.label}</span>
+                </div>;
+              })()}
               <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
@@ -1127,10 +1170,10 @@ export default function App() {
       </div>
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }} key={tab} className="tab-content">
-        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user}/>}
-        {tab==="comp"      && <LotComp   onAccept={handleAccept} user={user}/>}
-        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user}/>}
-        {tab==="breaks"    && <BreakLog  inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/>}
+        {tab==="dashboard" && <Dashboard inventory={inventory} breaks={breaks} user={user} userRole={getUserRole(user)}/>}
+        {tab==="comp"      && (CAN_VIEW_LOT_COMP.includes(getUserRole(user).role) ? <LotComp onAccept={handleAccept} user={user}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="inventory" && <Inventory inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={getUserRole(user)}/>}
+        {tab==="breaks"    && (CAN_LOG_BREAKS.includes(getUserRole(user).role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} user={user}/> : <AccessDenied msg="Break Log access is restricted." />)}
       </div>
 
       {toast && (
