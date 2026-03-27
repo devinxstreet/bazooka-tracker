@@ -1522,7 +1522,9 @@ export default function App() {
   async function handleAccept(cards, seller, u, custNote) {
     for (const card of cards) await setDoc(doc(db,"inventory",card.id), { ...card, addedBy:u?.displayName||"Unknown" });
     if (custNote && custNote.trim()) {
-      const lotKey = `${seller.name||"Unknown"}__${seller.date||new Date().toLocaleDateString()}`;
+      // Key must match exactly how lot history builds it: seller__date from the card's stored date field
+      const cardDate = cards[0]?.date || seller.date || new Date().toLocaleDateString();
+      const lotKey   = `${seller.name||"Unknown"}__${cardDate}`;
       await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
     }
     showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
