@@ -652,10 +652,11 @@ function LotComp({ onAccept, user }) {
 
 
 // ─── INVENTORY ────────────────────────────────────────────────────
-function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole }) {
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [selected, setSelected] = useState(new Set());
+  const [invTab,   setInvTab]   = useState("cards");
 
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
   const filtered = inventory.filter(c => {
