@@ -11,10 +11,6 @@ const BREAKERS   = ["Dev","Dre","Krystal"];
 const USAGE_TYPES = ["Giveaway","First-Timer Pack","Insurance Pull","Chaser Pull"];
 const SOURCES    = ["Discord","Facebook","Other"];
 
-const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash","Other"];
-
-const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash","Other"];
-
 const TARGETS = {
   "Giveaway Cards":    { monthly:2000, buffer:500  },
   "First-Timer Cards": { monthly:200,  buffer:50   },
@@ -350,7 +346,6 @@ function LotComp({ onAccept }) {
           <TextInput label="Contact"      value={seller.contact} onChange={v => setSeller(p=>({...p,contact:v}))} />
           <TextInput label="Date" type="date" value={seller.date} onChange={v => setSeller(p=>({...p,date:v}))} />
           <SelectInput label="Source" value={seller.source} onChange={v => setSeller(p=>({...p,source:v}))} options={SOURCES} />
-          <SelectInput label="Payment Method" value={seller.payment} onChange={v => setSeller(p=>({...p,payment:v}))} options={PAYMENT_METHODS} />
           <TextInput label="Qty Per Card Name (e.g. 50 Silver Battlefoils = 50)" type="number" value={String(cardQty)} onChange={v => setCardQty(parseInt(v)||1)} placeholder="1" />
         </div>
       </div>
