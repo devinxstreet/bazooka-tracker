@@ -126,8 +126,7 @@ function LoginScreen({ onLogin }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#F3F4F6", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
       <div style={{ background:"#FFFFFF", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 24px rgba(0,0,0,0.1)", textAlign:"center", maxWidth:380, width:"100%" }}>
-        <div style={{ fontSize:40, marginBottom:8 }}>⚡</div>
-        <div style={{ fontSize:28, fontWeight:900, color:"#1A1A2E", letterSpacing:2, marginBottom:4 }}>BAZOOKA</div>
+        <img src="/Bazooka_Logo.png" alt="Bazooka" style={{ width:220, height:"auto", marginBottom:16 }}/>
         <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:32, fontStyle:"italic" }}>Bo Jackson Battle Arena · Tracker</div>
         <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FFFFFF", border:"2px solid #E5E7EB", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#374151", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
@@ -667,8 +666,8 @@ export default function App() {
     <div style={{ background:"#F3F4F6", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
       <div style={{ background:"#1A1A2E", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
-          <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span style={{ fontSize:20, fontWeight:900, color:"#E8B84B", letterSpacing:2 }}>⚡ BAZOOKA</span>
+          <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <img src="/Bazooka_Logo.png" alt="Bazooka" style={{ height:40, width:"auto" }}/>
             <span style={{ fontSize:10, color:"#4a4a6a", borderLeft:"1px solid #2a2a4a", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BJBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
