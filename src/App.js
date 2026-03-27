@@ -124,10 +124,10 @@ function LoginScreen({ onLogin }) {
   }
 
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#F8F8F8", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
       <div style={{ background:"#FFFFFF", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
         <div style={{ fontSize:36, fontWeight:900, color:"#FFF5F8", letterSpacing:3, marginBottom:4 }}>BAZOOKA</div>
-        <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:32, fontStyle:"italic" }}>Bazooka Inventory Tracker</div>
+        <div style={{ fontSize:11, color:"#E8317A", marginBottom:32, fontWeight:700, textTransform:"uppercase", letterSpacing:3 }}>Inventory Tracker</div>
         <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FFFFFF", border:"2px solid #F0D0DC", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#374151", width:"100%", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.08)" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
@@ -681,15 +681,15 @@ export default function App() {
 
   return (
     <div style={{ background:"#FFFFFF", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
-      <div style={{ background:"#1A1A2E", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 16px rgba(232,49,122,0.15), 0 1px 0 rgba(232,49,122,0.3)" }}>
+      <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2), 0 1px 0 rgba(232,49,122,0.4)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <span style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2, textShadow:"0 0 20px rgba(232,49,122,0.5)" }}>BAZOOKA</span>
-            <span style={{ fontSize:10, color:"#4a4a6a", borderLeft:"1px solid #2a2a4a", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
+            <span style={{ fontSize:10, color:"#666666", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
             {TABS.map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"#2a2a4a":"transparent", border:"none", color:tab===t.id?"#E8317A":"#6B7280", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", textShadow:tab===t.id?"0 0 12px rgba(232,49,122,0.5)":"none", transition:"all 0.1s" }}>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"#2a2a4a":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", textShadow:tab===t.id?"0 0 12px rgba(232,49,122,0.5)":"none", transition:"all 0.1s" }}>
                 {t.label}
               </button>
             ))}
@@ -697,9 +697,9 @@ export default function App() {
           <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A", boxShadow:"0 0 8px rgba(232,49,122,0.4)" }}/>}
               <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
-              <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #2a2a4a", color:"#6B7280", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+              <button onClick={handleSignOut} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
             </div>
           </div>
         </div>
