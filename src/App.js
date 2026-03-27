@@ -435,6 +435,16 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
 
   function upd(id, f, v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
 
+  function loadComp(comp) {
+    setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"" });
+    setRows(comp.cards && comp.cards.length > 0
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
+    );
+    setFOffer(comp.offer ? String(comp.offer) : "");
+    setCompMode("builder");
+  }
+
   function saveComp(status) {
     if (!onSaveComp) return;
     onSaveComp({
@@ -448,6 +458,16 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
     });
   }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
+
+  function loadComp(comp) {
+    setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"" });
+    setRows(comp.cards && comp.cards.length > 0
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
+    );
+    setFOffer(comp.offer ? String(comp.offer) : "");
+    setCompMode("builder");
+  }
 
   function saveComp(status) {
     const comp = {
@@ -616,11 +636,14 @@ function LotComp({ onAccept, onSaveComp, comps, user }) {
                         <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{c.date}</span>
                         <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>by {c.savedBy}</span>
                       </div>
-                      <div style={{ display:"flex", gap:8 }}>
+                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                         <span style={{ background:c.status==="accepted"?"#D6F4E3":c.status==="passed"?"#FEE2E2":"#FFF9DB", color:c.status==="accepted"?"#166534":c.status==="passed"?"#991b1b":"#92400e", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
                           {c.status==="accepted"?"✅ Accepted":c.status==="passed"?"❌ Passed":"💾 Saved"}
                         </span>
                         {z&&<span style={{ background:z.bg, color:z.color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{z.label}</span>}
+                        <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                          📥 Load into Builder
+                        </button>
                       </div>
                     </div>
                     <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
