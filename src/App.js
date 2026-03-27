@@ -295,7 +295,7 @@ function LotComp({ onAccept }) {
       <div style={{ marginBottom:14 }}><Btn onClick={() => setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
       <div style={{ ...S.card, border:"2px solid #E8317A88", maxWidth:680 }}>
         <div style={{ textAlign:"center", marginBottom:20, padding:"16px", background:"#1A1A2E", borderRadius:10 }}>
-          <div style={{ fontSize:30, fontWeight:900, color:"#000000", letterSpacing:3 }}>BAZOOKA</div>
+          <div style={{ fontSize:30, fontWeight:900, color:"#FFFFFF", letterSpacing:3 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic", marginTop:4 }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ background:"#FFF5F8", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -442,15 +442,31 @@ function LotComp({ onAccept }) {
 }
 
 // ─── INVENTORY ────────────────────────────────────────────────────
-function Inventory({ inventory, breaks, onRemove }) {
-  const [search, setSearch] = useState("");
-  const [typeF,  setTypeF]  = useState("");
-  const usedIds = new Set(breaks.map(b => b.inventoryId));
+function Inventory({ inventory, breaks, onRemove, onBulkRemove }) {
+  const [search,   setSearch]   = useState("");
+  const [typeF,    setTypeF]    = useState("");
+  const [selected, setSelected] = useState(new Set());
+
+  const usedIds  = new Set(breaks.map(b => b.inventoryId));
   const filtered = inventory.filter(c => {
     const mn = c.cardName?.toLowerCase().includes(search.toLowerCase());
     const mt = !typeF || c.cardType===typeF;
     return mn && mt;
   });
+
+  function toggleSelect(id) {
+    setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  }
+  function toggleAll() {
+    setSelected(selected.size===filtered.length ? new Set() : new Set(filtered.map(c=>c.id)));
+  }
+  function handleBulkDelete() {
+    if (selected.size===0) return;
+    if (window.confirm(`Delete ${selected.size} card${selected.size!==1?"s":""}? This cannot be undone.`)) {
+      onBulkRemove([...selected]);
+      setSelected(new Set());
+    }
+  }
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -462,19 +478,35 @@ function Inventory({ inventory, breaks, onRemove }) {
             {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
           </select>
           <span style={{ color:"#9CA3AF", fontSize:12, whiteSpace:"nowrap" }}>{filtered.length} cards</span>
+          {selected.size>0 && (
+            <button onClick={handleBulkDelete} style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              🗑 Delete {selected.size} selected
+            </button>
+          )}
         </div>
       </div>
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:880 }}>
-            <thead><tr>{["Card Name","Type","Market Value","Cost/Card","Buy %","Zone","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:920 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width:40, textAlign:"center" }}>
+                  <input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll} style={{ cursor:"pointer" }}/>
+                </th>
+                {["Card Name","Type","Market Value","Cost/Card","Buy %","Zone","Lot Paid","Payment","Source","Seller","Date","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+              </tr>
+            </thead>
             <tbody>
-              {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={12}/> :
+              {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={14}/> :
                 filtered.map((c,i) => {
                   const used=usedIds.has(c.id);
+                  const isSel=selected.has(c.id);
                   const cc=CC[c.cardType]||{bg:"#FFF0F5",text:"#6B7280"};
                   return (
-                    <tr key={c.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
+                    <tr key={c.id} style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
+                      <td style={{ ...S.td, textAlign:"center" }}>
+                        <input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)} style={{ cursor:"pointer" }}/>
+                      </td>
                       <td style={{ ...S.td, fontWeight:700 }}>{c.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#92400e", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
