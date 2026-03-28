@@ -3477,6 +3477,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [stubBreaker,  setStubBreaker]  = useState("");
   const [stubPeriod,   setStubPeriod]   = useState("week");
   const [stubHistFilter, setStubHistFilter] = useState("");
+  const [stubAdminView,  setStubAdminView]  = useState(false); // false = rep view (default for sending)
   const [stubFrom,    setStubFrom]    = useState("");
   const [stubTo,      setStubTo]      = useState("");
 
@@ -3886,11 +3887,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               : stubFrom && stubTo ? `${stubFrom} – ${stubTo}` : "Select dates";
 
             function printStub() {
+              const adminPDF = stubAdminView;
               const w = window.open("","_blank","width=800,height=900");
               const bc = BC[targetBreaker]||{text:"#E8317A"};
               const streamRows = stubStreams.map(s => {
                 const c = calcS(s);
-                return isAdmin ? `
+                return adminPDF ? `
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
@@ -3956,7 +3958,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
                 <table>
                   <thead><tr>
-                    ${isAdmin
+                    ${adminPDF
                       ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
                       : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
                     }
@@ -3965,10 +3967,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 </table>
                 <div class="totals">
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
-                  <div class="totals-grid" style="grid-template-columns:${isAdmin?"repeat(5,1fr)":"repeat(3,1fr)"}">
+                  <div class="totals-grid" style="grid-template-columns:${adminPDF?"repeat(5,1fr)":"repeat(3,1fr)"}">
                     <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
-                    ${isAdmin ? `
+                    ${adminPDF ? `
                     <div class="tot-item"><div class="tot-val" style="color:#991b1b;">-${fmt(totals.comm)}</div><div class="tot-lbl">Commission Paid</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">+${fmt(totals.reimb)}</div><div class="tot-lbl">IMC Reimb</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
@@ -4025,6 +4027,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
                     });
                   }} variant="green">🖨 Generate PDF</Btn>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px" }}>
+                    <span style={{ fontSize:11, color:"#666" }}>View:</span>
+                    <button onClick={()=>setStubAdminView(false)} style={{ background:!stubAdminView?"#E8317A":"transparent", color:!stubAdminView?"#fff":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Rep</button>
+                    <button onClick={()=>setStubAdminView(true)} style={{ background:stubAdminView?"#1A1A2E":"transparent", color:stubAdminView?"#E8317A":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Admin</button>
+                  </div>
                 </div>
                 {/* Preview */}
                 <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:10, padding:"16px 20px" }}>
