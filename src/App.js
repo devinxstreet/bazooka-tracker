@@ -365,8 +365,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const reimb   = parseFloat(h.imcReimb)||0;
           acc.gross    += gross;
           acc.imc      += net * 0.70;
-          acc.baz      += net * 0.30 + reimb;
-          acc.trueNet  += net * 0.30 + reimb; // no commission data for historical
+          acc.baz      += net * 0.30;
+          acc.trueNet  += net * 0.30 + reimb; // reimbursement adds to true net only
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
@@ -508,6 +508,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
         const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
+        const ytdTrueNet  = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30+(parseFloat(h.imcReimb)||0), 0);
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
@@ -526,12 +528,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
               </span>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
               {[
-                { l:"Gross Revenue",          v:proj(ytdGross),     ytd:ytdGross,     c:"#E8317A" },
-                { l:"Net Revenue",            v:proj(ytdNet),       ytd:ytdNet,       c:"#1B4F8A" },
-                { l:"Bazooka Earnings (w/ Reimb)", v:proj(ytdBaz), ytd:ytdBaz, c:"#166534" },
-                { l:"New Buyers",              v:proj(ytdNewBuyers), ytd:ytdNewBuyers, c:"#166534", count:true },
+                { l:"Gross Revenue",       v:proj(ytdGross),    ytd:ytdGross,    c:"#E8317A" },
+                { l:"Net Revenue",         v:proj(ytdNet),      ytd:ytdNet,      c:"#1B4F8A" },
+                { l:"Bazooka Earnings",    v:proj(ytdBaz),      ytd:ytdBaz,      c:"#E8317A" },
+                { l:"Bazooka True Net",    v:proj(ytdTrueNet),  ytd:ytdTrueNet,  c:"#166534" },
+                { l:"New Buyers",          v:proj(ytdNewBuyers),ytd:ytdNewBuyers,c:"#166534", count:true },
               ].map(({l,v,ytd,c,count}) => (
                 <div key={l} style={{ textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
@@ -767,15 +770,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
                 {historicalData.length > 0 && (
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                    <thead><tr>{["Month","Gross","Net","IMC Reimb","Bazooka (30%)","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{["Month","Gross","Net","Bazooka (30%)","IMC Reimb","True Net","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {historicalData.map((h,i) => (
                         <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#FFFFFF":"#FFF8FB" }}>
                           <td style={{ ...S.td, fontWeight:700, color:"#6B2D8B" }}>{h.yearMonth}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#1B4F8A" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
+                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
                           <td style={{ ...S.td, color:"#166534" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"—"}</td>
-                          <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
+                          <td style={{ ...S.td, color:"#166534", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
                           <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"—"}</td>
                           <td style={{ ...S.td, color:"#9CA3AF" }}>{h.notes||"—"}</td>
                           <td style={S.td}>
