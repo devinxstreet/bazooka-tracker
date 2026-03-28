@@ -1062,7 +1062,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -1327,7 +1327,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
-      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} user={user} userRole={userRole}/>}
+      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
@@ -1404,7 +1404,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={} }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -1449,7 +1449,28 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     }
   }, [breaker, date]);
 
-  function rf(k) { return v => { setRecap(p=>({...p,[k]:v})); setRecapSaved(false); }; }
+  function rf(k) {
+    return v => {
+      setRecap(p => {
+        const updated = { ...p, [k]: v };
+        // Auto-calculate market multiple when product counts or gross revenue change
+        const isProductField = PRODUCT_TYPES.some(pt => k === `prod_${pt}`);
+        if ((isProductField || k === "grossRevenue") && !updated.binOnly) {
+          const gross = parseFloat(k === "grossRevenue" ? v : updated.grossRevenue) || 0;
+          const totalMktVal = PRODUCT_TYPES.reduce((sum, pt) => {
+            const qty   = parseInt(k === `prod_${pt}` ? v : updated[`prod_${pt}`]) || 0;
+            const price = parseFloat(skuPrices[pt]) || 0;
+            return sum + (qty * price);
+          }, 0);
+          if (gross > 0 && totalMktVal > 0) {
+            updated.marketMultiple = (gross / totalMktVal).toFixed(2);
+          }
+        }
+        return updated;
+      });
+      setRecapSaved(false);
+    };
+  }
 
   function calcRecap() {
     const gross   = parseFloat(recap.grossRevenue)||0;
@@ -1543,7 +1564,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
           <div>
             <label style={S.lbl}>Market Multiple</label>
-            <input type="number" step="0.1" value={recap.marketMultiple} onChange={e=>rf("marketMultiple")(e.target.value)} placeholder="e.g. 1.6" style={{ ...S.inp, color: recap.marketMultiple?"#1B4F8A":"#9CA3AF" }} disabled={recap.binOnly}/>
+            <input type="number" step="0.01" value={recap.marketMultiple} onChange={e=>rf("marketMultiple")(e.target.value)} placeholder="Auto-calculated" style={{ ...S.inp, color: recap.marketMultiple?"#1B4F8A":"#9CA3AF" }} disabled={recap.binOnly}/>
           </div>
         </div>
 
@@ -1873,138 +1894,197 @@ function Performance({ breaks, user, userRole }) {
 }
 
 // ─── PRODUCT INVENTORY ───────────────────────────────────────────
-function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole }) {
-  const isAdmin = ["Admin"].includes(userRole?.role);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], doubleMega:0, hobby:0, jumbo:0, misc:0, miscNotes:"", supplier:"" });
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole, skuPrices={}, onSaveSkuPrices }) {
+  const canEdit = ["Admin"].includes(userRole?.role);
+  const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
+  const [form,       setForm]       = useState(EMPTY);
+  const [adding,     setAdding]     = useState(false);
+  const [editId,     setEditId]     = useState(null);
+  const [skuForm,    setSkuForm]    = useState({});
+  const [skuEditing, setSkuEditing] = useState(false);
 
-  // Calculate stock per type: received - used
-  function getStock(type) {
-    const received = shipments.reduce((sum, s) => sum + (parseInt(s[type])||0), 0);
-    const used     = productUsage.reduce((sum, u) => sum + (parseInt(u[type])||0), 0);
-    return { received, used, stock: received - used };
-  }
+  useEffect(() => { setSkuForm(skuPrices); }, [JSON.stringify(skuPrices)]);
 
-  const stock = {
-    doubleMega: getStock("doubleMega"),
-    hobby:      getStock("hobby"),
-    jumbo:      getStock("jumbo"),
-    misc:       getStock("misc"),
-  };
+  // Stock = total received - total used per product type
+  const stock = PRODUCT_TYPES.reduce((acc, pt) => {
+    const received = shipments.reduce((s, sh) => s + (sh.productType===pt ? (parseInt(sh.qty)||0) : 0), 0);
+    const used     = productUsage.reduce((s, u) => s + (parseInt(u[pt])||0), 0);
+    acc[pt] = { received, used, current: received - used };
+    return acc;
+  }, {});
 
-  const LABELS = { doubleMega:"Double Mega", hobby:"Hobby", jumbo:"Jumbo", misc:"Miscellaneous" };
-  const COLORS = { doubleMega:"#6B2D8B", hobby:"#E8317A", jumbo:"#1B4F8A", misc:"#166534" };
+  function openAdd()    { setForm({...EMPTY}); setAdding(true); setEditId(null); }
+  function openEdit(s)  { setForm({date:s.date, productType:s.productType, qty:String(s.qty), notes:s.notes||""}); setEditId(s.id); setAdding(true); }
+  function cancelForm() { setAdding(false); setEditId(null); setForm(EMPTY); }
 
   async function handleSave() {
-    if (!Object.values({doubleMega:form.doubleMega,hobby:form.hobby,jumbo:form.jumbo,misc:form.misc}).some(v=>parseInt(v)>0)) return;
-    await onSaveShipment({ ...form, id: uid() });
-    setForm({ date:new Date().toISOString().split("T")[0], doubleMega:0, hobby:0, jumbo:0, misc:0, miscNotes:"", supplier:"" });
-    setShowForm(false);
+    if (!form.productType || !form.qty || !form.date) return;
+    await onSaveShipment({ ...(editId ? shipments.find(s=>s.id===editId)||{} : {}), ...form, qty:parseInt(form.qty)||0, id:editId||uid() });
+    cancelForm();
   }
+
+  const PT_COLORS = {
+    "Double Mega":   { bg:"#FFF0E8", text:"#C2410C", border:"#C2410C" },
+    "Hobby":         { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" },
+    "Jumbo":         { bg:"#F0FDF4", text:"#166534", border:"#166534" },
+    "Miscellaneous": { bg:"#FAF5FF", text:"#6B2D8B", border:"#6B2D8B" },
+  };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* Stock overview */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-        {Object.entries(stock).map(([key, s]) => {
-          const c = COLORS[key];
-          const low = s.stock <= 2;
-          return (
-            <div key={key} style={{ ...S.card, textAlign:"center", border:`2px solid ${low?'#FCA5A5':c+'22'}` }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{LABELS[key]}</div>
-              <div style={{ fontSize:42, fontWeight:900, color: low?"#991b1b":c, lineHeight:1 }}>{s.stock}</div>
-              <div style={{ fontSize:10, color:"#9CA3AF", marginTop:6 }}>in stock</div>
-              <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8, fontSize:11, color:"#9CA3AF" }}>
-                <span>📥 {s.received} rcvd</span>
-                <span>📤 {s.used} used</span>
+      {/* SKU Pricing — Admin only */}
+      {canEdit && (
+        <div style={{ ...S.card, border:"2px solid #E8317A22" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: skuEditing ? 14 : 0 }}>
+            <SectionLabel t="SKU Market Values" />
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {!skuEditing && PRODUCT_TYPES.map(pt => skuPrices[pt] ? (
+                <span key={pt} style={{ fontSize:11, color:"#6B7280" }}>{pt}: <strong style={{color:"#111827"}}>${parseFloat(skuPrices[pt]).toFixed(2)}</strong></span>
+              ) : null)}
+              <button onClick={()=>setSkuEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {skuEditing ? "Cancel" : "✏️ Edit"}
+              </button>
+            </div>
+          </div>
+          {skuEditing && (
+            <>
+              <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:12 }}>Set the retail/market value per unit for each product type. Used to auto-calculate market multiple in Stream Recap.</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:14 }}>
+                {PRODUCT_TYPES.map(pt => (
+                  <div key={pt}>
+                    <label style={{ ...S.lbl, color:PT_COLORS[pt]?.text }}>{pt} ($)</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={skuForm[pt]||""}
+                      onChange={e=>setSkuForm(p=>({...p,[pt]:e.target.value}))}
+                      placeholder="0.00"
+                      style={{ ...S.inp, color:PT_COLORS[pt]?.text }}
+                    />
+                  </div>
+                ))}
               </div>
-              {low && <div style={{ marginTop:8, background:"#FEE2E2", color:"#991b1b", borderRadius:6, padding:"3px 0", fontSize:11, fontWeight:700 }}>⚠ Low Stock</div>}
+              <Btn onClick={async()=>{ await onSaveSkuPrices(skuForm); setSkuEditing(false); }} variant="green">💾 Save SKU Prices</Btn>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Stock summary */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {PRODUCT_TYPES.map(pt => {
+          const s  = stock[pt];
+          const pc = PT_COLORS[pt] || { bg:"#F3F4F6", text:"#6B7280", border:"#6B7280" };
+          const low = s.current <= 2;
+          const out = s.current <= 0;
+          return (
+            <div key={pt} style={{ background:pc.bg, border:`2px solid ${out?"#991b1b":low?"#92400e":pc.border}33`, borderRadius:12, padding:"16px", textAlign:"center" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:pc.text, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{pt}</div>
+              <div style={{ fontSize:36, fontWeight:900, color: out?"#991b1b":low?"#92400e":pc.text, marginBottom:4 }}>{s.current}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF" }}>in stock</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8 }}>
+                <span style={{ fontSize:10, color:"#9CA3AF" }}>↑ {s.received} rcvd</span>
+                <span style={{ fontSize:10, color:"#9CA3AF" }}>↓ {s.used} used</span>
+              </div>
+              {skuPrices[pt] && <div style={{ marginTop:6, fontSize:10, color:pc.text, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}/unit</div>}
+              {out  && <div style={{ marginTop:8, background:"#FEE2E2", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
+              {!out && low && <div style={{ marginTop:8, background:"#FFF9DB", color:"#92400e", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>⚠ Low Stock</div>}
             </div>
           );
         })}
       </div>
 
       {/* Add shipment */}
-      {isAdmin && (
-        <div style={S.card}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showForm?14:0 }}>
-            <SectionLabel t="Receive Shipment" />
-            <Btn onClick={()=>setShowForm(p=>!p)} variant="ghost">{showForm?"Cancel":"+ Receive Shipment"}</Btn>
-          </div>
-          {showForm && (
-            <div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:12 }}>
-                <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/></div>
-                <div><label style={S.lbl}>Supplier / Source</label><input value={form.supplier} onChange={e=>setForm(p=>({...p,supplier:e.target.value}))} placeholder="e.g. IMC" style={S.inp}/></div>
-                {["doubleMega","hobby","jumbo","misc"].map(k => (
-                  <div key={k}><label style={S.lbl}>{LABELS[k]}</label><input type="number" min="0" value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} placeholder="0" style={S.inp}/></div>
-                ))}
+      {canEdit && (
+        <>
+          {!adding
+            ? <Btn onClick={openAdd} variant="gold">+ Add Shipment</Btn>
+            : (
+              <div style={{ ...S.card, border:"2px solid #E8317A33" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                  <SectionLabel t={editId ? "Edit Shipment" : "Add Shipment"} />
+                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:18 }}>✕</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:12, marginBottom:14 }}>
+                  <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/></div>
+                  <div>
+                    <label style={S.lbl}>Product Type</label>
+                    <select value={form.productType} onChange={e=>setForm(p=>({...p,productType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                      {PRODUCT_TYPES.map(pt=><option key={pt} value={pt}>{pt}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={S.lbl}>Qty Received</label><input type="number" min="1" value={form.qty} onChange={e=>setForm(p=>({...p,qty:e.target.value}))} placeholder="e.g. 12" style={S.inp}/></div>
+                  <div><label style={S.lbl}>Notes (optional)</label><input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Special edition, damaged box..." style={S.inp}/></div>
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <Btn onClick={handleSave} disabled={!form.productType||!form.qty||!form.date} variant="green">💾 {editId?"Update":"Save"} Shipment</Btn>
+                  <Btn onClick={cancelForm} variant="ghost">Cancel</Btn>
+                </div>
               </div>
-              <div style={{ marginBottom:12 }}>
-                <label style={S.lbl}>Misc Notes (optional)</label>
-                <input value={form.miscNotes} onChange={e=>setForm(p=>({...p,miscNotes:e.target.value}))} placeholder="e.g. Special edition boxes, collector tins..." style={S.inp}/>
-              </div>
-              <Btn onClick={handleSave} variant="green">📥 Save Shipment</Btn>
-            </div>
-          )}
-        </div>
+            )
+          }
+        </>
       )}
 
       {/* Shipment history */}
       <div style={S.card}>
         <SectionLabel t="Shipment History" />
         {shipments.length === 0
-          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet — receive your first shipment above</div>
-          : <div style={{ overflowX:"auto" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <thead><tr>
-                  {["Date","Supplier","Double Mega","Hobby","Jumbo","Misc","Notes",...(isAdmin?[""]:[])].map(h=><th key={h} style={S.th}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {shipments.map((s,i) => (
+          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet — add one above</div>
+          : (
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead><tr>{["Date","Product","Qty","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {shipments.map((s,i) => {
+                  const pc = PT_COLORS[s.productType] || { bg:"#F3F4F6", text:"#6B7280" };
+                  return (
                     <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
                       <td style={S.td}>{s.date}</td>
-                      <td style={S.td}>{s.supplier||"—"}</td>
-                      {["doubleMega","hobby","jumbo","misc"].map(k=>(
-                        <td key={k} style={{ ...S.td, textAlign:"center", fontWeight:700, color:parseInt(s[k])>0?COLORS[k]:"#D1D5DB" }}>{parseInt(s[k])||0}</td>
-                      ))}
-                      <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{s.miscNotes||"—"}</td>
-                      {isAdmin && <td style={S.td}><button onClick={()=>{ if(window.confirm("Remove this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"none", color:"#FCA5A5", cursor:"pointer", fontSize:14 }}>🗑</button></td>}
+                      <td style={S.td}><span style={{ background:pc.bg, color:pc.text, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{s.productType}</span></td>
+                      <td style={{ ...S.td, fontWeight:700, color:"#166534", fontSize:15 }}>+{s.qty}</td>
+                      <td style={{ ...S.td, color:"#6B7280" }}>{s.notes||"—"}</td>
+                      <td style={S.td}>
+                        {canEdit && (
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>✏️</button>
+                            <button onClick={()=>{ if(window.confirm("Delete this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"1px solid #FCA5A5", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#991b1b" }}>🗑</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          )
         }
       </div>
 
-      {/* Usage history */}
+      {/* Usage log */}
       {productUsage.length > 0 && (
         <div style={S.card}>
-          <SectionLabel t="Product Usage History" />
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse" }}>
-              <thead><tr>
-                {["Date","Breaker","Double Mega","Hobby","Jumbo","Misc"].map(h=><th key={h} style={S.th}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {productUsage.map((u,i) => (
-                  <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
-                    <td style={S.td}>{u.date}</td>
-                    <td style={S.td}>{u.breaker||"—"}</td>
-                    {["doubleMega","hobby","jumbo","misc"].map(k=>(
-                      <td key={k} style={{ ...S.td, textAlign:"center", fontWeight:700, color:parseInt(u[k])>0?COLORS[k]:"#D1D5DB" }}>{parseInt(u[k])||0}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SectionLabel t="Usage Log (from Streams)" />
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead><tr>{["Date","Breaker",...PRODUCT_TYPES].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {productUsage.map((u,i) => (
+                <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                  <td style={S.td}>{u.date}</td>
+                  <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
+                  {PRODUCT_TYPES.map(pt => (
+                    <td key={pt} style={{ ...S.td, color:(parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
+                      {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
+}
 
 // ─── CUSTOMERS CRM ──────────────────────────────────────────────
 }
@@ -2231,7 +2311,7 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[] }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={} }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const STREAM_TABS = [
     { id:"recap",      label:"📋 Stream Recap" },
@@ -2252,7 +2332,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole}/>}
     </div>
@@ -2650,6 +2730,7 @@ export default function App() {
   const [streams,      setStreams]       = useState([]);
   const [shipments,    setShipments]     = useState([]);
   const [productUsage, setProductUsage] = useState([]);
+  const [skuPrices,    setSkuPrices]     = useState({});
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -2678,8 +2759,9 @@ export default function App() {
     const u6 = onSnapshot(query(collection(db,"streams"), orderBy("date","desc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u7 = onSnapshot(query(collection(db,"shipments"), orderBy("date","desc")), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u9 = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -2769,6 +2851,10 @@ export default function App() {
   async function handleDeleteShipment(id) {
     await deleteDoc(doc(db,"shipments",id));
     showToast("🗑 Shipment deleted");
+  }
+  async function handleSaveSkuPrices(prices) {
+    await setDoc(doc(db,"settings","sku_prices"), prices);
+    showToast("💰 SKU prices saved");
   }
   async function handleSaveProductUsage(usage) {
     const id = usage.id || uid();
@@ -2906,8 +2992,8 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices}/>}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
 
