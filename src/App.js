@@ -388,7 +388,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
-                    {["Date","Breaker","Gross","Net","Rate",(drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka (30%)":"Gross")].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Gross","Net","Rate",(drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":drillDown==="trueNet"?"True Net":"Gross")].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
@@ -2870,7 +2870,7 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={} }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[] }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -2895,13 +2895,13 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
 
       {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
-      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole}/>}
+      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData}/>}
     </div>
   );
 }
 
 // ─── COMMISSION ──────────────────────────────────────────────────
-function Commission({ streams, onSave, onDelete, user, userRole }) {
+function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[] }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -3312,19 +3312,23 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
         const ytdComm   = ytdStreams.reduce((sum,s) => sum+calcStream(s).commAmt, 0);
         const ytdGross  = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
         const ytdBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
-        const dailyComm  = dayOfYear > 0 ? ytdComm  / dayOfYear : 0;
-        const dailyGross = dayOfYear > 0 ? ytdGross / dayOfYear : 0;
-        const dailyBuyers= dayOfYear > 0 ? ytdBuyers / dayOfYear : 0;
+        // Add historical monthly data to YTD
+        const ytdHist   = historicalData.filter(h => h.yearMonth && h.yearMonth.startsWith(String(now.getFullYear())));
+        const histGross = ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
+        const totalYtdGross = ytdGross + histGross;
+        const dailyComm  = dayOfYear > 0 ? ytdComm        / dayOfYear : 0;
+        const dailyGross = dayOfYear > 0 ? totalYtdGross  / dayOfYear : 0;
+        const dailyBuyers= dayOfYear > 0 ? ytdBuyers      / dayOfYear : 0;
         const projComm   = dailyComm   * daysInYear;
         const projGross  = dailyGross  * daysInYear;
         const projBuyers = Math.round(dailyBuyers * daysInYear);
         const pct = Math.round(dayOfYear / daysInYear * 100);
-        if (ytdStreams.length === 0) return null;
+        if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
         return (
           <div style={{ ...S.card, background:"#1A1A2E", border:"1px solid #E8317A33" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>📈 Year-End Projections</div>
-              <span style={{ fontSize:11, color:"#9CA3AF" }}>Based on {ytdStreams.length} streams · {pct}% through {now.getFullYear()}</span>
+              <span style={{ fontSize:11, color:"#9CA3AF" }}>Based on {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}{ytdHist.length>0?` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}`:"""} · {pct}% through {now.getFullYear()}</span>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?3:2},1fr)`, gap:12, marginBottom:14 }}>
               <div style={{ textAlign:"center" }}>
@@ -3336,7 +3340,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
                 <div style={{ textAlign:"center" }}>
                   <div style={{ fontSize:26, fontWeight:900, color:"#E8317A" }}>{fmt(projGross)}</div>
                   <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected Gross</div>
-                  <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(ytdGross)} YTD</div>
+                  <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(totalYtdGross)} YTD</div>
                 </div>
               )}
               <div style={{ textAlign:"center" }}>
@@ -3749,7 +3753,7 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
