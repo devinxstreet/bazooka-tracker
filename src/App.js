@@ -492,7 +492,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   key={key}
                   onClick={()=>setDrillDown(drillDown===key?null:key)}
                   className="stat-card"
-                  style={{ background:drillDown===key?"#1A1A2E":"#FAFAFA", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
+                  style={{ background:drillDown===key?"#1A1A2E":"#1a1a1a", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
                 >
                   <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
                   <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#F0F0F0", marginBottom:3 }}>{label}</div>
@@ -884,9 +884,11 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
-      const costPerCard = totalCards > 0 ? dispOffer/totalCards : 0;
+      // Weight cost by this card's market value relative to total lot market value
+      // so a $10 card costs more of the offer than a $1 card
+      const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
       for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       }
     });
     onAccept(cards, seller, user, custNote);
