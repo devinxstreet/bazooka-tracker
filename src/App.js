@@ -329,12 +329,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
     const streamExp=coupons+promo+magpros+pack+topload+chaser;
-    const totalExp=fees+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30;
+    const totalExp=fees+streamExp, netRev=gross-totalExp;
+    // bazNet for DISPLAY/SPLIT includes fees (true 30% of net)
+    const bazNet=netRev*0.30, imcNet=netRev*0.70;
+    // repExp and commBase use gross-streamExp (fees don't affect rep commission)
+    const grossForComm=gross-streamExp, bazNetForComm=grossForComm*0.30;
     const repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
     const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
-    const commBase=bazNet-repExp, commAmt=commBase*rate;
-    return { gross, netRev, bazNet, repExp, imcExpReimb, commBase, commAmt, totalExp, bazTrueNet:bazNet-repExp-commAmt+imcExpReimb, rate };
+    const commBase=bazNetForComm-repExp, commAmt=commBase*rate;
+    return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, totalExp, bazTrueNet:bazNet-commAmt+imcExpReimb-repExp, rate };
   }
 
   return (
@@ -465,14 +469,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const pack    = parseFloat(s.packagingMaterial)||0;
           const topload = parseFloat(s.topLoaders)||0;
           const chaser  = parseFloat(s.chaserCards)||0;
-          const totalExp = fees+coupons+promo+magpros+pack+topload+chaser;
+          const streamExp = coupons+promo+magpros+pack+topload+chaser;
+          const totalExp = fees+streamExp;
           const netRev   = gross - totalExp;
           const bazNet   = netRev * 0.30;
           const imcNet   = netRev * 0.70;
-          const streamExp = coupons+promo+magpros+pack+topload+chaser;
+          const grossForComm = gross - streamExp;
+          const bazNetForComm = grossForComm * 0.30;
           const repExp   = streamExp * 0.135;
           const imcExpReimb = streamExp * 0.70;
-          const commBase = bazNet - repExp;
+          const commBase = bazNetForComm - repExp;
           const mm = parseFloat(s.marketMultiple)||0;
           const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
           const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
@@ -2077,14 +2083,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const pack    = parseFloat(recap.packagingMaterial)||0;
     const topload = parseFloat(recap.topLoaders)||0;
     const chaser  = parseFloat(recap.chaserCards)||0;
-    const totalExp = fees+coupons+promo+magpros+pack+topload+chaser;
+    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const totalExp = fees+streamExp;
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const imcNet   = netRev * 0.70;
-    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    // Rep commission uses gross-streamExp (fees don't reduce rep commission)
+    const grossForComm = gross - streamExp;
+    const bazNetForComm = grossForComm * 0.30;
     const repExp   = streamExp * 0.135;
     const imcExpReimb = streamExp * 0.70;
-    const commBase = bazNet - repExp;
+    const commBase = bazNetForComm - repExp;
     const mm = parseFloat(recap.marketMultiple)||0;
     const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
     const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
@@ -2509,11 +2518,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && (() => {
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-          const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
-          const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
+          const streamExp=coupons+promo+magpros+pack+topload+chaser;
+          const totalExp=fees+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
+          const grossForComm=gross-streamExp, bazNetForComm=grossForComm*0.30;
+          const repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
-          const commAmt=(bazNet-repExp)*rate;
-          return { gross, netRev, bazNet, imcNet, commAmt, imcExpReimb, bazTrueNet: bazNet-repExp-commAmt+imcExpReimb, rate };
+          const commBase=bazNetForComm-repExp, commAmt=commBase*rate;
+          return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, bazTrueNet: bazNet-repExp-commAmt+imcExpReimb, rate };
         }
         const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
         return (
@@ -3936,13 +3947,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
             function calcS(s) {
               const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-              const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30;
-              const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
+              const streamExp=coupons+promo+magpros+pack+topload+chaser;
+              const totalExp=fees+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30;
+              const grossForComm=gross-streamExp, bazNetForComm=grossForComm*0.30;
+              const repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
               const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
-              const commAmt=(bazNet-repExp)*rate;
+              const commAmt=(bazNetForComm-repExp)*rate;
               const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb;
-              return { gross, totalExp, netRev, bazNet, repExp, imcExpReimb, commAmt, bazTrueNet, rate };
+              return { gross, totalExp, netRev, bazNet, bazNetForComm, repExp, imcExpReimb, commAmt, bazTrueNet, rate };
             }
 
             const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.reimb+=c.imcExpReimb; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,reimb:0,trueNet:0});
