@@ -1041,7 +1041,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                         <div style={{ borderTop:"1px solid #F0E0E8", padding:"10px 18px", background:"#FFFFFF" }}>
                           {!isEditing ? (
                             <div>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||trackingError[lot.key]) ? 8 : 0 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||tracking.lastEvent) ? 8 : 0 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                                   <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
                                   {tracking.status
@@ -1073,7 +1073,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                 </div>
                               </div>
                               {/* ETA + last event row */}
-                              {(tracking.eta || tracking.lastEvent || trackingError[lot.key]) && (
+                              {(tracking.eta || tracking.lastEvent) && (
                                 <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#F9FAFB", borderRadius:7, marginTop:4 }}>
                                   {tracking.eta && (
                                     <span style={{ fontSize:12, color:"#9CA3AF" }}>
