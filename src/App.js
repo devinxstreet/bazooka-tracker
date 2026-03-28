@@ -271,7 +271,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           const mm = parseFloat(s.marketMultiple)||0;
           const rate = s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt  = commBase * rate;
-          return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt };
+          return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -291,9 +291,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           if (!drillDown) return null;
           const config = {
             gross:      { label:"Gross Revenue",       color:"#E8317A", val: s => calcStream(s).gross },
-            imc:        { label:"Owed to IMC (70%)",   color:"#6B2D8B", val: s => calcStream(s).imcNet },
+            imc:        { label:"Owed to Imagination Mining (70%)", color:"#6B2D8B", val: s => calcStream(s).imcNet },
             commission: { label:"Commission Owed",     color:"#166534", val: s => calcStream(s).commAmt },
-            bazooka:    { label:"Bazooka Net (30%)",   color:"#1B4F8A", val: s => calcStream(s).bazNet },
+            bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
           }[drillDown];
           return (
             <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
@@ -363,9 +363,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",     val:totals.gross, color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",       val:totals.imc,   color:"#6B2D8B", sub:"70% of net revenue" },
+                { key:"imc",        label:"Owed to IM",         val:totals.imc,   color:"#6B2D8B", sub:"70% of net revenue" },
                 { key:"commission", label:"Commission Owed",   val:totals.comm,  color:"#166534", sub:"click to see per rep" },
-                { key:"bazooka",    label:"Bazooka Net",       val:totals.baz,   color:"#1B4F8A", sub:"30% of net revenue" },
+                { key:"bazooka",    label:"Bazooka Earnings",  val:totals.baz,   color:"#E8317A", sub:"30% of net revenue" },
               ].map(({key,label,val,color,sub}) => (
                 <div
                   key={key}
@@ -1491,7 +1491,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const mm = parseFloat(recap.marketMultiple)||0;
     const rate = recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commAmt = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt };
+    return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
   }
 
   async function handleSaveRecap() {
@@ -1656,23 +1656,49 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Live commission preview */}
         {hasRecapData && (
           <div style={{ background:"#F9FAFB", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
-            <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:2},1fr)`, gap:10 }}>
-              {(canSeeFinancials ? [
-                { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
-                { l:"Bazooka 30%",  v:fmt(rc.bazNet),  c:"#E8317A" },
-                { l:"IMC 70%",      v:fmt(rc.imcNet),  c:"#6B2D8B" },
-                { l:"Rep Expenses", v:fmt(rc.repExp),  c:"#991b1b" },
-                { l:`Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
-              ] : [
-                { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
-                { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
-              ]).map(({l,v,c}) => (
-                <div key={l} style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                  <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+            {canSeeFinancials ? (
+              <>
+                {/* Row 1: top-level split */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
+                  {[
+                    { l:"Gross Revenue",         v:fmt(rc.gross),   c:"#111827" },
+                    { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
+                    { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
+                  ].map(({l,v,c}) => (
+                    <div key={l} style={{ textAlign:"center", background:"#FFFFFF", borderRadius:8, padding:"10px 8px", border:"1px solid #F0E0E8" }}>
+                      <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {/* Row 2: bazooka true net */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #F0E0E8" }}>
+                  {[
+                    { l:"Bazooka Earnings",                           v:fmt(rc.bazNet),    c:"#E8317A" },
+                    { l:`Rep Commission (${(rc.rate*100).toFixed(0)}%)`, v:"− "+fmt(rc.commAmt), c:"#991b1b" },
+                    { l:"Bazooka True Net",                           v:fmt(rc.bazTrueNet), c:"#166534" },
+                  ].map(({l,v,c}) => (
+                    <div key={l} style={{ textAlign:"center", background: l==="Bazooka True Net"?"#D6F4E3":"#FFFFFF", borderRadius:8, padding:"10px 8px", border:`1px solid ${l==="Bazooka True Net"?"#16653444":"#F0E0E8"}` }}>
+                      <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+                {[
+                  { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
+                ].map(({l,v,c}) => (
+                  <div key={l} style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                    <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
         )}
 
@@ -2469,7 +2495,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     const commBase = bazNet - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, commBase, rate, commAmt };
+    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
   }
 
   // Admins see all streams; streamers see only their own
@@ -2591,14 +2617,18 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
         </div>
 
         {/* Split */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
           <div style={S.card}>
-            <SectionLabel t="Bazooka Net (30%)" />
-            <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }}>${c.bazNet.toFixed(2)}</div>
+            <SectionLabel t="Gross Revenue" />
+            <div style={{ fontSize:28, fontWeight:900, color:"#111827" }}>{fmt(c.gross)}</div>
           </div>
           <div style={S.card}>
-            <SectionLabel t="BoBA Net (70%)" />
-            <div style={{ fontSize:32, fontWeight:900, color:"#6B7280" }}>${c.bobaNet.toFixed(2)}</div>
+            <SectionLabel t="Owed to Imagination Mining (70%)" />
+            <div style={{ fontSize:28, fontWeight:900, color:"#6B2D8B" }}>{fmt(c.imcNet)}</div>
+          </div>
+          <div style={S.card}>
+            <SectionLabel t="Bazooka Earnings (30%)" />
+            <div style={{ fontSize:28, fontWeight:900, color:"#E8317A" }}>{fmt(c.bazNet)}</div>
           </div>
         </div>
 
@@ -2607,9 +2637,9 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
             {[
-              { l:"Bazooka Net",           v:fmt(c.bazNet),   c:"#E8317A" },
-              { l:"Rep Expenses (13.5%)",  v:"− "+fmt(c.repExp), c:"#991b1b" },
-              { l:"Commission Base",       v:fmt(c.commBase), c:"#1B4F8A" },
+              { l:"Bazooka Earnings",        v:fmt(c.bazNet),      c:"#E8317A" },
+              { l:"Rep Expenses (13.5%)",    v:"− "+fmt(c.repExp), c:"#991b1b" },
+              { l:"Commission Base",         v:fmt(c.commBase),    c:"#1B4F8A" },
               { l:`Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280" },
             ].map(({l,v,c:clr}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #F0E0E8" }}>
@@ -2618,9 +2648,13 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#1A1A2E", borderRadius:10 }}>
+            <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>🏦 Bazooka True Net</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.bazTrueNet)}</span>
           </div>
           {s.marketMultiple && !s.binOnly && (
             <div style={{ marginTop:10, fontSize:12, color:"#9CA3AF", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
