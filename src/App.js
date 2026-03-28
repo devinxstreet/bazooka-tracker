@@ -2152,12 +2152,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       cols.push(cur.trim());
                       if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
                       gross   += (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
+                      coupons += parseFloat(cols[couponIdx]||0)||0;
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
-                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2) }));
+                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons }));
                     if (streamDate) setDate(streamDate);
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)} (incl. coupons)${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
+                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)} (autofilled)`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
                     setTimeout(()=>setCsvMsg(null), 6000);
 
                     // Parse buyers for CRM
@@ -4504,10 +4505,50 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
   const [selected,    setSelected]    = useState(null);
   const [stateFilter, setStateFilter] = useState("");
   const [showImports, setShowImports] = useState(false);
+  const [period,      setPeriod]      = useState("all");
+  const [rangeFrom,   setRangeFrom]   = useState("");
+  const [rangeTo,     setRangeTo]     = useState("");
 
-  const US_STATES = [...new Set(buyers.map(b=>b.state).filter(Boolean))].sort();
+  // Compute period date bounds
+  function getPeriodBounds() {
+    const now = new Date();
+    if (period === "month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end   = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
+      return { start, end };
+    }
+    if (period === "quarter") {
+      const q = Math.floor(now.getMonth()/3);
+      const start = new Date(now.getFullYear(), q*3, 1);
+      const end   = new Date(now.getFullYear(), q*3+3, 0, 23, 59, 59);
+      return { start, end };
+    }
+    if (period === "year") {
+      const start = new Date(now.getFullYear(), 0, 1);
+      const end   = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+      return { start, end };
+    }
+    if (period === "range" && rangeFrom && rangeTo) {
+      const start = new Date(rangeFrom); start.setHours(0,0,0,0);
+      const end   = new Date(rangeTo);   end.setHours(23,59,59,999);
+      return { start, end };
+    }
+    return null; // all time
+  }
 
-  const filtered = buyers
+  const bounds = getPeriodBounds();
+
+  // Filter buyers by period — a buyer is "active" in a period if their lastSeen falls within it
+  const periodBuyers = bounds
+    ? buyers.filter(b => {
+        const d = new Date(b.lastSeen||b.firstSeen||0);
+        return d >= bounds.start && d <= bounds.end;
+      })
+    : buyers;
+
+  const US_STATES = [...new Set(periodBuyers.map(b=>b.state).filter(Boolean))].sort();
+
+  const filtered = periodBuyers
     .filter(b => {
       const q = search.toLowerCase();
       const matchSearch = !q || b.username?.toLowerCase().includes(q) || b.fullName?.toLowerCase().includes(q) || b.city?.toLowerCase().includes(q) || b.state?.toLowerCase().includes(q);
@@ -4519,15 +4560,15 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
       if (sortBy==="recent")  return new Date(b.lastSeen||0)-new Date(a.lastSeen||0);
       if (sortBy==="new")     return new Date(b.firstSeen||0)-new Date(a.firstSeen||0);
       if (sortBy==="streams") return (b.streams?.length||0)-(a.streams?.length||0);
-      return (b.totalSpend||0)-(a.totalSpend||0); // default spend
+      return (b.totalSpend||0)-(a.totalSpend||0);
     });
 
   // Stats
-  const totalBuyers  = buyers.length;
-  const totalSpend   = buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
-  const totalOrders  = buyers.reduce((s,b)=>s+(b.orderCount||0),0);
-  const newThisMonth = buyers.filter(b=>{ const d=new Date(b.firstSeen||0); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear(); }).length;
-  const stateGroups  = buyers.reduce((acc,b)=>{ if(b.state){acc[b.state]=(acc[b.state]||0)+1;} return acc; },{});
+  const totalBuyers  = periodBuyers.length;
+  const totalSpend   = periodBuyers.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalOrders  = periodBuyers.reduce((s,b)=>s+(b.orderCount||0),0);
+  const newThisMonth = periodBuyers.filter(b=>{ const d=new Date(b.firstSeen||0); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear(); }).length;
+  const stateGroups  = periodBuyers.reduce((acc,b)=>{ if(b.state){acc[b.state]=(acc[b.state]||0)+1;} return acc; },{});
   const topStates    = Object.entries(stateGroups).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   // ── BUYER DETAIL ──────────────────────────────────────────
@@ -4644,6 +4685,24 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
           )}
         </div>
       )}
+
+      {/* Period picker */}
+      <div style={{ ...S.card, padding:"12px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
+          {[["all","All Time"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["range","Custom"]].map(([val,label])=>(
+            <button key={val} onClick={()=>setPeriod(val)} style={{ background:period===val?"#1A1A2E":"transparent", color:period===val?"#E8317A":"#888", border:`1.5px solid ${period===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:period===val?700:400, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          ))}
+          {period==="range" && (
+            <>
+              <input type="date" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)} style={{ ...S.inp, width:140, padding:"5px 10px", fontSize:12 }}/>
+              <span style={{ color:"#555", fontSize:12 }}>→</span>
+              <input type="date" value={rangeTo} onChange={e=>setRangeTo(e.target.value)} style={{ ...S.inp, width:140, padding:"5px 10px", fontSize:12 }}/>
+            </>
+          )}
+          {bounds && <span style={{ fontSize:11, color:"#666", marginLeft:4 }}>{periodBuyers.length} buyer{periodBuyers.length!==1?"s":""} in period</span>}
+        </div>
+      </div>
 
       {/* Stats row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
