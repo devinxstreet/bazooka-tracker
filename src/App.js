@@ -1717,7 +1717,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       </div>}
 
       {/* ── STREAM LOG ── */}
-      {!cardsOnly && streams.length > 0 && (() => {
+      {!cardsOnly && (() => {
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
           const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70, repExp=(coupons+promo+magpros+pack+topload+chaser)*0.135;
@@ -1731,7 +1731,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <div style={{ padding:"14px 20px 0" }}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
             </div>
-            <div style={{ overflowX:"auto" }}>
+            {myStreams.length === 0
+              ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet — save a stream recap above to get started</div>
+              : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead>
                   <tr>{["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
@@ -1768,7 +1770,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   })}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         );
       })()}
@@ -3031,7 +3033,10 @@ export default function App() {
   }
   async function handleDeleteStream(id) {
     await deleteDoc(doc(db,"streams",id));
-    showToast("🗑 Stream deleted");
+    // Also delete any product usage entries linked to this stream
+    const linked = productUsage.filter(u => u.streamId === id);
+    for (const u of linked) await deleteDoc(doc(db,"product_usage",u.id));
+    showToast(`🗑 Stream deleted${linked.length > 0 ? " — product usage removed" : ""}`);
   }
 
   async function handleSaveShipment(shipment) {
