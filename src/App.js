@@ -1065,7 +1065,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   }
                                 </div>
                                 <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-
+                                  {tracking.trackingNum && tracking.status !== "Delivered" && (
+                                    <button
+                                      onClick={() => onSaveLotTracking(lot.key, { ...tracking, status:"Delivered" })}
+                                      style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                    >✅ Mark Delivered</button>
+                                  )}
                                   <button
                                     onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
                                     style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
@@ -1609,14 +1614,18 @@ export default function App() {
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
   async function handleAccept(cards, seller, u, custNote) {
-    const lotKey    = `${seller.name||"Unknown"}__${(cards[0]?.date || seller.date || new Date().toLocaleDateString())}`;
+    // Build key exactly as lot history does: seller__date from card data
+    const firstCard  = cards[0];
+    const lotKey     = `${firstCard?.seller||"Unknown"}__${firstCard?.date||"Unknown"}`;
     const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
     const cardStatus  = hasTracking && lotTracking[lotKey]?.status !== "Delivered" ? "in_transit" : "available";
-    for (const card of cards) await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
+    for (const card of cards) {
+      await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
+    }
     if (custNote && custNote.trim()) {
       await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory${cardStatus==="in_transit"?" — marked In Transit":""}`);
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added${cardStatus==="in_transit"?" — In Transit":""}`);
     setTab("inventory");
   }
   async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
