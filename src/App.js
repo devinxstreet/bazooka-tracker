@@ -1436,7 +1436,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const existingUsage = productUsage.find(u => u.breaker === breaker && u.date === date);
 
   // Check if a stream recap already exists for this breaker+date
-  const existingStream = streams.find(s => s.breaker === breaker && s.date === date);
+  const [editingStreamId, setEditingStreamId] = useState(null);
+
+  // Find existing stream: prefer by ID when editing, fall back to breaker+date for new entries
+  const existingStream = editingStreamId
+    ? streams.find(s => s.id === editingStreamId)
+    : streams.find(s => s.breaker === breaker && s.date === date);
 
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
@@ -1529,6 +1534,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         await onSaveProductUsage({ id:uid(), streamId, breaker, date, ...prodFields });
       }
       setRecapSaved(true);
+      setEditingStreamId(streamId); // lock to this stream for subsequent edits
     } finally { setRecapSaving(false); }
   }
 
@@ -1571,6 +1577,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
           <SectionLabel t="Stream Recap" />
+          {editingStreamId && existingStream && (
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ background:"#FFF9DB", color:"#92400e", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+                ✏️ Editing: {existingStream.breaker} · {existingStream.date}
+              </span>
+              <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
+                Start new instead
+              </button>
+            </div>
+          )}
           {recapSaved && <span style={{ background:"#D6F4E3", color:"#166534", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
         </div>
 
@@ -1802,7 +1818,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {recapSaving ? "Saving..." : recapSaved ? "✅ Update Recap" : "💾 Save Stream Recap"}
           </Btn>
           {recapSaved && (
-            <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); }} variant="ghost">
+            <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
               + New Stream
             </Btn>
           )}
@@ -1839,7 +1855,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     const isActive = existingStream?.id === s.id;
                     return (
                       <tr key={s.id}
-                        onClick={()=>{ setBreaker(s.breaker); setDate(s.date); }}
+                        onClick={()=>{ setBreaker(s.breaker); setDate(s.date); setEditingStreamId(s.id); setRecapSaved(false); }}
                         style={{ background:isActive?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
@@ -1855,7 +1871,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={{ ...S.td, color:"#166534" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "—"}</td>
                         <td style={S.td}>
                           <button
-                            onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); } }}}
+                            onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); } }}}
                             style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
                           >🗑</button>
                         </td>
