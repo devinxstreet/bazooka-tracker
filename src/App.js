@@ -518,7 +518,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const pct        = Math.round(dayOfYear / daysInYear * 100);
         const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
         return (
-          <div style={{ background:"#1A1A2E", border:"1px solid #E8317A33", borderRadius:14, padding:"18px 20px" }}>
+          <div style={{ background:"#000000", border:"1px solid rgba(232,49,122,0.25)", borderRadius:14, padding:"18px 20px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
@@ -886,7 +886,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
     <div>
       <div style={{ marginBottom:14 }}><Btn onClick={()=>setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
       <div style={{ background:"#111111", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
-        <div style={{ background:"#1A1A2E", padding:"28px 32px", textAlign:"center" }}>
+        <div style={{ background:"linear-gradient(135deg,#000000,#1a0a0f)", padding:"28px 32px", textAlign:"center" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#FFFFFF", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#666666", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
@@ -929,7 +929,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               <span style={{ color:"#FFFFFF", fontWeight:700 }}>{v}</span>
             </div>
           ))}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#1A1A2E", borderRadius:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#000000", borderRadius:10 }}>
             <span style={{ color:"#E8317A", fontWeight:800, fontSize:16 }}>Bazooka's Offer</span>
             <span style={{ color:"#FFFFFF", fontWeight:900, fontSize:22 }}>${dispOffer.toFixed(2)}</span>
           </div>
@@ -3001,7 +3001,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
       <div style={{ display:"flex", gap:6 }}>
         {STREAM_TABS.map(t => (
           <button key={t.id} onClick={()=>setStreamTab(t.id)}
-            style={{ background:streamTab===t.id?"#1A1A2E":"transparent", color:streamTab===t.id?"#E8317A":"#9CA3AF", border:`1.5px solid ${streamTab===t.id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            style={{ background:streamTab===t.id?"#000000":"transparent", color:streamTab===t.id?"#E8317A":"#9CA3AF", border:`1.5px solid ${streamTab===t.id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {t.label}
           </button>
         ))}
@@ -3185,7 +3185,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={S.card}>
           <SectionLabel t="Stream Revenue Breakdown" />
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#1A1A2E", borderRadius:8 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#000000", borderRadius:8 }}>
               <span style={{ fontWeight:700, color:"#FFFFFF", fontSize:14 }}>Gross Revenue</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
@@ -3257,7 +3257,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
           </div>
           {isAdmin && (
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#1A1A2E", borderRadius:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#000000", borderRadius:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>🏦 Bazooka True Net</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.bazTrueNet)}</span>
           </div>
