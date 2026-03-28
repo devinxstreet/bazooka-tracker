@@ -37,6 +37,7 @@ const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement"];
 const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"];
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+const fmt = n => isNaN(n) || n === "" || n === null ? "—" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 function getUserRole(user) {
   if (!user) return { role:"Viewer", label:"Viewer", color:"#9CA3AF", bg:"#F3F4F6" };
   const name = (user.displayName||"").toLowerCase();
@@ -265,7 +266,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           const netRev   = gross - totalExp;
           const bazNet   = netRev * 0.30;
           const imcNet   = netRev * 0.70;
-          const repExp   = totalExp * 0.135;
+          const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
           const commBase = bazNet - repExp;
           const mm = parseFloat(s.marketMultiple)||0;
           const rate = s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
@@ -316,10 +317,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
                             <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
                               <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
-                              <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${c.gross.toFixed(2)}</td>
-                              <td style={{ ...S.td, color:"#1B4F8A", fontWeight:700 }}>${c.netRev.toFixed(2)}</td>
+                              <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
+                              <td style={{ ...S.td, color:"#1B4F8A", fontWeight:700 }}>{fmt(c.netRev)}</td>
                               <td style={{ ...S.td, color:"#6B7280" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
-                              <td style={{ ...S.td, color:config.color, fontWeight:900 }}>${val.toFixed(2)}</td>
+                              <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>
                             </tr>
                           );
                         })
@@ -328,7 +329,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
                   <tfoot>
                     <tr style={{ background:"#F9FAFB", borderTop:"2px solid #F0E0E8" }}>
                       <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#111827" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
-                      <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>${filtered.reduce((a,s)=>a+config.val(s),0).toFixed(2)}</td>
+                      <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1420,7 +1421,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [histSel,    setHistSel]    = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, breakType:"auction", streamNotes:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", streamNotes:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -1436,7 +1437,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
     if (existingStream) {
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", streamNotes:existingStream.notes||"" });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", streamNotes:existingStream.notes||"" });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -1485,7 +1486,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const imcNet   = netRev * 0.70;
-    const repExp   = totalExp * 0.135;
+    const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
     const commBase = bazNet - repExp;
     const mm = parseFloat(recap.marketMultiple)||0;
     const rate = recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
@@ -1566,6 +1567,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <label style={S.lbl}>Market Multiple</label>
             <input type="number" step="0.01" value={recap.marketMultiple} onChange={e=>rf("marketMultiple")(e.target.value)} placeholder="Auto-calculated" style={{ ...S.inp, color: recap.marketMultiple?"#1B4F8A":"#9CA3AF" }} disabled={recap.binOnly}/>
           </div>
+          <div>
+            <label style={{ ...S.lbl, color:"#166534" }}>🌱 New Buyers</label>
+            <input type="number" min="0" step="1" value={recap.newBuyers||""} onChange={e=>rf("newBuyers")(e.target.value)} placeholder="0" style={{ ...S.inp, color:"#166534" }}/>
+          </div>
         </div>
 
         {/* Financials */}
@@ -1575,9 +1580,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ["whatnotFees",       "Whatnot Fees ($)",        "#991b1b", false],
             ["coupons",           "Coupons ($)",             "#991b1b", !canSeeFinancials],
             ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", !canSeeFinancials],
-            ["magpros",           "MagPros ($)",             "#991b1b", !canSeeFinancials],
-            ["packagingMaterial", "Packaging ($)",           "#991b1b", !canSeeFinancials],
-            ["topLoaders",        "Top Loaders ($)",         "#991b1b", !canSeeFinancials],
             ["chaserCards",       "Chaser Cards ($)",        "#991b1b", !canSeeFinancials],
           ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
             <div key={key}>
@@ -1585,6 +1587,46 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
             </div>
           ))}
+          {/* Supply qty fields — auto-calc from cost per unit */}
+          {canSeeFinancials && (
+            <div style={{ display:"contents" }}>
+              {[
+                { qtyKey:"magprosQty",   dollarKey:"magpros",           label:"MagPros",             supplyKey:"supply_magpros"   },
+                { qtyKey:"packagingQty", dollarKey:"packagingMaterial", label:"Packaging Materials", supplyKey:"supply_packaging" },
+                { qtyKey:"topLoadersQty",dollarKey:"topLoaders",        label:"Top Loaders",         supplyKey:"supply_topLoaders"},
+              ].map(({ qtyKey, dollarKey, label, supplyKey }) => {
+                const costPer = parseFloat(skuPrices[supplyKey]) || 0;
+                const qty     = parseInt(recap[qtyKey]) || 0;
+                const total   = (qty * costPer).toFixed(2);
+                return (
+                  <div key={qtyKey}>
+                    <label style={{ ...S.lbl, color:"#6B2D8B" }}>{label} (qty)</label>
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input
+                        type="number" min="0" step="1"
+                        value={recap[qtyKey]||""}
+                        onChange={e => {
+                          const q = parseInt(e.target.value)||0;
+                          const amt = (q * costPer).toFixed(2);
+                          setRecap(p => {
+                            const updated = { ...p, [qtyKey]:e.target.value, [dollarKey]:amt };
+                            return updated;
+                          });
+                          setRecapSaved(false);
+                        }}
+                        placeholder="0"
+                        style={{ ...S.inp, color:"#6B2D8B", flex:1 }}
+                      />
+                      {costPer > 0 && qty > 0 && (
+                        <span style={{ fontSize:11, color:"#6B2D8B", fontWeight:700, whiteSpace:"nowrap" }}>${total}</span>
+                      )}
+                      {!costPer && <span style={{ fontSize:10, color:"#D1D5DB", whiteSpace:"nowrap" }}>no cost set</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ display:"flex", gap:10, marginBottom:14, alignItems:"center" }}>
@@ -1616,14 +1658,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div style={{ background:"#F9FAFB", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
             <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:2},1fr)`, gap:10 }}>
               {(canSeeFinancials ? [
-                { l:"Net Revenue",  v:`$${rc.netRev.toFixed(2)}`,  c:"#1B4F8A" },
-                { l:"Bazooka 30%",  v:`$${rc.bazNet.toFixed(2)}`,  c:"#E8317A" },
-                { l:"IMC 70%",      v:`$${rc.imcNet.toFixed(2)}`,  c:"#6B2D8B" },
-                { l:"Rep Expenses", v:`$${rc.repExp.toFixed(2)}`,  c:"#991b1b" },
-                { l:`Commission (${(rc.rate*100).toFixed(0)}%)`, v:`$${rc.commAmt.toFixed(2)}`, c:"#166534" },
+                { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
+                { l:"Bazooka 30%",  v:fmt(rc.bazNet),  c:"#E8317A" },
+                { l:"IMC 70%",      v:fmt(rc.imcNet),  c:"#6B2D8B" },
+                { l:"Rep Expenses", v:fmt(rc.repExp),  c:"#991b1b" },
+                { l:`Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
               ] : [
-                { l:"Net Revenue",  v:`$${rc.netRev.toFixed(2)}`,  c:"#1B4F8A" },
-                { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:`$${rc.commAmt.toFixed(2)}`, c:"#166534" },
+                { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
+                { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
               ]).map(({l,v,c}) => (
                 <div key={l} style={{ textAlign:"center" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -1897,13 +1939,24 @@ function Performance({ breaks, user, userRole }) {
 function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole, skuPrices={}, onSaveSkuPrices }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
-  const [form,       setForm]       = useState(EMPTY);
-  const [adding,     setAdding]     = useState(false);
-  const [editId,     setEditId]     = useState(null);
-  const [skuForm,    setSkuForm]    = useState({});
-  const [skuEditing, setSkuEditing] = useState(false);
+  const [form,          setForm]          = useState(EMPTY);
+  const [adding,        setAdding]        = useState(false);
+  const [editId,        setEditId]        = useState(null);
+  const [skuForm,       setSkuForm]       = useState({});
+  const [skuEditing,    setSkuEditing]    = useState(false);
+  const [supplyEditing, setSupplyEditing] = useState(false);
+  const [supplyForm,    setSupplyForm]    = useState({});
 
-  useEffect(() => { setSkuForm(skuPrices); }, [JSON.stringify(skuPrices)]);
+  const SUPPLY_ITEMS = [
+    { key:"magpros",     label:"MagPros"              },
+    { key:"packaging",   label:"Packaging Materials"  },
+    { key:"topLoaders",  label:"Top Loaders"          },
+  ];
+
+  useEffect(() => {
+    setSkuForm(skuPrices);
+    setSupplyForm(skuPrices); // supply costs stored alongside sku prices
+  }, [JSON.stringify(skuPrices)]);
 
   // Stock = total received - total used per product type
   const stock = PRODUCT_TYPES.reduce((acc, pt) => {
@@ -1965,6 +2018,43 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                 ))}
               </div>
               <Btn onClick={async()=>{ await onSaveSkuPrices(skuForm); setSkuEditing(false); }} variant="green">💾 Save SKU Prices</Btn>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Supply Cost Config — Admin only */}
+      {canEdit && (
+        <div style={{ ...S.card, border:"2px solid #6B2D8B22" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: supplyEditing ? 14 : 0 }}>
+            <SectionLabel t="Supply Cost Per Unit" />
+            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+              {!supplyEditing && SUPPLY_ITEMS.map(({ key, label }) => skuPrices[`supply_${key}`] ? (
+                <span key={key} style={{ fontSize:11, color:"#6B7280" }}>{label}: <strong style={{color:"#111827"}}>${parseFloat(skuPrices[`supply_${key}`]).toFixed(3)}</strong></span>
+              ) : null)}
+              <button onClick={()=>setSupplyEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#6B2D8B", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {supplyEditing ? "Cancel" : "✏️ Edit"}
+              </button>
+            </div>
+          </div>
+          {supplyEditing && (
+            <>
+              <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:12 }}>Set cost per unit for supplies. In Stream Recap, enter quantities and costs auto-calculate.</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:14 }}>
+                {SUPPLY_ITEMS.map(({ key, label }) => (
+                  <div key={key}>
+                    <label style={{ ...S.lbl, color:"#6B2D8B" }}>{label} ($ per unit)</label>
+                    <input
+                      type="number" step="0.001" min="0"
+                      value={supplyForm[`supply_${key}`]||""}
+                      onChange={e=>setSupplyForm(p=>({...p,[`supply_${key}`]:e.target.value}))}
+                      placeholder="e.g. 0.25"
+                      style={{ ...S.inp, color:"#6B2D8B" }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <Btn onClick={async()=>{ await onSaveSkuPrices({...skuPrices,...supplyForm}); setSupplyEditing(false); }} variant="green">💾 Save Supply Costs</Btn>
             </>
           )}
         </div>
@@ -2344,7 +2434,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
 
-  const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, notes:"" };
+  const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, notes:"" };
   const [form,      setForm]      = useState(EMPTY);
   const [editing,   setEditing]   = useState(null); // stream id or "new"
   const [viewStream,setViewStream]= useState(null); // stream id for detail view
@@ -2375,7 +2465,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const bobaNet  = netRev * 0.70;
-    const repExp   = totalExp * 0.135;
+    const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
     const commBase = bazNet - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
@@ -2402,8 +2492,9 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     acc.net      += c.netRev;
     acc.baz      += c.bazNet;
     acc.comm     += c.commAmt;
+    acc.newBuyers += parseInt(s.newBuyers)||0;
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0 });
+  }, { gross:0, net:0, baz:0, comm:0, newBuyers:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
@@ -2464,6 +2555,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
+              {s.newBuyers>0 && <span style={{ background:"#D6F4E3", color:"#166534", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🌱 {s.newBuyers} new buyers</span>}
             </div>
           </div>
 
@@ -2476,7 +2568,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             {/* Gross */}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#1A1A2E", borderRadius:8 }}>
               <span style={{ fontWeight:700, color:"#FFFFFF", fontSize:14 }}>Gross Revenue</span>
-              <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>${c.gross.toFixed(2)}</span>
+              <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
             {/* Expense rows */}
             {EXPENSE_ROWS.filter(r=>r.v>0).map(({l,v}) => (
@@ -2493,7 +2585,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             {/* Net Revenue */}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#F0F9FF", borderRadius:8, border:"2px solid #1B4F8A22" }}>
               <span style={{ fontWeight:800, color:"#1B4F8A", fontSize:14 }}>Net Revenue</span>
-              <span style={{ fontWeight:900, color:"#1B4F8A", fontSize:16 }}>${c.netRev.toFixed(2)}</span>
+              <span style={{ fontWeight:900, color:"#1B4F8A", fontSize:16 }}>{fmt(c.netRev)}</span>
             </div>
           </div>
         </div>
@@ -2515,9 +2607,9 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
             {[
-              { l:"Bazooka Net",           v:`$${c.bazNet.toFixed(2)}`,   c:"#E8317A" },
-              { l:"Rep Expenses (13.5%)",  v:`− $${c.repExp.toFixed(2)}`, c:"#991b1b" },
-              { l:"Commission Base",       v:`$${c.commBase.toFixed(2)}`, c:"#1B4F8A" },
+              { l:"Bazooka Net",           v:fmt(c.bazNet),   c:"#E8317A" },
+              { l:"Rep Expenses (13.5%)",  v:"− "+fmt(c.repExp), c:"#991b1b" },
+              { l:"Commission Base",       v:fmt(c.commBase), c:"#1B4F8A" },
               { l:`Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280" },
             ].map(({l,v,c:clr}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #F0E0E8" }}>
@@ -2528,7 +2620,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
-            <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>${c.commAmt.toFixed(2)}</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
           </div>
           {s.marketMultiple && !s.binOnly && (
             <div style={{ marginTop:10, fontSize:12, color:"#9CA3AF", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
@@ -2647,13 +2739,14 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* Summary */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?4:2},1fr)`, gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:12 }}>
         {[
           { l:"Total Streams",     v:visibleStreams.length,           c:"#111827" },
-          { l:"Total Commission",  v:`$${totals.comm.toFixed(2)}`,    c:"#166534" },
+          { l:"Total Commission",  v:fmt(totals.comm),    c:"#166534" },
+          { l:"🌱 New Buyers",     v:totals.newBuyers,                c:"#166534" },
           ...(isAdmin ? [
-            { l:"Total Gross",     v:`$${totals.gross.toFixed(2)}`,   c:"#E8317A" },
-            { l:"Bazooka Net",     v:`$${totals.baz.toFixed(2)}`,     c:"#6B2D8B" },
+            { l:"Total Gross",     v:fmt(totals.gross),   c:"#E8317A" },
+            { l:"Bazooka Net",     v:fmt(totals.baz),     c:"#6B2D8B" },
           ] : []),
         ].map(({l,v,c}) => (
           <div key={l} style={{ ...S.card, textAlign:"center" }}>
@@ -2694,14 +2787,15 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
                 <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Gross: <strong style={{color:"#111827"}}>${c.gross.toFixed(2)}</strong></span>
-                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Net: <strong style={{color:"#1B4F8A"}}>${c.netRev.toFixed(2)}</strong></span>
-                  {isAdmin && <span style={{ fontSize:12, color:"#9CA3AF" }}>Bazooka: <strong style={{color:"#E8317A"}}>${c.bazNet.toFixed(2)}</strong></span>}
+                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Gross: <strong style={{color:"#111827"}}>{fmt(c.gross)}</strong></span>
+                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Net: <strong style={{color:"#1B4F8A"}}>{fmt(c.netRev)}</strong></span>
+                  {isAdmin && <span style={{ fontSize:12, color:"#9CA3AF" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#9CA3AF" }}>Rate: <strong style={{color:"#6B7280"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
+                  {s.newBuyers>0 && <span style={{ fontSize:12, color:"#166534", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
-                    <div style={{ fontSize:22, fontWeight:900, color:"#166534" }}>${c.commAmt.toFixed(2)}</div>
+                    <div style={{ fontSize:22, fontWeight:900, color:"#166534" }}>{fmt(c.commAmt)}</div>
                     <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
                   </div>
                   <span style={{ color:"#D1D5DB", fontSize:18 }}>›</span>
