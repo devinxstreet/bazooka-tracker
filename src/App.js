@@ -485,6 +485,63 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })()}
 
+      {/* Year-End Projections */}
+      {(() => {
+        const now = new Date();
+        const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+        const daysInYear = 365;
+        const ytdStreams  = streams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
+        const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
+        const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
+        const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStream(s).netRev)||0), 0)
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
+        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStream(s).bazNet, 0)
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
+        const ytdComm    = ytdStreams.reduce((sum,s) => sum+calcStream(s).commAmt, 0);
+        const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
+        if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
+        const pct        = Math.round(dayOfYear / daysInYear * 100);
+        const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
+        return (
+          <div style={{ background:"#1A1A2E", border:"1px solid #E8317A33", borderRadius:14, padding:"18px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+              <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
+                📈 Year-End Projections
+              </div>
+              <span style={{ fontSize:11, color:"#6B7280" }}>
+                {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
+                {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
+              </span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
+              {[
+                { l:"Gross Revenue",     v:proj(ytdGross),     ytd:ytdGross,     c:"#E8317A" },
+                { l:"Net Revenue",       v:proj(ytdNet),       ytd:ytdNet,       c:"#1B4F8A" },
+                { l:"Bazooka Earnings",  v:proj(ytdBaz),       ytd:ytdBaz,       c:"#E8317A" },
+                { l:"Commission Paid",   v:proj(ytdComm),      ytd:ytdComm,      c:"#991b1b" },
+                { l:"New Buyers",        v:proj(ytdNewBuyers), ytd:ytdNewBuyers, c:"#166534", count:true },
+              ].map(({l,v,ytd,c,count}) => (
+                <div key={l} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:20, fontWeight:900, color:c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
+                  <div style={{ fontSize:9, color:"#6B7280", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
+                  <div style={{ fontSize:10, color:"#444", marginTop:3 }}>{count ? Math.round(ytd).toLocaleString() : fmt(ytd)} YTD</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ height:6, background:"#333", borderRadius:10, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10 }}/>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+              <span style={{ fontSize:10, color:"#555" }}>Jan 1</span>
+              <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
+              <span style={{ fontSize:10, color:"#555" }}>Dec 31</span>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ ...S.card, border: alerts.length > 0 ? "2px solid #FCA5A5" : "2px solid #D6F4E3" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <SectionLabel t="Inventory Health Check" />
@@ -3317,64 +3374,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         ))}
       </div>
 
-      {/* Projection Calculator */}
-      {(() => {
-        const now = new Date();
-        const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
-        const daysInYear = 365;
-        const ytdStreams = visibleStreams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
-        const ytdComm   = ytdStreams.reduce((sum,s) => sum+calcStream(s).commAmt, 0);
-        const ytdGross  = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
-        const ytdBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
-        // Add historical monthly data to YTD
-        const ytdHist   = historicalData.filter(h => h.yearMonth && h.yearMonth.startsWith(String(now.getFullYear())));
-        const histGross = ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
-        const totalYtdGross = ytdGross + histGross;
-        const dailyComm  = dayOfYear > 0 ? ytdComm        / dayOfYear : 0;
-        const dailyGross = dayOfYear > 0 ? totalYtdGross  / dayOfYear : 0;
-        const dailyBuyers= dayOfYear > 0 ? ytdBuyers      / dayOfYear : 0;
-        const projComm   = dailyComm   * daysInYear;
-        const projGross  = dailyGross  * daysInYear;
-        const projBuyers = Math.round(dailyBuyers * daysInYear);
-        const pct = Math.round(dayOfYear / daysInYear * 100);
-        if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
-        return (
-          <div style={{ ...S.card, background:"#1A1A2E", border:"1px solid #E8317A33" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>📈 Year-End Projections</div>
-              <span style={{ fontSize:11, color:"#9CA3AF" }}>Based on {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}{ytdHist.length>0?` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}`:"""} · {pct}% through {now.getFullYear()}</span>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?3:2},1fr)`, gap:12, marginBottom:14 }}>
-              <div style={{ textAlign:"center" }}>
-                <div style={{ fontSize:26, fontWeight:900, color:"#166534" }}>{fmt(projComm)}</div>
-                <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected Commission</div>
-                <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(ytdComm)} YTD</div>
-              </div>
-              {isAdmin && (
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:26, fontWeight:900, color:"#E8317A" }}>{fmt(projGross)}</div>
-                  <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected Gross</div>
-                  <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(totalYtdGross)} YTD</div>
-                </div>
-              )}
-              <div style={{ textAlign:"center" }}>
-                <div style={{ fontSize:26, fontWeight:900, color:"#166534" }}>{projBuyers.toLocaleString()}</div>
-                <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected New Buyers</div>
-                <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{ytdBuyers} YTD</div>
-              </div>
-            </div>
-            {/* Progress bar */}
-            <div style={{ height:6, background:"#333", borderRadius:10, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10, transition:"width 1s ease" }}/>
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-              <span style={{ fontSize:10, color:"#555" }}>Jan 1</span>
-              <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
-              <span style={{ fontSize:10, color:"#555" }}>Dec 31</span>
-            </div>
-          </div>
-        );
-      })()}
+
 
       {/* Breaker filter — admin only */}
       {isAdmin && (
