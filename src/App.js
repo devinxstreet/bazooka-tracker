@@ -962,6 +962,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
   const [custNote,     setCustNote]     = useState("");
   const [quoteLink,    setQuoteLink]    = useState(null);
   const [quoteCopied,  setQuoteCopied]  = useState(false);
+  const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
   const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
   const [quickCards,   setQuickCards]   = useState("");
@@ -1579,14 +1580,21 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             );
           })()}
 
-          <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
             <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"6px 12px", cursor:"pointer" }} onClick={()=>setAllowCounter(p=>!p)}>
+              <div style={{ width:32, height:18, borderRadius:9, background:allowCounter?"#E8317A":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
+                <div style={{ position:"absolute", top:2, left:allowCounter?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
+              </div>
+              <span style={{ fontSize:11, fontWeight:700, color:allowCounter?"#E8317A":"#666", whiteSpace:"nowrap" }}>Counter Offer {allowCounter?"ON":"OFF"}</span>
+            </div>
             <Btn onClick={async()=>{
               if (!onSaveQuote) return;
               const id = await onSaveQuote({
                 seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
                 dispOffer, dispPct, totalMkt, custNote,
                 payment:seller.payment, paymentHandle:seller.paymentHandle,
+                allowCounter,
               });
               const link = `${window.location.origin}/quote/${id}`;
               setQuoteLink(link);
@@ -4976,7 +4984,7 @@ function PublicQuote({ quoteId }) {
   if (notFound) return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>🔍</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Not Found</div><div style={{color:"#888",fontSize:14}}>This link may be invalid or has been removed.</div></div></div>;
   if (expired)  return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⏰</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Expired</div><div style={{color:"#888",fontSize:14}}>This offer was valid for 7 days and has expired.</div><div style={{color:"#888",fontSize:14,marginTop:8}}>Please contact Bazooka for a fresh quote.</div></div></div>;
 
-  const { seller, cards=[], dispOffer=0, custNote, payment:bzPayment, paymentHandle:bzHandle, createdAt, status="pending", history=[], currentOffer } = quote;
+  const { seller, cards=[], dispOffer=0, custNote, payment:bzPayment, paymentHandle:bzHandle, createdAt, status="pending", history=[], currentOffer, allowCounter=false } = quote;
   const activeOffer = currentOffer || dispOffer;
   const totalCards = cards.reduce((s,c)=>s+(parseInt(c.qty)||1),0);
   const totalMkt   = cards.reduce((s,c)=>s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1),0);
@@ -5294,6 +5302,11 @@ function PublicQuote({ quoteId }) {
               <button onClick={()=>setView("accept")} style={{width:"100%",background:"#166534",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                 ✅ Accept This Offer
               </button>
+              {allowCounter && (
+                <button onClick={()=>setView("counter")} style={{background:"#1a1400",color:"#FBBF24",border:"1.5px solid #FBBF2444",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  🤝 Make Counter Offer
+                </button>
+              )}
               <button onClick={()=>submitResponse("declined")} disabled={submitting} style={{background:"#1a0a0a",color:"#E8317A",border:"1.5px solid #E8317A44",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                 ❌ Decline
               </button>
