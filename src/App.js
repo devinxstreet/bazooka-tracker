@@ -305,6 +305,14 @@ function Dashboard({ inventory, breaks, user, userRole }) {
       <div style={S.card}>
         <SectionLabel t="Inventory by Card Type" />
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {/* Header row */}
+          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, padding:"0 16px", alignItems:"center" }}>
+            <div/>
+            {["Stock","Used","Avail","Transit","Min"].map(h => (
+              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>
+            ))}
+            <div/>
+          </div>
           {CARD_TYPES.map(ct => {
             const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
             const avail   = d.total - d.used - d.inTransit;
@@ -314,23 +322,22 @@ function Dashboard({ inventory, breaks, user, userRole }) {
             const sc = ok?"#166534":warn?"#92400e":"#991b1b";
             const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
             return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-                <span style={{ fontWeight:700, color:cc.text, fontSize:14, minWidth:180 }}>{ct}</span>
-                <div style={{ display:"flex", alignItems:"center", gap:20, flex:1, justifyContent:"center" }}>
-                  {[{v:d.total,l:"stock"},{v:d.used,l:"used",c:"#991b1b"},{v:avail,l:"avail",c:sc},...(transit>0?[{v:transit,l:"transit",c:"#2C3E7A"}]:[])].map(({v,l,c:c2}) => (
-                    <div key={l} style={{ textAlign:"center", minWidth:50 }}>
-                      <div style={{ fontSize:22, fontWeight:900, color:c2||cc.text }}>{v}</div>
-                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-                    </div>
-                  ))}
-                  <div style={{ textAlign:"center", minWidth:50 }}>
-                    <div style={{ fontSize:14, color:"#9CA3AF", fontWeight:600 }}>{buffer}</div>
-                    <div style={{ fontSize:9, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>min</div>
+              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, alignItems:"center" }}>
+                <span style={{ fontWeight:700, color:cc.text, fontSize:14 }}>{ct}</span>
+                {[
+                  { v:d.total,  c:cc.text      },
+                  { v:d.used,   c:"#991b1b"    },
+                  { v:avail,    c:sc            },
+                  { v:transit,  c: transit>0 ? "#2C3E7A" : "#D1D5DB" },
+                  { v:buffer,   c:"#9CA3AF"    },
+                ].map(({v,c},i) => (
+                  <div key={i} style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
                   </div>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                ))}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
                   {canSeeFinancials && <ZoneBadge pct={pct} />}
-                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{sl}</span>
+                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"3px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
                 </div>
               </div>
             );
@@ -1531,6 +1538,228 @@ function Performance({ breaks, user, userRole }) {
   );
 }
 
+// ─── SELLERS CRM ─────────────────────────────────────────────────
+function Sellers({ inventory, breaks, userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const [selectedSeller, setSelectedSeller] = useState(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("spent"); // spent | cards | lots | recent
+
+  const usedIds = new Set(breaks.map(b => b.inventoryId));
+
+  // Build seller profiles from inventory
+  const sellerMap = {};
+  inventory.forEach(c => {
+    const name = c.seller?.trim() || "Unknown";
+    if (!sellerMap[name]) {
+      sellerMap[name] = {
+        name,
+        lots:    {},
+        cards:   0,
+        spent:   0,
+        sources: {},
+        payments:{},
+        lastDate: null,
+      };
+    }
+    const s = sellerMap[name];
+    s.cards++;
+    s.spent += c.costPerCard || 0;
+    const lotKey = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
+    if (!s.lots[lotKey]) s.lots[lotKey] = { key:lotKey, date:c.date||"—", cards:[], lotPaid:c.lotTotalPaid||0, source:c.source||"—", payment:c.payment||"—" };
+    s.lots[lotKey].cards.push(c);
+    if (c.source) s.sources[c.source] = (s.sources[c.source]||0) + 1;
+    if (c.payment) s.payments[c.payment] = (s.payments[c.payment]||0) + 1;
+    if (!s.lastDate || new Date(c.dateAdded) > new Date(s.lastDate)) s.lastDate = c.dateAdded;
+  });
+
+  const sellers = Object.values(sellerMap).map(s => ({
+    ...s,
+    lotCount:      Object.keys(s.lots).length,
+    lotList:       Object.values(s.lots).sort((a,b) => new Date(b.date)-new Date(a.date)),
+    topSource:     Object.entries(s.sources).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—",
+    topPayment:    Object.entries(s.payments).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—",
+  }));
+
+  const filtered = sellers
+    .filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b) => {
+      if (sortBy==="cards")  return b.cards - a.cards;
+      if (sortBy==="lots")   return b.lotCount - a.lotCount;
+      if (sortBy==="recent") return new Date(b.lastDate||0) - new Date(a.lastDate||0);
+      return b.spent - a.spent; // default: spent
+    });
+
+  const SOURCE_COLORS = { Discord:"#5865F2", Facebook:"#1877F2", Other:"#6B7280" };
+
+  // ── SELLER DETAIL ──────────────────────────────────────────────
+  if (selectedSeller) {
+    const s = sellerMap[selectedSeller];
+    if (!s) { setSelectedSeller(null); return null; }
+    const totalCards = s.cards;
+    const totalSpent = s.spent;
+    const usedCount  = s.lotList.flatMap(l=>l.cards).filter(c=>usedIds.has(c.id)).length;
+    const availCount = totalCards - usedCount;
+
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        {/* Back + header */}
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={()=>setSelectedSeller(null)} style={{ background:"#F3F4F6", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>← Back</button>
+          <div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#111827" }}>{s.name}</div>
+            <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2 }}>
+              {s.topSource !== "—" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
+              {s.topSource !== "—" && " · "}
+              Last purchase {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* KPI cards */}
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?4:3},1fr)`, gap:12 }}>
+          {[
+            { l:"Total Lots",    v:s.lotCount,   c:"#1A1A2E" },
+            { l:"Total Cards",   v:totalCards,   c:"#111827" },
+            { l:"Available",     v:availCount,   c:"#166534" },
+            ...(canSeeFinancials ? [{ l:"Total Spent", v:`$${totalSpent.toFixed(2)}`, c:"#6B2D8B" }] : []),
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ ...S.card, textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Details row */}
+        <div style={S.card}>
+          <SectionLabel t="Seller Details" />
+          <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
+            <span style={{ fontSize:13, color:"#9CA3AF" }}>Primary Source: <strong style={{color:"#111827"}}>{s.topSource}</strong></span>
+            <span style={{ fontSize:13, color:"#9CA3AF" }}>Preferred Payment: <strong style={{color:"#111827"}}>{s.topPayment}</strong></span>
+            <span style={{ fontSize:13, color:"#9CA3AF" }}>Cards Used: <strong style={{color:"#991b1b"}}>{usedCount}</strong></span>
+          </div>
+        </div>
+
+        {/* Lot history */}
+        <div style={S.card}>
+          <SectionLabel t={`Purchase History (${s.lotCount} lot${s.lotCount!==1?"s":""})`} />
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {s.lotList.map((lot,i) => {
+              const lotUsed  = lot.cards.filter(c=>usedIds.has(c.id)).length;
+              const lotAvail = lot.cards.length - lotUsed;
+              return (
+                <div key={i} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"14px 18px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <div>
+                      <span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>Lot #{s.lotCount - i}</span>
+                      <span style={{ color:"#9CA3AF", fontSize:12, marginLeft:10 }}>{lot.date}</span>
+                    </div>
+                    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                      <span style={{ fontSize:12, color:"#6B7280" }}>{lot.source}</span>
+                      <span style={{ fontSize:12, color:"#6B7280" }}>{lot.payment}</span>
+                      {canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B", fontSize:13 }}>${lot.lotPaid.toFixed(2)}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:12, color:"#9CA3AF" }}>Cards: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
+                    <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{lotAvail}</strong></span>
+                    <span style={{ fontSize:12, color:"#9CA3AF" }}>Used: <strong style={{color:"#991b1b"}}>{lotUsed}</strong></span>
+                  </div>
+                  {lot.cards.length > 0 && (
+                    <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {CARD_TYPES.map(ct => {
+                        const count = lot.cards.filter(c=>c.cardType===ct).length;
+                        if (!count) return null;
+                        const cc = CC[ct];
+                        return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>;
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SELLER LIST ────────────────────────────────────────────────
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={S.card}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search sellers..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
+          <div style={{ display:"flex", gap:4 }}>
+            {[["spent","💰 Top Spend"],["cards","📦 Most Cards"],["lots","🗂 Most Lots"],["recent","🕐 Recent"]].map(([val,label]) => (
+              canSeeFinancials || val !== "spent" ? (
+                <button key={val} onClick={()=>setSortBy(val)} style={{ background:sortBy===val?"#1A1A2E":"transparent", color:sortBy===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${sortBy===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+              ) : null
+            ))}
+          </div>
+          <span style={{ fontSize:12, color:"#9CA3AF" }}>{filtered.length} sellers</span>
+        </div>
+      </div>
+
+      {filtered.length === 0
+        ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
+            <div>No sellers yet — start importing lots from Lot Comp</div>
+          </div>
+        : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {filtered.map((s,i) => {
+              const rank = i + 1;
+              const srcColor = SOURCE_COLORS[s.topSource] || "#6B7280";
+              return (
+                <div
+                  key={s.name}
+                  onClick={() => setSelectedSeller(s.name)}
+                  style={{ ...S.card, cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"box-shadow 0.15s" }}
+                  className="inv-row"
+                >
+                  {/* Rank */}
+                  <div style={{ width:32, height:32, borderRadius:"50%", background: rank<=3?"#1A1A2E":"#F3F4F6", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:rank<=3?"#E8317A":"#9CA3AF", flexShrink:0 }}>
+                    {rank}
+                  </div>
+
+                  {/* Name + meta */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:800, fontSize:15, color:"#111827", marginBottom:3 }}>{s.name}</div>
+                    <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                      {s.topSource !== "—" && <span style={{ fontSize:11, color:srcColor, fontWeight:700 }}>{s.topSource}</span>}
+                      {s.topPayment !== "—" && <span style={{ fontSize:11, color:"#9CA3AF" }}>{s.topPayment}</span>}
+                      <span style={{ fontSize:11, color:"#9CA3AF" }}>Last: {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}</span>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ display:"flex", gap:20, alignItems:"center", flexShrink:0 }}>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{s.lotCount}</div>
+                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Lots</div>
+                    </div>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{s.cards}</div>
+                      <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Cards</div>
+                    </div>
+                    {canSeeFinancials && (
+                      <div style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#6B2D8B" }}>${s.spent.toFixed(0)}</div>
+                        <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
+                      </div>
+                    )}
+                    <div style={{ color:"#D1D5DB", fontSize:18 }}>›</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+      }
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [user,      setUser]      = useState(null);
@@ -1643,6 +1872,7 @@ export default function App() {
     { id:"inventory",   label:"📦 Inventory"    },
     { id:"breaks",      label:"🎯 Break Log"    },
     { id:"performance", label:"📈 Performance"  },
+    { id:"sellers",     label:"👥 Sellers"      },
   ];
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -1680,6 +1910,7 @@ export default function App() {
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
+        {tab==="sellers"     && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
