@@ -706,28 +706,40 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {canSeeFinancials && (() => {
         const [showHist, setShowHist] = useState(false);
         const [histForm, setHistForm] = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+        const [editingId, setEditingId] = useState(null);
+
+        function startEdit(h) {
+          setHistForm({ yearMonth:h.yearMonth, grossRevenue:h.grossRevenue||"", netRevenue:h.netRevenue||"", newBuyers:h.newBuyers||"", notes:h.notes||"" });
+          setEditingId(h.id);
+          setShowHist(true);
+        }
+        function cancelEdit() {
+          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+          setEditingId(null);
+        }
 
         async function saveHist() {
           if (!histForm.yearMonth || !histForm.grossRevenue) return;
           await onSaveHistorical({ ...histForm, id: histForm.yearMonth });
           setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+          setEditingId(null);
         }
 
         return (
           <div style={{ ...S.card, border:"2px solid #6B2D8B33" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showHist ? 14 : 0 }}>
               <SectionLabel t="📅 Historical Monthly Data" />
-              <button onClick={()=>setShowHist(p=>!p)} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#6B2D8B", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={()=>{ setShowHist(p=>!p); cancelEdit(); }} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#6B2D8B", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {showHist ? "▲ Hide" : "▼ Manage"}
               </button>
             </div>
             {showHist && (
               <>
-                <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard.</div>
+                <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>{editingId ? `Editing ${editingId} — update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
                   <div>
                     <label style={S.lbl}>Month (YYYY-MM)</label>
-                    <input type="month" value={histForm.yearMonth} onChange={e=>setHistForm(p=>({...p,yearMonth:e.target.value}))} style={S.inp}/>
+                    <input type="month" value={histForm.yearMonth} onChange={e=>setHistForm(p=>({...p,yearMonth:e.target.value}))} style={{ ...S.inp, opacity: editingId ? 0.5 : 1 }} disabled={!!editingId}/>
                   </div>
                   <div>
                     <label style={S.lbl}>Gross Revenue ($)</label>
@@ -745,14 +757,17 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <label style={S.lbl}>Notes</label>
                     <input value={histForm.notes} onChange={e=>setHistForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Jan streams" style={S.inp}/>
                   </div>
-                  <Btn onClick={saveHist} disabled={!histForm.yearMonth||!histForm.grossRevenue} variant="green">+ Add</Btn>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <Btn onClick={saveHist} disabled={!histForm.yearMonth||!histForm.grossRevenue} variant="green">{editingId ? "💾 Save" : "+ Add"}</Btn>
+                    {editingId && <Btn onClick={cancelEdit} variant="ghost">✕</Btn>}
+                  </div>
                 </div>
                 {historicalData.length > 0 && (
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
                     <thead><tr>{["Month","Gross","Net","Bazooka (30%)","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {historicalData.map((h,i) => (
-                        <tr key={h.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB" }}>
+                        <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#FFFFFF":"#FFF8FB" }}>
                           <td style={{ ...S.td, fontWeight:700, color:"#6B2D8B" }}>{h.yearMonth}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#1B4F8A" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
@@ -760,7 +775,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"—"}</td>
                           <td style={{ ...S.td, color:"#9CA3AF" }}>{h.notes||"—"}</td>
                           <td style={S.td}>
-                            <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+                            <div style={{ display:"flex", gap:6 }}>
+                              <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>✏️</button>
+                              <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
