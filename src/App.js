@@ -910,7 +910,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
-  const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
+  const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
   const [notesEdit,      setNotesEdit]      = useState(null);
   const [notesForm,      setNotesForm]      = useState("");
 
@@ -959,17 +959,18 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           // Find any note keys that don't match a current lot key (orphaned from old format)
           const currentLotKeys = new Set(lotList.map(l => l.key));
           const orphanedNotes  = Object.entries(lotNotes).filter(([k]) => !currentLotKeys.has(k));
-          async function migrateNotes() {
+          function migrateNotes() {
             let fixed = 0;
+            const promises = [];
             for (const [oldKey, noteData] of orphanedNotes) {
               const sellerName = oldKey.split("__")[0];
               const match = lotList.find(l => l.seller.toLowerCase() === sellerName.toLowerCase());
               if (match && !lotNotes[match.key]) {
-                await onSaveLotNotes(match.key, noteData.notes);
+                promises.push(onSaveLotNotes(match.key, noteData.notes));
                 fixed++;
               }
             }
-            alert(`Migrated ${fixed} note${fixed!==1?"s":""} to correct lot keys.`);
+            Promise.all(promises).then(() => alert(`Migrated ${fixed} note${fixed!==1?"s":""} to correct lot keys.`));
           }
 
           const CARRIERS = ["USPS","UPS","FedEx","DHL","Other"];
