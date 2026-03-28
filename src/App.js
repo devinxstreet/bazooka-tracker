@@ -776,12 +776,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
       <div style={S.card}>
         <SectionLabel t="Inventory by Card Type" />
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {/* Header row */}
-          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, padding:"0 16px", alignItems:"center" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"200px 1fr 1fr 1fr 1fr 70px auto", gap:12, padding:"0 20px", alignItems:"center" }}>
             <div/>
             {["Stock","Used","Avail","Transit","Min"].map(h => (
-              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>
+              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:1.5 }}>{h}</div>
             ))}
             <div/>
           </div>
@@ -794,22 +794,22 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const sc = ok?"#166534":warn?"#92400e":"#991b1b";
             const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
             return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, alignItems:"center" }}>
-                <span style={{ fontWeight:700, color:cc.text, fontSize:14 }}>{ct}</span>
+              <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}44`, borderRadius:12, padding:"16px 20px", display:"grid", gridTemplateColumns:"200px 1fr 1fr 1fr 1fr 70px auto", gap:12, alignItems:"center" }}>
+                <span style={{ fontWeight:800, color:cc.text, fontSize:14 }}>{ct}</span>
                 {[
                   { v:d.total,  c:cc.text      },
                   { v:d.used,   c:"#991b1b"    },
                   { v:avail,    c:sc            },
-                  { v:transit,  c: transit>0 ? "#2C3E7A" : "#D1D5DB" },
-                  { v:buffer,   c:"#9CA3AF"    },
+                  { v:transit,  c: transit>0 ? "#7B9CFF" : "#333" },
+                  { v:buffer,   c:"#555"        },
                 ].map(({v,c},i) => (
                   <div key={i} style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                    <div style={{ fontSize:22, fontWeight:900, color:c }}>{v}</div>
                   </div>
                 ))}
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
                   {canSeeFinancials && <ZoneBadge pct={pct} />}
-                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"3px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
+                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#0a1a0a":warn?"#1a1400":"#1a0a0a", color:ok?"#4ade80":warn?"#FBBF24":"#E8317A", border:`1px solid ${sc}44`, borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
                 </div>
               </div>
             );
