@@ -371,7 +371,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
                           return (
-                            <tr key={s.id} style={{ background:i%2===0?"#1E1E2E":"#1A1A2A" }}>
+                            <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB" }}>
                               <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
@@ -1000,7 +1000,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   const qty = parseInt(r.qty)||1;
                   const cz  = mv > 0 ? getZone(dispPct) : null;
                   return (
-                    <tr key={r.id} style={{ background:i%2===0?"#1E1E2E":"#1A1A2A", opacity:r.include?1:0.35 }}>
+                    <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
@@ -1425,7 +1425,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/86400000) : null;
                     const isAging = !used && daysIn !== null && daysIn >= 60;
                     return (
-                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#1E1E2E":"#1A1A2A", opacity:used?0.45:1 }}>
+                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", opacity:used?0.45:1 }}>
                         <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)}/></td>
                         <td style={{ ...S.td, fontWeight:700 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -1904,7 +1904,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <tr key={s.id}
                         onClick={()=>{ setBreaker(s.breaker); setDate(s.date); setEditingStreamId(s.id); setRecapSaved(false); }}
                         className="clickable-row"
-                        style={{ background:isActive?"#FFF0F5":i%2===0?"#1E1E2E":"#1A1A2A", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
+                        style={{ background:isActive?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
                         <td style={S.td}>{s.date}</td>
@@ -2051,7 +2051,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   const isSel=histSel.has(b.id);
                   return (
-                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#1E1E2E":"#1A1A2A" }}>
+                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB" }}>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
@@ -2492,7 +2492,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                 {shipments.map((s,i) => {
                   const pc = PT_COLORS[s.productType] || { bg:"#F3F4F6", text:"#6B7280" };
                   return (
-                    <tr key={s.id} style={{ background:i%2===0?"#1E1E2E":"#1A1A2A" }}>
+                    <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB" }}>
                       <td style={S.td}>{s.date}</td>
                       <td style={S.td}><span style={{ background:pc.bg, color:pc.text, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{s.productType}</span></td>
                       <td style={{ ...S.td, fontWeight:700, color:"#166534", fontSize:15 }}>+{s.qty}</td>
@@ -2523,7 +2523,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               <thead><tr>{["Date","Breaker",...PRODUCT_TYPES,""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {productUsage.map((u,i) => (
-                  <tr key={u.id} style={{ background:i%2===0?"#1E1E2E":"#1A1A2A" }}>
+                  <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB" }}>
                     <td style={S.td}>{u.date}</td>
                     <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
                     {PRODUCT_TYPES.map(pt => (
