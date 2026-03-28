@@ -186,27 +186,31 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole }) {
+function Dashboard({ inventory, breaks, user, userRole, shippoKey="", onSaveShippoKey }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const [shippoInput, setShippoInput] = useState("");
   const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
-  const usedIds = new Set(breaks.map(b => b.inventoryId));
+  const usedIds    = new Set(breaks.map(b => b.inventoryId));
+  const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const stats = {};
-  CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, invested:0, market:0 }; });
+  CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, inTransit:0, invested:0, market:0 }; });
   inventory.forEach(c => {
     const s = stats[c.cardType]; if (!s) return;
     s.total++; s.invested += (c.costPerCard||0); s.market += (c.marketValue||0);
     if (usedIds.has(c.id)) s.used++;
+    else if (c.cardStatus === "in_transit") s.inTransit++;
   });
-  const totInv = Object.values(stats).reduce((a,b) => a+b.invested, 0);
-  const totMkt = Object.values(stats).reduce((a,b) => a+b.market, 0);
-  const oPct   = totMkt > 0 ? totInv/totMkt : null;
-  const oz     = getZone(oPct);
-  const usedCount  = [...usedIds].length;
-  const availCount = inventory.length - usedCount;
+  const totInv      = Object.values(stats).reduce((a,b) => a+b.invested, 0);
+  const totMkt      = Object.values(stats).reduce((a,b) => a+b.market, 0);
+  const oPct        = totMkt > 0 ? totInv/totMkt : null;
+  const oz          = getZone(oPct);
+  const usedCount   = [...usedIds].length;
+  const transitCount = inventory.filter(c => c.cardStatus === "in_transit" && !usedIds.has(c.id)).length;
+  const availCount  = inventory.length - usedCount - transitCount;
 
   const runway = {};
   CARD_TYPES.forEach(ct => {
-    const avail = stats[ct].total - stats[ct].used;
+    const avail = stats[ct].total - stats[ct].used - stats[ct].inTransit;
     const ctBreaks = breaks.filter(b => b.cardType === ct);
     if (ctBreaks.length === 0) { runway[ct] = 999; return; }
     const earliest = ctBreaks.reduce((mn, b) => { const d = new Date(b.dateAdded||b.date); return d < mn ? d : mn; }, new Date());
@@ -214,7 +218,7 @@ function Dashboard({ inventory, breaks, user, userRole }) {
     runway[ct] = Math.floor(avail / (ctBreaks.length / days));
   });
 
-  const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used) < TARGETS[ct].buffer);
+  const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used - stats[ct].inTransit) < TARGETS[ct].buffer);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -225,10 +229,11 @@ function Dashboard({ inventory, breaks, user, userRole }) {
             {alerts.length===0 ? "✅ All Good" : `🚨 ${alerts.length} Critical`}
           </span>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?4:3},1fr)`, gap:10, marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
           {[
             { l:"Total Cards",    v:inventory.length, c:"#111827" },
             { l:"Available",      v:availCount,       c:"#166534" },
+            { l:"In Transit",     v:transitCount,     c:"#2C3E7A" },
             { l:"Used",           v:usedCount,        c:"#991b1b" },
             ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
           ].map(({l,v,c}) => (
@@ -256,7 +261,8 @@ function Dashboard({ inventory, breaks, user, userRole }) {
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {CARD_TYPES.map(ct => {
             const cc = CC[ct];
-            const avail = stats[ct].total - stats[ct].used;
+            const avail   = stats[ct].total - stats[ct].used - stats[ct].inTransit;
+            const transit = stats[ct].inTransit;
             const days = runway[ct];
             const pace = TARGETS[ct].monthly > 0 ? stats[ct].used / TARGETS[ct].monthly : 0;
             const runC  = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
@@ -267,6 +273,7 @@ function Dashboard({ inventory, breaks, user, userRole }) {
                   <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"#9CA3AF" }}>{avail} avail</span>
+                    {transit > 0 && <span style={{ fontSize:11, color:"#2C3E7A", fontWeight:700, background:"#EEF0FB", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
                       {days >= 999 ? "No usage yet" : `~${days}d runway`}
                     </span>
@@ -301,7 +308,8 @@ function Dashboard({ inventory, breaks, user, userRole }) {
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {CARD_TYPES.map(ct => {
             const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
-            const avail = d.total - d.used;
+            const avail   = d.total - d.used - d.inTransit;
+            const transit = d.inTransit;
             const pct   = d.market > 0 ? d.invested/d.market : null;
             const ok = avail >= buffer; const warn = avail >= buffer*0.5;
             const sc = ok?"#166534":warn?"#92400e":"#991b1b";
@@ -310,7 +318,7 @@ function Dashboard({ inventory, breaks, user, userRole }) {
               <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
                 <span style={{ fontWeight:700, color:cc.text, fontSize:14, minWidth:180 }}>{ct}</span>
                 <div style={{ display:"flex", alignItems:"center", gap:20, flex:1, justifyContent:"center" }}>
-                  {[{v:d.total,l:"stock"},{v:d.used,l:"used",c:"#991b1b"},{v:avail,l:"avail",c:sc}].map(({v,l,c:c2}) => (
+                  {[{v:d.total,l:"stock"},{v:d.used,l:"used",c:"#991b1b"},{v:avail,l:"avail",c:sc},...(transit>0?[{v:transit,l:"transit",c:"#2C3E7A"}]:[])].map(({v,l,c:c2}) => (
                     <div key={l} style={{ textAlign:"center", minWidth:50 }}>
                       <div style={{ fontSize:22, fontWeight:900, color:c2||cc.text }}>{v}</div>
                       <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
@@ -391,6 +399,36 @@ function Dashboard({ inventory, breaks, user, userRole }) {
             <span style={{ color:"#6B7280", fontSize:11 }}>{a}</span>
           </div>
         ))}
+      </div>
+      )}
+
+      {/* Admin Settings */}
+      {canSeeFinancials && (
+      <div style={S.card}>
+        <SectionLabel t="Settings" />
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div>
+            <label style={S.lbl}>Shippo API Key (for live tracking status)</label>
+            <div style={{ display:"flex", gap:8 }}>
+              <input
+                type="password"
+                value={shippoInput || shippoKey}
+                onChange={e=>setShippoInput(e.target.value)}
+                placeholder={shippoKey ? "••••••••••••••••••••••• (saved)" : "Paste your Shippo API key here..."}
+                style={{ ...S.inp, flex:1, fontFamily:"monospace", fontSize:12 }}
+              />
+              <button
+                onClick={() => { if(shippoInput) { onSaveShippoKey(shippoInput); setShippoInput(""); } }}
+                disabled={!shippoInput}
+                style={{ background:shippoInput?"#166534":"#F3F4F6", color:shippoInput?"#fff":"#9CA3AF", border:`1.5px solid ${shippoInput?"#14532d":"#E5E7EB"}`, borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:shippoInput?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}
+              >Save Key</button>
+            </div>
+            <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
+              Get a free key at <a href="https://goshippo.com" target="_blank" rel="noreferrer" style={{ color:"#E8317A" }}>goshippo.com</a> → Settings → API. Supports USPS, UPS, FedEx, DHL. Key is stored securely in Firestore.
+            </div>
+            {shippoKey && <div style={{ marginTop:6, fontSize:11, color:"#166534", fontWeight:700 }}>✅ Shippo key is configured — tracking lookups are active</div>}
+          </div>
+        </div>
       </div>
       )}
     </div>
@@ -898,12 +936,20 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shippoKey="" }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const [trackingEdit,   setTrackingEdit]   = useState(null); // lotKey being edited
+  const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
   const [notesEdit,      setNotesEdit]      = useState(null);
   const [notesForm,      setNotesForm]      = useState("");
+  const [refreshingLot,  setRefreshingLot]  = useState(null);
+
+  async function refreshTracking(lot, tracking) {
+    if (!tracking.trackingNum || !tracking.carrier) return;
+    setRefreshingLot(lot.key);
+    try { await onSaveLotTracking(lot.key, tracking); }
+    finally { setRefreshingLot(null); }
+  }
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
@@ -911,10 +957,14 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   const [invTab,   setInvTab]   = useState("cards");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
   const filtered = inventory.filter(c => {
-    const mn   = c.cardName?.toLowerCase().includes(search.toLowerCase());
-    const mt   = !typeF || c.cardType===typeF;
-    const used = usedIds.has(c.id);
-    const ms   = statusF==="available" ? !used : statusF==="used" ? used : true;
+    const mn      = c.cardName?.toLowerCase().includes(search.toLowerCase());
+    const mt      = !typeF || c.cardType===typeF;
+    const used    = usedIds.has(c.id);
+    const transit = !used && c.cardStatus === "in_transit";
+    const ms      = statusF==="available"   ? (!used && !transit)
+                  : statusF==="in_transit"  ? transit
+                  : statusF==="used"        ? used
+                  : true;
     return mn && mt && ms;
   });
   function toggleSelect(id) { setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
@@ -981,7 +1031,9 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
               {lotList.length===0
                 ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div>
                 : lotList.map((lot,i) => {
-                    const usedInLot = lot.cards.filter(c=>usedIds.has(c.id)).length;
+                    const usedInLot    = lot.cards.filter(c=>usedIds.has(c.id)).length;
+                    const transitInLot = lot.cards.filter(c=>!usedIds.has(c.id) && c.cardStatus==="in_transit").length;
+                    const availInLot   = lot.cards.length - usedInLot - transitInLot;
                     const tracking  = lotTracking[lot.key] || {};
                     const isEditing = trackingEdit === lot.key;
                     const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#9CA3AF" };
@@ -1010,7 +1062,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
                             <span style={{ fontSize:12, color:"#9CA3AF" }}>Total: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
-                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{lot.cards.length-usedInLot}</strong></span>
+                            <span style={{ fontSize:12, color:"#9CA3AF" }}>Available: <strong style={{color:"#166534"}}>{availInLot}</strong></span>
+                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#9CA3AF" }}>In Transit: <strong style={{color:"#2C3E7A"}}>🚚 {transitInLot}</strong></span>}
                             <span style={{ fontSize:12, color:"#9CA3AF" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
                             <span style={{ fontSize:12, color:"#9CA3AF" }}>Added by: <strong style={{color:"#111827"}}>{lot.addedBy}</strong></span>
                           </div>
@@ -1022,31 +1075,57 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                         {/* Tracking bar */}
                         <div style={{ borderTop:"1px solid #F0E0E8", padding:"10px 18px", background:"#FFFFFF" }}>
                           {!isEditing ? (
-                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                                <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
-                                {tracking.status
-                                  ? <>
-                                      <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
-                                      {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
-                                      {tracking.trackingNum && (
-                                        <a href={`https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+tracking.trackingNum)}`} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{tracking.trackingNum} ↗</a>
-                                      )}
-                                      {tracking.notes && <span style={{ fontSize:11, color:"#9CA3AF", fontStyle:"italic" }}>{tracking.notes}</span>}
-                                      {tracking.updatedBy && <span style={{ fontSize:10, color:"#D1D5DB" }}>· updated by {tracking.updatedBy}</span>}
-                                    </>
-                                  : <span style={{ fontSize:12, color:"#D1D5DB" }}>No tracking added yet</span>
-                                }
+                            <div>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||trackingError[lot.key]) ? 8 : 0 }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
+                                  {tracking.status
+                                    ? <>
+                                        <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
+                                        {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
+                                        {tracking.trackingNum && (
+                                          <a href={`https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+tracking.trackingNum)}`} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{tracking.trackingNum} ↗</a>
+                                        )}
+                                        {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>· checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
+                                      </>
+                                    : <span style={{ fontSize:12, color:"#D1D5DB" }}>No tracking added yet</span>
+                                  }
+                                </div>
+                                <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                                  {tracking.trackingNum && tracking.carrier && (
+                                    <button
+                                      onClick={() => refreshTracking(lot, tracking)}
+                                      disabled={refreshingLot === lot.key}
+                                      style={{ background: refreshingLot===lot.key ? "#F3F4F6" : "#1A1A2E", color: refreshingLot===lot.key ? "#9CA3AF" : "#E8317A", border:"1.5px solid #E8317A44", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor: refreshingLot===lot.key ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                    >{refreshingLot===lot.key ? "⏳ Refreshing..." : "🔄 Refresh"}</button>
+                                  )}
+                                  <button
+                                    onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
+                                    style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                  >{tracking.status ? "✏️ Edit" : "+ Add Tracking"}</button>
+                                </div>
                               </div>
-                              <button
-                                onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", notes:tracking.notes||"" }); }}
-                                style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                              >{tracking.status ? "✏️ Edit" : "+ Add Tracking"}</button>
+                              {/* ETA + last event row */}
+                              {(tracking.eta || tracking.lastEvent || trackingError[lot.key]) && (
+                                <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#F9FAFB", borderRadius:7, marginTop:4 }}>
+                                  {tracking.eta && (
+                                    <span style={{ fontSize:12, color:"#9CA3AF" }}>
+                                      📅 Est. Delivery: <strong style={{ color: tracking.status==="Delivered" ? "#166534" : "#1B4F8A" }}>{tracking.eta}</strong>
+                                    </span>
+                                  )}
+                                  {tracking.lastEvent && (
+                                    <span style={{ fontSize:12, color:"#9CA3AF" }}>
+                                      📍 {tracking.lastLocation && <strong style={{color:"#111827"}}>{tracking.lastLocation} — </strong>}{tracking.lastEvent}
+                                    </span>
+                                  )}
+
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div>
                               <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>📦 Edit Tracking</div>
-                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:10, marginBottom:10 }}>
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
                                 <div>
                                   <label style={S.lbl}>Carrier</label>
                                   <select value={trackingForm.carrier} onChange={e=>setTrackingForm(p=>({...p,carrier:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.carrier?"#111827":"#9CA3AF" }}>
@@ -1066,15 +1145,25 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   </select>
                                 </div>
                                 <div>
-                                  <label style={S.lbl}>Notes (optional)</label>
-                                  <input value={trackingForm.notes} onChange={e=>setTrackingForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Expected Friday, seller dropped off Tuesday..." style={S.inp}/>
+                                  <label style={S.lbl}>Est. Delivery Date</label>
+                                  <input value={trackingForm.eta||""} onChange={e=>setTrackingForm(p=>({...p,eta:e.target.value}))} placeholder="e.g. Fri, Mar 28" style={S.inp}/>
                                 </div>
                               </div>
-                              <div style={{ display:"flex", gap:8 }}>
+                              <div style={{ marginBottom:10 }}>
+                                <label style={S.lbl}>Notes (optional)</label>
+                                <input value={trackingForm.notes||""} onChange={e=>setTrackingForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Expected Friday, seller dropped off Tuesday..." style={S.inp}/>
+                              </div>
+                              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                                 <button
                                   onClick={() => { onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
                                   style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
                                 >💾 Save Tracking</button>
+                                {trackingForm.trackingNum && trackingForm.carrier && (
+                                  <button
+                                    onClick={async () => { await onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
+                                    style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                  >💾 Save & Auto-Update</button>
+                                )}
                                 <button
                                   onClick={() => setTrackingEdit(null)}
                                   style={{ background:"#F3F4F6", color:"#6B7280", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
@@ -1170,7 +1259,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
               {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
             </select>
             <div style={{ display:"flex", gap:4 }}>
-              {[["available","✅ Available"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
+              {[["available","✅ Available"],["in_transit","🚚 In Transit"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
                 <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
               ))}
             </div>
@@ -1216,7 +1305,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                         <td style={{ ...S.td, color:"#6B7280", fontSize:12 }}>{c.seller||"—"}</td>
                         <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{c.date||"—"}</td>
                         <td style={{ ...S.td, color:"#9CA3AF", fontSize:12 }}>{c.addedBy||"—"}</td>
-                        <td style={S.td}><Badge bg={used?"#FEE2E2":"#D6F4E3"} color={used?"#991b1b":"#166534"}>{used?"Used":"Available"}</Badge></td>
+                        <td style={S.td}>{used
+                          ? <Badge bg="#FEE2E2" color="#991b1b">Used</Badge>
+                          : c.cardStatus==="in_transit"
+                            ? <Badge bg="#EEF0FB" color="#2C3E7A">🚚 In Transit</Badge>
+                            : <Badge bg="#D6F4E3" color="#166534">Available</Badge>
+                        }</td>
                         <td style={S.td}>{CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14 }}>✕</button>}</td>
                       </tr>
                     );
@@ -1245,7 +1339,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [bulkSel,    setBulkSel]    = useState(new Set());
   const [histSel,    setHistSel]    = useState(new Set());
   const usedIds   = new Set(breaks.map(b => b.inventoryId));
-  const available = inventory.filter(c => !usedIds.has(c.id));
+  const available = inventory.filter(c => !usedIds.has(c.id) && c.cardStatus !== "in_transit");
   const selCard   = inventory.find(c => c.id===cardId);
 
   function handleAdd() {
@@ -1533,6 +1627,7 @@ export default function App() {
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
+  const [shippoKey,    setShippoKey]    = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1546,20 +1641,22 @@ export default function App() {
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
     const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
-    return () => { u1(); u2(); u3(); u4(); u5(); };
+    // Load app settings (Shippo key etc.)
+    const u6 = onSnapshot(doc(db,"settings","app"), snap => { if (snap.exists()) setShippoKey(snap.data().shippoKey||""); });
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
   async function handleAccept(cards, seller, u, custNote) {
-    for (const card of cards) await setDoc(doc(db,"inventory",card.id), { ...card, addedBy:u?.displayName||"Unknown" });
+    const lotKey    = `${seller.name||"Unknown"}__${(cards[0]?.date || seller.date || new Date().toLocaleDateString())}`;
+    const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
+    const cardStatus  = hasTracking && lotTracking[lotKey]?.status !== "Delivered" ? "in_transit" : "available";
+    for (const card of cards) await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
     if (custNote && custNote.trim()) {
-      // Key must match exactly how lot history builds it: seller__date from the card's stored date field
-      const cardDate = cards[0]?.date || seller.date || new Date().toLocaleDateString();
-      const lotKey   = `${seller.name||"Unknown"}__${cardDate}`;
       await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory${cardStatus==="in_transit"?" — marked In Transit":""}`);
     setTab("inventory");
   }
   async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
@@ -1593,12 +1690,52 @@ export default function App() {
     showToast("↩️ Break entry removed — card is available again");
   }
   async function handleSaveLotTracking(lotKey, data) {
-    await setDoc(doc(db,"lot_tracking",lotKey), { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
-    showToast("📦 Tracking info saved");
+    const CARRIER_MAP = { USPS:"usps", UPS:"ups", FedEx:"fedex", DHL:"dhl_express" };
+    let finalData = { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" };
+
+    // Auto-lookup from Shippo if key exists and tracking number is set
+    if (shippoKey && data.trackingNum && data.carrier) {
+      try {
+        const carrier = CARRIER_MAP[data.carrier] || data.carrier.toLowerCase();
+        const res = await fetch(`https://api.goshippo.com/tracks/${carrier}/${data.trackingNum}`, {
+          headers: { Authorization:`ShippoToken ${shippoKey}` }
+        });
+        if (res.ok) {
+          const t = await res.json();
+          const STATUS_MAP = { UNKNOWN:"Ordered", PRE_TRANSIT:"Label Created", TRANSIT:"In Transit", DELIVERED:"Delivered", RETURNED:"Exception", FAILURE:"Exception" };
+          const liveStatus = STATUS_MAP[t.tracking_status?.status];
+          if (liveStatus) finalData.status = liveStatus;
+          if (t.eta) finalData.eta = new Date(t.eta).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+          finalData.lastEvent    = t.tracking_status?.status_details || "";
+          const loc = t.tracking_status?.location;
+          finalData.lastLocation = loc?.city ? `${loc.city}${loc.state?", "+loc.state:""}` : "";
+          finalData.lastChecked  = new Date().toISOString();
+        }
+      } catch(e) { /* silent fail — manual status still saves */ }
+    }
+
+    await setDoc(doc(db,"lot_tracking",lotKey), finalData);
+
+    // Auto-flip card status
+    const lotCards = inventory.filter(c => `${c.seller||"Unknown"}__${c.date||"Unknown"}` === lotKey);
+    if (finalData.status === "Delivered") {
+      for (const card of lotCards) await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"available" }, { merge:true });
+      showToast("✅ Delivered — cards now Available");
+    } else if (data.trackingNum) {
+      for (const card of lotCards) if (card.cardStatus !== "available") await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"in_transit" }, { merge:true });
+      const eta = finalData.eta ? ` · ETA ${finalData.eta}` : "";
+      showToast(`📦 ${finalData.status||"In Transit"}${eta}`);
+    } else {
+      showToast("📦 Tracking saved");
+    }
   }
   async function handleSaveLotNotes(lotKey, notes) {
     await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast("📝 Notes saved");
+  }
+  async function handleSaveShippoKey(key) {
+    await setDoc(doc(db,"settings","app"), { shippoKey:key }, { merge:true });
+    showToast("🔑 Shippo API key saved");
   }
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -1647,9 +1784,9 @@ export default function App() {
       </div>
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole}/>}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} shippoKey={shippoKey} onSaveShippoKey={handleSaveShippoKey}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shippoKey={shippoKey}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
