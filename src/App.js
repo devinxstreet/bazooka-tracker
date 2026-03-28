@@ -1411,8 +1411,9 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,    setBreaker]    = useState(matchedBreaker);
@@ -1424,6 +1425,62 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [bulkMode,   setBulkMode]   = useState(false);
   const [bulkSel,    setBulkSel]    = useState(new Set());
   const [histSel,    setHistSel]    = useState(new Set());
+
+  // Stream recap state
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, breakType:"auction", streamNotes:"" };
+  const [recap,       setRecap]       = useState(EMPTY_RECAP);
+  const [recapSaving, setRecapSaving] = useState(false);
+  const [recapSaved,  setRecapSaved]  = useState(false);
+
+  // Check if a stream recap already exists for this breaker+date
+  const existingStream = streams.find(s => s.breaker === breaker && s.date === date);
+
+  // Load existing stream into form when breaker/date changes
+  useEffect(() => {
+    if (existingStream) {
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", streamNotes:existingStream.notes||"" });
+      setRecapSaved(true);
+    } else {
+      setRecap(EMPTY_RECAP);
+      setRecapSaved(false);
+    }
+  }, [breaker, date]);
+
+  function rf(k) { return v => { setRecap(p=>({...p,[k]:v})); setRecapSaved(false); }; }
+
+  function calcRecap() {
+    const gross   = parseFloat(recap.grossRevenue)||0;
+    const fees    = parseFloat(recap.whatnotFees)||0;
+    const coupons = parseFloat(recap.coupons)||0;
+    const promo   = parseFloat(recap.whatnotPromo)||0;
+    const magpros = parseFloat(recap.magpros)||0;
+    const pack    = parseFloat(recap.packagingMaterial)||0;
+    const topload = parseFloat(recap.topLoaders)||0;
+    const chaser  = parseFloat(recap.chaserCards)||0;
+    const totalExp = fees+coupons+promo+magpros+pack+topload+chaser;
+    const netRev   = gross - totalExp;
+    const bazNet   = netRev * 0.30;
+    const imcNet   = netRev * 0.70;
+    const repExp   = totalExp * 0.135;
+    const commBase = bazNet - repExp;
+    const mm = parseFloat(recap.marketMultiple)||0;
+    const rate = recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const commAmt = commBase * rate;
+    return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt };
+  }
+
+  async function handleSaveRecap() {
+    if (!breaker || !date || !recap.grossRevenue) return;
+    setRecapSaving(true);
+    try {
+      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:existingStream?.id||uid(), breaker, date });
+      setRecapSaved(true);
+    } finally { setRecapSaving(false); }
+  }
+
+  const rc = calcRecap();
+  const hasRecapData = !!(parseFloat(recap.grossRevenue)||0);
+
   const usedIds   = new Set(breaks.map(b => b.inventoryId));
   const available = inventory.filter(c => !usedIds.has(c.id) && c.cardStatus !== "in_transit");
   const selCard   = inventory.find(c => c.id===cardId);
@@ -1455,6 +1512,88 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* ── STREAM RECAP ── */}
+      <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <SectionLabel t="Stream Recap" />
+          {recapSaved && <span style={{ background:"#D6F4E3", color:"#166534", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
+        </div>
+
+        {/* Breaker + Date + Break Type */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
+          <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
+          <TextInput label="Date" type="date" value={date} onChange={setDate}/>
+          <div>
+            <label style={S.lbl}>Break Type</label>
+            <select value={recap.breakType} onChange={e=>rf("breakType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+              <option value="auction">Auction</option>
+              <option value="bin">BIN</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </div>
+          <div>
+            <label style={S.lbl}>Market Multiple</label>
+            <input type="number" step="0.1" value={recap.marketMultiple} onChange={e=>rf("marketMultiple")(e.target.value)} placeholder="e.g. 1.6" style={{ ...S.inp, color: recap.marketMultiple?"#1B4F8A":"#9CA3AF" }} disabled={recap.binOnly}/>
+          </div>
+        </div>
+
+        {/* Financials */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+          {[
+            ["grossRevenue",      "Gross Revenue ($)",       "#166534", false],
+            ["whatnotFees",       "Whatnot Fees ($)",        "#991b1b", false],
+            ["coupons",           "Coupons ($)",             "#991b1b", !canSeeFinancials],
+            ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", !canSeeFinancials],
+            ["magpros",           "MagPros ($)",             "#991b1b", !canSeeFinancials],
+            ["packagingMaterial", "Packaging ($)",           "#991b1b", !canSeeFinancials],
+            ["topLoaders",        "Top Loaders ($)",         "#991b1b", !canSeeFinancials],
+            ["chaserCards",       "Chaser Cards ($)",        "#991b1b", !canSeeFinancials],
+          ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
+            <div key={key}>
+              <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
+              <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display:"flex", gap:10, marginBottom:14, alignItems:"center" }}>
+          <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
+          <span style={{ fontSize:12, color:"#6B7280" }}>BIN Break — flat 35% commission</span>
+        </div>
+
+        {/* Live commission preview */}
+        {hasRecapData && (
+          <div style={{ background:"#F9FAFB", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:2},1fr)`, gap:10 }}>
+              {(canSeeFinancials ? [
+                { l:"Net Revenue",  v:`$${rc.netRev.toFixed(2)}`,  c:"#1B4F8A" },
+                { l:"Bazooka 30%",  v:`$${rc.bazNet.toFixed(2)}`,  c:"#E8317A" },
+                { l:"IMC 70%",      v:`$${rc.imcNet.toFixed(2)}`,  c:"#6B2D8B" },
+                { l:"Rep Expenses", v:`$${rc.repExp.toFixed(2)}`,  c:"#991b1b" },
+                { l:`Commission (${(rc.rate*100).toFixed(0)}%)`, v:`$${rc.commAmt.toFixed(2)}`, c:"#166534" },
+              ] : [
+                { l:"Net Revenue",  v:`$${rc.netRev.toFixed(2)}`,  c:"#1B4F8A" },
+                { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:`$${rc.commAmt.toFixed(2)}`, c:"#166534" },
+              ]).map(({l,v,c}) => (
+                <div key={l} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <Btn onClick={handleSaveRecap} disabled={!breaker||!date||!recap.grossRevenue||recapSaving} variant="green">
+            {recapSaving ? "Saving..." : recapSaved ? "✅ Update Recap" : "💾 Save Stream Recap"}
+          </Btn>
+          {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#92400e" }}>⚠ Unsaved changes</span>}
+        </div>
+      </div>
+
+      {/* ── LOG CARDS ── */}
       <div style={S.card}>
         <SectionLabel t="Log Card Out" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
@@ -1931,7 +2070,6 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
-  const canEdit    = isAdmin;
 
   const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, notes:"" };
   const [form,      setForm]      = useState(EMPTY);
@@ -2045,12 +2183,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
             </div>
           </div>
-          {canEdit && (
-            <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
-              <Btn onClick={()=>openEdit(s)} variant="ghost">✏️ Edit</Btn>
-              <Btn onClick={()=>{ if(window.confirm("Delete this stream?")) { onDelete(s.id); setViewStream(null); }}} variant="red">🗑</Btn>
-            </div>
-          )}
+
         </div>
 
         {/* Revenue waterfall */}
@@ -2247,18 +2380,11 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
         ))}
       </div>
 
-      {/* Actions */}
-      {canEdit && (
-        <div style={{ display:"flex", gap:10 }}>
-          <Btn onClick={openNew} variant="gold">+ Add Stream</Btn>
-        </div>
-      )}
-
       {/* Stream list */}
       {visibleStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
-            <div style={{ color:"#9CA3AF" }}>No streams logged yet.{canEdit?" Click \"+ Add Stream\" to get started.":""}</div>
+            <div style={{ color:"#9CA3AF" }}>No streams logged yet." Stream recaps are entered in the Break Log tab."</div>
           </div>
         : visibleStreams.map(s => {
             const c    = calcStream(s);
@@ -2449,7 +2575,7 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
-        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
         {tab==="commission"  && <Commission streams={streams} onSave={handleSaveStream} onDelete={handleDeleteStream} user={user} userRole={userRole}/>}
       </div>
