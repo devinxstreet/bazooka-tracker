@@ -3577,9 +3577,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazNet   = netRev * 0.30;
     const bobaNet  = netRev * 0.70;
     const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const grossForComm = gross - streamExp;
+    const bazNetForComm = grossForComm * 0.30;
     const repExp   = streamExp * 0.135;
     const imcExpReimb = streamExp * 0.70;
-    const commBase = bazNet - repExp;
+    const commBase = bazNetForComm - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
     return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
