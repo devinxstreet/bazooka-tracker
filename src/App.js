@@ -275,6 +275,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used - stats[ct].inTransit) < TARGETS[ct].buffer);
 
+  function calcStreamDash(s) {
+    const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
+    const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30;
+    const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
+    const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
+    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const commAmt=(bazNet-repExp)*rate;
+    return { gross, netRev, bazNet, repExp, imcExpReimb, commAmt, bazTrueNet:bazNet-repExp-commAmt+imcExpReimb, rate };
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
@@ -494,11 +504,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
-        const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStream(s).netRev)||0), 0)
+        const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
-        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStream(s).bazNet, 0)
+        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazNet, 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
-        const ytdComm    = ytdStreams.reduce((sum,s) => sum+calcStream(s).commAmt, 0);
+        const ytdComm    = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).commAmt, 0);
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
         const pct        = Math.round(dayOfYear / daysInYear * 100);
@@ -2996,7 +3006,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return 0.35;
   }
 
-  function calcStream(s) {
+  function calcStreamDash(s) {
     const gross    = parseFloat(s.grossRevenue)      || 0;
     const fees     = parseFloat(s.whatnotFees)       || 0;
     const coupons  = parseFloat(s.coupons)           || 0;
@@ -3062,7 +3072,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
-    const c = calcStream(s);
+    const c = calcStreamDash(s);
     acc.gross    += c.gross;
     acc.net      += c.netRev;
     acc.baz      += c.bazNet;
@@ -3112,7 +3122,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   if (viewStream) {
     const s = streams.find(x=>x.id===viewStream);
     if (!s) { setViewStream(null); return null; }
-    const c = calcStream(s);
+    const c = calcStreamDash(s);
     const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
     const EXPENSE_ROWS = [
       { l:"Whatnot Fees",        v:parseFloat(s.whatnotFees)||0 },
@@ -3398,7 +3408,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ color:"#9CA3AF" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
-            const c    = calcStream(s);
+            const c    = calcStreamDash(s);
             const bc   = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
