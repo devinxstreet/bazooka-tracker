@@ -1972,6 +1972,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
   const [recapSaving, setRecapSaving] = useState(false);
   const [recapSaved,  setRecapSaved]  = useState(false);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvMsg,       setCsvMsg]       = useState(null); // { type: 'success'|'error', text }
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult,    setCsvResult]    = useState(null); // { gross, coupons, rows }
 
   // Check existing product usage for this breaker+date
   const existingUsage = productUsage.find(u => u.breaker === breaker && u.date === date);
@@ -2120,20 +2124,71 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
       {/* ── STREAM RECAP ── */}
       {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
-          {editingStreamId && existingStream && (
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
-                ✏️ Editing: {existingStream.breaker} · {existingStream.date}
-              </span>
-              <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
-                Start new instead
-              </button>
-            </div>
-          )}
-          {recapSaved && <span style={{ background:"#111111", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            {/* Whatnot CSV Import */}
+            <label style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1.5px solid #E8317A44", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, color:"#E8317A", cursor:"pointer", whiteSpace:"nowrap" }}>
+              📥 Whatnot CSV
+              <input type="file" accept=".csv" style={{ display:"none" }} onChange={e => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                  try {
+                    const lines = ev.target.result.split("\n").map(l=>l.trim()).filter(Boolean);
+                    const rawHeaders = lines[0].split(",").map(h=>h.replace(/"/g,"").toLowerCase().trim());
+                    const getIdx = key => rawHeaders.findIndex(h=>h===key);
+                    const origIdx   = getIdx("original_item_price");
+                    const couponIdx = getIdx("coupon_price");
+                    const cancelIdx = getIdx("cancelled_or_failed");
+                    const dateIdx   = getIdx("placed_at");
+                    if (origIdx === -1) { alert("Couldn't find original_item_price column. Make sure this is a Whatnot live sales CSV."); return; }
+                    let gross=0, coupons=0, streamDate="", skipped=0;
+                    for (let i=1; i<lines.length; i++) {
+                      const cols=[]; let cur="", inQuote=false;
+                      for (const ch of lines[i]) {
+                        if (ch==='"') { inQuote=!inQuote; }
+                        else if (ch==="," && !inQuote) { cols.push(cur.trim()); cur=""; }
+                        else { cur+=ch; }
+                      }
+                      cols.push(cur.trim());
+                      if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
+                      gross   += parseFloat(cols[origIdx]||0)||0;
+                      coupons += parseFloat(cols[couponIdx]||0)||0;
+                      if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
+                    }
+                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons }));
+                    if (streamDate) setDate(streamDate);
+                    setRecapSaved(false);
+                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in fees & expenses.` });
+                    setTimeout(()=>setCsvMsg(null), 6000);
+                  } catch(err) { setCsvMsg({ type:"error", text:"Could not parse CSV. Make sure it's a Whatnot live sales export." }); }
+                };
+                reader.readAsText(file);
+                e.target.value="";
+              }}/>
+            </label>
+            {editingStreamId && existingStream && (
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+                  ✏️ Editing: {existingStream.breaker} · {existingStream.date}
+                </span>
+                <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
+                  Start new instead
+                </button>
+              </div>
+            )}
+            {recapSaved && <span style={{ background:"#111111", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
+          </div>
         </div>
+
+        {/* CSV import message */}
+        {csvMsg && (
+          <div style={{ marginBottom:12, padding:"10px 14px", background:csvMsg.type==="success"?"#0a1a0a":"#1a0a0a", border:`1px solid ${csvMsg.type==="success"?"#4ade8033":"#E8317A33"}`, borderRadius:8, fontSize:12, color:csvMsg.type==="success"?"#4ade80":"#E8317A", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span>{csvMsg.text}</span>
+            <button onClick={()=>setCsvMsg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, marginLeft:10 }}>✕</button>
+          </div>
+        )}
 
         {/* Breaker + Date + Break Type */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
@@ -3722,14 +3777,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             function calcS(s) {
               const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
               const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30;
-              const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135;
+              const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
               const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
               const commAmt=(bazNet-repExp)*rate;
-              return { gross, totalExp, netRev, bazNet, repExp, commAmt, rate };
+              const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb;
+              return { gross, totalExp, netRev, bazNet, repExp, imcExpReimb, commAmt, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; return acc; }, {gross:0,baz:0,comm:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.reimb+=c.imcExpReimb; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,reimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} – ${stubTo}` : "Select dates";
@@ -3739,13 +3795,23 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const bc = BC[targetBreaker]||{text:"#E8317A"};
               const streamRows = stubStreams.map(s => {
                 const c = calcS(s);
-                return `
+                return isAdmin ? `
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.repExp)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;color:#991b1b;">${fmt(c.repExp)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;color:#991b1b;">-${fmt(c.commAmt)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;color:#166534;">+${fmt(c.imcExpReimb)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.bazTrueNet)}</td>
+                  </tr>` : `
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
                   </tr>`;
@@ -3795,16 +3861,25 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
                 <table>
                   <thead><tr>
-                    <th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>
+                    ${isAdmin
+                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
+                      : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
+                    }
                   </tr></thead>
                   <tbody>${streamRows}</tbody>
                 </table>
                 <div class="totals">
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
-                  <div class="totals-grid">
+                  <div class="totals-grid" style="grid-template-columns:${isAdmin?"repeat(5,1fr)":"repeat(3,1fr)"}">
                     <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
+                    ${isAdmin ? `
+                    <div class="tot-item"><div class="tot-val" style="color:#991b1b;">-${fmt(totals.comm)}</div><div class="tot-lbl">Commission Paid</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#166534;">+${fmt(totals.reimb)}</div><div class="tot-lbl">IMC Reimb</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
+                    ` : `
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
+                    `}
                   </div>
                 </div>
                 <div class="payout">
@@ -3868,11 +3943,17 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   {stubStreams.length === 0
                     ? <div style={{ color:"#555", fontSize:12, padding:"12px 0" }}>No streams found for this period.</div>
                     : <>
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
+                        <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:10, marginBottom:12 }}>
                           {[
-                            { l:"Gross Revenue",    v:fmt(totals.gross), c:"#E8317A" },
-                            { l:"Bazooka Net (30%)",v:fmt(totals.baz),   c:"#1B4F8A" },
-                            { l:"Commission",       v:fmt(totals.comm),  c:"#4ade80" },
+                            { l:"Gross Revenue",        v:fmt(totals.gross),   c:"#E8317A" },
+                            { l:"Bazooka Net (30%)",    v:fmt(totals.baz),     c:"#1B4F8A" },
+                            ...(isAdmin ? [
+                              { l:"− Commission",       v:fmt(totals.comm),    c:"#991b1b" },
+                              { l:"+ IMC Reimb",        v:fmt(totals.reimb),   c:"#166534" },
+                              { l:"Bazooka True Net",   v:fmt(totals.trueNet), c:"#4ade80" },
+                            ] : [
+                              { l:"Commission",         v:fmt(totals.comm),    c:"#4ade80" },
+                            ]),
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
                               <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -3882,7 +3963,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         </div>
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                           <thead><tr>
-                            {["Date","Type","Gross","Baz Net","Rate","Commission"].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
+                            {["Date","Type","Gross","Baz Net",...(isAdmin?["Rep Exp","IMC Reimb","True Net"]:["Rate","Commission"])].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
                           </tr></thead>
                           <tbody>
                             {stubStreams.map((s,i)=>{
@@ -3892,8 +3973,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
-                                <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{(c.rate*100).toFixed(0)}%</td>
-                                <td style={{ ...S.td, padding:"6px 10px", color:"#4ade80", fontWeight:900 }}>{fmt(c.commAmt)}</td>
+                                {isAdmin ? <>
+                                  <td style={{ ...S.td, padding:"6px 10px", color:"#991b1b" }}>{fmt(c.repExp)}</td>
+                                  <td style={{ ...S.td, padding:"6px 10px", color:"#166534" }}>+{fmt(c.imcExpReimb)}</td>
+                                  <td style={{ ...S.td, padding:"6px 10px", color:"#4ade80", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
+                                </> : <>
+                                  <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{(c.rate*100).toFixed(0)}%</td>
+                                  <td style={{ ...S.td, padding:"6px 10px", color:"#4ade80", fontWeight:900 }}>{fmt(c.commAmt)}</td>
+                                </>}
                               </tr>;
                             })}
                           </tbody>
