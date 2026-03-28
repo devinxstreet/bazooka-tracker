@@ -225,192 +225,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <div style={{ ...S.card, border: alerts.length > 0 ? "2px solid #FCA5A5" : "2px solid #D6F4E3" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-          <SectionLabel t="Inventory Health Check" />
-          <span style={{ fontSize:12, fontWeight:700, padding:"4px 12px", borderRadius:20, background:alerts.length===0?"#D6F4E3":alerts.length<=2?"#FFF9DB":"#FEE2E2", color:alerts.length===0?"#166534":alerts.length<=2?"#92400e":"#991b1b" }}>
-            {alerts.length===0 ? "✅ All Good" : `🚨 ${alerts.length} Critical`}
-          </span>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
-          {[
-            { l:"Total Cards",    v:inventory.length, c:"#111827" },
-            { l:"Available",      v:availCount,       c:"#166534" },
-            { l:"In Transit",     v:transitCount,     c:"#2C3E7A" },
-            { l:"Used",           v:usedCount,        c:"#991b1b" },
-            ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
-          ].map(({l,v,c}) => (
-            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
-              <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-            </div>
-          ))}
-        </div>
-        {alerts.length > 0 && (
-          <div style={{ marginBottom:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#991b1b", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>🚨 Restock Needed</div>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {alerts.map(ct => {
-                const avail = stats[ct].total - stats[ct].used;
-                const cc = CC[ct];
-                return <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}`, borderRadius:8, padding:"8px 14px" }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:12 }}>{ct}</span>
-                  <span style={{ fontSize:11, color:cc.text, marginLeft:8 }}>{avail} left / {TARGETS[ct].buffer} min</span>
-                </div>;
-              })}
-            </div>
-          </div>
-        )}
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {CARD_TYPES.map(ct => {
-            const cc = CC[ct];
-            const avail   = stats[ct].total - stats[ct].used - stats[ct].inTransit;
-            const transit = stats[ct].inTransit;
-            const days = runway[ct];
-            const pace = TARGETS[ct].monthly > 0 ? stats[ct].used / TARGETS[ct].monthly : 0;
-            const runC  = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
-            const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
-            return (
-              <div key={ct} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:9, padding:"10px 14px" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
-                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                    <span style={{ fontSize:11, color:"#9CA3AF" }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#2C3E7A", fontWeight:700, background:"#EEF0FB", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
-                    <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
-                      {days >= 999 ? "No usage yet" : `~${days}d runway`}
-                    </span>
-                    <span style={{ fontSize:11, color:"#9CA3AF" }}>Pace: {(pace*100).toFixed(0)}%</span>
-                  </div>
-                </div>
-                <div style={{ height:5, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${Math.min(pace*100,100)}%`, background:pace>=1?"#991b1b":pace>=0.7?"#92400e":"#166534", borderRadius:3 }}/>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {canSeeFinancials && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
-          {[
-            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
-            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
-            { l:"Cards Used (Total)", v:usedCount,               c:"#991b1b" },
-          ].map(({l,v,c}) => (
-            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
-              <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-            </div>
-          ))}
-        </div>
-        )}
-      </div>
-
-      <div style={S.card}>
-        <SectionLabel t="Inventory by Card Type" />
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {/* Header row */}
-          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, padding:"0 16px", alignItems:"center" }}>
-            <div/>
-            {["Stock","Used","Avail","Transit","Min"].map(h => (
-              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>
-            ))}
-            <div/>
-          </div>
-          {CARD_TYPES.map(ct => {
-            const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
-            const avail   = d.total - d.used - d.inTransit;
-            const transit = d.inTransit;
-            const pct   = d.market > 0 ? d.invested/d.market : null;
-            const ok = avail >= buffer; const warn = avail >= buffer*0.5;
-            const sc = ok?"#166534":warn?"#92400e":"#991b1b";
-            const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
-            return (
-              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, alignItems:"center" }}>
-                <span style={{ fontWeight:700, color:cc.text, fontSize:14 }}>{ct}</span>
-                {[
-                  { v:d.total,  c:cc.text      },
-                  { v:d.used,   c:"#991b1b"    },
-                  { v:avail,    c:sc            },
-                  { v:transit,  c: transit>0 ? "#2C3E7A" : "#D1D5DB" },
-                  { v:buffer,   c:"#9CA3AF"    },
-                ].map(({v,c},i) => (
-                  <div key={i} style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
-                  </div>
-                ))}
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                  {canSeeFinancials && <ZoneBadge pct={pct} />}
-                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"3px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={S.card}>
-        <SectionLabel t="Team Activity" />
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
-          {BREAKERS.map(b => {
-            const bc = BC[b];
-            const bBreaks = breaks.filter(x => x.breaker === b);
-            const bInv    = inventory.filter(x => x.addedBy?.toLowerCase().includes(b.toLowerCase()));
-            const last    = bBreaks.length > 0 ? [...bBreaks].sort((a,z) => new Date(z.dateAdded)-new Date(a.dateAdded))[0] : null;
-            const isYou   = user?.displayName?.toLowerCase().includes(b.toLowerCase());
-            return (
-              <div key={b} style={{ ...S.card, border:`1.5px solid ${bc.border}44`, background:bc.bg+"44", position:"relative" }}>
-                {isYou && <div style={{ position:"absolute", top:10, right:10, fontSize:10, fontWeight:700, color:bc.text, background:bc.bg, border:`1px solid ${bc.border}`, borderRadius:10, padding:"2px 8px" }}>You</div>}
-                <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
-                {[["Cards logged out",bBreaks.length],["Added to inventory",bInv.length],["Last break",last?new Date(last.dateAdded).toLocaleDateString():"—"]].map(([l,v]) => (
-                  <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #F0E0E8" }}>
-                    <span style={{ fontSize:11, color:"#9CA3AF" }}>{l}</span>
-                    <span style={{ fontSize:11, fontWeight:700, color:bc.text }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {canSeeFinancials && (
-      <div style={S.card}>
-        <SectionLabel t="Portfolio Health" />
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
-          {[
-            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
-            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
-            { l:"Blended Buy %",      v:oPct?(oPct*100).toFixed(1)+"%":"—", c:oz?.color||"#9CA3AF" },
-          ].map(({l,v,c}) => (
-            <div key={l} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{l}</div>
-              <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        {oz && <div style={{ padding:"10px 16px", borderRadius:8, background:oz.bg, border:`1px solid ${oz.color}44`, textAlign:"center" }}>
-          <span style={{ fontWeight:700, color:oz.color, fontSize:13 }}>Portfolio {oz.label}{oPct<0.65?" — Healthy":oPct<=0.70?" — Watch blended rate":" — Review purchases"}</span>
-        </div>}
-      </div>
-      )}
-
-      {canSeeFinancials && (
-      <div style={S.card}>
-        <SectionLabel t="Buying Zone Reference" />
-        {[
-          { z:"🟢 Green",  p:"Under 65%", a:"Buy independently — no approval needed",          bg:"#D6F4E3", c:"#166534" },
-          { z:"🟡 Yellow", p:"65–70%",    a:"Flag before buying — check in first",              bg:"#FFF9DB", c:"#92400e" },
-          { z:"🔴 Red",    p:"Over 70%",  a:"Pass or renegotiate — explicit approval required", bg:"#FEE2E2", c:"#991b1b" },
-        ].map(({z,p,a,bg,c}) => (
-          <div key={z} style={{ display:"grid", gridTemplateColumns:"110px 80px 1fr", gap:10, padding:"8px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7, marginBottom:4, alignItems:"center" }}>
-            <span style={{ fontWeight:800, color:c, fontSize:12 }}>{z}</span>
-            <span style={{ color:c, fontSize:11 }}>{p}</span>
-            <span style={{ color:"#6B7280", fontSize:11 }}>{a}</span>
-          </div>
-        ))}
-      </div>
-      )}
 
       {/* ── FINANCIAL OVERVIEW (Admin only) ── */}
       {canSeeFinancials && (() => {
@@ -571,6 +385,176 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
         );
       })()}
 
+      <div style={{ ...S.card, border: alerts.length > 0 ? "2px solid #FCA5A5" : "2px solid #D6F4E3" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <SectionLabel t="Inventory Health Check" />
+          <span style={{ fontSize:12, fontWeight:700, padding:"4px 12px", borderRadius:20, background:alerts.length===0?"#D6F4E3":alerts.length<=2?"#FFF9DB":"#FEE2E2", color:alerts.length===0?"#166534":alerts.length<=2?"#92400e":"#991b1b" }}>
+            {alerts.length===0 ? "✅ All Good" : `🚨 ${alerts.length} Critical`}
+          </span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
+          {[
+            { l:"Total Cards",    v:inventory.length, c:"#111827" },
+            { l:"Available",      v:availCount,       c:"#166534" },
+            { l:"In Transit",     v:transitCount,     c:"#2C3E7A" },
+            { l:"Used",           v:usedCount,        c:"#991b1b" },
+            ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        {alerts.length > 0 && (
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#991b1b", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>🚨 Restock Needed</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {alerts.map(ct => {
+                const avail = stats[ct].total - stats[ct].used;
+                const cc = CC[ct];
+                return <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}`, borderRadius:8, padding:"8px 14px" }}>
+                  <span style={{ fontWeight:700, color:cc.text, fontSize:12 }}>{ct}</span>
+                  <span style={{ fontSize:11, color:cc.text, marginLeft:8 }}>{avail} left / {TARGETS[ct].buffer} min</span>
+                </div>;
+              })}
+            </div>
+          </div>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {CARD_TYPES.map(ct => {
+            const cc = CC[ct];
+            const avail   = stats[ct].total - stats[ct].used - stats[ct].inTransit;
+            const transit = stats[ct].inTransit;
+            const days = runway[ct];
+            const pace = TARGETS[ct].monthly > 0 ? stats[ct].used / TARGETS[ct].monthly : 0;
+            const runC  = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
+            const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
+            return (
+              <div key={ct} style={{ background:"#FFFFFF", border:"1px solid #F0E0E8", borderRadius:9, padding:"10px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                  <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>{avail} avail</span>
+                    {transit > 0 && <span style={{ fontSize:11, color:"#2C3E7A", fontWeight:700, background:"#EEF0FB", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
+                    <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
+                      {days >= 999 ? "No usage yet" : `~${days}d runway`}
+                    </span>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>Pace: {(pace*100).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <div style={{ height:5, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${Math.min(pace*100,100)}%`, background:pace>=1?"#991b1b":pace>=0.7?"#92400e":"#166534", borderRadius:3 }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {canSeeFinancials && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
+          {[
+            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
+            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
+            { l:"Cards Used (Total)", v:usedCount,               c:"#991b1b" },
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0E0E8", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        )}
+      </div>
+
+      <div style={S.card}>
+        <SectionLabel t="Inventory by Card Type" />
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {/* Header row */}
+          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, padding:"0 16px", alignItems:"center" }}>
+            <div/>
+            {["Stock","Used","Avail","Transit","Min"].map(h => (
+              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#D1D5DB", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>
+            ))}
+            <div/>
+          </div>
+          {CARD_TYPES.map(ct => {
+            const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
+            const avail   = d.total - d.used - d.inTransit;
+            const transit = d.inTransit;
+            const pct   = d.market > 0 ? d.invested/d.market : null;
+            const ok = avail >= buffer; const warn = avail >= buffer*0.5;
+            const sc = ok?"#166534":warn?"#92400e":"#991b1b";
+            const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
+            return (
+              <div key={ct} style={{ background:cc.bg, border:`1px solid ${cc.border}44`, borderRadius:9, padding:"12px 16px", display:"grid", gridTemplateColumns:"180px 1fr 1fr 1fr 1fr 60px auto", gap:8, alignItems:"center" }}>
+                <span style={{ fontWeight:700, color:cc.text, fontSize:14 }}>{ct}</span>
+                {[
+                  { v:d.total,  c:cc.text      },
+                  { v:d.used,   c:"#991b1b"    },
+                  { v:avail,    c:sc            },
+                  { v:transit,  c: transit>0 ? "#2C3E7A" : "#D1D5DB" },
+                  { v:buffer,   c:"#9CA3AF"    },
+                ].map(({v,c},i) => (
+                  <div key={i} style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                  </div>
+                ))}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                  {canSeeFinancials && <ZoneBadge pct={pct} />}
+                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#D6F4E3":warn?"#FFF9DB":"#FEE2E2", color:sc, border:`1px solid ${sc}33`, borderRadius:5, padding:"3px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <SectionLabel t="Portfolio Health" />
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
+          {[
+            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
+            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
+            { l:"Blended Buy %",      v:oPct?(oPct*100).toFixed(1)+"%":"—", c:oz?.color||"#9CA3AF" },
+          ].map(({l,v,c}) => (
+            <div key={l} style={{ textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{l}</div>
+              <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {oz && <div style={{ padding:"10px 16px", borderRadius:8, background:oz.bg, border:`1px solid ${oz.color}44`, textAlign:"center" }}>
+          <span style={{ fontWeight:700, color:oz.color, fontSize:13 }}>Portfolio {oz.label}{oPct<0.65?" — Healthy":oPct<=0.70?" — Watch blended rate":" — Review purchases"}</span>
+        </div>}
+      </div>
+      )}
+
+      <div style={S.card}>
+        <SectionLabel t="Team Activity" />
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+          {BREAKERS.map(b => {
+            const bc = BC[b];
+            const bBreaks = breaks.filter(x => x.breaker === b);
+            const bInv    = inventory.filter(x => x.addedBy?.toLowerCase().includes(b.toLowerCase()));
+            const last    = bBreaks.length > 0 ? [...bBreaks].sort((a,z) => new Date(z.dateAdded)-new Date(a.dateAdded))[0] : null;
+            const isYou   = user?.displayName?.toLowerCase().includes(b.toLowerCase());
+            return (
+              <div key={b} style={{ ...S.card, border:`1.5px solid ${bc.border}44`, background:bc.bg+"44", position:"relative" }}>
+                {isYou && <div style={{ position:"absolute", top:10, right:10, fontSize:10, fontWeight:700, color:bc.text, background:bc.bg, border:`1px solid ${bc.border}`, borderRadius:10, padding:"2px 8px" }}>You</div>}
+                <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
+                {[["Cards logged out",bBreaks.length],["Added to inventory",bInv.length],["Last break",last?new Date(last.dateAdded).toLocaleDateString():"—"]].map(([l,v]) => (
+                  <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #F0E0E8" }}>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>{l}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:bc.text }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {canSeeFinancials && (
 
     </div>
   );
@@ -790,6 +774,19 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         <div style={{ display:"flex", gap:8 }}>
           {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],["history","📋 History"]].map(([mode,label]) => (
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12 }}>
+          {[
+            { z:"🟢 Green",  p:"Under 65%", a:"Buy independently",          bg:"#D6F4E3", c:"#166534" },
+            { z:"🟡 Yellow", p:"65–70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
+            { z:"🔴 Red",    p:"Over 70%",  a:"Pass or get approval",        bg:"#FEE2E2", c:"#991b1b" },
+          ].map(({z,p,a,bg,c}) => (
+            <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7 }}>
+              <span style={{ fontWeight:800, color:c, fontSize:12, whiteSpace:"nowrap" }}>{z}</span>
+              <span style={{ color:c, fontSize:11, whiteSpace:"nowrap" }}>{p}</span>
+              <span style={{ color:"#9CA3AF", fontSize:11 }}>— {a}</span>
+            </div>
           ))}
         </div>
       </div>
