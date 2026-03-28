@@ -506,9 +506,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
         const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
-        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazNet, 0)
+        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
-        const ytdComm    = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).commAmt, 0);
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
@@ -526,13 +525,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
               </span>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:14 }}>
               {[
-                { l:"Gross Revenue",     v:proj(ytdGross),     ytd:ytdGross,     c:"#E8317A" },
-                { l:"Net Revenue",       v:proj(ytdNet),       ytd:ytdNet,       c:"#1B4F8A" },
-                { l:"Bazooka Earnings",  v:proj(ytdBaz),       ytd:ytdBaz,       c:"#E8317A" },
-                { l:"Commission Paid",   v:proj(ytdComm),      ytd:ytdComm,      c:"#991b1b" },
-                { l:"New Buyers",        v:proj(ytdNewBuyers), ytd:ytdNewBuyers, c:"#166534", count:true },
+                { l:"Gross Revenue",          v:proj(ytdGross),     ytd:ytdGross,     c:"#E8317A" },
+                { l:"Net Revenue",            v:proj(ytdNet),       ytd:ytdNet,       c:"#1B4F8A" },
+                { l:"Bazooka Earnings (w/ Reimb)", v:proj(ytdBaz), ytd:ytdBaz, c:"#166534" },
+                { l:"New Buyers",              v:proj(ytdNewBuyers), ytd:ytdNewBuyers, c:"#166534", count:true },
               ].map(({l,v,ytd,c,count}) => (
                 <div key={l} style={{ textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
