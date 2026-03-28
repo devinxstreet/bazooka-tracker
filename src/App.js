@@ -1968,6 +1968,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [bulkSel,    setBulkSel]    = useState(new Set());
   const [histSel,    setHistSel]    = useState(new Set());
   const [chaserSearch, setChaserSearch] = useState("");
+  const [streamBulkSel, setStreamBulkSel] = useState(new Set());
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
@@ -2486,15 +2487,33 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
         return (
           <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px 0" }}>
+            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
+              {streamBulkSel.size > 0 && (
+                <button onClick={()=>{
+                  if(window.confirm(`Delete ${streamBulkSel.size} stream${streamBulkSel.size!==1?"s":""}? Chaser cards will be restored.`)) {
+                    [...streamBulkSel].forEach(id => { if(onDeleteStream) onDeleteStream(id); });
+                    setStreamBulkSel(new Set());
+                  }
+                }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
+                </button>
+              )}
             </div>
             {myStreams.length === 0
               ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet — save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead>
-                  <tr>{["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+                  <tr>
+                    <th style={{ ...S.th, width:40, textAlign:"center" }}>
+                      <input type="checkbox"
+                        checked={myStreams.length>0 && streamBulkSel.size===myStreams.length}
+                        onChange={()=>setStreamBulkSel(streamBulkSel.size===myStreams.length ? new Set() : new Set(myStreams.map(s=>s.id)))}
+                      />
+                    </th>
+                    {["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody>
                   {myStreams.map((s,i) => {
@@ -2508,6 +2527,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         style={{ background:isActive?"#2a1520":i%2===0?"#111111":"#0d0d0d", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
+                        <td style={{ ...S.td, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+                          <input type="checkbox" checked={streamBulkSel.has(s.id)}
+                            onChange={()=>setStreamBulkSel(prev=>{ const n=new Set(prev); n.has(s.id)?n.delete(s.id):n.add(s.id); return n; })}
+                          />
+                        </td>
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                         <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
