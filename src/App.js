@@ -256,6 +256,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
   const [drillDown,       setDrillDown]       = useState(null);
+  const [showHist,    setShowHist]    = useState(false);
+  const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
+  const [editingId,   setEditingId]   = useState(null);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const stats = {};
@@ -717,9 +720,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
       {/* Historical Data — Admin only */}
       {canSeeFinancials && (() => {
-        const [showHist, setShowHist] = useState(false);
-        const [histForm, setHistForm] = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
-        const [editingId, setEditingId] = useState(null);
 
         function startEdit(h) {
           setHistForm({ yearMonth:h.yearMonth, grossRevenue:h.grossRevenue||"", netRevenue:h.netRevenue||"", imcReimb:h.imcReimb||"", newBuyers:h.newBuyers||"", notes:h.notes||"" });
