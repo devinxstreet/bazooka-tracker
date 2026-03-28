@@ -1606,7 +1606,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       </div>}
 
       {/* ── LOG CARDS ── */}
-      {!recapOnly && <div style={S.card}>
+      {!recapOnly && <>
+      <div style={S.card}>
         <SectionLabel t="Log Card Out" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
           <SelectInput label="Breaker"    value={breaker} onChange={setBreaker} options={BREAKERS}/>
@@ -1687,7 +1688,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         })}
       </div>
 
-      {!recapOnly && <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ padding:"16px 20px 0" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
             <SectionLabel t="Break History"/>
@@ -1732,7 +1733,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </tbody>
           </table>
         </div>
-      </div>}
+      </div>
+      </>}
     </div>
   );
 }
