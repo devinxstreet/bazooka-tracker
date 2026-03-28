@@ -3440,6 +3440,215 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
+// ─── BREAK PLANNER ───────────────────────────────────────────
+function BreakPlanner({ skuPrices={}, userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const EMPTY_PRODUCT = { type:"", qty:"1" };
+  const [products,    setProducts]    = useState([{ ...EMPTY_PRODUCT, id:uid() }]);
+  const [targetPct,   setTargetPct]   = useState("60");
+  const [spots,       setSpots]       = useState("30");
+  const [breaker,     setBreaker]     = useState(BREAKERS[0]);
+  const [whatnotPct,  setWhatnotPct]  = useState("8");  // Whatnot fee %
+  const [couponAmt,   setCouponAmt]   = useState("0");
+
+  function addProduct() { setProducts(p=>[...p, { ...EMPTY_PRODUCT, id:uid() }]); }
+  function removeProduct(id) { setProducts(p=>p.filter(x=>x.id!==id)); }
+  function updateProduct(id, field, val) { setProducts(p=>p.map(x=>x.id===id?{...x,[field]:val}:x)); }
+
+  // Calculate total market value from selected products
+  const totalMktVal = products.reduce((sum, p) => {
+    const price = parseFloat(skuPrices[p.type]) || 0;
+    const qty   = parseInt(p.qty) || 0;
+    return sum + price * qty;
+  }, 0);
+
+  const targetMultiple = totalMktVal > 0 ? parseFloat(targetPct)/100 : 0;
+  const targetGross    = totalMktVal * targetMultiple;
+  const numSpots       = parseInt(spots) || 1;
+  const spotPrice      = targetGross / numSpots;
+
+  // Financial projections
+  const whatnotFee  = targetGross * (parseFloat(whatnotPct)||0) / 100;
+  const coupons     = parseFloat(couponAmt) || 0;
+  const streamExp   = coupons;
+  const netRev      = targetGross - whatnotFee - streamExp;
+  const bazNet      = netRev * 0.30;
+  const grossForComm = targetGross - streamExp;
+  const bazNetForComm = grossForComm * 0.30;
+  const repExp      = streamExp * 0.135;
+  const mm          = targetGross > 0 ? targetGross / totalMktVal : 0;
+  const rate        = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+  const commBase    = bazNetForComm - repExp;
+  const commAmt     = commBase * rate;
+  const bazTrueNet  = bazNet - repExp - commAmt + (streamExp * 0.70);
+
+  // Zone color
+  const zone = targetMultiple < 0.65 ? { c:"#4ade80", bg:"#0a1a0a", l:"🟢 Green Zone" }
+             : targetMultiple < 0.70 ? { c:"#FBBF24", bg:"#1a1400", l:"🟡 Yellow Zone" }
+             : { c:"#E8317A", bg:"#1a0a0a", l:"🔴 Red Zone" };
+
+  const breakEvenGross  = totalMktVal * 0.65;
+  const breakEvenSpot   = breakEvenGross / numSpots;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Inputs */}
+      <div style={S.card}>
+        <SectionLabel t="🧮 Break Planner" />
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+
+          {/* Products */}
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+              <label style={S.lbl}>Products to Rip</label>
+              <button onClick={addProduct} style={{ background:"none", border:"1px solid #333", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Product</button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {products.map(p => {
+                const price = parseFloat(skuPrices[p.type]) || 0;
+                const subtotal = price * (parseInt(p.qty)||0);
+                return (
+                  <div key={p.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px auto auto", gap:8, alignItems:"center" }}>
+                    <select value={p.type} onChange={e=>updateProduct(p.id,"type",e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                      <option value="">— Select Product —</option>
+                      {PRODUCT_TYPES.map(pt=>(
+                        <option key={pt} value={pt}>{pt}{skuPrices[pt]?` ($${parseFloat(skuPrices[pt]).toFixed(2)}/box)`:" (no price set)"}</option>
+                      ))}
+                    </select>
+                    <input type="number" min="1" value={p.qty} onChange={e=>updateProduct(p.id,"qty",e.target.value)} placeholder="Qty" style={{ ...S.inp, textAlign:"center" }}/>
+                    <div style={{ fontSize:13, fontWeight:700, color:subtotal>0?"#E8317A":"#333", whiteSpace:"nowrap", minWidth:80, textAlign:"right" }}>
+                      {subtotal>0?`$${subtotal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"—"}
+                    </div>
+                    {products.length > 1 && <button onClick={()=>removeProduct(p.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>✕</button>}
+                  </div>
+                );
+              })}
+            </div>
+            {totalMktVal > 0 && (
+              <div style={{ marginTop:10, padding:"10px 14px", background:"#1a1a1a", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:"#888" }}>Total Market Value</span>
+                <span style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>${totalMktVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Settings row */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12 }}>
+            <div>
+              <label style={S.lbl}>Number of Spots</label>
+              <input type="number" min="1" value={spots} onChange={e=>setSpots(e.target.value)} style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Target Market % (e.g. 65)</label>
+              <input type="number" min="1" max="200" value={targetPct} onChange={e=>setTargetPct(e.target.value)} style={{ ...S.inp, color: targetMultiple<0.65?"#4ade80":targetMultiple<0.70?"#FBBF24":"#E8317A" }}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Whatnot Fee %</label>
+              <input type="number" min="0" max="100" value={whatnotPct} onChange={e=>setWhatnotPct(e.target.value)} style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Est. Coupons ($)</label>
+              <input type="number" min="0" value={couponAmt} onChange={e=>setCouponAmt(e.target.value)} style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Breaker</label>
+              <select value={breaker} onChange={e=>setBreaker(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Results */}
+      {totalMktVal > 0 && targetGross > 0 && (
+        <>
+          {/* Spot price hero */}
+          <div style={{ ...S.card, background:zone.bg, border:`2px solid ${zone.c}44`, textAlign:"center", padding:"28px 20px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} · {targetPct}% of Market Value</div>
+            <div style={{ fontSize:13, color:"#888", marginBottom:6 }}>Price per spot to hit your target</div>
+            <div style={{ fontSize:56, fontWeight:900, color:zone.c, letterSpacing:-1 }}>${spotPrice.toFixed(2)}</div>
+            <div style={{ fontSize:13, color:"#666", marginTop:6 }}>{numSpots} spots × ${spotPrice.toFixed(2)} = <strong style={{color:"#F0F0F0"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
+          </div>
+
+          {/* Financial breakdown */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+            {[
+              { l:"Est. Gross Revenue",  v:`$${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#F0F0F0", sub:`${numSpots} spots @ $${spotPrice.toFixed(2)}` },
+              { l:"Bazooka Net (30%)",   v:fmt(bazNet),    c:"#E8317A",  sub:`After ${whatnotPct}% Whatnot fee` },
+              { l:`${breaker}'s Commission`, v:fmt(commAmt), c:"#4ade80", sub:`${(rate*100).toFixed(0)}% rate · ${(mm).toFixed(2)}x multiple` },
+            ].map(({l,v,c,sub})=>(
+              <div key={l} style={{ ...S.card, textAlign:"center" }}>
+                <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{l}</div>
+                <div style={{ fontSize:11, color:"#555" }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Comparison table */}
+          <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+            <div style={{ padding:"14px 20px 10px" }}><SectionLabel t="Spot Price Scenarios" /></div>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead><tr>
+                {["Target %","Spot Price","Est. Gross","Bazooka Net","Commission","Zone"].map(h=><th key={h} style={S.th}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {[55,60,65,70,75,80].map((pct,i) => {
+                  const g = totalMktVal * pct/100;
+                  const sp = g / numSpots;
+                  const wf = g * (parseFloat(whatnotPct)||0) / 100;
+                  const nr = g - wf - (parseFloat(couponAmt)||0);
+                  const bn = nr * 0.30;
+                  const gfc = g - (parseFloat(couponAmt)||0);
+                  const bnc = gfc * 0.30;
+                  const re = (parseFloat(couponAmt)||0) * 0.135;
+                  const mult = totalMktVal > 0 ? g/totalMktVal : 0;
+                  const r = mult>=1.8?0.55:mult>=1.7?0.50:mult>=1.6?0.45:mult>=1.5?0.40:0.35;
+                  const ca = (bnc-re) * r;
+                  const isTarget = pct === parseInt(targetPct);
+                  const zc = pct<65?"#4ade80":pct<70?"#FBBF24":"#E8317A";
+                  const zl = pct<65?"🟢 Green":pct<70?"🟡 Yellow":"🔴 Red";
+                  return (
+                    <tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
+                      <td style={{ ...S.td, fontWeight:isTarget?900:400, color:zc }}>{pct}%{isTarget?" ← target":""}</td>
+                      <td style={{ ...S.td, fontWeight:900, color:isTarget?zc:"#F0F0F0" }}>${sp.toFixed(2)}</td>
+                      <td style={{ ...S.td, color:"#F0F0F0" }}>${g.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                      <td style={{ ...S.td, color:"#E8317A" }}>{fmt(bn)}</td>
+                      <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>{fmt(ca)}</td>
+                      <td style={{ ...S.td }}><span style={{ color:zc, fontWeight:700, fontSize:11 }}>{zl}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Break-even callout */}
+          <div style={{ ...S.card, background:"#0a0f1a", border:"1px solid #7B9CFF33", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>📉 Break-Even Spot Price (65%)</div>
+              <div style={{ fontSize:12, color:"#666" }}>Minimum to stay in Green Zone</div>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:28, fontWeight:900, color:"#7B9CFF" }}>${breakEvenSpot.toFixed(2)}</div>
+              <div style={{ fontSize:11, color:"#555" }}>${breakEvenGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} gross needed</div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {totalMktVal === 0 && (
+        <div style={{ ...S.card, textAlign:"center", padding:"60px 40px", color:"#555" }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>🧮</div>
+          <div style={{ fontSize:14 }}>Select a product and set your prices in Inventory → Product Tracking to get started</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
@@ -3447,6 +3656,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
     { id:"recap",      label:"📋 Stream Recap", roles:["Admin","Streamer","Procurement"] },
     { id:"cards",      label:"🃏 Log Cards",    roles:["Admin","Streamer","Procurement","Shipping"] },
     { id:"commission", label:"💵 Commission",   roles:["Admin","Streamer","Procurement"] },
+    { id:"planner",    label:"🧮 Break Planner", roles:["Admin","Streamer","Procurement"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(isShipping ? "cards" : "recap");
@@ -3466,6 +3676,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
       {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
+      {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
     </div>
   );
 }
