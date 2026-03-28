@@ -1713,14 +1713,65 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </Btn>
           )}
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#92400e" }}>⚠ Unsaved changes</span>}
-          {existingStream && (
-            <button
-              onClick={async()=>{ if(window.confirm("Delete this stream recap? This cannot be undone.")) { if(onDeleteStream) await onDeleteStream(existingStream.id); setRecap({...EMPTY_RECAP}); setRecapSaved(false); }}}
-              style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}
-            >🗑 Delete Stream</button>
-          )}
         </div>
       </div>}
+
+      {/* ── STREAM LOG ── */}
+      {!cardsOnly && streams.length > 0 && (() => {
+        function calcS(s) {
+          const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
+          const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70, repExp=(coupons+promo+magpros+pack+topload+chaser)*0.135;
+          const mm=parseFloat(s.marketMultiple)||0, rate=s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const commAmt=(bazNet-repExp)*rate;
+          return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet: bazNet-repExp-commAmt, rate };
+        }
+        const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
+        return (
+          <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+            <div style={{ padding:"14px 20px 0" }}>
+              <SectionLabel t={`Stream Log (${myStreams.length})`} />
+            </div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                  <tr>{["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {myStreams.map((s,i) => {
+                    const c = calcS(s);
+                    const bc = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
+                    const isActive = existingStream?.id === s.id;
+                    return (
+                      <tr key={s.id}
+                        onClick={()=>{ setBreaker(s.breaker); setDate(s.date); }}
+                        style={{ background:isActive?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
+                        title="Click to load this stream"
+                      >
+                        <td style={S.td}>{s.date}</td>
+                        <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
+                        <td style={{ ...S.td, color:"#111827", fontWeight:700 }}>{fmt(c.gross)}</td>
+                        <td style={{ ...S.td, color:"#1B4F8A" }}>{fmt(c.netRev)}</td>
+                        {canSeeFinancials && <td style={{ ...S.td, color:"#6B2D8B" }}>{fmt(c.imcNet)}</td>}
+                        {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.bazNet)}</td>}
+                        <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{fmt(c.commAmt)}</td>
+                        {canSeeFinancials && <td style={{ ...S.td, color:"#166534", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
+                        <td style={{ ...S.td, color:"#6B7280" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
+                        <td style={{ ...S.td, color:"#166534" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "—"}</td>
+                        <td style={S.td}>
+                          <button
+                            onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); } }}}
+                            style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
+                          >🗑</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── LOG CARDS ── */}
       {!recapOnly && <>
@@ -3010,7 +3061,9 @@ export default function App() {
     showToast(`🗑 Lot deleted — ${cardIds.length} card${cardIds.length!==1?"s":""} removed`);
   }
 
-  const userRole = getUserRole(user);
+  const realRole = getUserRole(user);
+  const [viewAs,  setViewAs]  = useState(null); // null = real role
+  const userRole = viewAs ? viewAs : realRole;
   const TABS = [
     { id:"dashboard",   label:"📊 Dashboard"   },
     { id:"comp",        label:"🧮 Lot Comp"     },
@@ -3121,6 +3174,32 @@ export default function App() {
               <kbd style={{ background:"#111", color:"#555", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
             </button>
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
+            {realRole.role === "Admin" && (
+              <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
+                <span style={{ fontSize:10, color: viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
+                <select
+                  value={viewAs?.role||""}
+                  onChange={e=>{
+                    if (!e.target.value) { setViewAs(null); return; }
+                    const ROLE_MAP = {
+                      Admin:       { role:"Admin",       label:"CEO",         email:user.email },
+                      Streamer:    { role:"Streamer",    label:"Streamer",    email:"preview@streamer.com" },
+                      Procurement: { role:"Procurement", label:"Procurement", email:"preview@procurement.com" },
+                      Shipping:    { role:"Shipping",    label:"Shipping",    email:"preview@shipping.com" },
+                    };
+                    setViewAs(ROLE_MAP[e.target.value]);
+                    setTab("dashboard");
+                  }}
+                  style={{ background:"none", border:"none", color: viewAs?"#f59e0b":"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none" }}
+                >
+                  <option value="">— Real Role —</option>
+                  <option value="Admin">Admin (CEO)</option>
+                  <option value="Streamer">Streamer</option>
+                  <option value="Procurement">Procurement</option>
+                  <option value="Shipping">Shipping</option>
+                </select>
+              </div>
+            )}
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
             <span style={{ background:"#1a1a2e", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{userRole.label}</span>
@@ -3128,6 +3207,13 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {viewAs && (
+        <div style={{ background:"#78350f", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"center", gap:16 }}>
+          <span style={{ fontSize:12, color:"#fef3c7", fontWeight:700 }}>👁 Previewing as <strong style={{color:"#f59e0b"}}>{viewAs.label}</strong> — this is how they see the app</span>
+          <button onClick={()=>{ setViewAs(null); }} style={{ background:"#f59e0b", color:"#78350f", border:"none", borderRadius:6, padding:"3px 12px", fontSize:11, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>Exit Preview</button>
+        </div>
+      )}
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
