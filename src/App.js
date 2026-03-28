@@ -2350,7 +2350,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
               <thead>
                 <tr>
                   <th style={{ ...S.th, width:40, textAlign:"center" }}><input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleAll}/></th>
-                  {["Card Name","Type",...(canSeeFinancials?["Market Value","Lot Paid","Payment"]:[]),"Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
+                  {["Card Name","Type",...(canSeeFinancials?["Market Value","Cost/Card","Lot Paid","Payment"]:[]),"Source","Seller","Date","Added By","Status",""].map(h=><th key={h} style={S.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -2373,6 +2373,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                         <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
                         {canSeeFinancials && <>
                           <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
+                          <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>${(c.costPerCard||0).toFixed(2)}</td>
                           <td style={{ ...S.td, color:"#AAAAAA" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
                           <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.payment||"—"}</td>
                         </>}
@@ -6167,7 +6168,8 @@ export default function App() {
                               </div>
                               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
                                 <span style={{ background:st.bg, color:st.c, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{st.l}</span>
-                                {c.marketValue > 0 && <span style={{ fontSize:11, color:"#AAAAAA" }}>${c.marketValue.toFixed(2)}</span>}
+                                {c.marketValue > 0 && <span style={{ fontSize:11, color:"#AAAAAA" }}>MV: <strong>${c.marketValue.toFixed(2)}</strong></span>}
+                                {c.costPerCard > 0 && <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>Cost: ${c.costPerCard.toFixed(2)}</span>}
                               </div>
                             </div>
                           );
