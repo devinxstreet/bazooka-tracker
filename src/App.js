@@ -2012,13 +2012,39 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   );
 }
 
-function Performance({ breaks, user, userRole }) {
+function Performance({ breaks, user, userRole, streams=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
   const visibleBreakers = isAdmin ? BREAKERS : (matchedBreaker ? [matchedBreaker] : []);
   const now  = new Date();
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // Boxes ripped calculations
+  const thisMonth = streams.filter(s => {
+    const d = new Date(s.date);
+    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  });
+  const thisYear = streams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
+
+  function boxesForStreams(slist) {
+    return PRODUCT_TYPES.reduce((acc, pt) => {
+      acc[pt] = slist.reduce((sum, s) => sum + (parseInt(s[`prod_${pt}`])||0), 0);
+      return acc;
+    }, {});
+  }
+
+  const monthBoxes = boxesForStreams(thisMonth);
+  const yearBoxes  = boxesForStreams(thisYear);
+  const monthTotal = Object.values(monthBoxes).reduce((a,b)=>a+b,0);
+  const yearTotal  = Object.values(yearBoxes).reduce((a,b)=>a+b,0);
+
+  const PT_COLORS = {
+    "Double Mega":   "#C2410C",
+    "Hobby":         "#2C3E7A",
+    "Jumbo":         "#166534",
+    "Miscellaneous": "#6B2D8B",
+  };
 
   function getStats(breaker) {
     const all   = breaks.filter(b => b.breaker===breaker);
@@ -2031,13 +2057,71 @@ function Performance({ breaks, user, userRole }) {
     let streak=0;
     for (let i=0; i<30; i++) { const d=new Date(); d.setDate(d.getDate()-i); if(all.some(b=>new Date(b.dateAdded||b.date).toDateString()===d.toDateString())) streak++; else if(i>0) break; }
     const topType = CARD_TYPES.reduce((a,ct) => byType[ct]>byType[a]?ct:a, CARD_TYPES[0]);
-    return { all, month, byType, byDay, last7, streak, topType };
+    // Boxes ripped this month by breaker
+    const breakerMonthStreams = thisMonth.filter(s => s.breaker===breaker);
+    const breakerBoxes = boxesForStreams(breakerMonthStreams);
+    const breakerBoxTotal = Object.values(breakerBoxes).reduce((a,b)=>a+b,0);
+    return { all, month, byType, byDay, last7, streak, topType, breakerBoxes, breakerBoxTotal };
   }
 
   if (visibleBreakers.length===0) return <div style={{ ...S.card, textAlign:"center", padding:"60px" }}><div style={{ fontSize:32, marginBottom:12 }}>📈</div><div style={{ color:"#9CA3AF" }}>Your account isn't linked to a streamer profile.</div></div>;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+      {/* Boxes Ripped Summary */}
+      {(monthTotal > 0 || yearTotal > 0) && (
+      <div style={S.card}>
+        <SectionLabel t="📦 Boxes Ripped" />
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          {/* This Month */}
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>This Month</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#1A1A2E", marginBottom:8 }}>{monthTotal} <span style={{ fontSize:14, color:"#9CA3AF", fontWeight:400 }}>total boxes</span></div>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+              {PRODUCT_TYPES.map(pt => monthBoxes[pt] > 0 ? (
+                <span key={pt} style={{ background:"#F9FAFB", border:`1.5px solid ${PT_COLORS[pt]}33`, color:PT_COLORS[pt], borderRadius:7, padding:"4px 12px", fontSize:12, fontWeight:700 }}>
+                  {pt}: {monthBoxes[pt]}
+                </span>
+              ) : null)}
+            </div>
+            {/* Per-breaker breakdown */}
+            {isAdmin && (
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {BREAKERS.map(b => {
+                  const bStreams = thisMonth.filter(s=>s.breaker===b);
+                  const bBoxes  = boxesForStreams(bStreams);
+                  const bTotal  = Object.values(bBoxes).reduce((a,x)=>a+x,0);
+                  if (bTotal === 0) return null;
+                  const bc = BC[b]||{bg:"#F3F4F6",text:"#6B7280"};
+                  return (
+                    <div key={b} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <Badge bg={bc.bg} color={bc.text}>{b}</Badge>
+                      <div style={{ flex:1, height:6, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{ height:"100%", background:bc.text, borderRadius:3, width:`${monthTotal>0?(bTotal/monthTotal*100):0}%` }}/>
+                      </div>
+                      <span style={{ fontSize:12, fontWeight:700, color:bc.text, minWidth:24 }}>{bTotal}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* This Year */}
+          <div style={{ borderLeft:"1px solid #F0E0E8", paddingLeft:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>This Year</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#1A1A2E", marginBottom:8 }}>{yearTotal} <span style={{ fontSize:14, color:"#9CA3AF", fontWeight:400 }}>total boxes</span></div>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+              {PRODUCT_TYPES.map(pt => yearBoxes[pt] > 0 ? (
+                <span key={pt} style={{ background:"#F9FAFB", border:`1.5px solid ${PT_COLORS[pt]}33`, color:PT_COLORS[pt], borderRadius:7, padding:"4px 12px", fontSize:12, fontWeight:700 }}>
+                  {pt}: {yearBoxes[pt]}
+                </span>
+              ) : null)}
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
       {visibleBreakers.map((breaker,bi) => {
         const bc    = BC[breaker];
         const stats = getStats(breaker);
@@ -2059,6 +2143,7 @@ function Performance({ breaks, user, userRole }) {
               {[
                 { l:"Total Cards Used", v:stats.all.length,   c:bc.text },
                 { l:"This Month",       v:stats.month.length, c:bc.text },
+                { l:"📦 Boxes This Month", v:stats.breakerBoxTotal||0, c:stats.breakerBoxTotal>0?"#6B2D8B":"#9CA3AF" },
                 { l:"Top Card Type",    v:stats.topType.replace(" Cards",""), c:CC[stats.topType]?.text||bc.text },
                 { l:"Active Streak",    v:stats.streak>0?`${stats.streak}d`:"—", c:stats.streak>0?"#E8317A":"#9CA3AF" },
               ].map(({l,v,c}) => (
@@ -3363,7 +3448,7 @@ export default function App() {
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole}/>}
+        {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
