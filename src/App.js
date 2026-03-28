@@ -543,6 +543,196 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
   );
 }
 
+// ─── LOT AI ADVISOR ──────────────────────────────────────────────
+function LotAIAdvisor({ userRole }) {
+  const canSeeFinancials = ["Admin","Procurement"].includes(userRole?.role);
+  const [lotDesc,    setLotDesc]    = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [result,     setResult]     = useState(null);
+  const [error,      setError]      = useState("");
+
+  async function analyze() {
+    if (!lotDesc.trim()) return;
+    setLoading(true); setResult(null); setError("");
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          messages:[{
+            role:"user",
+            content:`You are a buying advisor for Bazooka Breaks, a BJBA (Bo Jackson Battle Arena) trading card business. We buy lots of BJBA cards from sellers on Facebook groups, Discord, and local/estate sales.
+
+Our buying zones:
+- GREEN (auto-buy): offer below 65% of market value
+- YELLOW (flag first): 65-70% of market value  
+- RED (pass): above 70% of market value
+
+Card types we track:
+- Giveaway/Standard Cards (bulk filler, low value, ~$0.10-0.50 each)
+- First-Timer Cards (mid-tier, ~$1-5 each)
+- Chaser Cards (high value, ~$10-50+ each)
+
+A seller has posted this lot description:
+"${lotDesc}"
+
+Analyze this lot and respond ONLY with a JSON object (no markdown, no explanation outside JSON) with these fields:
+{
+  "summary": "2-3 sentence summary of what this lot appears to be",
+  "estimatedCards": number or null,
+  "estimatedMarketValue": number or null,
+  "suggestedOffer": number or null,
+  "offerPct": number or null,
+  "zone": "GREEN" or "YELLOW" or "RED" or "UNKNOWN",
+  "confidence": "HIGH" or "MEDIUM" or "LOW",
+  "breakdown": {
+    "giveaway": number,
+    "firstTimer": number,
+    "chaser": number
+  },
+  "flags": ["array of any concerns or notable things"],
+  "negotiationTips": ["1-3 tips for negotiating this specific lot"],
+  "recommendation": "BUY" or "NEGOTIATE" or "PASS" or "NEEDS MORE INFO"
+}`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "";
+      const clean = text.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(clean);
+      setResult(parsed);
+    } catch(e) {
+      setError("Could not analyze lot. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const ZONE_COLORS = { GREEN:"#166534", YELLOW:"#92400e", RED:"#991b1b", UNKNOWN:"#6B7280" };
+  const ZONE_BG     = { GREEN:"#D6F4E3", YELLOW:"#FFF9DB", RED:"#FEE2E2", UNKNOWN:"#F3F4F6" };
+  const REC_COLORS  = { BUY:"#166534", NEGOTIATE:"#92400e", PASS:"#991b1b", "NEEDS MORE INFO":"#6B7280" };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={S.card}>
+        <SectionLabel t="🤖 AI Lot Advisor" />
+        <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>
+          Paste a lot description from Facebook, Discord, or wherever you found it. AI will analyze it and recommend an offer based on Bazooka's buying zones.
+        </div>
+        <textarea
+          value={lotDesc}
+          onChange={e=>setLotDesc(e.target.value)}
+          placeholder={"Paste the seller's lot description here...\n\nExample: 'Selling my BJBA collection, about 200 cards. Mix of everything. Some duplicates. A few shiny ones. Asking $80 OBO. Local pickup or will ship.'"}
+          rows={6}
+          style={{ ...S.inp, resize:"vertical", lineHeight:1.6, fontSize:13, marginBottom:12 }}
+        />
+        <Btn onClick={analyze} disabled={!lotDesc.trim()||loading} variant="gold">
+          {loading ? "⏳ Analyzing..." : "🤖 Analyze Lot"}
+        </Btn>
+        {error && <div style={{ marginTop:10, color:"#991b1b", fontSize:13 }}>{error}</div>}
+      </div>
+
+      {result && (
+        <>
+          {/* Recommendation banner */}
+          <div style={{ ...S.card, background: ZONE_BG[result.zone]||"#F9FAFB", border:`2px solid ${ZONE_COLORS[result.zone]||"#E5E7EB"}` }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+              <div>
+                <div style={{ fontSize:11, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>AI Recommendation</div>
+                <div style={{ fontSize:24, fontWeight:900, color:REC_COLORS[result.recommendation]||"#111827" }}>
+                  {result.recommendation==="BUY"?"✅ Buy It":result.recommendation==="NEGOTIATE"?"🤝 Negotiate":result.recommendation==="PASS"?"❌ Pass":"❓ Needs More Info"}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:ZONE_COLORS[result.zone] }}>{result.zone}</div>
+                  <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Zone</div>
+                </div>
+                {result.suggestedOffer && (
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:"#166534" }}>${result.suggestedOffer.toFixed(0)}</div>
+                    <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Suggested Offer</div>
+                  </div>
+                )}
+                {result.offerPct && (
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:ZONE_COLORS[result.zone] }}>{result.offerPct.toFixed(0)}%</div>
+                    <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>of Market</div>
+                  </div>
+                )}
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:16, fontWeight:700, color:result.confidence==="HIGH"?"#166534":result.confidence==="MEDIUM"?"#92400e":"#9CA3AF" }}>{result.confidence}</div>
+                  <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Confidence</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary + breakdown */}
+          <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:14 }}>
+            <div style={S.card}>
+              <SectionLabel t="Analysis" />
+              <p style={{ fontSize:13, color:"#374151", lineHeight:1.7, margin:0 }}>{result.summary}</p>
+              {result.flags?.length > 0 && (
+                <div style={{ marginTop:12 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#92400e", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>⚠ Flags</div>
+                  {result.flags.map((f,i) => (
+                    <div key={i} style={{ display:"flex", gap:8, marginBottom:4 }}>
+                      <span style={{ color:"#92400e" }}>•</span>
+                      <span style={{ fontSize:12, color:"#6B7280" }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              {result.estimatedCards && (
+                <div style={S.card}>
+                  <div style={{ fontSize:28, fontWeight:900, color:"#111827" }}>{result.estimatedCards}</div>
+                  <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Est. Cards</div>
+                </div>
+              )}
+              {result.estimatedMarketValue && canSeeFinancials && (
+                <div style={S.card}>
+                  <div style={{ fontSize:28, fontWeight:900, color:"#92400e" }}>${result.estimatedMarketValue.toFixed(0)}</div>
+                  <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Est. Market Value</div>
+                </div>
+              )}
+              {result.breakdown && (
+                <div style={S.card}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Card Breakdown</div>
+                  {[["Giveaway",result.breakdown.giveaway],["First-Timer",result.breakdown.firstTimer],["Chaser",result.breakdown.chaser]].map(([l,v])=>(
+                    <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid #F9FAFB" }}>
+                      <span style={{ fontSize:12, color:"#6B7280" }}>{l}</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#111827" }}>~{v||0}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Negotiation tips */}
+          {result.negotiationTips?.length > 0 && (
+            <div style={{ ...S.card, background:"#1A1A2E", border:"1px solid #E8317A33" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>💡 Negotiation Tips</div>
+              {result.negotiationTips.map((t,i) => (
+                <div key={i} style={{ display:"flex", gap:10, marginBottom:8 }}>
+                  <span style={{ color:"#E8317A", fontWeight:900, flexShrink:0 }}>{i+1}.</span>
+                  <span style={{ fontSize:13, color:"#D1D5DB", lineHeight:1.6 }}>{t}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
@@ -758,7 +948,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:8 }}>
-          {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],["history","📋 History"]].map(([mode,label]) => (
+          {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],["ai","🤖 AI Advisor"],["history","📋 History"]].map(([mode,label]) => (
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -776,6 +966,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           ))}
         </div>
       </div>
+
+      {compMode==="ai" && <LotAIAdvisor userRole={userRole}/>}
 
       {compMode==="quick" && (
         <div style={S.card}>
