@@ -508,25 +508,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           })}
         </div>
       </div>
-
-      <div style={S.card}>
-        <SectionLabel t="Portfolio Health" />
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:12 }}>
-          {[
-            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
-            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
-            { l:"Blended Buy %",      v:oPct?(oPct*100).toFixed(1)+"%":"—", c:oz?.color||"#9CA3AF" },
-          ].map(({l,v,c}) => (
-            <div key={l} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{l}</div>
-              <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        {oz && <div style={{ padding:"10px 16px", borderRadius:8, background:oz.bg, border:`1px solid ${oz.color}44`, textAlign:"center" }}>
-          <span style={{ fontWeight:700, color:oz.color, fontSize:13 }}>Portfolio {oz.label}{oPct<0.65?" — Healthy":oPct<=0.70?" — Watch blended rate":" — Review purchases"}</span>
-        </div>}
-      </div>
       )}
 
       <div style={S.card}>
