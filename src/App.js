@@ -952,7 +952,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   );
 }
 
-function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter }) {
+function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
@@ -1025,14 +1025,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
+      const cardName = r.name === "__new__" ? (r._newName||"").trim() : r.name;
+      if (!cardName) return;
       const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
       if (POOL_TYPES.includes(r.cardType)) {
-        // Pool types: create one record with qty instead of N individual records
-        cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, qty, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, qty, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       } else {
-        // Individual types: create one record per card
         for (let i=0; i<qty; i++) {
-          cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+          cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
         }
       }
     });
@@ -1481,15 +1481,36 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-                          <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
-                          {r.name.trim() && (
-                            <a
-                              href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="Search on 130point"
-                              style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
-                            >🔍</a>
+                          {POOL_TYPES.includes(r.cardType) ? (
+                            // Pool type — show dropdown of existing pools + option to type new
+                            <select
+                              value={r.name}
+                              onChange={e=>{ upd(r.id,"name",e.target.value); }}
+                              style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
+                            >
+                              <option value="">— Select Pool —</option>
+                              {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                              ))}
+                              <option value="__new__">+ New pool...</option>
+                            </select>
+                          ) : (
+                            // Individual type — free text input
+                            <>
+                              <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                              {r.name.trim() && (
+                                <a
+                                  href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Search on 130point"
+                                  style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
+                                >🔍</a>
+                              )}
+                            </>
+                          )}
+                          {r.name === "__new__" && (
+                            <input autoFocus value={r._newName||""} onChange={e=>upd(r.id,"_newName",e.target.value)} onBlur={e=>{ if(e.target.value.trim()) upd(r.id,"name",e.target.value.trim()); }} placeholder="New pool name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1, marginTop:4 }}/>
                           )}
                         </div>
 
