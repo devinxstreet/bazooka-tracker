@@ -1071,6 +1071,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                       style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
                                     >✅ Mark Delivered</button>
                                   )}
+                                  {tracking.status === "Delivered" && (
+                                    <button
+                                      onClick={() => onSaveLotTracking(lot.key, { ...tracking, status:"In Transit" })}
+                                      style={{ background:"#FEE2E2", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                    >↩ Undo Delivered</button>
+                                  )}
                                   <button
                                     onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
                                     style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
@@ -1669,7 +1675,7 @@ export default function App() {
       for (const card of lotCards) await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"available" }, { merge:true });
       showToast("✅ Delivered — cards now Available");
     } else if (data.trackingNum) {
-      for (const card of lotCards) if (card.cardStatus !== "available") await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"in_transit" }, { merge:true });
+      for (const card of lotCards) if (card.cardStatus === "available" && card.cardStatus !== "used") await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"in_transit" }, { merge:true });
       const eta = finalData.eta ? ` · ETA ${finalData.eta}` : "";
       showToast(`📦 ${finalData.status||"In Transit"}${eta}`);
     } else {
