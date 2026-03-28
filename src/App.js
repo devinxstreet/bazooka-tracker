@@ -388,11 +388,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
-                    {["Date","Breaker","Gross","Net","Rate",(drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":drillDown==="trueNet"?"True Net":"Gross")].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Gross","Net","Rate",
+                      ...(drillDown==="trueNet" ? ["Baz Earnings","− Commission","+ IMC Reimb","True Net"] : [
+                        drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
+                      ])
+                    ].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet — add a stream recap in Break Log." : "No streams in this period."} cols={6}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet — add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?9:6}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -404,7 +408,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                               <td style={{ ...S.td, color:"#1B4F8A", fontWeight:700 }}>{fmt(c.netRev)}</td>
                               <td style={{ ...S.td, color:"#6B7280" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
-                              <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>
+                              {drillDown==="trueNet" ? <>
+                                <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
+                                <td style={{ ...S.td, color:"#991b1b" }}>− {fmt(c.commAmt)}</td>
+                                <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>+ {fmt(c.imcExpReimb||0)}</td>
+                                <td style={{ ...S.td, color:"#166534", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
+                              </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
                             </tr>
                           );
                         })
@@ -413,7 +422,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <tfoot>
                     <tr style={{ background:"#F9FAFB", borderTop:"2px solid #F0E0E8" }}>
                       <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#111827" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
-                      <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>
+                      {drillDown==="trueNet" ? <>
+                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#991b1b", fontSize:14 }}>− {fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#166534", fontSize:14 }}>+ {fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcExpReimb||0),0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#166534", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
+                      </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
                   </tfoot>
                 </table>
