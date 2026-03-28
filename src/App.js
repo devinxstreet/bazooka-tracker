@@ -59,6 +59,12 @@ function useCountUp(target, duration=600) {
   return val;
 }
 
+function AnimatedNumber({ value, format="dollar", duration=700 }) {
+  const num = useCountUp(parseFloat(value)||0, duration);
+  if (format === "dollar") return <>{fmt(num)}</>;
+  return <>{Math.round(num).toLocaleString()}</>;
+}
+
 function getUserRole(user) {
   if (!user) return { role:"Viewer", label:"Viewer", color:"#9CA3AF", bg:"#F3F4F6" };
   const name = (user.displayName||"").toLowerCase();
