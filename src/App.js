@@ -2687,36 +2687,35 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
 
         </div>
 
-        {/* Revenue waterfall */}
+        {/* Revenue waterfall — Admin only */}
+        {isAdmin && (
         <div style={S.card}>
           <SectionLabel t="Stream Revenue Breakdown" />
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {/* Gross */}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#1A1A2E", borderRadius:8 }}>
               <span style={{ fontWeight:700, color:"#FFFFFF", fontSize:14 }}>Gross Revenue</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
-            {/* Expense rows */}
             {EXPENSE_ROWS.filter(r=>r.v>0).map(({l,v}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FEF3F2", borderRadius:7, border:"1px solid #FEE2E2" }}>
                 <span style={{ color:"#6B7280", fontSize:13 }}>− {l}</span>
                 <span style={{ color:"#991b1b", fontWeight:700, fontSize:13 }}>${v.toFixed(2)}</span>
               </div>
             ))}
-            {/* Total expenses */}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FEE2E2", borderRadius:7 }}>
               <span style={{ fontWeight:700, color:"#991b1b", fontSize:13 }}>Total Expenses</span>
               <span style={{ fontWeight:900, color:"#991b1b", fontSize:13 }}>${c.totalExp.toFixed(2)}</span>
             </div>
-            {/* Net Revenue */}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#F0F9FF", borderRadius:8, border:"2px solid #1B4F8A22" }}>
               <span style={{ fontWeight:800, color:"#1B4F8A", fontSize:14 }}>Net Revenue</span>
               <span style={{ fontWeight:900, color:"#1B4F8A", fontSize:16 }}>{fmt(c.netRev)}</span>
             </div>
           </div>
         </div>
+        )}
 
-        {/* Split */}
+        {/* Split — Admin only */}
+        {isAdmin && (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
           <div style={S.card}>
             <SectionLabel t="Gross Revenue" />
@@ -2731,10 +2730,12 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             <div style={{ fontSize:28, fontWeight:900, color:"#E8317A" }}>{fmt(c.bazNet)}</div>
           </div>
         </div>
+        )}
 
         {/* Commission calc */}
         <div style={{ ...S.card, border:"2px solid #166534" }}>
           <SectionLabel t={`${s.breaker}'s Commission`} />
+          {isAdmin && (
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
             {[
               { l:"Bazooka Earnings",        v:fmt(c.bazNet),      c:"#E8317A" },
@@ -2748,14 +2749,17 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom:10 }}>
+          )}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom: isAdmin ? 10 : 0 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
           </div>
+          {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#1A1A2E", borderRadius:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>🏦 Bazooka True Net</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.bazTrueNet)}</span>
           </div>
+          )}
           {s.marketMultiple && !s.binOnly && (
             <div style={{ marginTop:10, fontSize:12, color:"#9CA3AF", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
           )}
