@@ -5,6 +5,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "
 
 const CARD_TYPES = ["Giveaway/Standard Cards","First-Timer Cards","Chaser Cards"];
 const BREAKERS = ["Dev","Dre","Krystal"];
+const PRODUCT_TYPES = ["Double Mega","Hobby","Jumbo","Miscellaneous"];
 const USAGE_TYPES = ["Giveaway/Standard","First-Timer Pack","Chaser Pull"];
 const SOURCES = ["Discord","Facebook","Other"];
 const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
@@ -1046,7 +1047,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -1079,7 +1080,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:8, marginBottom:4 }}>
-          {[["cards","📦 Cards"],["lots","🗂 Lot History"],["aging","⏰ Aging"],["customers","👥 Customers"]].map(([id,label]) => (
+          {[["cards","📦 Cards"],["lots","🗂 Lot History"],["aging","⏰ Aging"],["customers","👥 Customers"],["product","🎁 Product"]].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab===id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -1311,6 +1312,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
+      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} user={user} userRole={userRole}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
@@ -1387,7 +1389,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -1404,9 +1406,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, breakType:"auction", streamNotes:"" };
+  const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
+  const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
   const [recapSaving, setRecapSaving] = useState(false);
   const [recapSaved,  setRecapSaved]  = useState(false);
+
+  // Check existing product usage for this breaker+date
+  const existingUsage = productUsage.find(u => u.breaker === breaker && u.date === date);
 
   // Check if a stream recap already exists for this breaker+date
   const existingStream = streams.find(s => s.breaker === breaker && s.date === date);
@@ -1419,6 +1426,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     } else {
       setRecap(EMPTY_RECAP);
       setRecapSaved(false);
+    }
+    if (existingUsage) {
+      setProdUsage({ doubleMega:existingUsage.doubleMega||"", hobby:existingUsage.hobby||"", jumbo:existingUsage.jumbo||"", misc:existingUsage.misc||"", miscNotes:existingUsage.miscNotes||"" });
+    } else {
+      setProdUsage(EMPTY_USAGE);
     }
   }, [breaker, date]);
 
@@ -1449,7 +1461,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (!breaker || !date || !recap.grossRevenue) return;
     setRecapSaving(true);
     try {
-      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:existingStream?.id||uid(), breaker, date });
+      const streamId = existingStream?.id || uid();
+      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:streamId, breaker, date });
+      // Save product usage from recap fields
+      const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { const v=parseInt(recap[`prod_${pt}`])||0; if(v>0) acc[pt]=v; return acc; }, {});
+      if (Object.keys(prodFields).length > 0 && onSaveProductUsage) {
+        await onSaveProductUsage({ id:uid(), streamId, breaker, date, ...prodFields });
+      }
       setRecapSaved(true);
     } finally { setRecapSaving(false); }
   }
@@ -1536,6 +1554,25 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ display:"flex", gap:10, marginBottom:14, alignItems:"center" }}>
           <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
           <span style={{ fontSize:12, color:"#6B7280" }}>BIN Break — flat 35% commission</span>
+        </div>
+
+        {/* Product used this stream */}
+        <div style={{ marginBottom:14 }}>
+          <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>📦 Product Used This Stream</label>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            {PRODUCT_TYPES.map(pt => (
+              <div key={pt}>
+                <label style={{ ...S.lbl, color:"#6B2D8B" }}>{pt}</label>
+                <input
+                  type="number" min="0" step="1"
+                  value={recap[`prod_${pt}`]||""}
+                  onChange={e=>rf(`prod_${pt}`)(e.target.value)}
+                  placeholder="0"
+                  style={{ ...S.inp, color:"#6B2D8B" }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Live commission preview */}
@@ -1814,6 +1851,306 @@ function Performance({ breaks, user, userRole }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── PRODUCT INVENTORY ───────────────────────────────────────────
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], doubleMega:0, hobby:0, jumbo:0, misc:0, miscNotes:"", supplier:"" });
+
+  // Calculate stock per type: received - used
+  function getStock(type) {
+    const received = shipments.reduce((sum, s) => sum + (parseInt(s[type])||0), 0);
+    const used     = productUsage.reduce((sum, u) => sum + (parseInt(u[type])||0), 0);
+    return { received, used, stock: received - used };
+  }
+
+  const stock = {
+    doubleMega: getStock("doubleMega"),
+    hobby:      getStock("hobby"),
+    jumbo:      getStock("jumbo"),
+    misc:       getStock("misc"),
+  };
+
+  const LABELS = { doubleMega:"Double Mega", hobby:"Hobby", jumbo:"Jumbo", misc:"Miscellaneous" };
+  const COLORS = { doubleMega:"#6B2D8B", hobby:"#E8317A", jumbo:"#1B4F8A", misc:"#166534" };
+
+  async function handleSave() {
+    if (!Object.values({doubleMega:form.doubleMega,hobby:form.hobby,jumbo:form.jumbo,misc:form.misc}).some(v=>parseInt(v)>0)) return;
+    await onSaveShipment({ ...form, id: uid() });
+    setForm({ date:new Date().toISOString().split("T")[0], doubleMega:0, hobby:0, jumbo:0, misc:0, miscNotes:"", supplier:"" });
+    setShowForm(false);
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Stock overview */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {Object.entries(stock).map(([key, s]) => {
+          const c = COLORS[key];
+          const low = s.stock <= 2;
+          return (
+            <div key={key} style={{ ...S.card, textAlign:"center", border:`2px solid ${low?'#FCA5A5':c+'22'}` }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{LABELS[key]}</div>
+              <div style={{ fontSize:42, fontWeight:900, color: low?"#991b1b":c, lineHeight:1 }}>{s.stock}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF", marginTop:6 }}>in stock</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8, fontSize:11, color:"#9CA3AF" }}>
+                <span>📥 {s.received} rcvd</span>
+                <span>📤 {s.used} used</span>
+              </div>
+              {low && <div style={{ marginTop:8, background:"#FEE2E2", color:"#991b1b", borderRadius:6, padding:"3px 0", fontSize:11, fontWeight:700 }}>⚠ Low Stock</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add shipment */}
+      {isAdmin && (
+        <div style={S.card}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showForm?14:0 }}>
+            <SectionLabel t="Receive Shipment" />
+            <Btn onClick={()=>setShowForm(p=>!p)} variant="ghost">{showForm?"Cancel":"+ Receive Shipment"}</Btn>
+          </div>
+          {showForm && (
+            <div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:12 }}>
+                <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/></div>
+                <div><label style={S.lbl}>Supplier / Source</label><input value={form.supplier} onChange={e=>setForm(p=>({...p,supplier:e.target.value}))} placeholder="e.g. IMC" style={S.inp}/></div>
+                {["doubleMega","hobby","jumbo","misc"].map(k => (
+                  <div key={k}><label style={S.lbl}>{LABELS[k]}</label><input type="number" min="0" value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} placeholder="0" style={S.inp}/></div>
+                ))}
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={S.lbl}>Misc Notes (optional)</label>
+                <input value={form.miscNotes} onChange={e=>setForm(p=>({...p,miscNotes:e.target.value}))} placeholder="e.g. Special edition boxes, collector tins..." style={S.inp}/>
+              </div>
+              <Btn onClick={handleSave} variant="green">📥 Save Shipment</Btn>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Shipment history */}
+      <div style={S.card}>
+        <SectionLabel t="Shipment History" />
+        {shipments.length === 0
+          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet — receive your first shipment above</div>
+          : <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead><tr>
+                  {["Date","Supplier","Double Mega","Hobby","Jumbo","Misc","Notes",...(isAdmin?[""]:[])].map(h=><th key={h} style={S.th}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {shipments.map((s,i) => (
+                    <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                      <td style={S.td}>{s.date}</td>
+                      <td style={S.td}>{s.supplier||"—"}</td>
+                      {["doubleMega","hobby","jumbo","misc"].map(k=>(
+                        <td key={k} style={{ ...S.td, textAlign:"center", fontWeight:700, color:parseInt(s[k])>0?COLORS[k]:"#D1D5DB" }}>{parseInt(s[k])||0}</td>
+                      ))}
+                      <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{s.miscNotes||"—"}</td>
+                      {isAdmin && <td style={S.td}><button onClick={()=>{ if(window.confirm("Remove this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"none", color:"#FCA5A5", cursor:"pointer", fontSize:14 }}>🗑</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+        }
+      </div>
+
+      {/* Usage history */}
+      {productUsage.length > 0 && (
+        <div style={S.card}>
+          <SectionLabel t="Product Usage History" />
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead><tr>
+                {["Date","Breaker","Double Mega","Hobby","Jumbo","Misc"].map(h=><th key={h} style={S.th}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {productUsage.map((u,i) => (
+                  <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                    <td style={S.td}>{u.date}</td>
+                    <td style={S.td}>{u.breaker||"—"}</td>
+                    {["doubleMega","hobby","jumbo","misc"].map(k=>(
+                      <td key={k} style={{ ...S.td, textAlign:"center", fontWeight:700, color:parseInt(u[k])>0?COLORS[k]:"#D1D5DB" }}>{parseInt(u[k])||0}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PRODUCT INVENTORY ───────────────────────────────────────────
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole }) {
+  const canEdit = ["Admin"].includes(userRole?.role);
+  const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
+  const [form,     setForm]     = useState(EMPTY);
+  const [adding,   setAdding]   = useState(false);
+  const [editId,   setEditId]   = useState(null);
+
+  // Compute current stock per product type
+  // Stock = total received - total used across all streams
+  const stock = PRODUCT_TYPES.reduce((acc, pt) => {
+    const received = shipments.reduce((s, sh) => s + (sh.productType===pt ? (parseInt(sh.qty)||0) : 0), 0);
+    const used     = productUsage.reduce((s, u) => s + (parseInt(u[pt])||0), 0);
+    acc[pt] = { received, used, current: received - used };
+    return acc;
+  }, {});
+
+  function openAdd()    { setForm({...EMPTY}); setAdding(true); setEditId(null); }
+  function openEdit(s)  { setForm({date:s.date, productType:s.productType, qty:String(s.qty), notes:s.notes||""}); setEditId(s.id); setAdding(true); }
+  function cancelForm() { setAdding(false); setEditId(null); setForm(EMPTY); }
+
+  async function handleSave() {
+    if (!form.productType || !form.qty || !form.date) return;
+    await onSaveShipment({ ...(editId ? shipments.find(s=>s.id===editId)||{} : {}), ...form, qty:parseInt(form.qty)||0, id:editId||uid() });
+    cancelForm();
+  }
+
+  const PT_COLORS = {
+    "Double Mega":   { bg:"#FFF0E8", text:"#C2410C", border:"#C2410C" },
+    "Hobby":         { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" },
+    "Jumbo":         { bg:"#F0FDF4", text:"#166534", border:"#166534" },
+    "Miscellaneous": { bg:"#FAF5FF", text:"#6B2D8B", border:"#6B2D8B" },
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Stock summary */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {PRODUCT_TYPES.map(pt => {
+          const s  = stock[pt];
+          const pc = PT_COLORS[pt] || { bg:"#F3F4F6", text:"#6B7280", border:"#6B7280" };
+          const low = s.current <= 2;
+          const out = s.current <= 0;
+          return (
+            <div key={pt} style={{ background:pc.bg, border:`2px solid ${out?"#991b1b":low?"#92400e":pc.border}33`, borderRadius:12, padding:"16px", textAlign:"center" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:pc.text, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{pt}</div>
+              <div style={{ fontSize:36, fontWeight:900, color: out?"#991b1b":low?"#92400e":pc.text, marginBottom:4 }}>{s.current}</div>
+              <div style={{ fontSize:10, color:"#9CA3AF" }}>in stock</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8 }}>
+                <span style={{ fontSize:10, color:"#9CA3AF" }}>↑ {s.received} rcvd</span>
+                <span style={{ fontSize:10, color:"#9CA3AF" }}>↓ {s.used} used</span>
+              </div>
+              {out  && <div style={{ marginTop:8, background:"#FEE2E2", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
+              {!out && low && <div style={{ marginTop:8, background:"#FFF9DB", color:"#92400e", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>⚠ Low Stock</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add shipment form */}
+      {canEdit && (
+        <>
+          {!adding
+            ? <Btn onClick={openAdd} variant="gold">+ Add Shipment</Btn>
+            : (
+              <div style={{ ...S.card, border:"2px solid #E8317A33" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                  <SectionLabel t={editId ? "Edit Shipment" : "Add Shipment"} />
+                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:18 }}>✕</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:12, marginBottom:14 }}>
+                  <div>
+                    <label style={S.lbl}>Date</label>
+                    <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Product Type</label>
+                    <select value={form.productType} onChange={e=>setForm(p=>({...p,productType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                      {PRODUCT_TYPES.map(pt=><option key={pt} value={pt}>{pt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Quantity Received</label>
+                    <input type="number" min="1" value={form.qty} onChange={e=>setForm(p=>({...p,qty:e.target.value}))} placeholder="e.g. 12" style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Notes (optional)</label>
+                    <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Special edition, damaged box, etc." style={S.inp}/>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <Btn onClick={handleSave} disabled={!form.productType||!form.qty||!form.date} variant="green">💾 {editId?"Update":"Save"} Shipment</Btn>
+                  <Btn onClick={cancelForm} variant="ghost">Cancel</Btn>
+                </div>
+              </div>
+            )
+          }
+        </>
+      )}
+
+      {/* Shipment history */}
+      <div style={S.card}>
+        <SectionLabel t="Shipment History" />
+        {shipments.length === 0
+          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet — add one above to start tracking</div>
+          : (
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr>{["Date","Product","Qty","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {shipments.map((s,i) => {
+                  const pc = PT_COLORS[s.productType] || { bg:"#F3F4F6", text:"#6B7280" };
+                  return (
+                    <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                      <td style={S.td}>{s.date}</td>
+                      <td style={S.td}><span style={{ background:pc.bg, color:pc.text, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{s.productType}</span></td>
+                      <td style={{ ...S.td, fontWeight:700, color:"#166534", fontSize:15 }}>+{s.qty}</td>
+                      <td style={{ ...S.td, color:"#6B7280", fontStyle:s.notes?"normal":"italic" }}>{s.notes||"—"}</td>
+                      <td style={S.td}>
+                        {canEdit && (
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>✏️</button>
+                            <button onClick={()=>{ if(window.confirm("Delete this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"1px solid #FCA5A5", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#991b1b" }}>🗑</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )
+        }
+      </div>
+
+      {/* Product usage log */}
+      {productUsage.length > 0 && (
+        <div style={S.card}>
+          <SectionLabel t="Usage Log (from Streams)" />
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead>
+              <tr>{["Date","Breaker",...PRODUCT_TYPES].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {productUsage.map((u,i) => (
+                <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                  <td style={S.td}>{u.date}</td>
+                  <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
+                  {PRODUCT_TYPES.map(pt => (
+                    <td key={pt} style={{ ...S.td, color: (parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
+                      {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -2394,6 +2731,8 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
 
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
+  const [gSearch,   setGSearch]   = useState("");
+  const [gOpen,     setGOpen]     = useState(false);
   const [user,      setUser]      = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [inventory, setInventory] = useState([]);
@@ -2403,11 +2742,27 @@ export default function App() {
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
   const [streams,      setStreams]       = useState([]);
+  const [shipments,    setShipments]     = useState([]);
+  const [productUsage, setProductUsage] = useState([]);
+  const [shipments,    setShipments]     = useState([]); // product shipments in
+  const [productUsage, setProductUsage]  = useState([]); // product used per stream
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
     return unsub;
   }, []);
+
+  // Keyboard shortcut: / to open search, Esc to close
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") { setGOpen(false); setGSearch(""); }
+      if (e.key === "/" && !gOpen && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+        e.preventDefault(); setGOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [gOpen]);
 
   useEffect(() => {
     if (!user) return;
@@ -2417,8 +2772,10 @@ export default function App() {
     const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
     const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
     const u6 = onSnapshot(query(collection(db,"streams"), orderBy("date","desc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u7 = onSnapshot(query(collection(db,"shipments"), orderBy("date","desc")), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -2499,6 +2856,38 @@ export default function App() {
     await deleteDoc(doc(db,"streams",id));
     showToast("🗑 Stream deleted");
   }
+  async function handleSaveShipment(shipment) {
+    const id = shipment.id || uid();
+    await setDoc(doc(db,"shipments",id), { ...shipment, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
+    showToast(shipment.id ? "📦 Shipment updated" : "✅ Shipment added");
+  }
+  async function handleDeleteShipment(id) {
+    await deleteDoc(doc(db,"shipments",id));
+    showToast("🗑 Shipment deleted");
+  }
+  async function handleSaveProductUsage(usage) {
+    const id = usage.id || uid();
+    await setDoc(doc(db,"product_usage",id), { ...usage, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
+    showToast("📋 Product usage logged");
+  }
+  async function handleSaveShipment(shipment) {
+    const id = shipment.id || uid();
+    await setDoc(doc(db,"shipments",id), { ...shipment, id, addedAt:new Date().toISOString(), addedBy:user?.displayName||"Unknown" });
+    showToast("📦 Shipment received");
+  }
+  async function handleDeleteShipment(id) {
+    await deleteDoc(doc(db,"shipments",id));
+    showToast("🗑 Shipment removed");
+  }
+  async function handleSaveProductUsage(usage) {
+    const id = usage.id || uid();
+    await setDoc(doc(db,"product_usage",id), { ...usage, id, loggedAt:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
+    showToast("✅ Product usage logged");
+  }
+  async function handleDeleteProductUsage(id) {
+    await deleteDoc(doc(db,"product_usage",id));
+    showToast("🗑 Usage entry removed");
+  }
 
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -2524,6 +2913,78 @@ export default function App() {
   return (
     <div style={{ background:"#F3F4F6", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
       <GlobalStyles />
+
+      {/* ── GLOBAL SEARCH OVERLAY ── */}
+      {gOpen && (() => {
+        const usedIds = new Set(breaks.map(b => b.inventoryId));
+        const q = gSearch.toLowerCase().trim();
+        const results = q.length < 2 ? [] : inventory.filter(c => {
+          return (
+            c.cardName?.toLowerCase().includes(q) ||
+            c.seller?.toLowerCase().includes(q) ||
+            c.cardType?.toLowerCase().includes(q) ||
+            c.source?.toLowerCase().includes(q) ||
+            (usedIds.has(c.id) ? "used" : c.cardStatus === "in_transit" ? "in transit" : "available").includes(q)
+          );
+        });
+        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#2C3E7A" } : { l:"Available", bg:"#D6F4E3", c:"#166534" };
+        return (
+          <div style={{ position:"fixed", inset:0, zIndex:999, display:"flex", flexDirection:"column" }}>
+            {/* Backdrop */}
+            <div onClick={()=>{ setGOpen(false); setGSearch(""); }} style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(2px)" }}/>
+            {/* Panel */}
+            <div style={{ position:"relative", zIndex:1000, margin:"60px auto 0", width:"100%", maxWidth:720, background:"#111111", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.8)", border:"1px solid #333", overflow:"hidden" }}>
+              {/* Search input */}
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 20px", borderBottom:"1px solid #222" }}>
+                <span style={{ fontSize:18, color:"#E8317A" }}>🔍</span>
+                <input
+                  autoFocus
+                  value={gSearch}
+                  onChange={e=>setGSearch(e.target.value)}
+                  placeholder="Search cards, sellers, types, sources..."
+                  style={{ flex:1, background:"none", border:"none", outline:"none", color:"#FFFFFF", fontSize:16, fontFamily:"inherit" }}
+                />
+                {gSearch && <button onClick={()=>setGSearch("")} style={{ background:"none", border:"none", color:"#666", cursor:"pointer", fontSize:18 }}>✕</button>}
+                <kbd style={{ background:"#222", color:"#666", border:"1px solid #444", borderRadius:5, padding:"2px 8px", fontSize:11 }}>esc</kbd>
+              </div>
+
+              {/* Results */}
+              <div style={{ maxHeight:500, overflowY:"auto" }}>
+                {q.length < 2
+                  ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#444", fontSize:13 }}>Type at least 2 characters to search</div>
+                  : results.length === 0
+                    ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#444", fontSize:13 }}>No cards found for "{gSearch}"</div>
+                    : <>
+                        <div style={{ padding:"8px 20px", fontSize:11, color:"#555", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
+                        {results.map((c,i) => {
+                          const st = getStatus(c);
+                          const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
+                          return (
+                            <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, padding:"12px 20px", borderBottom:"1px solid #1a1a1a", background:i%2===0?"#111111":"#161616" }}>
+                              <div>
+                                <div style={{ fontWeight:700, color:"#FFFFFF", fontSize:14, marginBottom:4 }}>{c.cardName||"—"}</div>
+                                <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                                  {c.cardType && <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{c.cardType}</span>}
+                                  {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#aaa"}}>{c.seller}</strong></span>}
+                                  {c.source && <span style={{ fontSize:11, color:"#666" }}>{c.source}</span>}
+                                  {c.date && <span style={{ fontSize:11, color:"#555" }}>{c.date}</span>}
+                                </div>
+                              </div>
+                              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                                <span style={{ background:st.bg, color:st.c, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{st.l}</span>
+                                {c.marketValue > 0 && <span style={{ fontSize:11, color:"#92400e" }}>${c.marketValue.toFixed(2)}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                }
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
@@ -2538,6 +2999,15 @@ export default function App() {
             ))}
           </nav>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+            {/* Search button */}
+            <button
+              onClick={()=>{ setGOpen(true); setGSearch(""); }}
+              style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a2e", border:"1px solid #333", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}
+            >
+              <span style={{ fontSize:13 }}>🔍</span>
+              <span style={{ fontSize:12 }}>Search</span>
+              <kbd style={{ background:"#111", color:"#555", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
+            </button>
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{inventory.length} cards</span>
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
             <span style={{ color:"#9CA3AF", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
@@ -2550,8 +3020,8 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
-        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment}/>}
+        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
         {tab==="commission"  && <Commission streams={streams} onSave={handleSaveStream} onDelete={handleDeleteStream} user={user} userRole={userRole}/>}
       </div>
