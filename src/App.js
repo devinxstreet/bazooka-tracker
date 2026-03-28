@@ -1626,64 +1626,57 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           ))}
           {/* Chaser Cards — picker + manual override */}
-          <div style={{ gridColumn:"span 4" }}>
-            <label style={{ ...S.lbl, color:"#8B5E00" }}>🏆 Chaser Cards Used</label>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"start" }}>
-              <div>
-                {/* Card picker */}
-                {(() => {
-                  const usedIdSet = new Set(breaks.map(b=>b.inventoryId));
-                  const chasers = inventory.filter(c => c.cardType==="Chaser Cards" && !usedIdSet.has(c.id) && c.cardStatus!=="in_transit");
-                  const selectedChasers = recap.chaserCardIds ? recap.chaserCardIds.split(",").filter(Boolean) : [];
-                  const totalCost = selectedChasers.reduce((sum,id)=>{
-                    const card = inventory.find(c=>c.id===id);
-                    return sum + (card?.costPerCard||0);
-                  }, 0);
-                  return (
-                    <div>
-                      {chasers.length === 0
-                        ? <div style={{ fontSize:12, color:"#9CA3AF", padding:"8px 0" }}>No chaser cards available in inventory</div>
-                        : <div style={{ maxHeight:160, overflowY:"auto", border:"1px solid #F0D0DC", borderRadius:8, background:"#FFFFFF" }}>
-                            {chasers.map(c => {
-                              const isSel = selectedChasers.includes(c.id);
-                              return (
-                                <div key={c.id}
-                                  onClick={()=>{
-                                    const newSel = isSel
-                                      ? selectedChasers.filter(x=>x!==c.id)
-                                      : [...selectedChasers, c.id];
-                                    const newCost = newSel.reduce((sum,id)=>{
-                                      const card = inventory.find(x=>x.id===id);
-                                      return sum + (card?.costPerCard||0);
-                                    },0);
-                                    setRecap(p=>({...p, chaserCardIds:newSel.join(","), chaserCards:newCost>0?newCost.toFixed(2):p.chaserCards}));
-                                    setRecapSaved(false);
-                                  }}
-                                  style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:isSel?"#FFF0CC":"#FFFFFF", borderBottom:"1px solid #FFF0F5" }}
-                                >
-                                  <input type="checkbox" checked={isSel} onChange={()=>{}} style={{ flexShrink:0 }}/>
-                                  <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#111827", flex:1 }}>{c.cardName}</span>
-                                  {c.costPerCard>0 && <span style={{ fontSize:11, color:"#8B5E00" }}>${c.costPerCard.toFixed(2)}</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                      }
-                      {selectedChasers.length > 0 && (
-                        <div style={{ fontSize:11, color:"#8B5E00", fontWeight:700, marginTop:4 }}>
-                          {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
-                          <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ marginLeft:8, background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:11 }}>✕ clear</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div style={{ minWidth:120 }}>
-                <label style={{ ...S.lbl, fontSize:10 }}>Override ($)</label>
-                <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, color:"#8B5E00" }}/>
+          <div style={{ gridColumn:"span 4", background:"#FFFBF0", border:"1px solid #92400e22", borderRadius:10, padding:"12px 14px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <label style={{ ...S.lbl, color:"#8B5E00", margin:0 }}>🏆 Cards Used as Chasers</label>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <label style={{ fontSize:11, color:"#9CA3AF" }}>Manual override ($)</label>
+                <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:90, color:"#8B5E00", padding:"4px 8px" }}/>
               </div>
             </div>
+            {(() => {
+              const usedIdSet = new Set(breaks.map(b=>b.inventoryId));
+              const available = inventory.filter(c => !usedIdSet.has(c.id) && c.cardStatus!=="in_transit");
+              const selectedChasers = recap.chaserCardIds ? recap.chaserCardIds.split(",").filter(Boolean) : [];
+              const totalCost = selectedChasers.reduce((sum,id)=>{ const card=inventory.find(c=>c.id===id); return sum+(card?.costPerCard||0); }, 0);
+              return (
+                <div>
+                  {available.length === 0
+                    ? <div style={{ fontSize:12, color:"#9CA3AF", padding:"8px 0" }}>No available cards in inventory</div>
+                    : <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #F0D0DC", borderRadius:8, background:"#FFFFFF" }}>
+                        {available.map(c => {
+                          const isSel = selectedChasers.includes(c.id);
+                          const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
+                          return (
+                            <div key={c.id}
+                              onClick={()=>{
+                                const newSel = isSel ? selectedChasers.filter(x=>x!==c.id) : [...selectedChasers, c.id];
+                                const newCost = newSel.reduce((sum,id)=>{ const card=inventory.find(x=>x.id===id); return sum+(card?.costPerCard||0); },0);
+                                setRecap(p=>({...p, chaserCardIds:newSel.join(","), chaserCards:newCost>0?newCost.toFixed(2):p.chaserCards}));
+                                setRecapSaved(false);
+                              }}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#FFF9DB":"#FFFFFF", borderBottom:"1px solid #FFF0F5" }}
+                            >
+                              <input type="checkbox" checked={isSel} readOnly style={{ flexShrink:0 }}/>
+                              <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#111827", flex:1 }}>{c.cardName}</span>
+                              <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>{c.cardType}</span>
+                              {c.costPerCard>0 && <span style={{ fontSize:11, color:"#8B5E00", fontWeight:700 }}>${c.costPerCard.toFixed(2)}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                  }
+                  {selectedChasers.length > 0 && (
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
+                      <span style={{ fontSize:12, color:"#8B5E00", fontWeight:700 }}>
+                        ✅ {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
+                      </span>
+                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, color:"#9CA3AF", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           {/* Supply qty fields — auto-calc from cost per unit */}
           <div style={{ display:"contents" }}>
