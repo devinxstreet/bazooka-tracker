@@ -294,6 +294,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
             imc:        { label:"Owed to Imagination Mining (70%)", color:"#6B2D8B", val: s => calcStream(s).imcNet },
             commission: { label:"Commission Owed",     color:"#166534", val: s => calcStream(s).commAmt },
             bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
+            trueNet:    { label:"Bazooka True Net",      color:"#166534", val: s => calcStream(s).bazTrueNet||0 },
           }[drillDown];
           return (
             <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
@@ -360,12 +361,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
 
             <div style={{ fontSize:11, color:"#9CA3AF", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",     val:totals.gross, color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IM",         val:totals.imc,   color:"#6B2D8B", sub:"70% of net revenue" },
-                { key:"commission", label:"Commission Owed",   val:totals.comm,  color:"#166534", sub:"click to see per rep" },
-                { key:"bazooka",    label:"Bazooka Earnings",  val:totals.baz,   color:"#E8317A", sub:"30% of net revenue" },
+                { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
+                { key:"imc",        label:"Owed to IM",           val:totals.imc,       color:"#6B2D8B", sub:"70% of net revenue" },
+                { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#991b1b", sub:"click to see per rep" },
+                { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
+                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet,   color:"#166534", sub:"after commission paid" },
               ].map(({key,label,val,color,sub}) => (
                 <div
                   key={key}
@@ -373,7 +375,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
                   className="stat-card"
                   style={{ background:drillDown===key?"#1A1A2E":"#FAFAFA", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
                 >
-                  <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>${val.toFixed(2)}</div>
+                  <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
                   <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#111827", marginBottom:3 }}>{label}</div>
                   <div style={{ fontSize:10, color:drillDown===key?"#888":"#9CA3AF" }}>{drillDown===key?"▲ hide":"▼ "+sub}</div>
                 </div>
@@ -1405,7 +1407,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={} }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={} }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -1701,11 +1703,22 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
         )}
 
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
           <Btn onClick={handleSaveRecap} disabled={!breaker||!date||!recap.grossRevenue||recapSaving} variant="green">
             {recapSaving ? "Saving..." : recapSaved ? "✅ Update Recap" : "💾 Save Stream Recap"}
           </Btn>
+          {recapSaved && (
+            <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); }} variant="ghost">
+              + New Stream
+            </Btn>
+          )}
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#92400e" }}>⚠ Unsaved changes</span>}
+          {existingStream && (
+            <button
+              onClick={async()=>{ if(window.confirm("Delete this stream recap? This cannot be undone.")) { if(onDeleteStream) await onDeleteStream(existingStream.id); setRecap({...EMPTY_RECAP}); setRecapSaved(false); }}}
+              style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}
+            >🗑 Delete Stream</button>
+          )}
         </div>
       </div>}
 
@@ -2446,7 +2459,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole}/>}
     </div>
@@ -2517,9 +2530,10 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     acc.net      += c.netRev;
     acc.baz      += c.bazNet;
     acc.comm     += c.commAmt;
+    acc.trueNet  += c.bazTrueNet||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, newBuyers:0 });
+  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, newBuyers:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
