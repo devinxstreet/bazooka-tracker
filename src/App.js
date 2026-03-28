@@ -239,7 +239,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [customStart,     setCustomStart]     = useState("");
@@ -332,7 +332,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
-        const totals   = filtered.reduce((acc,s) => {
+        const streamTotals = filtered.reduce((acc,s) => {
           const c = calcStream(s);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
@@ -341,6 +341,31 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           acc.trueNet  += c.bazTrueNet||0;
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
+
+        // Merge historical monthly summaries into totals
+        const histFiltered = historicalData.filter(h => {
+          if (!h.yearMonth) return false;
+          const [y,m] = h.yearMonth.split("-").map(Number);
+          const d = new Date(y, m-1, 15);
+          return inPeriod(d.toISOString().split("T")[0]);
+        });
+        const histTotals = histFiltered.reduce((acc,h) => {
+          const gross   = parseFloat(h.grossRevenue)||0;
+          const net     = parseFloat(h.netRevenue)||0;
+          acc.gross    += gross;
+          acc.imc      += net * 0.70;
+          acc.baz      += net * 0.30;
+          acc.trueNet  += net * 0.30; // no commission data for historical
+          return acc;
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
+
+        const totals = {
+          gross:   streamTotals.gross   + histTotals.gross,
+          imc:     streamTotals.imc     + histTotals.imc,
+          comm:    streamTotals.comm    + histTotals.comm,
+          baz:     streamTotals.baz     + histTotals.baz,
+          trueNet: streamTotals.trueNet + histTotals.trueNet,
+        };
 
         const PERIOD_LABELS = { week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
 
@@ -594,6 +619,72 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           })}
         </div>
       </div>
+
+      {/* Historical Data — Admin only */}
+      {canSeeFinancials && (() => {
+        const [showHist, setShowHist] = useState(false);
+        const [histForm, setHistForm] = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", notes:"" });
+
+        async function saveHist() {
+          if (!histForm.yearMonth || !histForm.grossRevenue) return;
+          await onSaveHistorical({ ...histForm, id: histForm.yearMonth });
+          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", notes:"" });
+        }
+
+        return (
+          <div style={{ ...S.card, border:"2px solid #6B2D8B33" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showHist ? 14 : 0 }}>
+              <SectionLabel t="📅 Historical Monthly Data" />
+              <button onClick={()=>setShowHist(p=>!p)} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#6B2D8B", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {showHist ? "▲ Hide" : "▼ Manage"}
+              </button>
+            </div>
+            {showHist && (
+              <>
+                <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard.</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
+                  <div>
+                    <label style={S.lbl}>Month (YYYY-MM)</label>
+                    <input type="month" value={histForm.yearMonth} onChange={e=>setHistForm(p=>({...p,yearMonth:e.target.value}))} style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Gross Revenue ($)</label>
+                    <input type="number" step="0.01" value={histForm.grossRevenue} onChange={e=>setHistForm(p=>({...p,grossRevenue:e.target.value}))} placeholder="0.00" style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Net Revenue ($)</label>
+                    <input type="number" step="0.01" value={histForm.netRevenue} onChange={e=>setHistForm(p=>({...p,netRevenue:e.target.value}))} placeholder="0.00" style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Notes</label>
+                    <input value={histForm.notes} onChange={e=>setHistForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Jan streams" style={S.inp}/>
+                  </div>
+                  <Btn onClick={saveHist} disabled={!histForm.yearMonth||!histForm.grossRevenue} variant="green">+ Add</Btn>
+                </div>
+                {historicalData.length > 0 && (
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["Month","Gross","Net","Bazooka (30%)","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {historicalData.map((h,i) => (
+                        <tr key={h.id} style={{ background:i%2===0?"#FFFFFF":"#FFF8FB" }}>
+                          <td style={{ ...S.td, fontWeight:700, color:"#6B2D8B" }}>{h.yearMonth}</td>
+                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
+                          <td style={{ ...S.td, color:"#1B4F8A" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
+                          <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
+                          <td style={{ ...S.td, color:"#9CA3AF" }}>{h.notes||"—"}</td>
+                          <td style={S.td}>
+                            <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
     </div>
   );
@@ -3335,6 +3426,7 @@ export default function App() {
   const [shipments,    setShipments]     = useState([]);
   const [productUsage, setProductUsage] = useState([]);
   const [skuPrices,    setSkuPrices]     = useState({});
+  const [historicalData, setHistoricalData] = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -3363,9 +3455,10 @@ export default function App() {
     const u6 = onSnapshot(query(collection(db,"streams"), orderBy("date","desc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u7 = onSnapshot(query(collection(db,"shipments"), orderBy("date","desc")), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u9 = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
+    const u9  = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
+    const u10 = onSnapshot(query(collection(db,"historical_data"), orderBy("yearMonth","asc")), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -3458,6 +3551,15 @@ export default function App() {
   async function handleDeleteShipment(id) {
     await deleteDoc(doc(db,"shipments",id));
     showToast("🗑 Shipment deleted");
+  }
+  async function handleSaveHistorical(entry) {
+    const id = entry.id || entry.yearMonth;
+    await setDoc(doc(db,"historical_data",id), { ...entry, id });
+    showToast("📅 Historical data saved");
+  }
+  async function handleDeleteHistorical(id) {
+    await deleteDoc(doc(db,"historical_data",id));
+    showToast("🗑 Historical entry deleted");
   }
   async function handleSaveSkuPrices(prices) {
     await setDoc(doc(db,"settings","sku_prices"), prices);
@@ -3644,7 +3746,7 @@ export default function App() {
       )}
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
