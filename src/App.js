@@ -431,7 +431,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now   = new Date();
         function inPeriod(dateStr) {
           if (!dateStr) return false;
-          const d = new Date(dateStr);
+          const d = parseLocalDate(dateStr);
           if (financialPeriod === "custom") {
             const s = customStart ? new Date(customStart) : new Date(0);
             const e = customEnd   ? new Date(customEnd+"T23:59:59") : new Date();
@@ -443,7 +443,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const daysFromMonday = day === 0 ? 6 : day - 1; // Mon=0 offset
             start.setDate(now.getDate() - daysFromMonday);
             start.setHours(0,0,0,0);
-            return d >= start;
+            const end = new Date(start); end.setDate(start.getDate()+6); end.setHours(23,59,59,999);
+            return d >= start && d <= end;
           }
           if (financialPeriod === "month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
           if (financialPeriod === "quarter") {
@@ -1573,7 +1574,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -1932,6 +1933,9 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                               <>
                                 {canSeeFinancials && <button onClick={()=>{ setEditCostId(c.id); setEditCostVal((c.costPerCard||0).toFixed(2)); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit cost">✏️</button>}
                                 {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14 }}>✕</button>}
+                                {usedIds.has(c.id) && onPutBack && CAN_DELETE.includes(userRole?.role) && (
+                                  <button onClick={()=>{ if(window.confirm(`Put "${c.cardName}" back in inventory?`)) onPutBack(c.id); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>↩ Put Back</button>
+                                )}
                               </>
                             )}
                           </div>
@@ -2683,10 +2687,10 @@ function Performance({ breaks, user, userRole, streams=[] }) {
 
   // Boxes ripped calculations
   const thisMonth = streams.filter(s => {
-    const d = new Date(s.date);
+    const d = parseLocalDate(s.date);
     return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
   });
-  const thisYear = streams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
+  const thisYear = streams.filter(s => parseLocalDate(s.date).getFullYear()===now.getFullYear());
 
   function boxesForStreams(slist) {
     return PRODUCT_TYPES.reduce((acc, pt) => {
@@ -3529,14 +3533,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [breakerFilter, setBreakerFilter] = useState("all");
 
   function inPeriod(dateStr) {
-    const d   = new Date(dateStr);
+    const d   = parseLocalDate(dateStr);
     const now = new Date();
     if (period === "week") {
       const start = new Date(now);
       const day = now.getDay();
       start.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
       start.setHours(0,0,0,0);
-      return d >= start;
+      const end = new Date(start); end.setDate(start.getDate()+6); end.setHours(23,59,59,999);
+      return d >= start && d <= end;
     }
     if (period === "month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
     if (period === "quarter") {
@@ -3545,8 +3550,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     }
     if (period === "year")    return d.getFullYear()===now.getFullYear();
     if (period === "custom" && customFrom && customTo) {
-      const from = new Date(customFrom); from.setHours(0,0,0,0);
-      const to   = new Date(customTo);   to.setHours(23,59,59,999);
+      const from = parseLocalDate(customFrom); from.setHours(0,0,0,0);
+      const to   = parseLocalDate(customTo);   to.setHours(23,59,59,999);
       return d >= from && d <= to;
     }
     return true; // "all"
@@ -3857,7 +3862,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
 
             function inStubPeriod(dateStr) {
-              const d = new Date(dateStr);
+              // Parse date string as local time (not UTC) to avoid timezone shift
+              const parts = dateStr.split("-");
+              const d = parts.length === 3
+                ? new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 12, 0, 0)
+                : new Date(dateStr);
               if (stubPeriod === "week") return d >= weekStart && d <= weekEnd;
               if (stubPeriod === "custom" && stubFrom && stubTo) {
                 const f = new Date(stubFrom); f.setHours(0,0,0,0);
@@ -5035,11 +5044,18 @@ export default function App() {
     showToast(stream.id ? "💾 Stream updated" : "✅ Stream saved");
   }
   async function handleDeleteStream(id) {
+    // Find the stream to get its chaserCardIds
+    const stream = streams.find(s => s.id === id);
     await deleteDoc(doc(db,"streams",id));
-    // Also delete any product usage entries linked to this stream
+    // Delete linked product usage
     const linked = productUsage.filter(u => u.streamId === id);
     for (const u of linked) await deleteDoc(doc(db,"product_usage",u.id));
-    showToast(`🗑 Stream deleted${linked.length > 0 ? " — product usage removed" : ""}`);
+    // Restore chaser cards — delete their break log entries so they show as available again
+    const chaserIds = stream?.chaserCardIds ? stream.chaserCardIds.split(",").filter(Boolean) : [];
+    const chaserBreaks = breaks.filter(b => chaserIds.includes(b.inventoryId));
+    for (const b of chaserBreaks) await deleteDoc(doc(db,"breaks",b.id));
+    showToast(`🗑 Stream deleted${chaserIds.length>0?` — ${chaserIds.length} chaser card${chaserIds.length!==1?"s":""} restored to inventory`:""}${linked.length>0?" — product usage removed":""}`);
+  }
   }
 
   async function handleSaveShipment(shipment) {
@@ -5198,6 +5214,12 @@ export default function App() {
     if (!card) return;
     await setDoc(doc(db,"inventory",id), { ...card, costPerCard:newCost, buyPct: card.marketValue>0 ? newCost/card.marketValue : null }, { merge:true });
     showToast("💰 Card cost updated");
+  }
+  async function handlePutBack(cardId) {
+    // Delete all break log entries for this card so it shows as available again
+    const cardBreaks = breaks.filter(b => b.inventoryId === cardId);
+    for (const b of cardBreaks) await deleteDoc(doc(db,"breaks",b.id));
+    showToast("↩ Card restored to inventory");
   }
 
   async function handleDeleteLot(lotKey, cardIds) {
@@ -5383,7 +5405,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
@@ -5392,4 +5414,12 @@ export default function App() {
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
     </div>
   );
+}
+
+// Parse a YYYY-MM-DD date string as LOCAL time (not UTC) to avoid timezone shifts
+function parseLocalDate(dateStr) {
+  if (!dateStr) return new Date(0);
+  const parts = String(dateStr).split("T")[0].split("-");
+  if (parts.length === 3) return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 12, 0, 0);
+  return new Date(dateStr);
 }
