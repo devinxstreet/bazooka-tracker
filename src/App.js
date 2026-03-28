@@ -277,12 +277,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
         const filtered = streams.filter(s => inPeriod(s.date));
         const totals   = filtered.reduce((acc,s) => {
           const c = calcStream(s);
-          acc.gross  += c.gross;
-          acc.imc    += c.imcNet;
-          acc.comm   += c.commAmt;
-          acc.baz    += c.bazNet;
+          acc.gross    += c.gross;
+          acc.imc      += c.imcNet;
+          acc.comm     += c.commAmt;
+          acc.baz      += c.bazNet;
+          acc.trueNet  += c.bazTrueNet||0;
           return acc;
-        }, { gross:0, imc:0, comm:0, baz:0 });
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
         const PERIOD_LABELS = { week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
 
@@ -1456,7 +1457,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     return v => {
       setRecap(p => {
         const updated = { ...p, [k]: v };
-        // Auto-calculate market multiple when product counts or gross revenue change
+        // When BIN is toggled on, clear the market multiple
+        if (k === "binOnly" && v === true) {
+          updated.marketMultiple = "";
+          return updated;
+        }
+        // Auto-calculate market multiple when product counts or gross revenue change (not BIN)
         const isProductField = PRODUCT_TYPES.some(pt => k === `prod_${pt}`);
         if ((isProductField || k === "grossRevenue") && !updated.binOnly) {
           const gross = parseFloat(k === "grossRevenue" ? v : updated.grossRevenue) || 0;
@@ -1609,10 +1615,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         onChange={e => {
                           const q = parseInt(e.target.value)||0;
                           const amt = (q * costPer).toFixed(2);
-                          setRecap(p => {
-                            const updated = { ...p, [qtyKey]:e.target.value, [dollarKey]:amt };
-                            return updated;
-                          });
+                          setRecap(p => ({ ...p, [qtyKey]:e.target.value, [dollarKey]:amt }));
                           setRecapSaved(false);
                         }}
                         placeholder="0"
