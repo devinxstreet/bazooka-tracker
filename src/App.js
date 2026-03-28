@@ -509,7 +509,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           })}
         </div>
       </div>
-      )}
 
       <div style={S.card}>
         <SectionLabel t="Team Activity" />
@@ -1990,6 +1989,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
   );
 
 // ─── CUSTOMERS CRM ──────────────────────────────────────────────
+}
 function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
