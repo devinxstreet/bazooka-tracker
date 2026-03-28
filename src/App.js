@@ -269,7 +269,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
           const commBase = bazNet - repExp;
           const mm = parseFloat(s.marketMultiple)||0;
-          const rate = s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
+          const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt  = commBase * rate;
           return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
         }
@@ -1424,7 +1425,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [histSel,    setHistSel]    = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", streamNotes:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -1440,7 +1441,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
     if (existingStream) {
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", streamNotes:existingStream.notes||"" });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"" });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -1497,7 +1498,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
     const commBase = bazNet - repExp;
     const mm = parseFloat(recap.marketMultiple)||0;
-    const rate = recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
+    const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commAmt = commBase * rate;
     return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
   }
@@ -1633,9 +1635,27 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
-        <div style={{ display:"flex", gap:10, marginBottom:14, alignItems:"center" }}>
-          <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
-          <span style={{ fontSize:12, color:"#6B7280" }}>BIN Break — flat 35% commission</span>
+        <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
+            <span style={{ fontSize:12, color:"#6B7280" }}>BIN Break — flat 35% commission</span>
+          </div>
+          {canSeeFinancials && (
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+              <label style={{ fontSize:12, color:"#6B2D8B", fontWeight:700, whiteSpace:"nowrap" }}>🔧 Override Commission %</label>
+              <input
+                type="number" min="0" max="100" step="1"
+                value={recap.commissionOverride||""}
+                onChange={e=>rf("commissionOverride")(e.target.value)}
+                placeholder="e.g. 0"
+                style={{ ...S.inp, width:80, color:"#6B2D8B", textAlign:"center" }}
+              />
+              {recap.commissionOverride !== "" && (
+                <button onClick={()=>rf("commissionOverride")("")} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
+              )}
+              <span style={{ fontSize:11, color:"#9CA3AF" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
+            </div>
+          )}
         </div>
 
         {/* Product used this stream */}
@@ -1723,7 +1743,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
           const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70, repExp=(coupons+promo+magpros+pack+topload+chaser)*0.135;
-          const mm=parseFloat(s.marketMultiple)||0, rate=s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt=(bazNet-repExp)*rate;
           return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet: bazNet-repExp-commAmt, rate };
         }
@@ -2547,6 +2567,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
 
   // Commission rate from comp plan
   function getCommRate(stream) {
+    if (stream.commissionOverride !== "" && stream.commissionOverride != null) return parseFloat(stream.commissionOverride)/100;
     if (stream.binOnly) return 0.35;
     const mm = parseFloat(stream.marketMultiple) || 0;
     if (mm >= 1.8) return 0.55;
