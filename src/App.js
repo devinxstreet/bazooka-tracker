@@ -3482,12 +3482,13 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   const commAmt     = commBase * rate;
   const bazTrueNet  = bazNet - repExp - commAmt + (streamExp * 0.70);
 
-  // Zone color
-  const zone = targetMultiple < 0.65 ? { c:"#4ade80", bg:"#0a1a0a", l:"🟢 Green Zone" }
-             : targetMultiple < 0.70 ? { c:"#FBBF24", bg:"#1a1400", l:"🟡 Yellow Zone" }
-             : { c:"#E8317A", bg:"#1a0a0a", l:"🔴 Red Zone" };
+  // Zone based on market multiple (targetGross / totalMktVal)
+  // 1.5x+ = green, 1.3-1.5x = yellow, <1.3x = red
+  const zone = targetMultiple >= 1.5 ? { c:"#4ade80", bg:"#0a1a0a", l:"🟢 Green · "+targetMultiple.toFixed(2)+"x" }
+             : targetMultiple >= 1.3 ? { c:"#FBBF24", bg:"#1a1400", l:"🟡 Yellow · "+targetMultiple.toFixed(2)+"x" }
+             : { c:"#E8317A", bg:"#1a0a0a", l:"🔴 Red · "+targetMultiple.toFixed(2)+"x" };
 
-  const breakEvenGross  = totalMktVal * 0.65;
+  const breakEvenGross  = totalMktVal * 1.0;
   const breakEvenSpot   = breakEvenGross / numSpots;
 
   return (
@@ -3595,7 +3596,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                 {["Target %","Spot Price","Est. Gross","Bazooka Net","Commission","Zone"].map(h=><th key={h} style={S.th}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {[55,60,65,70,75,80].map((pct,i) => {
+                {[110,120,130,140,150,160,170,180].map((pct,i) => {
                   const g = totalMktVal * pct/100;
                   const sp = g / numSpots;
                   const wf = g * (parseFloat(whatnotPct)||0) / 100;
@@ -3608,8 +3609,8 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                   const r = mult>=1.8?0.55:mult>=1.7?0.50:mult>=1.6?0.45:mult>=1.5?0.40:0.35;
                   const ca = (bnc-re) * r;
                   const isTarget = pct === parseInt(targetPct);
-                  const zc = pct<65?"#4ade80":pct<70?"#FBBF24":"#E8317A";
-                  const zl = pct<65?"🟢 Green":pct<70?"🟡 Yellow":"🔴 Red";
+                  const zc = pct>=150?"#4ade80":pct>=130?"#FBBF24":"#E8317A";
+                  const zl = pct>=150?"🟢 Green":pct>=130?"🟡 Yellow":"🔴 Red";
                   return (
                     <tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
                       <td style={{ ...S.td, fontWeight:isTarget?900:400, color:zc }}>{pct}%{isTarget?" ← target":""}</td>
@@ -3628,8 +3629,8 @@ function BreakPlanner({ skuPrices={}, userRole }) {
           {/* Break-even callout */}
           <div style={{ ...S.card, background:"#0a0f1a", border:"1px solid #7B9CFF33", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>📉 Break-Even Spot Price (65%)</div>
-              <div style={{ fontSize:12, color:"#666" }}>Minimum to stay in Green Zone</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>🚨 Break-Even Spot Price (1.0x)</div>
+              <div style={{ fontSize:12, color:"#666" }}>At this price you're just recovering market value — no profit</div>
             </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:28, fontWeight:900, color:"#7B9CFF" }}>${breakEvenSpot.toFixed(2)}</div>
