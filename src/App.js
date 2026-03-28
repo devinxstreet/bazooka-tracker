@@ -2578,8 +2578,6 @@ export default function App() {
   const [streams,      setStreams]       = useState([]);
   const [shipments,    setShipments]     = useState([]);
   const [productUsage, setProductUsage] = useState([]);
-  const [shipments,    setShipments]     = useState([]); // product shipments in
-  const [productUsage, setProductUsage]  = useState([]); // product used per stream
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -2703,24 +2701,6 @@ export default function App() {
     const id = usage.id || uid();
     await setDoc(doc(db,"product_usage",id), { ...usage, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
     showToast("📋 Product usage logged");
-  }
-  async function handleSaveShipment(shipment) {
-    const id = shipment.id || uid();
-    await setDoc(doc(db,"shipments",id), { ...shipment, id, addedAt:new Date().toISOString(), addedBy:user?.displayName||"Unknown" });
-    showToast("📦 Shipment received");
-  }
-  async function handleDeleteShipment(id) {
-    await deleteDoc(doc(db,"shipments",id));
-    showToast("🗑 Shipment removed");
-  }
-  async function handleSaveProductUsage(usage) {
-    const id = usage.id || uid();
-    await setDoc(doc(db,"product_usage",id), { ...usage, id, loggedAt:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
-    showToast("✅ Product usage logged");
-  }
-  async function handleDeleteProductUsage(id) {
-    await deleteDoc(doc(db,"product_usage",id));
-    showToast("🗑 Usage entry removed");
   }
 
   async function handleDeleteLot(lotKey, cardIds) {
