@@ -25,7 +25,7 @@ const TARGETS = {
 const CC = {
   "Giveaway/Standard Cards": { bg:"#D6F4E3", text:"#1A6B3A", border:"#2E7D52" },
   "First-Timer Cards":       { bg:"#FCE8F3", text:"#8B1A5A", border:"#9d174d" },
-  "Chaser Cards":            { bg:"#FFF0CC", text:"#8B5E00", border:"#92400e" },
+  "Chaser Cards":            { bg:"#1a1200", text:"#FBBF24", border:"#FBBF24" },
 };
 const BC = {
   Dev:     { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" },
@@ -66,13 +66,13 @@ function AnimatedNumber({ value, format="dollar", duration=700 }) {
 }
 
 function getUserRole(user) {
-  if (!user) return { role:"Viewer", label:"Viewer", color:"#666666", bg:"#F3F4F6" };
+  if (!user) return { role:"Viewer", label:"Viewer", color:"#888888", bg:"#F3F4F6" };
   const name = (user.displayName||"").toLowerCase();
   const email = (user.email||"").toLowerCase();
   for (const [key, val] of Object.entries(ROLES)) {
     if (name.includes(key) || email.includes(key)) return val;
   }
-  return { role:"Viewer", label:"Viewer", color:"#666666", bg:"#F3F4F6" };
+  return { role:"Viewer", label:"Viewer", color:"#888888", bg:"#F3F4F6" };
 }
 function getZone(pct) {
   if (!pct || isNaN(pct)) return null;
@@ -147,7 +147,7 @@ function AccessDenied({ msg }) {
     <div style={{ ...S.card, textAlign:"center", padding:"60px 40px" }}>
       <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
       <div style={{ fontSize:18, fontWeight:700, color:"#FFFFFF", marginBottom:8 }}>Access Restricted</div>
-      <div style={{ fontSize:13, color:"#666666" }}>{msg}</div>
+      <div style={{ fontSize:13, color:"#888888" }}>{msg}</div>
     </div>
   );
 }
@@ -194,6 +194,10 @@ function GlobalStyles() {
       .nav-bazooka:hover { text-shadow:0 0 30px rgba(232,49,122,1),0 0 60px rgba(232,49,122,0.6),0 0 100px rgba(232,49,122,0.3); }
       input[type="checkbox"] { cursor:pointer; accent-color:#E8317A; }
       input:focus, select:focus, textarea:focus { outline:none !important; border-color:#E8317A !important; box-shadow:0 0 0 3px rgba(232,49,122,0.2) !important; }
+      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input::placeholder { color: #444444 !important; }
+      input, select, textarea { color: #FFFFFF !important; background-color: #000000; }
       input, select, textarea { transition: border-color 0.15s ease !important; }
       select option { background: #000000; color: #FFFFFF; }
       
@@ -395,7 +399,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
                 <SectionLabel t={config.label} />
-                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:18 }}>✕</button>
+                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:18 }}>✕</button>
               </div>
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -464,11 +468,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ display:"flex", gap:10, marginBottom:16, alignItems:"center" }}>
                 <div><label style={S.lbl}>From</label><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
                 <div><label style={S.lbl}>To</label><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
-                <div style={{ fontSize:12, color:"#666666", marginTop:14 }}>{filtered.length} stream{filtered.length!==1?"s":""} in range</div>
+                <div style={{ fontSize:12, color:"#888888", marginTop:14 }}>{filtered.length} stream{filtered.length!==1?"s":""} in range</div>
               </div>
             )}
 
-            <div style={{ fontSize:11, color:"#666666", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
+            <div style={{ fontSize:11, color:"#888888", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
@@ -540,7 +544,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <div key={l} style={{ textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
                   <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
-                  <div style={{ fontSize:10, color:"#444", marginTop:3 }}>{count ? Math.round(ytd).toLocaleString() : fmt(ytd)} YTD</div>
+                  <div style={{ fontSize:10, color:"#AAAAAA", marginTop:3 }}>{count ? Math.round(ytd).toLocaleString() : fmt(ytd)} YTD</div>
                 </div>
               ))}
             </div>
@@ -548,9 +552,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10 }}/>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-              <span style={{ fontSize:10, color:"#555" }}>Jan 1</span>
+              <span style={{ fontSize:10, color:"#666666" }}>Jan 1</span>
               <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
-              <span style={{ fontSize:10, color:"#555" }}>Dec 31</span>
+              <span style={{ fontSize:10, color:"#666666" }}>Dec 31</span>
             </div>
           </div>
         );
@@ -573,7 +577,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#0a0a0a", border:"1px solid #222222", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
               <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+              <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
           ))}
         </div>
@@ -606,12 +610,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                    <span style={{ fontSize:11, color:"#666666" }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#2C3E7A", fontWeight:700, background:"#0a0a1a", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
+                    <span style={{ fontSize:11, color:"#888888" }}>{avail} avail</span>
+                    {transit > 0 && <span style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, background:"#0a0a1a", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
                       {days >= 999 ? "No usage yet" : `~${days}d runway`}
                     </span>
-                    <span style={{ fontSize:11, color:"#666666" }}>Pace: {(pace*100).toFixed(0)}%</span>
+                    <span style={{ fontSize:11, color:"#888888" }}>Pace: {(pace*100).toFixed(0)}%</span>
                   </div>
                 </div>
                 <div style={{ height:5, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
@@ -630,7 +634,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#0a0a0a", border:"1px solid #222222", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
               <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+              <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
           ))}
         </div>
@@ -695,7 +699,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
                 {[["Cards logged out",bBreaks.length],["Added to inventory",bInv.length],["Last break",last?new Date(last.dateAdded).toLocaleDateString():"—"]].map(([l,v]) => (
                   <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
-                    <span style={{ fontSize:11, color:"#666666" }}>{l}</span>
+                    <span style={{ fontSize:11, color:"#888888" }}>{l}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:bc.text }}>{v}</span>
                   </div>
                 ))}
@@ -738,7 +742,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             </div>
             {showHist && (
               <>
-                <div style={{ fontSize:12, color:"#666666", marginBottom:14 }}>{editingId ? `Editing ${editingId} — update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
+                <div style={{ fontSize:12, color:"#888888", marginBottom:14 }}>{editingId ? `Editing ${editingId} — update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
                   <div>
                     <label style={S.lbl}>Month (YYYY-MM)</label>
@@ -782,7 +786,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#166534" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"—"}</td>
                           <td style={{ ...S.td, color:"#166534", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
                           <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"—"}</td>
-                          <td style={{ ...S.td, color:"#666666" }}>{h.notes||"—"}</td>
+                          <td style={{ ...S.td, color:"#888888" }}>{h.notes||"—"}</td>
                           <td style={S.td}>
                             <div style={{ display:"flex", gap:6 }}>
                               <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #222222", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#888888" }}>✏️</button>
@@ -888,15 +892,15 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
       <div style={{ background:"#111111", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
         <div style={{ background:"linear-gradient(135deg,#000000,#1a0a0f)", padding:"28px 32px", textAlign:"center" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#FFFFFF", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
-          <div style={{ fontSize:11, color:"#666666", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
+          <div style={{ fontSize:11, color:"#888888", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ padding:"14px 24px", borderBottom:"1px solid #222222", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#0a0a0a" }}>
-          <div><span style={{ color:"#666666", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"—"}</strong></div>
-          <div style={{ textAlign:"right" }}><span style={{ color:"#666666", fontSize:11 }}>Date: </span><strong>{seller.date||new Date().toLocaleDateString()}</strong></div>
+          <div><span style={{ color:"#888888", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"—"}</strong></div>
+          <div style={{ textAlign:"right" }}><span style={{ color:"#888888", fontSize:11 }}>Date: </span><strong>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
         <div style={{ padding:"8px 24px 0" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{ padding:"8px 10px", borderBottom:"2px solid #F0E0E8", color:"#666666", fontSize:10, fontWeight:700, textTransform:"uppercase", textAlign:"left" }}>{h}</th>)}</tr></thead>
+            <thead><tr>{["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{ padding:"8px 10px", borderBottom:"2px solid #F0E0E8", color:"#888888", fontSize:10, fontWeight:700, textTransform:"uppercase", textAlign:"left" }}>{h}</th>)}</tr></thead>
             <tbody>
               {included.length===0 ? <EmptyRow msg="No cards added." cols={5}/> :
                 included.map((r,i) => {
@@ -919,7 +923,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           {/* Notes — rendered read-only in the quote */}
           {custNote.trim() && (
             <div style={{ marginBottom:14, padding:"12px 16px", background:"#0a0a0a", border:"1px solid #222222", borderLeft:"3px solid #E8317A", borderRadius:8 }}>
-              <div style={{ fontSize:10, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
+              <div style={{ fontSize:10, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
               <p style={{ margin:0, fontSize:13, color:"#CCCCCC", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{custNote}</p>
             </div>
           )}
@@ -935,7 +939,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </div>
           {/* Ship-to address */}
           <div style={{ marginTop:14, padding:"12px 16px", background:"#0a0a0a", border:"1px solid #222222", borderRadius:8 }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
+            <div style={{ fontSize:10, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
             <div style={{ fontSize:13, color:"#FFFFFF", fontWeight:700, lineHeight:1.8 }}>
               Devin — Bazooka<br/>
               425 Prosperity Dr<br/>
@@ -981,7 +985,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
             return (
               <div style={{ marginTop:14, padding:"14px 16px", background:"#111111", border:`2px solid ${cfg.color}33`, borderRadius:10 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>
                   Payment — <span style={{ color:cfg.color }}>{seller.payment}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
@@ -989,7 +993,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                     {cfg.icon}
                     <div>
                       <div style={{ fontWeight:700, fontSize:14, color:cfg.color }}>{cfg.hint}</div>
-                      {amt && <div style={{ fontSize:12, color:"#666666", marginTop:2 }}>Amount: <strong style={{color:"#FFFFFF"}}>${amt}</strong></div>}
+                      {amt && <div style={{ fontSize:12, color:"#888888", marginTop:2 }}>Amount: <strong style={{color:"#FFFFFF"}}>${amt}</strong></div>}
                     </div>
                   </div>
                   {cfg.href
@@ -1001,7 +1005,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       </div>
                     : <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                         <div style={{ background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
-                        <div style={{ fontSize:11, color:"#666666" }}>Send to: <strong style={{color:"#FFFFFF"}}>{handle}</strong></div>
+                        <div style={{ fontSize:11, color:"#888888" }}>Send to: <strong style={{color:"#FFFFFF"}}>{handle}</strong></div>
                       </div>
                   }
                 </div>
@@ -1009,7 +1013,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             );
           })()}
 
-          <div style={{ marginTop:12, textAlign:"center", color:"#666666", fontSize:11, fontStyle:"italic" }}>This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!</div>
+          <div style={{ marginTop:12, textAlign:"center", color:"#888888", fontSize:11, fontStyle:"italic" }}>This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!</div>
         </div>
       </div>
     </div>
@@ -1032,7 +1036,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7 }}>
               <span style={{ fontWeight:800, color:c, fontSize:12, whiteSpace:"nowrap" }}>{z}</span>
               <span style={{ color:c, fontSize:11, whiteSpace:"nowrap" }}>{p}</span>
-              <span style={{ color:"#666666", fontSize:11 }}>— {a}</span>
+              <span style={{ color:"#888888", fontSize:11 }}>— {a}</span>
             </div>
           ))}
         </div>
@@ -1041,7 +1045,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
       {compMode==="quick" && (
         <div style={S.card}>
           <SectionLabel t="Quick Lot Comp" />
-          <p style={{ fontSize:12, color:"#666666", marginBottom:16 }}>Enter total cards + avg market value per card for an instant offer.</p>
+          <p style={{ fontSize:12, color:"#888888", marginBottom:16 }}>Enter total cards + avg market value per card for an instant offer.</p>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:16 }}>
             <div><label style={S.lbl}>Total Cards</label><input type="number" value={quickCards} onChange={e=>setQuickCards(e.target.value)} placeholder="0" style={S.inp}/></div>
             <div><label style={S.lbl}>Avg Value/Card ($)</label><input type="number" value={quickMktVal} onChange={e=>setQuickMktVal(e.target.value)} placeholder="0.00" style={S.inp}/></div>
@@ -1059,7 +1063,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             ].map(({l,v,c}) => (
               <div key={l} style={{ background:"#0a0a0a", border:"1px solid #F0D0DC", borderRadius:10, padding:"12px", textAlign:"center" }}>
                 <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-                <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -1086,11 +1090,11 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                           {z && canSeeFinancials && <span style={{ background:z.bg, color:z.color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{z.label}</span>}
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                          <span style={{ fontSize:11, color:"#666666" }}>Saved by</span>
+                          <span style={{ fontSize:11, color:"#888888" }}>Saved by</span>
                           <span style={{ fontWeight:700, fontSize:12, color:"#FFFFFF" }}>{c.savedBy||"—"}</span>
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
                           <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
-                          <span style={{ fontSize:11, color:"#666666" }}>{savedAt}</span>
+                          <span style={{ fontSize:11, color:"#888888" }}>{savedAt}</span>
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
@@ -1099,14 +1103,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       </div>
                     </div>
                     <div style={{ display:"flex", gap:16, flexWrap:"wrap", paddingTop:8, borderTop:"1px solid #FFF0F5" }}>
-                      <span style={{ fontSize:12, color:"#666666" }}>Cards: <strong style={{color:"#FFFFFF"}}>{c.totalCards}</strong></span>
+                      <span style={{ fontSize:12, color:"#888888" }}>Cards: <strong style={{color:"#FFFFFF"}}>{c.totalCards}</strong></span>
                       {canSeeFinancials && <>
-                        <span style={{ fontSize:12, color:"#666666" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
-                        <span style={{ fontSize:12, color:"#666666" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
-                        <span style={{ fontSize:12, color:"#666666" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
+                        <span style={{ fontSize:12, color:"#888888" }}>Market: <strong style={{color:"#92400e"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
+                        <span style={{ fontSize:12, color:"#888888" }}>Offer: <strong style={{color:"#6B2D8B"}}>${(c.offer||0).toFixed(2)}</strong></span>
+                        <span style={{ fontSize:12, color:"#888888" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
                       </>}
-                      <span style={{ fontSize:12, color:"#666666" }}>Source: <strong style={{color:"#FFFFFF"}}>{c.source||"—"}</strong></span>
-                      <span style={{ fontSize:12, color:"#666666" }}>
+                      <span style={{ fontSize:12, color:"#888888" }}>Source: <strong style={{color:"#FFFFFF"}}>{c.source||"—"}</strong></span>
+                      <span style={{ fontSize:12, color:"#888888" }}>
                         {c.cards&&c.cards.length>0 ? <span style={{color:"#166534",fontWeight:700}}>✓ {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#92400e",fontWeight:700}}>⚠ No card details</span>}
                       </span>
                     </div>
@@ -1126,12 +1130,12 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                 <div style={{ fontWeight:700, fontSize:13, color: loadedCompHadCards ? "#166534" : "#92400e" }}>
                   {loadedCompHadCards ? "Comp loaded — ready to edit and import" : "Comp loaded — no card data saved"}
                 </div>
-                <div style={{ fontSize:11, color:"#666666", marginTop:2 }}>
+                <div style={{ fontSize:11, color:"#888888", marginTop:2 }}>
                   {loadedCompHadCards ? "All seller info, cards, and offer amount restored. Hit Accept & Import to add to inventory." : "Seller info and offer restored, but this comp was saved without per-card details. Add cards manually below."}
                 </div>
               </div>
             </div>
-            <button onClick={()=>setLoadedCompId(null)} style={{ background:"transparent", border:"none", color:"#666666", cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>
+            <button onClick={()=>setLoadedCompId(null)} style={{ background:"transparent", border:"none", color:"#888888", cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>
           </div>
         )}
         <div id="comp-builder-top" style={S.card}>
@@ -1178,7 +1182,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               <label style={S.lbl}>Active Offer</label>
               <div style={{ ...S.inp, background: (counterAmt!=null&&counterAmt>0)?"#FFF9DB":(offerAmt!=null&&offerAmt>0)?"#FFF0F5":"#F9FAFB", color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534", fontWeight:900, fontSize:15, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <span>${dispOffer.toFixed(2)}</span>
-                <span style={{ fontSize:10, color:"#666666", fontWeight:600 }}>{(counterAmt!=null&&counterAmt>0)?"counter":(offerAmt!=null&&offerAmt>0)?"override":`${(dispPct*100).toFixed(0)}%`}</span>
+                <span style={{ fontSize:10, color:"#888888", fontWeight:600 }}>{(counterAmt!=null&&counterAmt>0)?"counter":(offerAmt!=null&&offerAmt>0)?"override":`${(dispPct*100).toFixed(0)}%`}</span>
               </div>
             </div>
             <div>
@@ -1190,8 +1194,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </div>
           {(offerAmt != null && offerAmt > 0) && totalMkt > 0 && (
             <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:12, color:"#666666" }}>Effective buy rate: <strong style={{ color: lotZone?.color||"#111827" }}>{(dispPct*100).toFixed(1)}%</strong></span>
-              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
+              <span style={{ fontSize:12, color:"#888888" }}>Effective buy rate: <strong style={{ color: lotZone?.color||"#111827" }}>{(dispPct*100).toFixed(1)}%</strong></span>
+              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
             </div>
           )}
         </div>
@@ -1249,10 +1253,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           <SectionLabel t="Confirm & Actions" />
           {canSeeFinancials && dispOffer > 0 && totalMkt > 0 && (
             <div style={{ marginBottom:16, padding:"8px 14px", background:"#0a0a0a", borderRadius:8, display:"flex", gap:20, flexWrap:"wrap" }}>
-              <span style={{ fontSize:12, color:"#666666" }}>Active offer: <strong style={{color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534"}}>${dispOffer.toFixed(2)} ({(dispPct*100).toFixed(1)}%)</strong></span>
-              <span style={{ fontSize:12, color:"#666666" }}>Est. Margin: <strong style={{color:"#6B2D8B"}}>${(totalMkt-dispOffer).toFixed(2)}</strong></span>
-              <span style={{ fontSize:12, color:"#666666" }}>Market Value: <strong style={{color:"#92400e"}}>${totalMkt.toFixed(2)}</strong></span>
-              <span style={{ fontSize:12, color:"#666666" }}>Per Card: <strong style={{color:"#166534"}}>${totalCards>0?(dispOffer/totalCards).toFixed(2):"—"}</strong></span>
+              <span style={{ fontSize:12, color:"#888888" }}>Active offer: <strong style={{color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534"}}>${dispOffer.toFixed(2)} ({(dispPct*100).toFixed(1)}%)</strong></span>
+              <span style={{ fontSize:12, color:"#888888" }}>Est. Margin: <strong style={{color:"#6B2D8B"}}>${(totalMkt-dispOffer).toFixed(2)}</strong></span>
+              <span style={{ fontSize:12, color:"#888888" }}>Market Value: <strong style={{color:"#92400e"}}>${totalMkt.toFixed(2)}</strong></span>
+              <span style={{ fontSize:12, color:"#888888" }}>Per Card: <strong style={{color:"#166534"}}>${totalCards>0?(dispOffer/totalCards).toFixed(2):"—"}</strong></span>
             </div>
           )}
           {/* Pay button — appears when payment method + handle are filled */}
@@ -1273,9 +1277,9 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             return (
               <div style={{ marginBottom:16, padding:"14px 16px", background:cfg.bg, border:`2px solid ${cfg.color}33`, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>💸 Send Payment</div>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>💸 Send Payment</div>
                   <div style={{ fontWeight:800, fontSize:16, color:cfg.color }}>{cfg.hint}</div>
-                  {amt && <div style={{ fontSize:12, color:"#666666", marginTop:2 }}>Amount: <strong style={{color:"#FFFFFF"}}>${amt}</strong></div>}
+                  {amt && <div style={{ fontSize:12, color:"#888888", marginTop:2 }}>Amount: <strong style={{color:"#FFFFFF"}}>${amt}</strong></div>}
                 </div>
                 {cfg.href
                   ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
@@ -1306,7 +1310,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </div>
           <div style={{ borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-              <div style={{ fontSize:10, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
+              <div style={{ fontSize:10, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
               {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#1a1500", color:"#92400e", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active — overrides your offer</span>}
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
@@ -1317,8 +1321,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             </div>
             {(counterAmt!=null&&counterAmt>0) && totalMkt > 0 && (
               <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:12, color:"#666666" }}>Active offer: <strong style={{color:"#FFFFFF"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
-                <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
+                <span style={{ fontSize:12, color:"#888888" }}>Active offer: <strong style={{color:"#FFFFFF"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
+                <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
               </div>
             )}
           </div>
@@ -1396,7 +1400,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           const TRACKING_STATUSES = ["Ordered","Label Created","Shipped","In Transit","Out for Delivery","Delivered","Exception"];
           const STATUS_COLORS = {
             "Ordered":            { bg:"#F3F4F6", color:"#888888" },
-            "Label Created":      { bg:"#EEF0FB", color:"#2C3E7A" },
+            "Label Created":      { bg:"#EEF0FB", color:"#7B9CFF" },
             "Shipped":            { bg:"#FFF0CC", color:"#8B5E00" },
             "In Transit":         { bg:"#E0F7F4", color:"#0D6E6E" },
             "Out for Delivery":   { bg:"#FCE8F3", color:"#8B1A5A" },
@@ -1420,14 +1424,14 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const availInLot   = lot.cards.length - usedInLot - transitInLot;
                     const tracking  = lotTracking[lot.key] || {};
                     const isEditing = trackingEdit === lot.key;
-                    const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#666666" };
+                    const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#888888" };
 
                     return (
                       <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, overflow:"hidden", background:"#111111" }}>
                         {/* Lot header */}
                         <div style={{ padding:"14px 18px", background:"#0a0a0a" }}>
                           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                            <div><span style={{ fontWeight:700, fontSize:14, color:"#FFFFFF" }}>{lot.seller}</span><span style={{ color:"#666666", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
+                            <div><span style={{ fontWeight:700, fontSize:14, color:"#FFFFFF" }}>{lot.seller}</span><span style={{ color:"#888888", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
                             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                               <span style={{ fontSize:12, color:"#888888" }}>{lot.source}{canSeeFinancials?` · ${lot.payment}`:""}</span>
                               {canSeeFinancials && <span style={{ fontWeight:700, color:"#6B2D8B" }}>${lot.lotPaid.toFixed(2)}</span>}
@@ -1440,11 +1444,11 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
-                            <span style={{ fontSize:12, color:"#666666" }}>Total: <strong style={{color:"#FFFFFF"}}>{lot.cards.length}</strong></span>
-                            <span style={{ fontSize:12, color:"#666666" }}>Available: <strong style={{color:"#166534"}}>{availInLot}</strong></span>
-                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#666666" }}>In Transit: <strong style={{color:"#2C3E7A"}}>🚚 {transitInLot}</strong></span>}
-                            <span style={{ fontSize:12, color:"#666666" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
-                            <span style={{ fontSize:12, color:"#666666" }}>Added by: <strong style={{color:"#FFFFFF"}}>{lot.addedBy}</strong></span>
+                            <span style={{ fontSize:12, color:"#888888" }}>Total: <strong style={{color:"#FFFFFF"}}>{lot.cards.length}</strong></span>
+                            <span style={{ fontSize:12, color:"#888888" }}>Available: <strong style={{color:"#166534"}}>{availInLot}</strong></span>
+                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#888888" }}>In Transit: <strong style={{color:"#7B9CFF"}}>🚚 {transitInLot}</strong></span>}
+                            <span style={{ fontSize:12, color:"#888888" }}>Used: <strong style={{color:"#991b1b"}}>{usedInLot}</strong></span>
+                            <span style={{ fontSize:12, color:"#888888" }}>Added by: <strong style={{color:"#FFFFFF"}}>{lot.addedBy}</strong></span>
                           </div>
                           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                             {CARD_TYPES.map(ct => { const count=lot.cards.filter(c=>c.cardType===ct).length; if(!count) return null; const cc=CC[ct]; return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>; })}
@@ -1457,7 +1461,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                             <div>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||tracking.lastEvent) ? 8 : 0 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                                  <span style={{ fontSize:11, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
                                   {tracking.trackingNum || tracking.status
                                     ? <>
                                         {tracking.status && <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>}
@@ -1501,12 +1505,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                               {(tracking.eta || tracking.lastEvent) && (
                                 <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#0a0a0a", borderRadius:7, marginTop:4 }}>
                                   {tracking.eta && (
-                                    <span style={{ fontSize:12, color:"#666666" }}>
+                                    <span style={{ fontSize:12, color:"#888888" }}>
                                       📅 Est. Delivery: <strong style={{ color: tracking.status==="Delivered" ? "#166534" : "#1B4F8A" }}>{tracking.eta}</strong>
                                     </span>
                                   )}
                                   {tracking.lastEvent && (
-                                    <span style={{ fontSize:12, color:"#666666" }}>
+                                    <span style={{ fontSize:12, color:"#888888" }}>
                                       📍 {tracking.lastLocation && <strong style={{color:"#FFFFFF"}}>{tracking.lastLocation} — </strong>}{tracking.lastEvent}
                                     </span>
                                   )}
@@ -1608,7 +1612,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                 <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
               ))}
             </div>
-            <span style={{ color:"#666666", fontSize:12 }}>{filtered.length} cards</span>
+            <span style={{ color:"#888888", fontSize:12 }}>{filtered.length} cards</span>
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
               <button onClick={handleBulkDelete} style={{ background:"#1a0a0a", color:"#991b1b", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete {selected.size} selected</button>
             )}
@@ -1648,8 +1652,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                         </>}
                         <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{c.source||"—"}</td>
                         <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{c.seller||"—"}</td>
-                        <td style={{ ...S.td, color:"#666666", fontSize:11 }}>{c.date||"—"}</td>
-                        <td style={{ ...S.td, color:"#666666", fontSize:12 }}>{c.addedBy||"—"}</td>
+                        <td style={{ ...S.td, color:"#888888", fontSize:11 }}>{c.date||"—"}</td>
+                        <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{c.addedBy||"—"}</td>
                         <td style={S.td}>{used
                           ? <Badge bg="#FEE2E2" color="#991b1b">Used</Badge>
                           : c.cardStatus==="in_transit"
@@ -1846,7 +1850,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <span style={{ background:"#1a1500", color:"#92400e", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
                 ✏️ Editing: {existingStream.breaker} · {existingStream.date}
               </span>
-              <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
+              <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
                 Start new instead
               </button>
             </div>
@@ -1894,7 +1898,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#8B5E00", margin:0 }}>🏆 Cards Used as Chasers</label>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <label style={{ fontSize:11, color:"#666666" }}>Manual override ($)</label>
+                <label style={{ fontSize:11, color:"#888888" }}>Manual override ($)</label>
                 <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:90, color:"#8B5E00", padding:"4px 8px" }}/>
               </div>
             </div>
@@ -1906,7 +1910,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               return (
                 <div>
                   {available.length === 0
-                    ? <div style={{ fontSize:12, color:"#666666", padding:"8px 0" }}>No available cards in inventory</div>
+                    ? <div style={{ fontSize:12, color:"#888888", padding:"8px 0" }}>No available cards in inventory</div>
                     : <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #F0D0DC", borderRadius:8, background:"#111111" }}>
                         {available.map(c => {
                           const isSel = selectedChasers.includes(c.id);
@@ -1935,7 +1939,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <span style={{ fontSize:12, color:"#8B5E00", fontWeight:700 }}>
                         ✅ {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
                       </span>
-                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #222222", borderRadius:5, color:"#666666", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
+                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #222222", borderRadius:5, color:"#888888", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
                     </div>
                   )}
                 </div>
@@ -1995,9 +1999,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 style={{ ...S.inp, width:80, color:"#6B2D8B", textAlign:"center" }}
               />
               {recap.commissionOverride !== "" && (
-                <button onClick={()=>rf("commissionOverride")("")} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
+                <button onClick={()=>rf("commissionOverride")("")} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
               )}
-              <span style={{ fontSize:11, color:"#666666" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
+              <span style={{ fontSize:11, color:"#888888" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
             </div>
           )}
         </div>
@@ -2035,7 +2039,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px", border:"1px solid #222222" }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
-                      <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                      <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                     </div>
                   ))}
                 </div>
@@ -2049,7 +2053,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background: l==="Bazooka True Net"?"#D6F4E3":"#FFFFFF", borderRadius:8, padding:"10px 8px", border:`1px solid ${l==="Bazooka True Net"?"#16653444":"#F0E0E8"}` }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
-                      <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                      <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                     </div>
                   ))}
                 </div>
@@ -2062,7 +2066,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 ].map(({l,v,c}) => (
                   <div key={l} style={{ textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                    <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                    <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                   </div>
                 ))}
               </div>
@@ -2168,7 +2172,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {cardSearch.length > 0 && (
               <div style={{ border:"1px solid #F0D0DC", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#111111", boxShadow:"0 4px 12px rgba(232,49,122,0.1)", marginTop:4 }}>
                 {available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).length===0
-                  ? <div style={{ padding:"12px 16px", color:"#666666", fontSize:13 }}>No cards found</div>
+                  ? <div style={{ padding:"12px 16px", color:"#888888", fontSize:13 }}>No cards found</div>
                   : available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).map(c => {
                       const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                       return (
@@ -2200,7 +2204,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         </div>
         {bulkMode && (
           <div style={{ marginTop:16, borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>Select cards to log out</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>Select cards to log out</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px,1fr))", gap:8, maxHeight:280, overflowY:"auto", marginBottom:12 }}>
               {available.map(c => {
                 const cc=CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -2224,10 +2228,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           return (
             <div key={b} style={{ ...S.card, border:`1px solid ${bc.border}44` }}>
               <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
-              <div style={{ fontSize:24, fontWeight:900, color:bc.text, marginBottom:10 }}>{s.total} <span style={{ fontSize:11, color:"#666666", fontWeight:400 }}>cards used</span></div>
+              <div style={{ fontSize:24, fontWeight:900, color:bc.text, marginBottom:10 }}>{s.total} <span style={{ fontSize:11, color:"#888888", fontWeight:400 }}>cards used</span></div>
               {CARD_TYPES.map(ct => (
                 <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #F3F4F6" }}>
-                  <span style={{ fontSize:11, color:"#666666" }}>{ct}</span>
+                  <span style={{ fontSize:11, color:"#888888" }}>{ct}</span>
                   <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
                 </div>
               ))}
@@ -2264,13 +2268,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   return (
                     <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#111111":"#0a0a0a" }}>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
-                      <td style={{ ...S.td, color:"#666666", fontSize:11 }}>{b.date}</td>
+                      <td style={{ ...S.td, color:"#888888", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{b.cardType}</Badge></td>
                       <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{b.usage||"—"}</td>
-                      <td style={{ ...S.td, color:"#666666", fontSize:12 }}>{b.loggedBy||"—"}</td>
-                      <td style={{ ...S.td, color:"#666666", fontSize:12 }}>{b.notes||"—"}</td>
+                      <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{b.loggedBy||"—"}</td>
+                      <td style={{ ...S.td, color:"#888888", fontSize:12 }}>{b.notes||"—"}</td>
                       <td style={S.td}>
                         <button onClick={()=>{ if(window.confirm(`Remove "${b.cardName}" from break log? This will make the card available again.`)) onDeleteBreak(b.id); }} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }} title="Remove from break log">✕</button>
                       </td>
@@ -2345,7 +2349,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
     return { all, month, byType, byDay, last7, streak, topType, breakerBoxes, breakerBoxTotal, breakerGross, breakerNewBuyers, breakerAvgMM };
   }
 
-  if (visibleBreakers.length===0) return <div style={{ ...S.card, textAlign:"center", padding:"60px" }}><div style={{ fontSize:32, marginBottom:12 }}>📈</div><div style={{ color:"#666666" }}>Your account isn't linked to a streamer profile.</div></div>;
+  if (visibleBreakers.length===0) return <div style={{ ...S.card, textAlign:"center", padding:"60px" }}><div style={{ fontSize:32, marginBottom:12 }}>📈</div><div style={{ color:"#888888" }}>Your account isn't linked to a streamer profile.</div></div>;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -2356,8 +2360,8 @@ function Performance({ breaks, user, userRole, streams=[] }) {
         <SectionLabel t="📦 This Month's Key Metrics" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
           <div style={{ ...S.card, textAlign:"center", background:"#0a0a1a" }}>
-            <div style={{ fontSize:32, fontWeight:900, color:"#2C3E7A" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
-            <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Boxes Ripped</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#7B9CFF" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
+            <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Boxes Ripped</div>
             <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginTop:8 }}>
               {PRODUCT_TYPES.map(pt => monthBoxes[pt]>0 ? (
                 <span key={pt} style={{ color:PT_COLORS[pt], fontSize:11, fontWeight:700 }}>{pt.replace(" ","")}: {monthBoxes[pt]}</span>
@@ -2366,18 +2370,18 @@ function Performance({ breaks, user, userRole, streams=[] }) {
           </div>
           <div style={{ ...S.card, textAlign:"center", background:"#1a0a0f" }}>
             <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }} className="num-pop"><AnimatedNumber value={monthGross}/></div>
-            <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Gross Revenue</div>
-            <div style={{ fontSize:11, color:"#666666", marginTop:6 }}>{thisMonth.length} stream{thisMonth.length!==1?"s":""}</div>
+            <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Gross Revenue</div>
+            <div style={{ fontSize:11, color:"#888888", marginTop:6 }}>{thisMonth.length} stream{thisMonth.length!==1?"s":""}</div>
           </div>
           <div style={{ ...S.card, textAlign:"center", background:"#0a1a0a" }}>
             <div style={{ fontSize:32, fontWeight:900, color:"#166534" }} className="num-pop"><AnimatedNumber value={monthNewBuyers} format="count"/></div>
-            <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>New Buyers</div>
+            <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>New Buyers</div>
           </div>
         </div>
         {/* Per-breaker box bars */}
         {isAdmin && monthTotal > 0 && (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Boxes by Breaker</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Boxes by Breaker</div>
             {BREAKERS.map(b => {
               const bStreams = thisMonth.filter(s=>s.breaker===b);
               const bTotal  = Object.values(boxesForStreams(bStreams)).reduce((a,x)=>a+x,0);
@@ -2402,7 +2406,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
         {/* Year totals */}
         {yearTotal > 0 && (
           <div style={{ borderTop:"1px solid #F0E0E8", paddingTop:14 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>This Year</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>This Year</div>
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
               <span style={{ fontSize:22, fontWeight:900, color:"#FFFFFF" }}>{yearTotal} boxes</span>
               {PRODUCT_TYPES.map(pt => yearBoxes[pt]>0 ? (
@@ -2424,11 +2428,11 @@ function Performance({ breaks, user, userRole, streams=[] }) {
               <div style={{ width:44, height:44, borderRadius:"50%", background:bc.bg, border:`2px solid ${bc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:900, color:bc.text }}>{breaker[0]}</div>
               <div>
                 <div style={{ fontSize:18, fontWeight:900, color:"#FFFFFF" }}>{breaker}</div>
-                <div style={{ fontSize:11, color:"#666666" }}>{stats.all.length} total cards logged</div>
+                <div style={{ fontSize:11, color:"#888888" }}>{stats.all.length} total cards logged</div>
               </div>
               {stats.streak>0 && <div style={{ marginLeft:"auto", background:bc.bg, border:`1.5px solid ${bc.border}`, borderRadius:10, padding:"6px 14px", textAlign:"center" }}>
                 <div style={{ fontSize:18, fontWeight:900, color:bc.text }}>🔥 {stats.streak}</div>
-                <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>Day Streak</div>
+                <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>Day Streak</div>
               </div>}
             </div>
 
@@ -2445,7 +2449,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
               ].map(({l,v,c}) => (
                 <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-                  <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                  <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
                 </div>
               ))}
             </div>
@@ -2459,7 +2463,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                     <div key={ct} style={{ marginBottom:8 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                         <span style={{ fontSize:12, fontWeight:700, color:cc.text }}>{ct}</span>
-                        <span style={{ fontSize:12, color:"#666666" }}>{cnt} ({(pct*100).toFixed(0)}%)</span>
+                        <span style={{ fontSize:12, color:"#888888" }}>{cnt} ({(pct*100).toFixed(0)}%)</span>
                       </div>
                       <div style={{ height:6, background:"#F0E0E8", borderRadius:3, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${pct*100}%`, background:cc.border, borderRadius:3 }}/>
@@ -2478,7 +2482,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                       <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                         <div style={{ fontSize:10, fontWeight:700, color:d.count>0?bc.text:"#9CA3AF" }}>{d.count||""}</div>
                         <div style={{ width:"100%", height:h, background:d.count>0?bc.border:"#F0E0E8", borderRadius:"3px 3px 0 0" }}/>
-                        <div style={{ fontSize:9, color:"#666666" }}>{d.date}</div>
+                        <div style={{ fontSize:9, color:"#888888" }}>{d.date}</div>
                       </div>
                     );
                   })}
@@ -2552,10 +2556,10 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
   }
 
   const PT_COLORS = {
-    "Double Mega":   { bg:"#FFF0E8", text:"#C2410C", border:"#C2410C" },
-    "Hobby":         { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" },
-    "Jumbo":         { bg:"#F0FDF4", text:"#166534", border:"#166534" },
-    "Miscellaneous": { bg:"#FAF5FF", text:"#6B2D8B", border:"#6B2D8B" },
+    "Double Mega":   { bg:"#1a0800", text:"#FB923C", border:"#FB923C" },
+    "Hobby":         { bg:"#0a0f1a", text:"#7B9CFF", border:"#7B9CFF" },
+    "Jumbo":         { bg:"#0a1a0a", text:"#4ade80", border:"#4ade80" },
+    "Miscellaneous": { bg:"#120a1a", text:"#C084FC", border:"#C084FC" },
   };
 
   return (
@@ -2577,7 +2581,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
           </div>
           {skuEditing && (
             <>
-              <div style={{ fontSize:12, color:"#666666", marginBottom:12 }}>Set the retail/market value per unit for each product type. Used to auto-calculate market multiple in Stream Recap.</div>
+              <div style={{ fontSize:12, color:"#888888", marginBottom:12 }}>Set the retail/market value per unit for each product type. Used to auto-calculate market multiple in Stream Recap.</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:14 }}>
                 {PRODUCT_TYPES.map(pt => (
                   <div key={pt}>
@@ -2614,7 +2618,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
           </div>
           {supplyEditing && (
             <>
-              <div style={{ fontSize:12, color:"#666666", marginBottom:12 }}>Set cost per unit for supplies. In Stream Recap, enter quantities and costs auto-calculate.</div>
+              <div style={{ fontSize:12, color:"#888888", marginBottom:12 }}>Set cost per unit for supplies. In Stream Recap, enter quantities and costs auto-calculate.</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:14 }}>
                 {SUPPLY_ITEMS.map(({ key, label }) => (
                   <div key={key}>
@@ -2646,10 +2650,10 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
             <div key={pt} style={{ background:pc.bg, border:`2px solid ${out?"#991b1b":low?"#92400e":pc.border}33`, borderRadius:12, padding:"16px", textAlign:"center" }}>
               <div style={{ fontSize:11, fontWeight:700, color:pc.text, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{pt}</div>
               <div style={{ fontSize:36, fontWeight:900, color: out?"#991b1b":low?"#92400e":pc.text, marginBottom:4 }}>{s.current}</div>
-              <div style={{ fontSize:10, color:"#666666" }}>in stock</div>
+              <div style={{ fontSize:10, color:"#888888" }}>in stock</div>
               <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8 }}>
-                <span style={{ fontSize:10, color:"#666666" }}>↑ {s.received} rcvd</span>
-                <span style={{ fontSize:10, color:"#666666" }}>↓ {s.used} used</span>
+                <span style={{ fontSize:10, color:"#888888" }}>↑ {s.received} rcvd</span>
+                <span style={{ fontSize:10, color:"#888888" }}>↓ {s.used} used</span>
               </div>
               {skuPrices[pt] && <div style={{ marginTop:6, fontSize:10, color:pc.text, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}/unit</div>}
               {out  && <div style={{ marginTop:8, background:"#1a0a0a", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
@@ -2668,7 +2672,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.25)" }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
                   <SectionLabel t={editId ? "Edit Shipment" : "Add Shipment"} />
-                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#666666", cursor:"pointer", fontSize:18 }}>✕</button>
+                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:18 }}>✕</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:12, marginBottom:14 }}>
                   <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/></div>
@@ -2831,7 +2835,7 @@ function Sellers({ inventory, breaks, userRole }) {
           <button onClick={()=>setSelectedSeller(null)} style={{ background:"#0a0a0a", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#888888" }}>← Back</button>
           <div>
             <div style={{ fontSize:22, fontWeight:900, color:"#FFFFFF" }}>{s.name}</div>
-            <div style={{ fontSize:12, color:"#666666", marginTop:2 }}>
+            <div style={{ fontSize:12, color:"#888888", marginTop:2 }}>
               {s.topSource !== "—" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
               {s.topSource !== "—" && " · "}
               Last purchase {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}
@@ -2849,7 +2853,7 @@ function Sellers({ inventory, breaks, userRole }) {
           ].map(({l,v,c}) => (
             <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
               <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+              <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
           ))}
         </div>
@@ -2858,9 +2862,9 @@ function Sellers({ inventory, breaks, userRole }) {
         <div style={S.card}>
           <SectionLabel t="Customer Details" />
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
-            <span style={{ fontSize:13, color:"#666666" }}>Primary Source: <strong style={{color:"#FFFFFF"}}>{s.topSource}</strong></span>
-            <span style={{ fontSize:13, color:"#666666" }}>Preferred Payment: <strong style={{color:"#FFFFFF"}}>{s.topPayment}</strong></span>
-            <span style={{ fontSize:13, color:"#666666" }}>Cards Used: <strong style={{color:"#991b1b"}}>{usedCount}</strong></span>
+            <span style={{ fontSize:13, color:"#888888" }}>Primary Source: <strong style={{color:"#FFFFFF"}}>{s.topSource}</strong></span>
+            <span style={{ fontSize:13, color:"#888888" }}>Preferred Payment: <strong style={{color:"#FFFFFF"}}>{s.topPayment}</strong></span>
+            <span style={{ fontSize:13, color:"#888888" }}>Cards Used: <strong style={{color:"#991b1b"}}>{usedCount}</strong></span>
           </div>
         </div>
 
@@ -2876,7 +2880,7 @@ function Sellers({ inventory, breaks, userRole }) {
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <div>
                       <span style={{ fontWeight:700, fontSize:14, color:"#FFFFFF" }}>Lot #{s.lotCount - i}</span>
-                      <span style={{ color:"#666666", fontSize:12, marginLeft:10 }}>{lot.date}</span>
+                      <span style={{ color:"#888888", fontSize:12, marginLeft:10 }}>{lot.date}</span>
                     </div>
                     <div style={{ display:"flex", gap:12, alignItems:"center" }}>
                       <span style={{ fontSize:12, color:"#888888" }}>{lot.source}</span>
@@ -2885,9 +2889,9 @@ function Sellers({ inventory, breaks, userRole }) {
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:12, color:"#666666" }}>Cards: <strong style={{color:"#FFFFFF"}}>{lot.cards.length}</strong></span>
-                    <span style={{ fontSize:12, color:"#666666" }}>Available: <strong style={{color:"#166534"}}>{lotAvail}</strong></span>
-                    <span style={{ fontSize:12, color:"#666666" }}>Used: <strong style={{color:"#991b1b"}}>{lotUsed}</strong></span>
+                    <span style={{ fontSize:12, color:"#888888" }}>Cards: <strong style={{color:"#FFFFFF"}}>{lot.cards.length}</strong></span>
+                    <span style={{ fontSize:12, color:"#888888" }}>Available: <strong style={{color:"#166534"}}>{lotAvail}</strong></span>
+                    <span style={{ fontSize:12, color:"#888888" }}>Used: <strong style={{color:"#991b1b"}}>{lotUsed}</strong></span>
                   </div>
                   {lot.cards.length > 0 && (
                     <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -2921,7 +2925,7 @@ function Sellers({ inventory, breaks, userRole }) {
               ) : null
             ))}
           </div>
-          <span style={{ fontSize:12, color:"#666666" }}>{filtered.length} customers</span>
+          <span style={{ fontSize:12, color:"#888888" }}>{filtered.length} customers</span>
         </div>
       </div>
 
@@ -2951,8 +2955,8 @@ function Sellers({ inventory, breaks, userRole }) {
                     <div style={{ fontWeight:800, fontSize:15, color:"#FFFFFF", marginBottom:3 }}>{s.name}</div>
                     <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                       {s.topSource !== "—" && <span style={{ fontSize:11, color:srcColor, fontWeight:700 }}>{s.topSource}</span>}
-                      {s.topPayment !== "—" && <span style={{ fontSize:11, color:"#666666" }}>{s.topPayment}</span>}
-                      <span style={{ fontSize:11, color:"#666666" }}>Last: {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}</span>
+                      {s.topPayment !== "—" && <span style={{ fontSize:11, color:"#888888" }}>{s.topPayment}</span>}
+                      <span style={{ fontSize:11, color:"#888888" }}>Last: {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}</span>
                     </div>
                   </div>
 
@@ -2960,16 +2964,16 @@ function Sellers({ inventory, breaks, userRole }) {
                   <div style={{ display:"flex", gap:20, alignItems:"center", flexShrink:0 }}>
                     <div style={{ textAlign:"center" }}>
                       <div style={{ fontSize:18, fontWeight:900, color:"#FFFFFF" }}>{s.lotCount}</div>
-                      <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>Lots</div>
+                      <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>Lots</div>
                     </div>
                     <div style={{ textAlign:"center" }}>
                       <div style={{ fontSize:18, fontWeight:900, color:"#FFFFFF" }}>{s.cards}</div>
-                      <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>Cards</div>
+                      <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>Cards</div>
                     </div>
                     {canSeeFinancials && (
                       <div style={{ textAlign:"center" }}>
                         <div style={{ fontSize:18, fontWeight:900, color:"#6B2D8B" }}>${s.spent.toFixed(0)}</div>
-                        <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
+                        <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
                       </div>
                     )}
                     <div style={{ color:"#D1D5DB", fontSize:18 }}>›</div>
@@ -3172,7 +3176,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <button onClick={()=>setViewStream(null)} style={{ background:"#0a0a0a", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#888888" }}>← Back</button>
           <div>
             <div style={{ fontSize:18, fontWeight:900, color:"#FFFFFF" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
-            <div style={{ fontSize:12, color:"#666666", marginTop:2, display:"flex", gap:10 }}>
+            <div style={{ fontSize:12, color:"#888888", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
               {s.newBuyers>0 && <span style={{ background:"#0a1a0a", color:"#166534", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🌱 {s.newBuyers} new buyers</span>}
@@ -3192,13 +3196,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             {/* Platform fees — excluded from rep 13.5% */}
             {parseFloat(s.whatnotFees) > 0 && (
               <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#0a0a0a", borderRadius:7, border:"1px solid #222222" }}>
-                <span style={{ color:"#888888", fontSize:13 }}>− Whatnot Fees <span style={{ fontSize:10, color:"#666666", marginLeft:6 }}>(platform cost — not included in rep expenses)</span></span>
+                <span style={{ color:"#888888", fontSize:13 }}>− Whatnot Fees <span style={{ fontSize:10, color:"#888888", marginLeft:6 }}>(platform cost — not included in rep expenses)</span></span>
                 <span style={{ color:"#888888", fontWeight:700, fontSize:13 }}>${(parseFloat(s.whatnotFees)||0).toFixed(2)}</span>
               </div>
             )}
             {/* Supply/stream expenses — included in rep 13.5% */}
             {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).length > 0 && (
-              <div style={{ fontSize:10, color:"#666666", fontWeight:700, textTransform:"uppercase", letterSpacing:1, padding:"4px 2px" }}>Stream Expenses (rep pays 13.5% of these)</div>
+              <div style={{ fontSize:10, color:"#888888", fontWeight:700, textTransform:"uppercase", letterSpacing:1, padding:"4px 2px" }}>Stream Expenses (rep pays 13.5% of these)</div>
             )}
             {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).map(({l,v}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#1a0a0a", borderRadius:7, border:"1px solid #FEE2E2" }}>
@@ -3263,7 +3267,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           </div>
           )}
           {s.marketMultiple && !s.binOnly && (
-            <div style={{ marginTop:10, fontSize:12, color:"#666666", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
+            <div style={{ marginTop:10, fontSize:12, color:"#888888", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
           )}
           {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#0a0a0a", borderRadius:7, fontSize:12, color:"#888888", fontStyle:"italic" }}>{s.notes}</div>}
         </div>
@@ -3359,7 +3363,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               ].map(({l,v,c}) => (
                 <div key={l} style={{ textAlign:"center", background:"#0a0a0a", borderRadius:8, padding:"10px 8px" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                  <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                  <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                 </div>
               ))}
             </div>
@@ -3381,7 +3385,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {/* Period filter */}
       <div style={{ ...S.card, padding:"12px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          <span style={{ fontSize:11, fontWeight:700, color:"#666666", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
+          <span style={{ fontSize:11, fontWeight:700, color:"#888888", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
           {[["all","All Time"],["week","This Week"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["custom","Custom"]].map(([val,label]) => (
             <button key={val} onClick={()=>{ setPeriod(val); setViewStream(null); }}
               style={{ background:period===val?"#1A1A2E":"transparent", color:period===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${period===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -3391,11 +3395,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           {period==="custom" && (
             <>
               <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ ...S.inp, width:140, fontSize:11, padding:"4px 8px" }}/>
-              <span style={{ fontSize:11, color:"#666666" }}>to</span>
+              <span style={{ fontSize:11, color:"#888888" }}>to</span>
               <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ ...S.inp, width:140, fontSize:11, padding:"4px 8px" }}/>
             </>
           )}
-          <span style={{ marginLeft:"auto", fontSize:11, color:"#666666" }}>{filteredStreams.length} stream{filteredStreams.length!==1?"s":""}</span>
+          <span style={{ marginLeft:"auto", fontSize:11, color:"#888888" }}>{filteredStreams.length} stream{filteredStreams.length!==1?"s":""}</span>
         </div>
       </div>
 
@@ -3412,7 +3416,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         ].map(({l,v,c}) => (
           <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
             <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
-            <div style={{ fontSize:10, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            <div style={{ fontSize:10, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
           </div>
         ))}
       </div>
@@ -3438,7 +3442,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {filteredStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
-            <div style={{ color:"#666666" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
+            <div style={{ color:"#888888" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
             const c    = calcStreamDash(s);
@@ -3450,16 +3454,16 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
                 <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:12, color:"#666666" }}>Gross: <strong style={{color:"#FFFFFF"}}>{fmt(c.gross)}</strong></span>
-                  <span style={{ fontSize:12, color:"#666666" }}>Net: <strong style={{color:"#1B4F8A"}}>{fmt(c.netRev)}</strong></span>
-                  {isAdmin && <span style={{ fontSize:12, color:"#666666" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
-                  <span style={{ fontSize:12, color:"#666666" }}>Rate: <strong style={{color:"#888888"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
+                  <span style={{ fontSize:12, color:"#888888" }}>Gross: <strong style={{color:"#FFFFFF"}}>{fmt(c.gross)}</strong></span>
+                  <span style={{ fontSize:12, color:"#888888" }}>Net: <strong style={{color:"#1B4F8A"}}>{fmt(c.netRev)}</strong></span>
+                  {isAdmin && <span style={{ fontSize:12, color:"#888888" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
+                  <span style={{ fontSize:12, color:"#888888" }}>Rate: <strong style={{color:"#888888"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
                   {s.newBuyers>0 && <span style={{ fontSize:12, color:"#166534", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontSize:22, fontWeight:900, color:"#166534" }}>{fmt(c.commAmt)}</div>
-                    <div style={{ fontSize:9, color:"#666666", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
+                    <div style={{ fontSize:9, color:"#888888", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
                   </div>
                   <span style={{ color:"#D1D5DB", fontSize:18 }}>›</span>
                 </div>
@@ -3700,11 +3704,11 @@ export default function App() {
               {/* Results */}
               <div style={{ maxHeight:500, overflowY:"auto" }}>
                 {q.length < 2
-                  ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#444", fontSize:13 }}>Type at least 2 characters to search</div>
+                  ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#AAAAAA", fontSize:13 }}>Type at least 2 characters to search</div>
                   : results.length === 0
-                    ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#444", fontSize:13 }}>No cards found for "{gSearch}"</div>
+                    ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#AAAAAA", fontSize:13 }}>No cards found for "{gSearch}"</div>
                     : <>
-                        <div style={{ padding:"8px 20px", fontSize:11, color:"#555", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
+                        <div style={{ padding:"8px 20px", fontSize:11, color:"#666666", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
                         {results.map((c,i) => {
                           const st = getStatus(c);
                           const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -3716,7 +3720,7 @@ export default function App() {
                                   {c.cardType && <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{c.cardType}</span>}
                                   {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#aaa"}}>{c.seller}</strong></span>}
                                   {c.source && <span style={{ fontSize:11, color:"#666" }}>{c.source}</span>}
-                                  {c.date && <span style={{ fontSize:11, color:"#555" }}>{c.date}</span>}
+                                  {c.date && <span style={{ fontSize:11, color:"#666666" }}>{c.date}</span>}
                                 </div>
                               </div>
                               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
@@ -3755,9 +3759,9 @@ export default function App() {
             >
               <span style={{ fontSize:13 }}>🔍</span>
               <span style={{ fontSize:12 }}>Search</span>
-              <kbd style={{ background:"#111", color:"#555", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
+              <kbd style={{ background:"#111", color:"#666666", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
             </button>
-            <span style={{ color:"#666666", fontSize:11 }}>{inventory.length} cards</span>
+            <span style={{ color:"#888888", fontSize:11 }}>{inventory.length} cards</span>
             {realRole.role === "Admin" && (
               <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
                 <span style={{ fontSize:10, color: viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
@@ -3792,7 +3796,7 @@ export default function App() {
               </div>
             )}
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
-            <span style={{ color:"#666666", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
+            <span style={{ color:"#888888", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
             <span style={{ background:"#1a1a2e", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{userRole.label}</span>
             <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
           </div>
