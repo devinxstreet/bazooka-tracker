@@ -332,7 +332,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
             return d >= s && d <= e;
           }
           if (financialPeriod === "week") {
-            const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+            const start = new Date(now);
+            const day = now.getDay(); // 0=Sun,1=Mon,...6=Sat
+            const daysFromMonday = day === 0 ? 6 : day - 1; // Mon=0 offset
+            start.setDate(now.getDate() - daysFromMonday);
             start.setHours(0,0,0,0);
             return d >= start;
           }
@@ -458,9 +461,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IM",           val:totals.imc,       color:"#6B2D8B", sub:"70% of net revenue" },
-                { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#991b1b", sub:"click to see per rep" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc,       color:"#6B2D8B", sub:"70% of net revenue" },
                 { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
+                { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#991b1b", sub:"click to see per rep" },
                 { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet,   color:"#166534", sub:"after commission paid" },
               ].map(({key,label,val,color,sub}) => (
                 <div
