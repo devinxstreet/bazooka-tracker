@@ -554,8 +554,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
         </div>
       </div>
 
-      {canSeeFinancials && (
-
     </div>
   );
 }
