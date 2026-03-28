@@ -940,7 +940,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:8, marginBottom:4 }}>
-          {[["cards","📦 Cards"],["lots","🗂 Lot History"],["aging","⏰ Aging"]].map(([id,label]) => (
+          {[["cards","📦 Cards"],["lots","🗂 Lot History"],["aging","⏰ Aging"],["customers","👥 Customers"]].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab===id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -1170,6 +1170,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           );
         })()}
       </div>
+
+      {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
@@ -1538,7 +1540,7 @@ function Performance({ breaks, user, userRole }) {
   );
 }
 
-// ─── SELLERS CRM ─────────────────────────────────────────────────
+// ─── CUSTOMERS CRM ──────────────────────────────────────────────
 function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
@@ -1594,11 +1596,12 @@ function Sellers({ inventory, breaks, userRole }) {
 
   // ── SELLER DETAIL ──────────────────────────────────────────────
   if (selectedSeller) {
-    const s = sellerMap[selectedSeller];
+    const s = sellers.find(x => x.name === selectedSeller);
     if (!s) { setSelectedSeller(null); return null; }
     const totalCards = s.cards;
     const totalSpent = s.spent;
-    const usedCount  = s.lotList.flatMap(l=>l.cards).filter(c=>usedIds.has(c.id)).length;
+    const allCards   = s.lotList.flatMap(l=>l.cards);
+    const usedCount  = allCards.filter(c=>usedIds.has(c.id)).length;
     const availCount = totalCards - usedCount;
 
     return (
@@ -1633,7 +1636,7 @@ function Sellers({ inventory, breaks, userRole }) {
 
         {/* Details row */}
         <div style={S.card}>
-          <SectionLabel t="Seller Details" />
+          <SectionLabel t="Customer Details" />
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
             <span style={{ fontSize:13, color:"#9CA3AF" }}>Primary Source: <strong style={{color:"#111827"}}>{s.topSource}</strong></span>
             <span style={{ fontSize:13, color:"#9CA3AF" }}>Preferred Payment: <strong style={{color:"#111827"}}>{s.topPayment}</strong></span>
@@ -1690,7 +1693,7 @@ function Sellers({ inventory, breaks, userRole }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search sellers..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search customers..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
           <div style={{ display:"flex", gap:4 }}>
             {[["spent","💰 Top Spend"],["cards","📦 Most Cards"],["lots","🗂 Most Lots"],["recent","🕐 Recent"]].map(([val,label]) => (
               canSeeFinancials || val !== "spent" ? (
@@ -1698,14 +1701,14 @@ function Sellers({ inventory, breaks, userRole }) {
               ) : null
             ))}
           </div>
-          <span style={{ fontSize:12, color:"#9CA3AF" }}>{filtered.length} sellers</span>
+          <span style={{ fontSize:12, color:"#9CA3AF" }}>{filtered.length} customers</span>
         </div>
       </div>
 
       {filtered.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
-            <div>No sellers yet — start importing lots from Lot Comp</div>
+            <div>No customers yet — start importing lots from Lot Comp</div>
           </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {filtered.map((s,i) => {
@@ -1872,7 +1875,6 @@ export default function App() {
     { id:"inventory",   label:"📦 Inventory"    },
     { id:"breaks",      label:"🎯 Break Log"    },
     { id:"performance", label:"📈 Performance"  },
-    { id:"sellers",     label:"👥 Sellers"      },
   ];
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -1910,7 +1912,6 @@ export default function App() {
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
-        {tab==="sellers"     && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
