@@ -5612,7 +5612,6 @@ export default function App() {
   const [buyers,         setBuyers]         = useState([]);
   const [csvImports,     setCsvImports]     = useState([]);
   const [cardPools,      setCardPools]      = useState([]);
-  const [cardPools,      setCardPools]      = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
