@@ -328,12 +328,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-    const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30;
-    const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
+    const streamExp=coupons+promo+magpros+pack+topload+chaser;
+    const totalExp=fees+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30;
+    const repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
     const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
-    const commAmt=(bazNet-repExp)*rate;
-    return { gross, netRev, bazNet, repExp, imcExpReimb, commAmt, bazTrueNet:bazNet-repExp-commAmt+imcExpReimb, rate };
+    const commBase=bazNet-repExp, commAmt=commBase*rate;
+    return { gross, netRev, bazNet, repExp, imcExpReimb, commBase, commAmt, totalExp, bazTrueNet:bazNet-repExp-commAmt+imcExpReimb, rate };
   }
 
   return (
@@ -1265,6 +1266,34 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                               placeholder={`Their counter: $${parseFloat(q.sellerCounter||0).toFixed(2)}`}
                               style={{ ...S.inp, color:"#FBBF24" }}
                             />
+                            {/* Live % preview */}
+                            {bzCounterAmt[q.id] && parseFloat(bzCounterAmt[q.id]) > 0 && (() => {
+                              const totalMkt = (q.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
+                              const counterVal = parseFloat(bzCounterAmt[q.id]);
+                              const pct = totalMkt > 0 ? (counterVal/totalMkt)*100 : null;
+                              const origOffer = parseFloat(q.dispOffer||0);
+                              const origPct = totalMkt > 0 ? (origOffer/totalMkt)*100 : null;
+                              const sellerPct = totalMkt > 0 ? (parseFloat(q.sellerCounter||0)/totalMkt)*100 : null;
+                              const zone = pct < 65 ? {c:"#4ade80",l:"🟢 Green Zone"} : pct < 70 ? {c:"#FBBF24",l:"🟡 Yellow Zone"} : {c:"#E8317A",l:"🔴 Red Zone"};
+                              return (
+                                <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
+                                  <div style={{ background:"#1a1a1a", border:`1px solid ${zone.c}44`, borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                    <span style={{ color:"#666" }}>Your counter: </span>
+                                    <strong style={{ color:zone.c }}>{pct?pct.toFixed(1)+"%":"—"}</strong>
+                                    <span style={{ color:"#555", marginLeft:4 }}>{zone.l}</span>
+                                  </div>
+                                  {origPct && <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                    <span style={{ color:"#666" }}>Our offer: </span>
+                                    <strong style={{ color:"#E8317A" }}>{origPct.toFixed(1)}%</strong>
+                                  </div>}
+                                  {sellerPct && <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                    <span style={{ color:"#666" }}>Their ask: </span>
+                                    <strong style={{ color:"#FBBF24" }}>{sellerPct.toFixed(1)}%</strong>
+                                  </div>}
+                                </div>
+                              );
+                            })()}
+                          </div>
                           </div>
                           <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">🤝 Send Counter</Btn>
                           <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">❌ Decline</Btn>
@@ -2451,8 +2480,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
-                  { l:"Net Revenue",  v:fmt(rc.netRev),  c:"#1B4F8A" },
-                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#166534" },
+                  { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#4ade80" },
                 ].map(({l,v,c}) => (
                   <div key={l} style={{ textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -4611,14 +4640,9 @@ function PublicQuote({ quoteId }) {
               <button onClick={()=>setView("accept")} style={{width:"100%",background:"#166534",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                 ✅ Accept This Offer
               </button>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <button onClick={()=>setView("counter")} style={{background:"#1a1400",color:"#FBBF24",border:"1.5px solid #FBBF2444",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                  🤝 Make Counter Offer
-                </button>
-                <button onClick={()=>submitResponse("declined")} disabled={submitting} style={{background:"#1a0a0a",color:"#E8317A",border:"1.5px solid #E8317A44",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                  ❌ Decline
-                </button>
-              </div>
+              <button onClick={()=>submitResponse("declined")} disabled={submitting} style={{background:"#1a0a0a",color:"#E8317A",border:"1.5px solid #E8317A44",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                ❌ Decline
+              </button>
             </div>
           )}
 
