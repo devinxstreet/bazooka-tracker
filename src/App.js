@@ -507,7 +507,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
         const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
-                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30+(parseFloat(h.imcReimb)||0), 0);
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
@@ -703,23 +703,23 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {/* Historical Data — Admin only */}
       {canSeeFinancials && (() => {
         const [showHist, setShowHist] = useState(false);
-        const [histForm, setHistForm] = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+        const [histForm, setHistForm] = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
         const [editingId, setEditingId] = useState(null);
 
         function startEdit(h) {
-          setHistForm({ yearMonth:h.yearMonth, grossRevenue:h.grossRevenue||"", netRevenue:h.netRevenue||"", newBuyers:h.newBuyers||"", notes:h.notes||"" });
+          setHistForm({ yearMonth:h.yearMonth, grossRevenue:h.grossRevenue||"", netRevenue:h.netRevenue||"", imcReimb:h.imcReimb||"", newBuyers:h.newBuyers||"", notes:h.notes||"" });
           setEditingId(h.id);
           setShowHist(true);
         }
         function cancelEdit() {
-          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
           setEditingId(null);
         }
 
         async function saveHist() {
           if (!histForm.yearMonth || !histForm.grossRevenue) return;
           await onSaveHistorical({ ...histForm, id: histForm.yearMonth });
-          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", newBuyers:"", notes:"" });
+          setHistForm({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
           setEditingId(null);
         }
 
@@ -734,7 +734,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             {showHist && (
               <>
                 <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>{editingId ? `Editing ${editingId} — update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
                   <div>
                     <label style={S.lbl}>Month (YYYY-MM)</label>
                     <input type="month" value={histForm.yearMonth} onChange={e=>setHistForm(p=>({...p,yearMonth:e.target.value}))} style={{ ...S.inp, opacity: editingId ? 0.5 : 1 }} disabled={!!editingId}/>
@@ -746,6 +746,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <div>
                     <label style={S.lbl}>Net Revenue ($)</label>
                     <input type="number" step="0.01" value={histForm.netRevenue} onChange={e=>setHistForm(p=>({...p,netRevenue:e.target.value}))} placeholder="0.00" style={S.inp}/>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>IMC Reimb ($)</label>
+                    <input type="number" step="0.01" value={histForm.imcReimb} onChange={e=>setHistForm(p=>({...p,imcReimb:e.target.value}))} placeholder="0.00" style={S.inp}/>
                   </div>
                   <div>
                     <label style={S.lbl}>New Buyers</label>
@@ -762,14 +766,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
                 {historicalData.length > 0 && (
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                    <thead><tr>{["Month","Gross","Net","Bazooka (30%)","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{["Month","Gross","Net","IMC Reimb","Bazooka (30%)","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {historicalData.map((h,i) => (
                         <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#FFFFFF":"#FFF8FB" }}>
                           <td style={{ ...S.td, fontWeight:700, color:"#6B2D8B" }}>{h.yearMonth}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#1B4F8A" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
-                          <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
+                          <td style={{ ...S.td, color:"#166534" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"—"}</td>
+                          <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
                           <td style={{ ...S.td, color:"#166534", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"—"}</td>
                           <td style={{ ...S.td, color:"#9CA3AF" }}>{h.notes||"—"}</td>
                           <td style={S.td}>
