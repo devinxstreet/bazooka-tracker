@@ -186,8 +186,12 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const [financialPeriod, setFinancialPeriod] = useState("month");
+  const [customStart,     setCustomStart]     = useState("");
+  const [customEnd,       setCustomEnd]       = useState("");
+  const [drillDown,       setDrillDown]       = useState(null); // "gross"|"imc"|"commission"|"bazooka"
     const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
@@ -407,6 +411,165 @@ function Dashboard({ inventory, breaks, user, userRole }) {
         ))}
       </div>
       )}
+
+      {/* ── FINANCIAL OVERVIEW (Admin only) ── */}
+      {canSeeFinancials && streams.length > 0 && (() => {
+        // Period filter
+        const now   = new Date();
+        function inPeriod(dateStr) {
+          if (!dateStr) return false;
+          const d = new Date(dateStr);
+          if (financialPeriod === "custom") {
+            const s = customStart ? new Date(customStart) : new Date(0);
+            const e = customEnd   ? new Date(customEnd+"T23:59:59") : new Date();
+            return d >= s && d <= e;
+          }
+          if (financialPeriod === "week") {
+            const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+            start.setHours(0,0,0,0);
+            return d >= start;
+          }
+          if (financialPeriod === "month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+          if (financialPeriod === "quarter") {
+            const q = Math.floor(now.getMonth()/3);
+            return Math.floor(d.getMonth()/3)===q && d.getFullYear()===now.getFullYear();
+          }
+          if (financialPeriod === "year")    return d.getFullYear()===now.getFullYear();
+          return true;
+        }
+
+        function calcStream(s) {
+          const gross   = parseFloat(s.grossRevenue)||0;
+          const fees    = parseFloat(s.whatnotFees)||0;
+          const coupons = parseFloat(s.coupons)||0;
+          const promo   = parseFloat(s.whatnotPromo)||0;
+          const magpros = parseFloat(s.magpros)||0;
+          const pack    = parseFloat(s.packagingMaterial)||0;
+          const topload = parseFloat(s.topLoaders)||0;
+          const chaser  = parseFloat(s.chaserCards)||0;
+          const totalExp = fees+coupons+promo+magpros+pack+topload+chaser;
+          const netRev   = gross - totalExp;
+          const bazNet   = netRev * 0.30;
+          const imcNet   = netRev * 0.70;
+          const repExp   = totalExp * 0.135;
+          const commBase = bazNet - repExp;
+          const mm = parseFloat(s.marketMultiple)||0;
+          const rate = s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const commAmt  = commBase * rate;
+          return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt };
+        }
+
+        const filtered = streams.filter(s => inPeriod(s.date));
+        const totals   = filtered.reduce((acc,s) => {
+          const c = calcStream(s);
+          acc.gross  += c.gross;
+          acc.imc    += c.imcNet;
+          acc.comm   += c.commAmt;
+          acc.baz    += c.bazNet;
+          return acc;
+        }, { gross:0, imc:0, comm:0, baz:0 });
+
+        const PERIOD_LABELS = { week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
+
+        // Drill-down modal content
+        const renderDrillDown = () => {
+          if (!drillDown) return null;
+          const config = {
+            gross:      { label:"Gross Revenue",       color:"#E8317A", val: s => calcStream(s).gross },
+            imc:        { label:"Owed to IMC (70%)",   color:"#6B2D8B", val: s => calcStream(s).imcNet },
+            commission: { label:"Commission Owed",     color:"#166534", val: s => calcStream(s).commAmt },
+            bazooka:    { label:"Bazooka Net (30%)",   color:"#1B4F8A", val: s => calcStream(s).bazNet },
+          }[drillDown];
+          return (
+            <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                <SectionLabel t={config.label} />
+                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:18 }}>✕</button>
+              </div>
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  <thead><tr>
+                    {["Date","Breaker","Gross","Net","Rate",(drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka (30%)":"Gross")].map(h=><th key={h} style={S.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {filtered.length===0
+                      ? <EmptyRow msg="No streams in this period." cols={6}/>
+                      : filtered.map((s,i) => {
+                          const c   = calcStream(s);
+                          const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
+                          const val = config.val(s);
+                          return (
+                            <tr key={s.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                              <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                              <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
+                              <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${c.gross.toFixed(2)}</td>
+                              <td style={{ ...S.td, color:"#1B4F8A", fontWeight:700 }}>${c.netRev.toFixed(2)}</td>
+                              <td style={{ ...S.td, color:"#6B7280" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
+                              <td style={{ ...S.td, color:config.color, fontWeight:900 }}>${val.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background:"#F9FAFB", borderTop:"2px solid #F0E0E8" }}>
+                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#111827" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                      <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>${filtered.reduce((a,s)=>a+config.val(s),0).toFixed(2)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <>
+          <div style={{ ...S.card, border:"2px solid #E8317A22" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
+              <SectionLabel t="Financial Overview" />
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
+                  <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            {financialPeriod === "custom" && (
+              <div style={{ display:"flex", gap:10, marginBottom:16, alignItems:"center" }}>
+                <div><label style={S.lbl}>From</label><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
+                <div><label style={S.lbl}>To</label><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
+                <div style={{ fontSize:12, color:"#9CA3AF", marginTop:14 }}>{filtered.length} stream{filtered.length!==1?"s":""} in range</div>
+              </div>
+            )}
+
+            <div style={{ fontSize:11, color:"#9CA3AF", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+              {[
+                { key:"gross",      label:"Gross Revenue",     val:totals.gross, color:"#E8317A", sub:"click for stream breakdown" },
+                { key:"imc",        label:"Owed to IMC",       val:totals.imc,   color:"#6B2D8B", sub:"70% of net revenue" },
+                { key:"commission", label:"Commission Owed",   val:totals.comm,  color:"#166534", sub:"click to see per rep" },
+                { key:"bazooka",    label:"Bazooka Net",       val:totals.baz,   color:"#1B4F8A", sub:"30% of net revenue" },
+              ].map(({key,label,val,color,sub}) => (
+                <div
+                  key={key}
+                  onClick={()=>setDrillDown(drillDown===key?null:key)}
+                  className="stat-card"
+                  style={{ background:drillDown===key?"#1A1A2E":"#FAFAFA", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
+                >
+                  <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>${val.toFixed(2)}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#111827", marginBottom:3 }}>{label}</div>
+                  <div style={{ fontSize:10, color:drillDown===key?"#888":"#9CA3AF" }}>{drillDown===key?"▲ hide":"▼ "+sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {drillDown && renderDrillDown()}
+          </>
+        );
+      })()}
 
 
     </div>
@@ -2283,7 +2446,7 @@ export default function App() {
       </div>
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} />}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
