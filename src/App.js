@@ -4014,6 +4014,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <input type="date" value={stubTo} onChange={e=>setStubTo(e.target.value)} style={S.inp}/>
                     </div>
                   </>}
+                  <Btn onClick={()=>{ printStub(); }} variant="ghost">👁 Preview PDF</Btn>
                   <Btn onClick={()=>{
                     printStub();
                     if (onSavePayStub) onSavePayStub({
@@ -4026,9 +4027,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       totalComm: totals.comm,
                       streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
                     });
-                  }} variant="green">🖨 Generate PDF</Btn>
+                  }} variant="green" disabled={stubStreams.length===0}>📤 Send to {targetBreaker}</Btn>
                   <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px" }}>
-                    <span style={{ fontSize:11, color:"#666" }}>View:</span>
+                    <span style={{ fontSize:11, color:"#666" }}>PDF View:</span>
                     <button onClick={()=>setStubAdminView(false)} style={{ background:!stubAdminView?"#E8317A":"transparent", color:!stubAdminView?"#fff":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Rep</button>
                     <button onClick={()=>setStubAdminView(true)} style={{ background:stubAdminView?"#1A1A2E":"transparent", color:stubAdminView?"#E8317A":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Admin</button>
                   </div>
