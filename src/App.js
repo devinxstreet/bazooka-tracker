@@ -413,7 +413,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
       )}
 
       {/* ── FINANCIAL OVERVIEW (Admin only) ── */}
-      {canSeeFinancials && streams.length > 0 && (() => {
+      {canSeeFinancials && (() => {
         // Period filter
         const now   = new Date();
         function inPeriod(dateStr) {
@@ -493,7 +493,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg="No streams in this period." cols={6}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet — add a stream recap in Break Log." : "No streams in this period."} cols={6}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
