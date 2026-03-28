@@ -1685,7 +1685,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           );
         })}
-      </div>}
+      </div>
 
       {!recapOnly && <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ padding:"16px 20px 0" }}>
