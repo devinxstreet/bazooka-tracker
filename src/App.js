@@ -3370,7 +3370,7 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -3395,13 +3395,73 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
 
       {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
-      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub}/>}
+      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
     </div>
   );
 }
 
 // ─── COMMISSION ──────────────────────────────────────────────────
-function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[], onSavePayStub }) {
+function StubRow({ stub, S, onDeletePayStub }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ background:"#0d0d0d", border:"1px solid #222", borderRadius:10, overflow:"hidden" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", flexWrap:"wrap", gap:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:32, height:32, borderRadius:"50%", background:"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>💵</div>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontWeight:800, fontSize:13, color:"#F0F0F0" }}>{stub.breaker}</span>
+              <span style={{ fontSize:11, color:"#666" }}>{stub.period}</span>
+              {!stub.read && <span style={{ background:"#E8317A22", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:20, padding:"1px 8px", fontSize:10, fontWeight:700 }}>Unread</span>}
+            </div>
+            <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+              {stub.streamCount} stream{stub.streamCount!==1?"s":""} · Generated {new Date(stub.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} by {stub.createdBy||"Admin"}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ fontSize:18, fontWeight:900, color:"#4ade80" }}>{fmt(stub.totalComm)}</div>
+            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            <button onClick={()=>setExpanded(p=>!p)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{expanded?"▲ Hide":"▼ View"}</button>
+            <button onClick={()=>{ if(window.confirm(`Delete pay stub for ${stub.breaker}?\n\nThis removes it from their dashboard too.`)) onDeletePayStub(stub.id); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+          </div>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ borderTop:"1px solid #222", padding:"12px 16px" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead><tr>
+              {["Date","Type","Gross","Baz Net","Rate","Commission"].map(h=><th key={h} style={S.th}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {(stub.streams||[]).map((s,i)=>(
+                <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                  <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                  <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}</td>
+                  <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
+                  <td style={{ ...S.td, color:"#7B9CFF" }}>{fmt(s.bazNet||0)}</td>
+                  <td style={{ ...S.td, color:"#888" }}>{(s.rate*100).toFixed(0)}%</td>
+                  <td style={{ ...S.td, color:"#4ade80", fontWeight:900 }}>{fmt(s.commAmt)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:"#0a1a0a", borderTop:"2px solid #4ade8033" }}>
+                <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({stub.streamCount} streams)</td>
+                <td style={{ ...S.td, color:"#4ade80", fontWeight:900, fontSize:15 }}>{fmt(stub.totalComm)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[], onSavePayStub, payStubs=[], onDeletePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -3412,9 +3472,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [viewStream,setViewStream]= useState(null);
   const [importing, setImporting] = useState(false);
   const [csvError,  setCsvError]  = useState("");
-  const [showStub,  setShowStub]  = useState(false);
-  const [stubBreaker, setStubBreaker] = useState("");
-  const [stubPeriod,  setStubPeriod]  = useState("week");
+  const [showStub,     setShowStub]     = useState(false);
+  const [showStubHist, setShowStubHist] = useState(false);
+  const [stubBreaker,  setStubBreaker]  = useState("");
+  const [stubPeriod,   setStubPeriod]   = useState("week");
+  const [stubHistFilter, setStubHistFilter] = useState("");
   const [stubFrom,    setStubFrom]    = useState("");
   const [stubTo,      setStubTo]      = useState("");
 
@@ -4024,6 +4086,41 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ── PAY STUB HISTORY ── */}
+      {isAdmin && payStubs.length > 0 && (
+        <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStubHist ? 14 : 0 }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:14, height:2, background:"#AAAAAA", borderRadius:1 }}/>
+              📋 Statement History ({payStubs.length})
+            </div>
+            <button onClick={()=>setShowStubHist(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {showStubHist?"▲ Hide":"▼ Show"}
+            </button>
+          </div>
+          {showStubHist && (
+            <div>
+              {/* Filter by breaker */}
+              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+                <span style={{ fontSize:11, color:"#666" }}>Filter:</span>
+                <button onClick={()=>setStubHistFilter("")} style={{ background:!stubHistFilter?"#1A1A2E":"transparent", color:!stubHistFilter?"#E8317A":"#888", border:`1.5px solid ${!stubHistFilter?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All</button>
+                {BREAKERS.map(b=>(
+                  <button key={b} onClick={()=>setStubHistFilter(b)} style={{ background:stubHistFilter===b?"#1A1A2E":"transparent", color:stubHistFilter===b?"#E8317A":"#888", border:`1.5px solid ${stubHistFilter===b?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{b}</button>
+                ))}
+              </div>
+
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {payStubs
+                  .filter(s => !stubHistFilter || s.breaker === stubHistFilter)
+                  .map(stub => {
+                    return <StubRow key={stub.id} stub={stub} S={S} onDeletePayStub={onDeletePayStub}/>;
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -4963,6 +5060,10 @@ export default function App() {
   async function handleDismissPayStub(id) {
     await setDoc(doc(db,"pay_stubs",id), { read:true }, { merge:true });
   }
+  async function handleDeletePayStub(id) {
+    await deleteDoc(doc(db,"pay_stubs",id));
+    showToast("🗑 Pay stub deleted");
+  }
   async function handleSaveQuote(quoteData) {
     const id = uid();
     await setDoc(doc(db,"quotes",id), { ...quoteData, id, createdAt:new Date().toISOString() });
@@ -5275,7 +5376,7 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
