@@ -2256,11 +2256,21 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     return { gross, totalExp, netRev, bazNet, bobaNet, repExp, commBase, rate, commAmt };
   }
 
-  // Filter by role
-  const visibleStreams = isAdmin ? streams : streams.filter(s => s.breaker === myBreaker);
+  // Admins see all streams; streamers see only their own
+  const CEO_NAMES = ["Dev","Devin","Derrik"];
+  const isCEO = CEO_NAMES.some(n => curUser.toLowerCase().includes(n.toLowerCase()));
+  const visibleStreams = isAdmin
+    ? streams
+    : streams.filter(s => s.breaker === myBreaker);
+
+  // Per-breaker filter for admins
+  const [breakerFilter, setBreakerFilter] = useState("all");
+  const filteredStreams = isAdmin && breakerFilter !== "all"
+    ? visibleStreams.filter(s => s.breaker === breakerFilter)
+    : visibleStreams;
 
   // Aggregates
-  const totals = visibleStreams.reduce((acc, s) => {
+  const totals = filteredStreams.reduce((acc, s) => {
     const c = calcStream(s);
     acc.gross    += c.gross;
     acc.net      += c.netRev;
@@ -2527,13 +2537,28 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
         ))}
       </div>
 
+      {/* Breaker filter — admin only */}
+      {isAdmin && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {["all", ...BREAKERS].map(b => (
+            <button key={b} onClick={()=>setBreakerFilter(b)}
+              style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {b === "all" ? "👥 All Breakers" : b}
+              {b !== "all" && <span style={{ marginLeft:6, background:"#F0E0E8", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
+                {streams.filter(s=>s.breaker===b).length}
+              </span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Stream list */}
       {visibleStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
             <div style={{ color:"#9CA3AF" }}>No streams logged yet." Stream recaps are entered in the Break Log tab."</div>
           </div>
-        : visibleStreams.map(s => {
+        : filteredStreams.map(s => {
             const c    = calcStream(s);
             const bc   = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             return (
