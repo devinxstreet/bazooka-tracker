@@ -559,7 +559,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                 color: "#3D95CE",
                 label: "Send via Venmo",
                 hint:  `To: @${cleanHandle}`,
-                href:  `https://venmo.com/u/${cleanHandle}`,
+                href:  `venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}`,
+                webHref: `https://venmo.com/u/${cleanHandle}`,
                 webHref: `https://venmo.com/${cleanHandle}`,
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#3D95CE"/><path d="M18.5 5.5c.4.7.6 1.4.6 2.3 0 2.9-2.5 6.6-4.5 9.2H10L8 5.8l4-.4 1 7.2c.9-1.5 2-3.8 2-5.4 0-.9-.2-1.5-.4-2l3.9-.7z" fill="white"/></svg>,
               },
@@ -589,9 +590,12 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                     </div>
                   </div>
                   {cfg.href
-                    ? <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
-                        {cfg.icon} {cfg.label} →
-                      </a>
+                    ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                        <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
+                          {cfg.icon} {cfg.label} →
+                        </a>
+                        {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
+                      </div>
                     : <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                         <div style={{ background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
                         <div style={{ fontSize:11, color:"#9CA3AF" }}>Send to: <strong style={{color:"#111827"}}>{handle}</strong></div>
@@ -828,7 +832,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             const amt         = dispOffer > 0 ? dispOffer.toFixed(2) : "";
             const note        = encodeURIComponent(`Bazooka card purchase - ${seller.name||"lot"}`);
             const PCFG = {
-              Venmo:      { color:"#3D95CE", bg:"#E8F5FF", label:"Send via Venmo",    hint:`@${cleanHandle}`, href:`https://venmo.com/u/${cleanHandle}` },
+              Venmo:      { color:"#3D95CE", bg:"#E8F5FF", label:"Send via Venmo",    hint:`@${cleanHandle}`, href:`venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}`, webHref:`https://venmo.com/u/${cleanHandle}` },
               PayPal:     { color:"#003087", bg:"#E8EEFF", label:"Send via PayPal",   hint:handle,            href:`https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}` },
               Zelle:      { color:"#6D1ED4", bg:"#F3EEFF", label:"Open Zelle",        hint:handle,            href:null },
               "Cash App": { color:"#00C244", bg:"#E6FFF0", label:"Send via Cash App", hint:`$${cleanHandle}`, href:`https://cash.app/$${cleanHandle}${amt?"/"+amt:""}` },
@@ -844,7 +848,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   {amt && <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2 }}>Amount: <strong style={{color:"#111827"}}>${amt}</strong></div>}
                 </div>
                 {cfg.href
-                  ? <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
+                  ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
+                      {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
+                    </div>
                   : <div style={{ background:cfg.color, color:"#FFFFFF", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} → ${cfg.hint}`}</div>
                 }
               </div>
