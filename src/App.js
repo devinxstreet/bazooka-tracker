@@ -1809,7 +1809,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 );
               })}
             </div>
-          )}
         </div>
 
         <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
@@ -2897,11 +2896,40 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     ? streams
     : streams.filter(s => s.breaker === myBreaker);
 
-  // Per-breaker filter for admins
+  // Period filter — available to everyone
+  const [period,        setPeriod]        = useState("all");
+  const [customFrom,    setCustomFrom]    = useState("");
+  const [customTo,      setCustomTo]      = useState("");
   const [breakerFilter, setBreakerFilter] = useState("all");
+
+  function inPeriod(dateStr) {
+    const d   = new Date(dateStr);
+    const now = new Date();
+    if (period === "week") {
+      const start = new Date(now);
+      const day = now.getDay();
+      start.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      start.setHours(0,0,0,0);
+      return d >= start;
+    }
+    if (period === "month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    if (period === "quarter") {
+      const q = Math.floor(now.getMonth()/3);
+      return Math.floor(d.getMonth()/3)===q && d.getFullYear()===now.getFullYear();
+    }
+    if (period === "year")    return d.getFullYear()===now.getFullYear();
+    if (period === "custom" && customFrom && customTo) {
+      const from = new Date(customFrom); from.setHours(0,0,0,0);
+      const to   = new Date(customTo);   to.setHours(23,59,59,999);
+      return d >= from && d <= to;
+    }
+    return true; // "all"
+  }
+
+  const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
   const filteredStreams = isAdmin && breakerFilter !== "all"
-    ? visibleStreams.filter(s => s.breaker === breakerFilter)
-    : visibleStreams;
+    ? periodFiltered.filter(s => s.breaker === breakerFilter)
+    : periodFiltered;
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
@@ -3176,6 +3204,27 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
+      {/* Period filter */}
+      <div style={{ ...S.card, padding:"12px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
+          {[["all","All Time"],["week","This Week"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["custom","Custom"]].map(([val,label]) => (
+            <button key={val} onClick={()=>{ setPeriod(val); setViewStream(null); }}
+              style={{ background:period===val?"#1A1A2E":"transparent", color:period===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${period===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {label}
+            </button>
+          ))}
+          {period==="custom" && (
+            <>
+              <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ ...S.inp, width:140, fontSize:11, padding:"4px 8px" }}/>
+              <span style={{ fontSize:11, color:"#9CA3AF" }}>to</span>
+              <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ ...S.inp, width:140, fontSize:11, padding:"4px 8px" }}/>
+            </>
+          )}
+          <span style={{ marginLeft:"auto", fontSize:11, color:"#9CA3AF" }}>{filteredStreams.length} stream{filteredStreams.length!==1?"s":""}</span>
+        </div>
+      </div>
+
       {/* Summary */}
       <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:12 }}>
         {[
@@ -3193,6 +3242,61 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
           </div>
         ))}
       </div>
+
+      {/* Projection Calculator */}
+      {(() => {
+        const now = new Date();
+        const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+        const daysInYear = 365;
+        const ytdStreams = visibleStreams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
+        const ytdComm   = ytdStreams.reduce((sum,s) => sum+calcStream(s).commAmt, 0);
+        const ytdGross  = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
+        const ytdBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
+        const dailyComm  = dayOfYear > 0 ? ytdComm  / dayOfYear : 0;
+        const dailyGross = dayOfYear > 0 ? ytdGross / dayOfYear : 0;
+        const dailyBuyers= dayOfYear > 0 ? ytdBuyers / dayOfYear : 0;
+        const projComm   = dailyComm   * daysInYear;
+        const projGross  = dailyGross  * daysInYear;
+        const projBuyers = Math.round(dailyBuyers * daysInYear);
+        const pct = Math.round(dayOfYear / daysInYear * 100);
+        if (ytdStreams.length === 0) return null;
+        return (
+          <div style={{ ...S.card, background:"#1A1A2E", border:"1px solid #E8317A33" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+              <div style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>📈 Year-End Projections</div>
+              <span style={{ fontSize:11, color:"#9CA3AF" }}>Based on {ytdStreams.length} streams · {pct}% through {now.getFullYear()}</span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?3:2},1fr)`, gap:12, marginBottom:14 }}>
+              <div style={{ textAlign:"center" }}>
+                <div style={{ fontSize:26, fontWeight:900, color:"#166534" }}>{fmt(projComm)}</div>
+                <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected Commission</div>
+                <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(ytdComm)} YTD</div>
+              </div>
+              {isAdmin && (
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:26, fontWeight:900, color:"#E8317A" }}>{fmt(projGross)}</div>
+                  <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected Gross</div>
+                  <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{fmt(ytdGross)} YTD</div>
+                </div>
+              )}
+              <div style={{ textAlign:"center" }}>
+                <div style={{ fontSize:26, fontWeight:900, color:"#166534" }}>{projBuyers.toLocaleString()}</div>
+                <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Projected New Buyers</div>
+                <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{ytdBuyers} YTD</div>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height:6, background:"#333", borderRadius:10, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10, transition:"width 1s ease" }}/>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+              <span style={{ fontSize:10, color:"#555" }}>Jan 1</span>
+              <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
+              <span style={{ fontSize:10, color:"#555" }}>Dec 31</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Breaker filter — admin only */}
       {isAdmin && (
