@@ -2151,14 +2151,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       }
                       cols.push(cur.trim());
                       if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
-                      gross   += parseFloat(cols[origIdx]||0)||0;
-                      coupons += parseFloat(cols[couponIdx]||0)||0;
+                      gross   += (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
-                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons }));
+                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2) }));
                     if (streamDate) setDate(streamDate);
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in fees & expenses.` });
+                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)} (incl. coupons)${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
                     setTimeout(()=>setCsvMsg(null), 6000);
 
                     // Parse buyers for CRM
