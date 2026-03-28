@@ -2875,7 +2875,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
       {/* Summary */}
       <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:12 }}>
         {[
-          { l:"Total Streams",     v:visibleStreams.length,           c:"#111827" },
+          { l:"Total Streams",     v:filteredStreams.length,          c:"#111827" },
           { l:"Total Commission",  v:fmt(totals.comm),    c:"#166534" },
           { l:"🌱 New Buyers",     v:totals.newBuyers,                c:"#166534" },
           ...(isAdmin ? [
@@ -2894,11 +2894,11 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
       {isAdmin && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {["all", ...BREAKERS].map(b => (
-            <button key={b} onClick={()=>setBreakerFilter(b)}
+            <button key={b} onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
               style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {b === "all" ? "👥 All Breakers" : b}
               {b !== "all" && <span style={{ marginLeft:6, background:"#F0E0E8", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
-                {streams.filter(s=>s.breaker===b).length}
+                {visibleStreams.filter(s=>s.breaker===b).length}
               </span>}
             </button>
           ))}
@@ -2906,10 +2906,10 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
       )}
 
       {/* Stream list */}
-      {visibleStreams.length === 0
+      {filteredStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
-            <div style={{ color:"#9CA3AF" }}>No streams logged yet." Stream recaps are entered in the Break Log tab."</div>
+            <div style={{ color:"#9CA3AF" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
             const c    = calcStream(s);
