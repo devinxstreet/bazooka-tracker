@@ -3729,7 +3729,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               return { gross, totalExp, netRev, bazNet, repExp, commAmt, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.net+=c.netRev; acc.comm+=c.commAmt; return acc; }, {gross:0,net:0,comm:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; return acc; }, {gross:0,baz:0,comm:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} – ${stubTo}` : "Select dates";
@@ -3744,7 +3744,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.netRev)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.repExp)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
@@ -3795,7 +3795,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
                 <table>
                   <thead><tr>
-                    <th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Net Rev</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>
+                    <th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>
                   </tr></thead>
                   <tbody>${streamRows}</tbody>
                 </table>
@@ -3803,7 +3803,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
                   <div class="totals-grid">
                     <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
-                    <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.net)}</div><div class="tot-lbl">Total Net Revenue</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
                   </div>
                 </div>
@@ -3852,7 +3852,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       totalGross: totals.gross,
                       totalNet: totals.net,
                       totalComm: totals.comm,
-                      streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, netRev:c.netRev, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
+                      streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
                     });
                   }} variant="green">🖨 Generate PDF</Btn>
                 </div>
@@ -3870,9 +3870,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     : <>
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
                           {[
-                            { l:"Gross Revenue", v:fmt(totals.gross), c:"#E8317A" },
-                            { l:"Net Revenue",   v:fmt(totals.net),   c:"#1B4F8A" },
-                            { l:"Commission",    v:fmt(totals.comm),  c:"#4ade80" },
+                            { l:"Gross Revenue",    v:fmt(totals.gross), c:"#E8317A" },
+                            { l:"Bazooka Net (30%)",v:fmt(totals.baz),   c:"#1B4F8A" },
+                            { l:"Commission",       v:fmt(totals.comm),  c:"#4ade80" },
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
                               <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -3882,7 +3882,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         </div>
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                           <thead><tr>
-                            {["Date","Type","Gross","Net","Rate","Commission"].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
+                            {["Date","Type","Gross","Baz Net","Rate","Commission"].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
                           </tr></thead>
                           <tbody>
                             {stubStreams.map((s,i)=>{
@@ -3891,7 +3891,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                                 <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                                <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{fmt(c.netRev)}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{(c.rate*100).toFixed(0)}%</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#4ade80", fontWeight:900 }}>{fmt(c.commAmt)}</td>
                               </tr>;
