@@ -1218,11 +1218,11 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                           <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
                           {r.name.trim() && (
                             <a
-                              href={`https://130point.com/sales/?sSearch=${encodeURIComponent("BJBA "+r.name.trim())}`}
+                              href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`}
                               target="_blank"
                               rel="noreferrer"
-                              title="Look up on 130point"
-                              style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
+                              title="Search on 130point"
+                              style={{ background:"#000000", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
                             >🔍</a>
                           )}
                         </div>
