@@ -2695,7 +2695,18 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               <span style={{ fontWeight:700, color:"#FFFFFF", fontSize:14 }}>Gross Revenue</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
-            {EXPENSE_ROWS.filter(r=>r.v>0).map(({l,v}) => (
+            {/* Platform fees — excluded from rep 13.5% */}
+            {parseFloat(s.whatnotFees) > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#F3F4F6", borderRadius:7, border:"1px solid #E5E7EB" }}>
+                <span style={{ color:"#6B7280", fontSize:13 }}>− Whatnot Fees <span style={{ fontSize:10, color:"#9CA3AF", marginLeft:6 }}>(platform cost — not included in rep expenses)</span></span>
+                <span style={{ color:"#6B7280", fontWeight:700, fontSize:13 }}>${(parseFloat(s.whatnotFees)||0).toFixed(2)}</span>
+              </div>
+            )}
+            {/* Supply/stream expenses — included in rep 13.5% */}
+            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).length > 0 && (
+              <div style={{ fontSize:10, color:"#9CA3AF", fontWeight:700, textTransform:"uppercase", letterSpacing:1, padding:"4px 2px" }}>Stream Expenses (rep pays 13.5% of these)</div>
+            )}
+            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).map(({l,v}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FEF3F2", borderRadius:7, border:"1px solid #FEE2E2" }}>
                 <span style={{ color:"#6B7280", fontSize:13 }}>− {l}</span>
                 <span style={{ color:"#991b1b", fontWeight:700, fontSize:13 }}>${v.toFixed(2)}</span>
