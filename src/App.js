@@ -1949,7 +1949,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={} }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -2162,6 +2162,41 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     setRecapSaved(false);
                     setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in fees & expenses.` });
                     setTimeout(()=>setCsvMsg(null), 6000);
+
+                    // Parse buyers for CRM
+                    if (onUpsertBuyers) {
+                      const buyerMap = {};
+                      const usernameIdx = rawHeaders.indexOf("buyer_username");
+                      const addressIdx  = rawHeaders.indexOf("shipping_address");
+                      const zipIdx      = rawHeaders.indexOf("postal_code");
+                      const couponCodeIdx = rawHeaders.indexOf("coupon_code");
+                      for (let i=1; i<lines.length; i++) {
+                        const cols=[]; let cur="", inQuote=false;
+                        for (const ch of lines[i]) {
+                          if (ch==='"') { inQuote=!inQuote; }
+                          else if (ch==="," && !inQuote) { cols.push(cur.trim()); cur=""; }
+                          else { cur+=ch; }
+                        }
+                        cols.push(cur.trim());
+                        if ((cols[cancelIdx]||"").toLowerCase()==="true") continue;
+                        const username = cols[usernameIdx]||"";
+                        if (!username) continue;
+                        const address = cols[addressIdx]||"";
+                        const parts = address.split(",").map(p=>p.trim());
+                        const fullName = parts[0]||"";
+                        const city  = parts[parts.length-4]||"";
+                        const state = parts[parts.length-3]||"";
+                        const zip   = cols[zipIdx]||"";
+                        const spend = parseFloat(cols[origIdx]||0)||0;
+                        const hasCoupon = !!(cols[couponCodeIdx]||"").trim();
+                        if (!buyerMap[username]) buyerMap[username] = { username, fullName, city, state, zip, spend:0, orders:0, couponCount:0, date:streamDate };
+                        buyerMap[username].spend += spend;
+                        buyerMap[username].orders++;
+                        if (hasCoupon) buyerMap[username].couponCount++;
+                      }
+                      const streamId = `${breaker}_${streamDate}`;
+                      onUpsertBuyers(Object.values(buyerMap), streamId);
+                    }
                   } catch(err) { setCsvMsg({ type:"error", text:"Could not parse CSV. Make sure it's a Whatnot live sales export." }); }
                 };
                 reader.readAsText(file);
@@ -3337,7 +3372,7 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -3360,7 +3395,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub}/>}
     </div>
@@ -4464,6 +4499,212 @@ function PublicQuote({ quoteId }) {
 }
 
 
+// ─── BUYERS CRM ──────────────────────────────────────────────
+function BuyersCRM({ buyers=[], userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const [search,   setSearch]   = useState("");
+  const [sortBy,   setSortBy]   = useState("spend");
+  const [selected, setSelected] = useState(null);
+  const [stateFilter, setStateFilter] = useState("");
+
+  const US_STATES = [...new Set(buyers.map(b=>b.state).filter(Boolean))].sort();
+
+  const filtered = buyers
+    .filter(b => {
+      const q = search.toLowerCase();
+      const matchSearch = !q || b.username?.toLowerCase().includes(q) || b.fullName?.toLowerCase().includes(q) || b.city?.toLowerCase().includes(q) || b.state?.toLowerCase().includes(q);
+      const matchState = !stateFilter || b.state === stateFilter;
+      return matchSearch && matchState;
+    })
+    .sort((a,b) => {
+      if (sortBy==="orders")  return (b.orderCount||0)-(a.orderCount||0);
+      if (sortBy==="recent")  return new Date(b.lastSeen||0)-new Date(a.lastSeen||0);
+      if (sortBy==="new")     return new Date(b.firstSeen||0)-new Date(a.firstSeen||0);
+      if (sortBy==="streams") return (b.streams?.length||0)-(a.streams?.length||0);
+      return (b.totalSpend||0)-(a.totalSpend||0); // default spend
+    });
+
+  // Stats
+  const totalBuyers  = buyers.length;
+  const totalSpend   = buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalOrders  = buyers.reduce((s,b)=>s+(b.orderCount||0),0);
+  const newThisMonth = buyers.filter(b=>{ const d=new Date(b.firstSeen||0); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear(); }).length;
+  const stateGroups  = buyers.reduce((acc,b)=>{ if(b.state){acc[b.state]=(acc[b.state]||0)+1;} return acc; },{});
+  const topStates    = Object.entries(stateGroups).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // ── BUYER DETAIL ──────────────────────────────────────────
+  if (selected) {
+    const b = buyers.find(x=>x.id===selected);
+    if (!b) { setSelected(null); return null; }
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={()=>setSelected(null)} style={{ background:"#1a1a1a", border:"1.5px solid #2a2a2a", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#888" }}>← Back</button>
+          <div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{b.fullName||b.username}</div>
+            <div style={{ fontSize:12, color:"#888", marginTop:2, display:"flex", gap:10, alignItems:"center" }}>
+              <span>@{b.username}</span>
+              {b.city && b.state && <span>📍 {b.city}, {b.state} {b.zip}</span>}
+              {b.isNew && <span style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8033", borderRadius:20, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🌱 New Buyer</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+          {[
+            { l:"Total Spend",   v:fmt(b.totalSpend||0),          c:"#E8317A" },
+            { l:"Total Orders",  v:b.orderCount||0,               c:"#F0F0F0" },
+            { l:"Streams",       v:(b.streams?.length||0),        c:"#7B9CFF" },
+            { l:"Coupon Uses",   v:b.couponCount||0,              c:"#FBBF24" },
+          ].map(({l,v,c})=>(
+            <div key={l} style={{ ...S.card, textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+              <div style={{ fontSize:10, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={S.card}>
+          <SectionLabel t="Buyer Details" />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Whatnot Handle</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#E8317A" }}>@{b.username}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Full Name</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0" }}>{b.fullName||"—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Location</div>
+              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.city&&b.state?`${b.city}, ${b.state} ${b.zip}`:"—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>First Seen</div>
+              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.firstSeen ? new Date(b.firstSeen).toLocaleDateString() : "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Last Purchase</div>
+              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Avg Order Value</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#E8317A" }}>{b.orderCount>0?fmt((b.totalSpend||0)/b.orderCount):"—"}</div>
+            </div>
+          </div>
+        </div>
+
+        {b.streams?.length > 0 && (
+          <div style={S.card}>
+            <SectionLabel t={`Streams (${b.streams.length})`} />
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {b.streams.map(s=>(
+                <span key={s} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, padding:"4px 12px", fontSize:12, color:"#888" }}>{s}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── BUYER LIST ────────────────────────────────────────────
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Stats row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {[
+          { l:"Total Buyers",    v:totalBuyers,         c:"#F0F0F0" },
+          { l:"🌱 New This Month", v:newThisMonth,      c:"#4ade80" },
+          { l:"Total Orders",    v:totalOrders,         c:"#7B9CFF" },
+          { l:"Total Spend",     v:fmt(totalSpend),     c:"#E8317A" },
+        ].map(({l,v,c})=>(
+          <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
+            <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
+            <div style={{ fontSize:10, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Top states */}
+      {topStates.length > 0 && (
+        <div style={S.card}>
+          <SectionLabel t="📍 Top States" />
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {topStates.map(([state,count])=>(
+              <button key={state} onClick={()=>setStateFilter(stateFilter===state?"":state)} style={{ background:stateFilter===state?"#E8317A":"#1a1a1a", color:stateFilter===state?"#fff":"#F0F0F0", border:`1px solid ${stateFilter===state?"#E8317A":"#2a2a2a"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {state} <span style={{ opacity:0.7 }}>({count})</span>
+              </button>
+            ))}
+            {stateFilter && <button onClick={()=>setStateFilter("")} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>✕ Clear</button>}
+          </div>
+        </div>
+      )}
+
+      {/* Search + sort */}
+      <div style={S.card}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, username, city..." style={{ ...S.inp, flex:1, minWidth:200 }}/>
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+            {[["spend","💰 Top Spend"],["orders","📦 Most Orders"],["streams","🎯 Most Streams"],["recent","🕐 Recent"],["new","🌱 Newest"]].map(([val,label])=>(
+              <button key={val} onClick={()=>setSortBy(val)} style={{ background:sortBy===val?"#1A1A2E":"transparent", color:sortBy===val?"#E8317A":"#888", border:`1.5px solid ${sortBy===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+            ))}
+          </div>
+          <span style={{ fontSize:12, color:"#666" }}>{filtered.length} buyers</span>
+        </div>
+      </div>
+
+      {/* Buyer list */}
+      {filtered.length === 0
+        ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#555" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
+            <div>{buyers.length===0?"No buyers yet — upload a Whatnot CSV in Stream Recap to populate":"No buyers match your search"}</div>
+          </div>
+        : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {filtered.map((b,i)=>(
+              <div key={b.id} onClick={()=>setSelected(b.id)} className="inv-row" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"36px 1fr auto", gap:16, alignItems:"center", padding:"14px 20px" }}>
+                {/* Rank */}
+                <div style={{ width:32, height:32, borderRadius:"50%", background:i<3?"#1A1A2E":"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:i<3?"#E8317A":"#555", flexShrink:0 }}>{i+1}</div>
+
+                {/* Info */}
+                <div style={{ minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                    <span style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{b.fullName||b.username}</span>
+                    <span style={{ fontSize:11, color:"#555" }}>@{b.username}</span>
+                    {b.isNew && <span style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8033", borderRadius:20, padding:"1px 7px", fontSize:10, fontWeight:700 }}>🌱 New</span>}
+                  </div>
+                  <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                    {b.city && b.state && <span style={{ fontSize:11, color:"#666" }}>📍 {b.city}, {b.state}</span>}
+                    <span style={{ fontSize:11, color:"#666" }}>Last: {b.lastSeen?new Date(b.lastSeen).toLocaleDateString():"—"}</span>
+                    {(b.streams?.length||0) > 0 && <span style={{ fontSize:11, color:"#7B9CFF" }}>🎯 {b.streams.length} stream{b.streams.length!==1?"s":""}</span>}
+                    {(b.couponCount||0) > 0 && <span style={{ fontSize:11, color:"#FBBF24" }}>🎟 {b.couponCount} coupon{b.couponCount!==1?"s":""}</span>}
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div style={{ display:"flex", gap:20, alignItems:"center", flexShrink:0 }}>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:16, fontWeight:900, color:"#F0F0F0" }}>{b.orderCount||0}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Orders</div>
+                  </div>
+                  {canSeeFinancials && (
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>{fmt(b.totalSpend||0)}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
+                    </div>
+                  )}
+                  <span style={{ color:"#333", fontSize:18 }}>›</span>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [gSearch,   setGSearch]   = useState("");
@@ -4483,6 +4724,7 @@ export default function App() {
   const [historicalData, setHistoricalData] = useState([]);
   const [payStubs,       setPayStubs]       = useState([]);
   const [quotes,         setQuotes]         = useState([]);
+  const [buyers,         setBuyers]         = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -4515,8 +4757,9 @@ export default function App() {
     const u10 = onSnapshot(query(collection(db,"historical_data"), orderBy("yearMonth","asc")), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u11 = onSnapshot(query(collection(db,"pay_stubs"), orderBy("createdAt","desc")), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u12 = onSnapshot(query(collection(db,"quotes"), orderBy("createdAt","desc")), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u13 = onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -4635,6 +4878,32 @@ export default function App() {
   async function handleDismissQuoteNotif(id) {
     await setDoc(doc(db,"quotes",id), { notified:true }, { merge:true });
   }
+  async function handleUpsertBuyers(buyerRows, streamId) {
+    // buyerRows: array of parsed buyer objects from CSV
+    for (const b of buyerRows) {
+      const existing = buyers.find(x => x.id === b.username);
+      const prevStreams = existing?.streams || [];
+      const prevSpend   = existing?.totalSpend || 0;
+      const prevOrders  = existing?.orderCount || 0;
+      const isNew       = !existing;
+      await setDoc(doc(db,"buyers",b.username), {
+        id:           b.username,
+        username:     b.username,
+        fullName:     b.fullName,
+        city:         b.city,
+        state:        b.state,
+        zip:          b.zip,
+        totalSpend:   prevSpend + b.spend,
+        orderCount:   prevOrders + b.orders,
+        streams:      prevStreams.includes(streamId) ? prevStreams : [...prevStreams, streamId],
+        couponCount:  (existing?.couponCount||0) + b.couponCount,
+        firstSeen:    existing?.firstSeen || b.date,
+        lastSeen:     b.date,
+        isNew:        isNew,
+        updatedAt:    new Date().toISOString(),
+      }, { merge:true });
+    }
+  }
   async function handleCloseQuote(id) {
     await setDoc(doc(db,"quotes",id), { status:"closed", closedAt:new Date().toISOString() }, { merge:true });
     showToast("🔒 Quote closed");
@@ -4680,7 +4949,8 @@ export default function App() {
     { id:"dashboard",   label:"📊 Dashboard"   },
     { id:"comp",        label:"🧮 Lot Comp"     },
     { id:"inventory",   label:"📦 Inventory"    },
-    { id:"streams",     label:"🎯 Streams"       },
+    { id:"streams",     label:"🎯 Streams"      },
+    { id:"buyers",      label:"👥 Buyers"       },
     { id:"performance", label:"📈 Performance"  },
   ];
 
@@ -4847,7 +5117,8 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="buyers"      && <BuyersCRM buyers={buyers} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
