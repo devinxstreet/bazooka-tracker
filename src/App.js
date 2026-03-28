@@ -192,8 +192,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
-  const [drillDown,       setDrillDown]       = useState(null); // "gross"|"imc"|"commission"|"bazooka"
-    const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
+  const [drillDown,       setDrillDown]       = useState(null);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const stats = {};
@@ -555,6 +554,9 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   const [counterOffer,        setCounterOffer]        = useState("");
   const [loadedCompId,        setLoadedCompId]        = useState(null);
   const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
+
+
+
 
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
@@ -941,7 +943,21 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   return (
                     <tr key={r.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
-                      <td style={{ ...S.td, width:180 }}><input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12 }}/></td>
+                      <td style={{ ...S.td, width:220, position:"relative" }}>
+                        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                          <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                          {r.name.trim() && (
+                            <a
+                              href={`https://130point.com/sales/?sSearch=${encodeURIComponent("BJBA "+r.name.trim())}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Look up on 130point"
+                              style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
+                            >🔍</a>
+                          )}
+                        </div>
+
+                      </td>
                       <td style={{ ...S.td, width:155 }}>
                         <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#111827":"#9CA3AF", cursor:"pointer" }}>
                           <option value="">Type...</option>
@@ -2744,6 +2760,7 @@ export default function App() {
     await deleteDoc(doc(db,"streams",id));
     showToast("🗑 Stream deleted");
   }
+
   async function handleSaveShipment(shipment) {
     const id = shipment.id || uid();
     await setDoc(doc(db,"shipments",id), { ...shipment, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
