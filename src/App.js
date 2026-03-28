@@ -14,7 +14,7 @@ const ROLES = {
   "derrik":  { role:"Admin",       label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
   "dre":     { role:"Streamer",    label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",    label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
-  "john":    { role:"Procurement", label:"Procurement Mgr",    color:"#111827", bg:"#E8F0FB" },
+  "john":    { role:"Procurement", label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",    label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
 const TARGETS = {
@@ -23,14 +23,14 @@ const TARGETS = {
   "Chaser Cards":            { monthly:275,  buffer:70  },
 };
 const CC = {
-  "Giveaway/Standard Cards": { bg:"#D6F4E3", text:"#1A6B3A", border:"#2E7D52" },
-  "First-Timer Cards":       { bg:"#FCE8F3", text:"#8B1A5A", border:"#9d174d" },
+  "Giveaway/Standard Cards": { bg:"#0a1a0f", text:"#4ade80", border:"#2E7D52" },
+  "First-Timer Cards":       { bg:"#1a0810", text:"#F472B6", border:"#9d174d" },
   "Chaser Cards":            { bg:"#2a1520", text:"#E8317A", border:"#E8317A" },
 };
 const BC = {
-  Dev:     { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" },
-  Dre:     { bg:"#F3EAF9", text:"#6B2D8B", border:"#6b21a8" },
-  Krystal: { bg:"#E0F7F4", text:"#0D6E6E", border:"#115e59" },
+  Dev:     { bg:"#0a0a1a", text:"#7B9CFF", border:"#3730a3" },
+  Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
+  Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
 };
 const CAN_DELETE        = ["Admin"];
 const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
@@ -82,16 +82,16 @@ function getZone(pct) {
 }
 
 const S = {
-  card: { background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:14, padding:"18px 20px", boxShadow:"0 4px 24px rgba(0,0,0,0.3)" },
-  inp:  { background:"#FAFAFA", border:"1px solid #E8317A", borderRadius:8, padding:"8px 12px", color:"#111827", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+  card: { background:"#111111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px", boxShadow:"0 4px 24px rgba(0,0,0,0.3)" },
+  inp:  { background:"#111111", border:"1px solid #E8317A", borderRadius:8, padding:"8px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
   lbl:  { fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#1A1A2E", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.15)" },
-  td:   { padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:13, color:"#111827" },
+  th:   { padding:"9px 14px", background:"#000000", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.15)" },
+  td:   { padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:13, color:"#F0F0F0" },
 };
 
 function SectionLabel({ t }) {
   return (
-    <div style={{ fontSize:10, fontWeight:800, color:"#111827", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+    <div style={{ fontSize:10, fontWeight:800, color:"#F0F0F0", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
       <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }} />{t}
     </div>
   );
@@ -146,7 +146,7 @@ function AccessDenied({ msg }) {
   return (
     <div style={{ ...S.card, textAlign:"center", padding:"60px 40px" }}>
       <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
-      <div style={{ fontSize:18, fontWeight:700, color:"#111827", marginBottom:8 }}>Access Restricted</div>
+      <div style={{ fontSize:18, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>Access Restricted</div>
       <div style={{ fontSize:13, color:"#AAAAAA" }}>{msg}</div>
     </div>
   );
@@ -157,8 +157,8 @@ function GlobalStyles() {
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; }
-      body { background: #F7F4F8 !important; }
-      #root { background: #F7F4F8; min-height: 100vh; }
+      body { background: #000000 !important; color: #F0F0F0; }
+      #root { background: #000000; min-height: 100vh; }
       .tab-content { animation: fadeSlideUp 0.22s cubic-bezier(0.22,1,0.36,1) forwards; }
       @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
       .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
@@ -171,11 +171,11 @@ function GlobalStyles() {
       .nav-tab { transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease !important; }
       .nav-tab:hover { color: #E8317A !important; background: rgba(232,49,122,0.1) !important; transform: translateY(-1px) !important; }
       .inv-row { transition: background 0.12s ease !important; }
-      .inv-row:hover { background: #FFF0F5 !important; }
+      .inv-row:hover { background: #1a1a1a !important; }
       .break-row { transition: background 0.12s ease !important; }
-      .break-row:hover { background: #FFF0F5 !important; }
+      .break-row:hover { background: #1a1a1a !important; }
       .clickable-row { transition: background 0.12s ease, box-shadow 0.12s ease !important; cursor: pointer !important; }
-      .clickable-row:hover { background: #FFF0F5 !important; box-shadow: inset 3px 0 0 #E8317A !important; }
+      .clickable-row:hover { background: #1a1a1a !important; box-shadow: inset 3px 0 0 #E8317A !important; }
       .stat-card { transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease !important; }
       .stat-card:hover { transform: translateY(-4px) scale(1.02) !important; box-shadow: 0 20px 48px rgba(232,49,122,0.25) !important; }
       .num-pop { animation: numPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
@@ -197,14 +197,19 @@ function GlobalStyles() {
       input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input[type="date"], input[type="month"] { color-scheme: dark; }
       input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input::placeholder { color: #555555 !important; }
+      select option { background: #111111; color: #F0F0F0; }
+      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input::placeholder { color: #444444 !important; }
       input, select, textarea { color: #FFFFFF !important; background-color: #000000; }
       input, select, textarea { transition: border-color 0.15s ease !important; }
       
       
       ::-webkit-scrollbar { width:5px; height:5px; }
-      ::-webkit-scrollbar-track { background: #fff; }
-      ::-webkit-scrollbar-thumb { background: #F0D0DC; border-radius:10px; }
+      ::-webkit-scrollbar-track { background: #000000; }
+      ::-webkit-scrollbar-thumb { background: #333333; border-radius:10px; }
       ::-webkit-scrollbar-thumb:hover { background: #E8317A; }
       .drill-down { animation: expandDown 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
       @keyframes expandDown { from { opacity:0; transform:scaleY(0.95) translateY(-8px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
@@ -225,11 +230,11 @@ function LoginScreen() {
     catch { setError("Login failed. Please try again."); }
   }
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#F8F8F8", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
-      <div style={{ background:"#FAFAFA", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+      <div style={{ background:"#111111", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
         <div style={{ fontSize:40, fontWeight:900, color:"#000000", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
         <div style={{ fontSize:11, color:"#E8317A", marginBottom:32, fontWeight:700, textTransform:"uppercase", letterSpacing:3 }}>Inventory Tracker</div>
-        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#FAFAFA", border:"2px solid #000000", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#111827", width:"100%", justifyContent:"center" }}>
+        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#111111", border:"2px solid #000000", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#F0F0F0", width:"100%", justifyContent:"center" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
             <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
@@ -419,11 +424,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
                           return (
-                            <tr key={s.id} style={{ background:"#FAFAFA" }}>
+                            <tr key={s.id} style={{ background:"#111111" }}>
                               <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ ...S.td, color:"#111827", fontWeight:700 }}>{fmt(c.netRev)}</td>
+                              <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.netRev)}</td>
                               <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
@@ -437,8 +442,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     }
                   </tbody>
                   <tfoot>
-                    <tr style={{ background:"#FAFAFA", borderTop:"2px solid #F0E0E8" }}>
-                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#111827" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                    <tr style={{ background:"#111111", borderTop:"2px solid #333333" }}>
+                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>− {fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
@@ -523,7 +528,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const pct        = Math.round(dayOfYear / daysInYear * 100);
         const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
         return (
-          <div style={{ background:"#FAFAFA", border:"1px solid #E8317A", borderRadius:14, padding:"18px 20px" }}>
+          <div style={{ background:"#111111", border:"1px solid #E8317A", borderRadius:14, padding:"18px 20px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
@@ -553,9 +558,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10 }}/>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-              <span style={{ fontSize:10, color:"#6B7280" }}>Jan 1</span>
+              <span style={{ fontSize:10, color:"#999999" }}>Jan 1</span>
               <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
-              <span style={{ fontSize:10, color:"#6B7280" }}>Dec 31</span>
+              <span style={{ fontSize:10, color:"#999999" }}>Dec 31</span>
             </div>
           </div>
         );
@@ -576,7 +581,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             { l:"Used",           v:usedCount,        c:"#991b1b" },
             ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
           ].map(({l,v,c}) => (
-            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
+            <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
               <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
               <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
@@ -607,19 +612,19 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const runC  = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
             const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
             return (
-              <div key={ct} style={{ background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:9, padding:"10px 14px" }}>
+              <div key={ct} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:9, padding:"10px 14px" }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"#AAAAAA" }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#111827", fontWeight:700, background:"#FAFAFA", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
+                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#111111", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
                       {days >= 999 ? "No usage yet" : `~${days}d runway`}
                     </span>
                     <span style={{ fontSize:11, color:"#AAAAAA" }}>Pace: {(pace*100).toFixed(0)}%</span>
                   </div>
                 </div>
-                <div style={{ height:5, background:"#FAFAFA", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:5, background:"#111111", borderRadius:3, overflow:"hidden" }}>
                   <div style={{ height:"100%", width:`${Math.min(pace*100,100)}%`, background:pace>=1?"#991b1b":pace>=0.7?"#92400e":"#166534", borderRadius:3 }}/>
                 </div>
               </div>
@@ -633,7 +638,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
             { l:"Cards Used (Total)", v:usedCount,               c:"#991b1b" },
           ].map(({l,v,c}) => (
-            <div key={l} style={{ background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
+            <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
               <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
               <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
@@ -779,10 +784,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <thead><tr>{["Month","Gross","Net","Bazooka (30%)","IMC Reimb","True Net","🌱 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {historicalData.map((h,i) => (
-                        <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#FFFFFF":"#FFF8FB" }}>
+                        <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#111111":"#0d0d0d" }}>
                           <td style={{ ...S.td, fontWeight:700, color:"#E8317A" }}>{h.yearMonth}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
-                          <td style={{ ...S.td, color:"#111827" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
+                          <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
                           <td style={{ ...S.td, color:"#E8317A" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"—"}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
@@ -790,7 +795,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#AAAAAA" }}>{h.notes||"—"}</td>
                           <td style={S.td}>
                             <div style={{ display:"flex", gap:6 }}>
-                              <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
+                              <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
                               <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
                             </div>
                           </td>
@@ -890,12 +895,12 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   if (custView) return (
     <div>
       <div style={{ marginBottom:14 }}><Btn onClick={()=>setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
-      <div style={{ background:"#FAFAFA", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
-        <div style={{ background:"#1A1A2E", padding:"28px 32px", textAlign:"center" }}>
-          <div style={{ fontSize:32, fontWeight:900, color:"#111827", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
+      <div style={{ background:"#111111", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
+        <div style={{ background:"#000000", padding:"28px 32px", textAlign:"center" }}>
+          <div style={{ fontSize:32, fontWeight:900, color:"#F0F0F0", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"#AAAAAA", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
-        <div style={{ padding:"14px 24px", borderBottom:"1px solid #333333", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#FAFAFA" }}>
+        <div style={{ padding:"14px 24px", borderBottom:"1px solid #333333", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#111111" }}>
           <div><span style={{ color:"#AAAAAA", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"—"}</strong></div>
           <div style={{ textAlign:"right" }}><span style={{ color:"#AAAAAA", fontSize:11 }}>Date: </span><strong>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
@@ -909,7 +914,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   return (
                     <tr key={r.id} style={{ borderBottom:"1px solid #FFF0F5" }}>
                       <td style={{ padding:"8px 10px", color:"#D1D5DB", fontSize:11, width:32, textAlign:"center" }}>{i+1}</td>
-                      <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{r.name}</td>
+                      <td style={{ padding:"8px 10px", fontWeight:700, color:"#F0F0F0" }}>{r.name}</td>
                       <td style={{ padding:"8px 10px", color:"#AAAAAA", textAlign:"center" }}>{parseInt(r.qty)||1}</td>
                       <td style={{ padding:"8px 10px", color:"#AAAAAA", fontWeight:600 }}>${mv.toFixed(2)}</td>
                       <td style={{ padding:"8px 10px", color:"#E8317A", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
@@ -920,10 +925,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             </tbody>
           </table>
         </div>
-        <div style={{ padding:"16px 24px", borderTop:"2px solid #F0E0E8", marginTop:8 }}>
+        <div style={{ padding:"16px 24px", borderTop:"2px solid #333333", marginTop:8 }}>
           {/* Notes — rendered read-only in the quote */}
           {custNote.trim() && (
-            <div style={{ marginBottom:14, padding:"12px 16px", background:"#FAFAFA", border:"1px solid #E5E7EB", borderLeft:"3px solid #E8317A", borderRadius:8 }}>
+            <div style={{ marginBottom:14, padding:"12px 16px", background:"#111111", border:"1px solid #2a2a2a", borderLeft:"3px solid #E8317A", borderRadius:8 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
               <p style={{ margin:0, fontSize:13, color:"#AAAAAA", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{custNote}</p>
             </div>
@@ -931,17 +936,17 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           {[[`Total Cards`,totalCards],...(canSeeFinancials?[[`Total Market Value`,`$${totalMkt.toFixed(2)}`]]:[])] .map(([l,v]) => (
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #FFF0F5" }}>
               <span style={{ color:"#AAAAAA", fontSize:13 }}>{l}</span>
-              <span style={{ color:"#111827", fontWeight:700 }}>{v}</span>
+              <span style={{ color:"#F0F0F0", fontWeight:700 }}>{v}</span>
             </div>
           ))}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#FAFAFA", borderRadius:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, padding:"14px 20px", background:"#111111", borderRadius:10 }}>
             <span style={{ color:"#E8317A", fontWeight:800, fontSize:16 }}>Bazooka's Offer</span>
-            <span style={{ color:"#111827", fontWeight:900, fontSize:22 }}>${dispOffer.toFixed(2)}</span>
+            <span style={{ color:"#F0F0F0", fontWeight:900, fontSize:22 }}>${dispOffer.toFixed(2)}</span>
           </div>
           {/* Ship-to address */}
-          <div style={{ marginTop:14, padding:"12px 16px", background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:8 }}>
+          <div style={{ marginTop:14, padding:"12px 16px", background:"#111111", border:"1px solid #2a2a2a", borderRadius:8 }}>
             <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
-            <div style={{ fontSize:13, color:"#111827", fontWeight:700, lineHeight:1.8 }}>
+            <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
               Devin — Bazooka<br/>
               425 Prosperity Dr<br/>
               Warsaw, IN 46582
@@ -985,7 +990,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             if (!cfg) return null;
 
             return (
-              <div style={{ marginTop:14, padding:"14px 16px", background:"#FAFAFA", border:`2px solid ${cfg.color}33`, borderRadius:10 }}>
+              <div style={{ marginTop:14, padding:"14px 16px", background:"#111111", border:`2px solid ${cfg.color}33`, borderRadius:10 }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>
                   Payment — <span style={{ color:cfg.color }}>{seller.payment}</span>
                 </div>
@@ -994,19 +999,19 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                     {cfg.icon}
                     <div>
                       <div style={{ fontWeight:700, fontSize:14, color:cfg.color }}>{cfg.hint}</div>
-                      {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#111827"}}>${amt}</strong></div>}
+                      {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>}
                     </div>
                   </div>
                   {cfg.href
                     ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                        <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#111827", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
+                        <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
                           {cfg.icon} {cfg.label} →
                         </a>
                         {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
                       </div>
                     : <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
-                        <div style={{ background:cfg.color, color:"#111827", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
-                        <div style={{ fontSize:11, color:"#AAAAAA" }}>Send to: <strong style={{color:"#111827"}}>{handle}</strong></div>
+                        <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
+                        <div style={{ fontSize:11, color:"#AAAAAA" }}>Send to: <strong style={{color:"#F0F0F0"}}>{handle}</strong></div>
                       </div>
                   }
                 </div>
@@ -1062,7 +1067,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               { l:"Your Offer",  v:`$${quickOfferAmt.toFixed(2)}`,  c:"#6B2D8B" },
               { l:"Lot Zone",    v:quickZone?quickZone.label:"—",   c:quickZone?.color||"#9CA3AF" },
             ].map(({l,v,c}) => (
-              <div key={l} style={{ background:"#FAFAFA", border:"1px solid #F0D0DC", borderRadius:10, padding:"12px", textAlign:"center" }}>
+              <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px", textAlign:"center" }}>
                 <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
                 <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
               </div>
@@ -1084,7 +1089,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                       <div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                          <span style={{ fontWeight:800, fontSize:15, color:"#111827" }}>{c.seller||"Unknown Seller"}</span>
+                          <span style={{ fontWeight:800, fontSize:15, color:"#F0F0F0" }}>{c.seller||"Unknown Seller"}</span>
                           <span style={{ background:c.status==="accepted"?"#D6F4E3":c.status==="passed"?"#FEE2E2":"#FFF9DB", color:c.status==="accepted"?"#166534":c.status==="passed"?"#991b1b":"#92400e", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
                             {c.status==="accepted"?"✅ Accepted":c.status==="passed"?"❌ Passed":"💾 Saved"}
                           </span>
@@ -1092,7 +1097,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>Saved by</span>
-                          <span style={{ fontWeight:700, fontSize:12, color:"#111827" }}>{c.savedBy||"—"}</span>
+                          <span style={{ fontWeight:700, fontSize:12, color:"#F0F0F0" }}>{c.savedBy||"—"}</span>
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
                           <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>{savedAt}</span>
@@ -1100,17 +1105,17 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
                         <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📥 Load into Builder</button>
-                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm(`Delete this comp from history?\n\nSaved by: ${c.savedBy||"Unknown"}\nSeller: ${c.seller||"Unknown"}\n\nThis action will be logged.`)) onDeleteComp(c.id); }} style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
+                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm(`Delete this comp from history?\n\nSaved by: ${c.savedBy||"Unknown"}\nSeller: ${c.seller||"Unknown"}\n\nThis action will be logged.`)) onDeleteComp(c.id); }} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
                       </div>
                     </div>
                     <div style={{ display:"flex", gap:16, flexWrap:"wrap", paddingTop:8, borderTop:"1px solid #FFF0F5" }}>
-                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Cards: <strong style={{color:"#111827"}}>{c.totalCards}</strong></span>
+                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Cards: <strong style={{color:"#F0F0F0"}}>{c.totalCards}</strong></span>
                       {canSeeFinancials && <>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Market: <strong style={{color:"#AAAAAA"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#E8317A"}}>${(c.offer||0).toFixed(2)}</strong></span>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
                       </>}
-                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#111827"}}>{c.source||"—"}</strong></span>
+                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#F0F0F0"}}>{c.source||"—"}</strong></span>
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>
                         {c.cards&&c.cards.length>0 ? <span style={{color:"#E8317A",fontWeight:700}}>✓ {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#AAAAAA",fontWeight:700}}>⚠ No card details</span>}
                       </span>
@@ -1212,7 +1217,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                   const qty = parseInt(r.qty)||1;
                   const cz  = mv > 0 ? getZone(dispPct) : null;
                   return (
-                    <tr key={r.id} style={{ background:"#FAFAFA", opacity:r.include?1:0.35 }}>
+                    <tr key={r.id} style={{ background:"#111111", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
@@ -1223,7 +1228,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                               target="_blank"
                               rel="noreferrer"
                               title="Search on 130point"
-                              style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
+                              style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
                             >🔍</a>
                           )}
                         </div>
@@ -1235,7 +1240,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                           {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
                         </select>
                       </td>
-                      <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#111827", width:55 }}/></td>
+                      <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F0F0F0", width:55 }}/></td>
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
@@ -1253,7 +1258,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         <div style={{ ...S.card, border:"2px solid #333333" }}>
           <SectionLabel t="Confirm & Actions" />
           {canSeeFinancials && dispOffer > 0 && totalMkt > 0 && (
-            <div style={{ marginBottom:16, padding:"8px 14px", background:"#FAFAFA", borderRadius:8, display:"flex", gap:20, flexWrap:"wrap" }}>
+            <div style={{ marginBottom:16, padding:"8px 14px", background:"#111111", borderRadius:8, display:"flex", gap:20, flexWrap:"wrap" }}>
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534"}}>${dispOffer.toFixed(2)} ({(dispPct*100).toFixed(1)}%)</strong></span>
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Est. Margin: <strong style={{color:"#E8317A"}}>${(totalMkt-dispOffer).toFixed(2)}</strong></span>
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Market Value: <strong style={{color:"#AAAAAA"}}>${totalMkt.toFixed(2)}</strong></span>
@@ -1280,14 +1285,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                 <div>
                   <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>💸 Send Payment</div>
                   <div style={{ fontWeight:800, fontSize:16, color:cfg.color }}>{cfg.hint}</div>
-                  {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#111827"}}>${amt}</strong></div>}
+                  {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>}
                 </div>
                 {cfg.href
                   ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#111827", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
+                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
                       {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
                     </div>
-                  : <div style={{ background:cfg.color, color:"#111827", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} → ${cfg.hint}`}</div>
+                  : <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} → ${cfg.hint}`}</div>
                 }
               </div>
             );
@@ -1312,7 +1317,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           <div style={{ borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
-              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#FAFAFA", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active — overrides your offer</span>}
+              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active — overrides your offer</span>}
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
               <div><label style={S.lbl}>Seller's Counter ($)</label><input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={{ ...S.inp, border:(counterAmt!=null&&counterAmt>0)?"2px solid #E8317A":S.inp.border }}/></div>
@@ -1322,7 +1327,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             </div>
             {(counterAmt!=null&&counterAmt>0) && totalMkt > 0 && (
               <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#111827"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
+                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#F0F0F0"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
                 <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
               </div>
             )}
@@ -1401,7 +1406,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           const TRACKING_STATUSES = ["Ordered","Label Created","Shipped","In Transit","Out for Delivery","Delivered","Exception"];
           const STATUS_COLORS = {
             "Ordered":            { bg:"#F3F4F6", color:"#AAAAAA" },
-            "Label Created":      { bg:"#EEF0FB", color:"#111827" },
+            "Label Created":      { bg:"#EEF0FB", color:"#F0F0F0" },
             "Shipped":            { bg:"#FFF0CC", color:"#AAAAAA" },
             "In Transit":         { bg:"#E0F7F4", color:"#0D6E6E" },
             "Out for Delivery":   { bg:"#FCE8F3", color:"#8B1A5A" },
@@ -1412,7 +1417,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:12 }}>
               {orphanedNotes.length > 0 && CAN_DELETE.includes(userRole?.role) && (
-                <div style={{ marginBottom:12, padding:"10px 16px", background:"#FAFAFA", border:"1.5px solid #92400e33", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                <div style={{ marginBottom:12, padding:"10px 16px", background:"#111111", border:"1.5px solid #92400e33", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>⚠ {orphanedNotes.length} note{orphanedNotes.length!==1?"s":""} from previous lots couldn't be matched automatically.</span>
                   <button onClick={migrateNotes} style={{ background:"#92400e", color:"#fff", border:"none", borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Fix Now</button>
                 </div>
@@ -1428,28 +1433,28 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const sc        = STATUS_COLORS[tracking.status] || { bg:"#F3F4F6", color:"#AAAAAA" };
 
                     return (
-                      <div key={i} style={{ border:"1px solid #F0D0DC", borderRadius:10, overflow:"hidden", background:"#FAFAFA" }}>
+                      <div key={i} style={{ border:"1px solid #2a2a2a", borderRadius:10, overflow:"hidden", background:"#111111" }}>
                         {/* Lot header */}
-                        <div style={{ padding:"14px 18px", background:"#FAFAFA" }}>
+                        <div style={{ padding:"14px 18px", background:"#111111" }}>
                           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                            <div><span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>{lot.seller}</span><span style={{ color:"#AAAAAA", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
+                            <div><span style={{ fontWeight:700, fontSize:14, color:"#F0F0F0" }}>{lot.seller}</span><span style={{ color:"#AAAAAA", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
                             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                               <span style={{ fontSize:12, color:"#AAAAAA" }}>{lot.source}{canSeeFinancials?` · ${lot.payment}`:""}</span>
                               {canSeeFinancials && <span style={{ fontWeight:700, color:"#E8317A" }}>${lot.lotPaid.toFixed(2)}</span>}
                               {CAN_DELETE.includes(userRole?.role) && (
                                 <button
                                   onClick={() => onDeleteLot(lot.key, lot.cards.map(c=>c.id))}
-                                  style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                  style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
                                   title="Delete entire lot">🗑 Delete Lot</button>
                               )}
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
-                            <span style={{ fontSize:12, color:"#AAAAAA" }}>Total: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
+                            <span style={{ fontSize:12, color:"#AAAAAA" }}>Total: <strong style={{color:"#F0F0F0"}}>{lot.cards.length}</strong></span>
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Available: <strong style={{color:"#E8317A"}}>{availInLot}</strong></span>
-                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#AAAAAA" }}>In Transit: <strong style={{color:"#111827"}}>🚚 {transitInLot}</strong></span>}
+                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#AAAAAA" }}>In Transit: <strong style={{color:"#F0F0F0"}}>🚚 {transitInLot}</strong></span>}
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Used: <strong style={{color:"#E8317A"}}>{usedInLot}</strong></span>
-                            <span style={{ fontSize:12, color:"#AAAAAA" }}>Added by: <strong style={{color:"#111827"}}>{lot.addedBy}</strong></span>
+                            <span style={{ fontSize:12, color:"#AAAAAA" }}>Added by: <strong style={{color:"#F0F0F0"}}>{lot.addedBy}</strong></span>
                           </div>
                           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                             {CARD_TYPES.map(ct => { const count=lot.cards.filter(c=>c.cardType===ct).length; if(!count) return null; const cc=CC[ct]; return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>; })}
@@ -1457,7 +1462,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                         </div>
 
                         {/* Tracking bar */}
-                        <div style={{ borderTop:"1px solid #F0E0E8", padding:"10px 18px", background:"#FAFAFA" }}>
+                        <div style={{ borderTop:"1px solid #222222", padding:"10px 18px", background:"#111111" }}>
                           {!isEditing ? (
                             <div>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||tracking.lastEvent) ? 8 : 0 }}>
@@ -1493,7 +1498,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   {tracking.status === "Delivered" && (
                                     <button
                                       onClick={() => onSaveLotTracking(lot.key, { ...tracking, status:"In Transit" })}
-                                      style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                                      style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
                                     >↩ Undo Delivered</button>
                                   )}
                                   <button
@@ -1504,7 +1509,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                               </div>
                               {/* ETA + last event row */}
                               {(tracking.eta || tracking.lastEvent) && (
-                                <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#FAFAFA", borderRadius:7, marginTop:4 }}>
+                                <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#111111", borderRadius:7, marginTop:4 }}>
                                   {tracking.eta && (
                                     <span style={{ fontSize:12, color:"#AAAAAA" }}>
                                       📅 Est. Delivery: <strong style={{ color: tracking.status==="Delivered" ? "#166534" : "#1B4F8A" }}>{tracking.eta}</strong>
@@ -1512,7 +1517,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   )}
                                   {tracking.lastEvent && (
                                     <span style={{ fontSize:12, color:"#AAAAAA" }}>
-                                      📍 {tracking.lastLocation && <strong style={{color:"#111827"}}>{tracking.lastLocation} — </strong>}{tracking.lastEvent}
+                                      📍 {tracking.lastLocation && <strong style={{color:"#F0F0F0"}}>{tracking.lastLocation} — </strong>}{tracking.lastEvent}
                                     </span>
                                   )}
 
@@ -1552,7 +1557,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
 
                                 <button
                                   onClick={() => setTrackingEdit(null)}
-                                  style={{ background:"#FAFAFA", color:"#AAAAAA", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                                  style={{ background:"#111111", color:"#AAAAAA", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
                                 >Cancel</button>
                               </div>
                             </div>
@@ -1584,7 +1589,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     return (
                       <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:urg.bg, border:`1px solid ${urg.color}22`, borderRadius:8, marginBottom:6 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                          <span style={{ fontWeight:700, color:"#111827" }}>{c.cardName}</span>
+                          <span style={{ fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</span>
                           <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
                         </div>
                         <span style={{ fontWeight:700, color:urg.color, fontSize:13 }}>{d} days in stock</span>
@@ -1615,7 +1620,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
             </div>
             <span style={{ color:"#AAAAAA", fontSize:12 }}>{filtered.length} cards</span>
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
-              <button onClick={handleBulkDelete} style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete {selected.size} selected</button>
+              <button onClick={handleBulkDelete} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete {selected.size} selected</button>
             )}
           </div>
         </div>
@@ -1637,12 +1642,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/86400000) : null;
                     const isAging = !used && daysIn !== null && daysIn >= 60;
                     return (
-                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", opacity:used?0.45:1 }}>
+                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"#111111":"#0d0d0d", opacity:used?0.45:1 }}>
                         <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)}/></td>
                         <td style={{ ...S.td, fontWeight:700 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             {c.cardName}
-                            {isAging && <span style={{ background:"#FEF3C7", color:"#AAAAAA", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>⏰ {daysIn}d</span>}
+                            {isAging && <span style={{ background:"#1a1400", color:"#AAAAAA", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>⏰ {daysIn}d</span>}
                           </div>
                         </td>
                         <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
@@ -1848,7 +1853,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <SectionLabel t="Stream Recap" />
           {editingStreamId && existingStream && (
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ background:"#FAFAFA", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+              <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
                 ✏️ Editing: {existingStream.breaker} · {existingStream.date}
               </span>
               <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
@@ -1856,7 +1861,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               </button>
             </div>
           )}
-          {recapSaved && <span style={{ background:"#FAFAFA", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
+          {recapSaved && <span style={{ background:"#111111", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
         </div>
 
         {/* Breaker + Date + Break Type */}
@@ -1895,7 +1900,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           ))}
           {/* Chaser Cards — picker + manual override */}
-          <div style={{ gridColumn:"span 4", background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:10, padding:"12px 14px" }}>
+          <div style={{ gridColumn:"span 4", background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>🏆 Cards Used as Chasers</label>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -1912,7 +1917,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 <div>
                   {available.length === 0
                     ? <div style={{ fontSize:12, color:"#AAAAAA", padding:"8px 0" }}>No available cards in inventory</div>
-                    : <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #F0D0DC", borderRadius:8, background:"#FAFAFA" }}>
+                    : <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #2a2a2a", borderRadius:8, background:"#111111" }}>
                         {available.map(c => {
                           const isSel = selectedChasers.includes(c.id);
                           const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -1927,7 +1932,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                               style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#2a1520":"#111111", borderBottom:"1px solid #FFF0F5" }}
                             >
                               <input type="checkbox" checked={isSel} readOnly style={{ flexShrink:0 }}/>
-                              <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#111827", flex:1 }}>{c.cardName}</span>
+                              <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#F0F0F0", flex:1 }}>{c.cardName}</span>
                               <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>{c.cardType}</span>
                               {c.costPerCard>0 && <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:700 }}>${c.costPerCard.toFixed(2)}</span>}
                             </div>
@@ -1940,7 +1945,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:700 }}>
                         ✅ {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
                       </span>
-                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
+                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
                     </div>
                   )}
                 </div>
@@ -2028,7 +2033,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
         {/* Live commission preview */}
         {hasRecapData && (
-          <div style={{ background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
             {canSeeFinancials ? (
               <>
                 {/* Row 1: top-level split */}
@@ -2038,14 +2043,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
                   ].map(({l,v,c}) => (
-                    <div key={l} style={{ textAlign:"center", background:"#FAFAFA", borderRadius:8, padding:"10px 8px", border:"1px solid #E5E7EB" }}>
+                    <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px", border:"1px solid #2a2a2a" }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
                       <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                     </div>
                   ))}
                 </div>
                 {/* Row 2: bazooka true net */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #F0E0E8" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #222222" }}>
                   {[
                     { l:"Bazooka Earnings",          v:fmt(rc.bazNet),              c:"#E8317A" },
                     { l:"− Rep Commission",           v:"− "+fmt(rc.commAmt),        c:"#991b1b" },
@@ -2120,13 +2125,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <tr key={s.id}
                         onClick={()=>{ setBreaker(s.breaker); setDate(s.date); setEditingStreamId(s.id); setRecapSaved(false); }}
                         className="clickable-row"
-                        style={{ background:isActive?"#2a1520":i%2===0?"#FFFFFF":"#FFF8FB", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
+                        style={{ background:isActive?"#2a1520":i%2===0?"#111111":"#0d0d0d", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
-                        <td style={{ ...S.td, color:"#111827", fontWeight:700 }}>{fmt(c.gross)}</td>
-                        <td style={{ ...S.td, color:"#111827" }}>{fmt(c.netRev)}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(c.netRev)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.imcNet)}</td>}
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.bazNet)}</td>}
                         <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.commAmt)}</td>
@@ -2171,13 +2176,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <Field label="Search Card">
             <input value={cardSearch} onChange={e=>{setCardSearch(e.target.value);setCardId("");}} placeholder="Type to search available cards..." style={S.inp}/>
             {cardSearch.length > 0 && (
-              <div style={{ border:"1px solid #F0D0DC", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#FAFAFA", boxShadow:"0 4px 12px rgba(232,49,122,0.1)", marginTop:4 }}>
+              <div style={{ border:"1px solid #2a2a2a", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#111111", boxShadow:"0 4px 12px rgba(232,49,122,0.1)", marginTop:4 }}>
                 {available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).length===0
                   ? <div style={{ padding:"12px 16px", color:"#AAAAAA", fontSize:13 }}>No cards found</div>
                   : available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).map(c => {
                       const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                       return (
-                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", cursor:"pointer", background:cardId===c.id?"#FFF0F5":"#FFFFFF", borderBottom:"1px solid #FFF0F5" }}>
+                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                             <span style={{ fontWeight:700, fontSize:13 }}>{c.cardName}</span>
                             <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
@@ -2192,8 +2197,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </Field>
         </div>
         {selCard && (
-          <div style={{ marginBottom:12, padding:"10px 14px", background:"#FAFAFA", borderRadius:8, display:"flex", gap:14, alignItems:"center", flexWrap:"wrap" }}>
-            <span style={{ fontSize:12, color:"#AAAAAA" }}>Selected: <strong style={{color:"#111827"}}>{selCard.cardName}</strong></span>
+          <div style={{ marginBottom:12, padding:"10px 14px", background:"#111111", borderRadius:8, display:"flex", gap:14, alignItems:"center", flexWrap:"wrap" }}>
+            <span style={{ fontSize:12, color:"#AAAAAA" }}>Selected: <strong style={{color:"#F0F0F0"}}>{selCard.cardName}</strong></span>
             <Badge bg={CC[selCard.cardType]?.bg} color={CC[selCard.cardType]?.text}>{selCard.cardType}</Badge>
             {canSeeFinancials && <span style={{ fontSize:12, color:"#AAAAAA" }}>Value: <strong style={{color:"#AAAAAA"}}>${(selCard.marketValue||0).toFixed(2)}</strong></span>}
           </div>
@@ -2211,9 +2216,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 const cc=CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                 const isSel=bulkSel.has(c.id);
                 return (
-                  <div key={c.id} onClick={()=>toggleBulk(c.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:isSel?"#FFF0F5":"#FAFAFA", border:`1.5px solid ${isSel?"#E8317A":"#F0D0DC"}`, borderRadius:8, cursor:"pointer" }}>
+                  <div key={c.id} onClick={()=>toggleBulk(c.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:isSel?"#1a0a0f":"#FAFAFA", border:`1.5px solid ${isSel?"#E8317A":"#F0D0DC"}`, borderRadius:8, cursor:"pointer" }}>
                     <input type="checkbox" checked={isSel} onChange={()=>toggleBulk(c.id)} onClick={e=>e.stopPropagation()}/>
-                    <div><div style={{ fontSize:12, fontWeight:700, color:"#111827" }}>{c.cardName}</div><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></div>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></div>
                   </div>
                 );
               })}
@@ -2231,7 +2236,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
               <div style={{ fontSize:24, fontWeight:900, color:bc.text, marginBottom:10 }}>{s.total} <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:400 }}>cards used</span></div>
               {CARD_TYPES.map(ct => (
-                <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #F3F4F6" }}>
+                <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
                   <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct}</span>
                   <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
                 </div>
@@ -2246,7 +2251,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
             <SectionLabel t="Break History"/>
             {histSel.size > 0 && (
-              <button onClick={handleBulkDeleteHist} style={{ background:"#FAFAFA", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>
+              <button onClick={handleBulkDeleteHist} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>
                 🗑 Remove {histSel.size} selected
               </button>
             )}
@@ -2267,7 +2272,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   const isSel=histSel.has(b.id);
                   return (
-                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB" }}>
+                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"#111111":"#0d0d0d" }}>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
@@ -2360,8 +2365,8 @@ function Performance({ breaks, user, userRole, streams=[] }) {
       <div style={S.card}>
         <SectionLabel t="📦 This Month's Key Metrics" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
-          <div style={{ ...S.card, textAlign:"center", background:"#FAFAFA" }}>
-            <div style={{ fontSize:32, fontWeight:900, color:"#111827" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
+          <div style={{ ...S.card, textAlign:"center", background:"#111111" }}>
+            <div style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
             <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Boxes Ripped</div>
             <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginTop:8 }}>
               {PRODUCT_TYPES.map(pt => monthBoxes[pt]>0 ? (
@@ -2369,12 +2374,12 @@ function Performance({ breaks, user, userRole, streams=[] }) {
               ) : null)}
             </div>
           </div>
-          <div style={{ ...S.card, textAlign:"center", background:"#FAFAFA" }}>
+          <div style={{ ...S.card, textAlign:"center", background:"#111111" }}>
             <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }} className="num-pop"><AnimatedNumber value={monthGross}/></div>
             <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Gross Revenue</div>
             <div style={{ fontSize:11, color:"#AAAAAA", marginTop:6 }}>{thisMonth.length} stream{thisMonth.length!==1?"s":""}</div>
           </div>
-          <div style={{ ...S.card, textAlign:"center", background:"#FAFAFA" }}>
+          <div style={{ ...S.card, textAlign:"center", background:"#111111" }}>
             <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }} className="num-pop"><AnimatedNumber value={monthNewBuyers} format="count"/></div>
             <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>New Buyers</div>
           </div>
@@ -2393,7 +2398,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
               return (
                 <div key={b} style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <Badge bg={bc.bg} color={bc.text}>{b}</Badge>
-                  <div style={{ flex:1, height:6, background:"#FAFAFA", borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ flex:1, height:6, background:"#111111", borderRadius:3, overflow:"hidden" }}>
                     <div style={{ height:"100%", background:bc.text, borderRadius:3, width:`${monthTotal>0?(bTotal/monthTotal*100):0}%` }}/>
                   </div>
                   <span style={{ fontSize:12, fontWeight:700, color:bc.text, minWidth:24 }}>{bTotal} boxes</span>
@@ -2406,12 +2411,12 @@ function Performance({ breaks, user, userRole, streams=[] }) {
         )}
         {/* Year totals */}
         {yearTotal > 0 && (
-          <div style={{ borderTop:"1px solid #F0E0E8", paddingTop:14 }}>
+          <div style={{ borderTop:"1px solid #222222", paddingTop:14 }}>
             <div style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>This Year</div>
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-              <span style={{ fontSize:22, fontWeight:900, color:"#111827" }}>{yearTotal} boxes</span>
+              <span style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{yearTotal} boxes</span>
               {PRODUCT_TYPES.map(pt => yearBoxes[pt]>0 ? (
-                <span key={pt} style={{ background:"#FAFAFA", border:`1.5px solid ${PT_COLORS[pt]}33`, color:PT_COLORS[pt], borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+                <span key={pt} style={{ background:"#111111", border:`1.5px solid ${PT_COLORS[pt]}33`, color:PT_COLORS[pt], borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
                   {pt}: {yearBoxes[pt]}
                 </span>
               ) : null)}
@@ -2428,7 +2433,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
             <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
               <div style={{ width:44, height:44, borderRadius:"50%", background:bc.bg, border:`2px solid ${bc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:900, color:bc.text }}>{breaker[0]}</div>
               <div>
-                <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{breaker}</div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{breaker}</div>
                 <div style={{ fontSize:11, color:"#AAAAAA" }}>{stats.all.length} total cards logged</div>
               </div>
               {stats.streak>0 && <div style={{ marginLeft:"auto", background:bc.bg, border:`1.5px solid ${bc.border}`, borderRadius:10, padding:"6px 14px", textAlign:"center" }}>
@@ -2466,7 +2471,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                         <span style={{ fontSize:12, fontWeight:700, color:cc.text }}>{ct}</span>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>{cnt} ({(pct*100).toFixed(0)}%)</span>
                       </div>
-                      <div style={{ height:6, background:"#FAFAFA", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:6, background:"#111111", borderRadius:3, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${pct*100}%`, background:cc.border, borderRadius:3 }}/>
                       </div>
                     </div>
@@ -2498,7 +2503,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                   const count=stats.byDay[i]; const max=Math.max(...stats.byDay,1); const intensity=count/max;
                   const r=parseInt(bc.border.slice(1,3),16), g=parseInt(bc.border.slice(3,5),16), b2=parseInt(bc.border.slice(5,7),16);
                   return (
-                    <div key={day} style={{ textAlign:"center", padding:"10px 4px", background:count===0?"#F0E0E8":`rgba(${r},${g},${b2},${0.2+intensity*0.8})`, borderRadius:8, border:"1px solid #E5E7EB" }}>
+                    <div key={day} style={{ textAlign:"center", padding:"10px 4px", background:count===0?"#F0E0E8":`rgba(${r},${g},${b2},${0.2+intensity*0.8})`, borderRadius:8, border:"1px solid #2a2a2a" }}>
                       <div style={{ fontSize:11, fontWeight:700, color:count>0?bc.text:"#9CA3AF" }}>{day}</div>
                       <div style={{ fontSize:16, fontWeight:900, color:count>0?bc.text:"#D1D5DB", marginTop:2 }}>{count}</div>
                     </div>
@@ -2507,7 +2512,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
               </div>
             </div>
 
-            {isAdmin && bi < visibleBreakers.length-1 && <div style={{ height:1, background:"#FAFAFA", margin:"8px 0 16px" }}/>}
+            {isAdmin && bi < visibleBreakers.length-1 && <div style={{ height:1, background:"#111111", margin:"8px 0 16px" }}/>}
           </div>
         );
       })}
@@ -2573,7 +2578,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
             <SectionLabel t="SKU Market Values" />
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               {!skuEditing && PRODUCT_TYPES.map(pt => skuPrices[pt] ? (
-                <span key={pt} style={{ fontSize:11, color:"#AAAAAA" }}>{pt}: <strong style={{color:"#111827"}}>${parseFloat(skuPrices[pt]).toFixed(2)}</strong></span>
+                <span key={pt} style={{ fontSize:11, color:"#AAAAAA" }}>{pt}: <strong style={{color:"#F0F0F0"}}>${parseFloat(skuPrices[pt]).toFixed(2)}</strong></span>
               ) : null)}
               <button onClick={()=>setSkuEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {skuEditing ? "Cancel" : "✏️ Edit"}
@@ -2610,7 +2615,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
             <SectionLabel t="Supply Cost Per Unit" />
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               {!supplyEditing && SUPPLY_ITEMS.map(({ key, label }) => skuPrices[`supply_${key}`] ? (
-                <span key={key} style={{ fontSize:11, color:"#AAAAAA" }}>{label}: <strong style={{color:"#111827"}}>${parseFloat(skuPrices[`supply_${key}`]).toFixed(3)}</strong></span>
+                <span key={key} style={{ fontSize:11, color:"#AAAAAA" }}>{label}: <strong style={{color:"#F0F0F0"}}>${parseFloat(skuPrices[`supply_${key}`]).toFixed(3)}</strong></span>
               ) : null)}
               <button onClick={()=>setSupplyEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {supplyEditing ? "Cancel" : "✏️ Edit"}
@@ -2657,8 +2662,8 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                 <span style={{ fontSize:10, color:"#AAAAAA" }}>↓ {s.used} used</span>
               </div>
               {skuPrices[pt] && <div style={{ marginTop:6, fontSize:10, color:pc.text, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}/unit</div>}
-              {out  && <div style={{ marginTop:8, background:"#FAFAFA", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
-              {!out && low && <div style={{ marginTop:8, background:"#FAFAFA", color:"#AAAAAA", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>⚠ Low Stock</div>}
+              {out  && <div style={{ marginTop:8, background:"#111111", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
+              {!out && low && <div style={{ marginTop:8, background:"#111111", color:"#AAAAAA", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>⚠ Low Stock</div>}
             </div>
           );
         })}
@@ -2708,7 +2713,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                 {shipments.map((s,i) => {
                   const pc = PT_COLORS[s.productType] || { bg:"#F3F4F6", text:"#6B7280" };
                   return (
-                    <tr key={s.id} style={{ background:"#FAFAFA" }}>
+                    <tr key={s.id} style={{ background:"#111111" }}>
                       <td style={S.td}>{s.date}</td>
                       <td style={S.td}><span style={{ background:pc.bg, color:pc.text, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{s.productType}</span></td>
                       <td style={{ ...S.td, fontWeight:700, color:"#E8317A", fontSize:15 }}>+{s.qty}</td>
@@ -2716,7 +2721,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                       <td style={S.td}>
                         {canEdit && (
                           <div style={{ display:"flex", gap:6 }}>
-                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #E5E7EB", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
+                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
                             <button onClick={()=>{ if(window.confirm("Delete this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"1px solid #FCA5A5", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#E8317A" }}>🗑</button>
                           </div>
                         )}
@@ -2739,7 +2744,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               <thead><tr>{["Date","Breaker",...PRODUCT_TYPES,""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {productUsage.map((u,i) => (
-                  <tr key={u.id} style={{ background:"#FAFAFA" }}>
+                  <tr key={u.id} style={{ background:"#111111" }}>
                     <td style={S.td}>{u.date}</td>
                     <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
                     {PRODUCT_TYPES.map(pt => (
@@ -2833,9 +2838,9 @@ function Sellers({ inventory, breaks, userRole }) {
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         {/* Back + header */}
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={()=>setSelectedSeller(null)} style={{ background:"#FAFAFA", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
+          <button onClick={()=>setSelectedSeller(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
           <div>
-            <div style={{ fontSize:22, fontWeight:900, color:"#111827" }}>{s.name}</div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{s.name}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>
               {s.topSource !== "—" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
               {s.topSource !== "—" && " · "}
@@ -2863,8 +2868,8 @@ function Sellers({ inventory, breaks, userRole }) {
         <div style={S.card}>
           <SectionLabel t="Customer Details" />
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
-            <span style={{ fontSize:13, color:"#AAAAAA" }}>Primary Source: <strong style={{color:"#111827"}}>{s.topSource}</strong></span>
-            <span style={{ fontSize:13, color:"#AAAAAA" }}>Preferred Payment: <strong style={{color:"#111827"}}>{s.topPayment}</strong></span>
+            <span style={{ fontSize:13, color:"#AAAAAA" }}>Primary Source: <strong style={{color:"#F0F0F0"}}>{s.topSource}</strong></span>
+            <span style={{ fontSize:13, color:"#AAAAAA" }}>Preferred Payment: <strong style={{color:"#F0F0F0"}}>{s.topPayment}</strong></span>
             <span style={{ fontSize:13, color:"#AAAAAA" }}>Cards Used: <strong style={{color:"#E8317A"}}>{usedCount}</strong></span>
           </div>
         </div>
@@ -2877,10 +2882,10 @@ function Sellers({ inventory, breaks, userRole }) {
               const lotUsed  = lot.cards.filter(c=>usedIds.has(c.id)).length;
               const lotAvail = lot.cards.length - lotUsed;
               return (
-                <div key={i} style={{ background:"#FAFAFA", border:"1px solid #E5E7EB", borderRadius:10, padding:"14px 18px" }}>
+                <div key={i} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 18px" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <div>
-                      <span style={{ fontWeight:700, fontSize:14, color:"#111827" }}>Lot #{s.lotCount - i}</span>
+                      <span style={{ fontWeight:700, fontSize:14, color:"#F0F0F0" }}>Lot #{s.lotCount - i}</span>
                       <span style={{ color:"#AAAAAA", fontSize:12, marginLeft:10 }}>{lot.date}</span>
                     </div>
                     <div style={{ display:"flex", gap:12, alignItems:"center" }}>
@@ -2890,7 +2895,7 @@ function Sellers({ inventory, breaks, userRole }) {
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:12, color:"#AAAAAA" }}>Cards: <strong style={{color:"#111827"}}>{lot.cards.length}</strong></span>
+                    <span style={{ fontSize:12, color:"#AAAAAA" }}>Cards: <strong style={{color:"#F0F0F0"}}>{lot.cards.length}</strong></span>
                     <span style={{ fontSize:12, color:"#AAAAAA" }}>Available: <strong style={{color:"#E8317A"}}>{lotAvail}</strong></span>
                     <span style={{ fontSize:12, color:"#AAAAAA" }}>Used: <strong style={{color:"#E8317A"}}>{lotUsed}</strong></span>
                   </div>
@@ -2953,7 +2958,7 @@ function Sellers({ inventory, breaks, userRole }) {
 
                   {/* Name + meta */}
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:800, fontSize:15, color:"#111827", marginBottom:3 }}>{s.name}</div>
+                    <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:3 }}>{s.name}</div>
                     <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                       {s.topSource !== "—" && <span style={{ fontSize:11, color:srcColor, fontWeight:700 }}>{s.topSource}</span>}
                       {s.topPayment !== "—" && <span style={{ fontSize:11, color:"#AAAAAA" }}>{s.topPayment}</span>}
@@ -2964,11 +2969,11 @@ function Sellers({ inventory, breaks, userRole }) {
                   {/* Stats */}
                   <div style={{ display:"flex", gap:20, alignItems:"center", flexShrink:0 }}>
                     <div style={{ textAlign:"center" }}>
-                      <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{s.lotCount}</div>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{s.lotCount}</div>
                       <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Lots</div>
                     </div>
                     <div style={{ textAlign:"center" }}>
-                      <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{s.cards}</div>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{s.cards}</div>
                       <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Cards</div>
                     </div>
                     {canSeeFinancials && (
@@ -3174,13 +3179,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={()=>setViewStream(null)} style={{ background:"#FAFAFA", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
+          <button onClick={()=>setViewStream(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
           <div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
-              {s.newBuyers>0 && <span style={{ background:"#FAFAFA", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🌱 {s.newBuyers} new buyers</span>}
+              {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🌱 {s.newBuyers} new buyers</span>}
             </div>
           </div>
 
@@ -3190,13 +3195,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={S.card}>
           <SectionLabel t="Stream Revenue Breakdown" />
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#FAFAFA", borderRadius:8 }}>
-              <span style={{ fontWeight:700, color:"#111827", fontSize:14 }}>Gross Revenue</span>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#111111", borderRadius:8 }}>
+              <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:14 }}>Gross Revenue</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
             {/* Platform fees — excluded from rep 13.5% */}
             {parseFloat(s.whatnotFees) > 0 && (
-              <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FAFAFA", borderRadius:7, border:"1px solid #E5E7EB" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7, border:"1px solid #2a2a2a" }}>
                 <span style={{ color:"#AAAAAA", fontSize:13 }}>− Whatnot Fees <span style={{ fontSize:10, color:"#AAAAAA", marginLeft:6 }}>(platform cost — not included in rep expenses)</span></span>
                 <span style={{ color:"#AAAAAA", fontWeight:700, fontSize:13 }}>${(parseFloat(s.whatnotFees)||0).toFixed(2)}</span>
               </div>
@@ -3206,18 +3211,18 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               <div style={{ fontSize:10, color:"#AAAAAA", fontWeight:700, textTransform:"uppercase", letterSpacing:1, padding:"4px 2px" }}>Stream Expenses (rep pays 13.5% of these)</div>
             )}
             {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).map(({l,v}) => (
-              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FAFAFA", borderRadius:7, border:"1px solid #FEE2E2" }}>
+              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7, border:"1px solid #FEE2E2" }}>
                 <span style={{ color:"#AAAAAA", fontSize:13 }}>− {l}</span>
                 <span style={{ color:"#E8317A", fontWeight:700, fontSize:13 }}>${v.toFixed(2)}</span>
               </div>
             ))}
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FAFAFA", borderRadius:7 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7 }}>
               <span style={{ fontWeight:700, color:"#E8317A", fontSize:13 }}>Total Expenses</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:13 }}>${c.totalExp.toFixed(2)}</span>
             </div>
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#FAFAFA", borderRadius:8, border:"2px solid #1B4F8A22" }}>
-              <span style={{ fontWeight:800, color:"#111827", fontSize:14 }}>Net Revenue</span>
-              <span style={{ fontWeight:900, color:"#111827", fontSize:16 }}>{fmt(c.netRev)}</span>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#111111", borderRadius:8, border:"2px solid #1B4F8A22" }}>
+              <span style={{ fontWeight:800, color:"#F0F0F0", fontSize:14 }}>Net Revenue</span>
+              <span style={{ fontWeight:900, color:"#F0F0F0", fontSize:16 }}>{fmt(c.netRev)}</span>
             </div>
           </div>
         </div>
@@ -3227,7 +3232,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
           <div style={S.card}>
             <SectionLabel t="Gross Revenue" />
-            <div style={{ fontSize:28, fontWeight:900, color:"#111827" }}>{fmt(c.gross)}</div>
+            <div style={{ fontSize:28, fontWeight:900, color:"#F0F0F0" }}>{fmt(c.gross)}</div>
           </div>
           <div style={S.card}>
             <SectionLabel t="Owed to Imagination Mining (70%)" />
@@ -3257,12 +3262,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#FAFAFA", borderRadius:10, marginBottom:10 }} className="save-flash">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10, marginBottom:10 }} className="save-flash">
             <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>💵 Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.commAmt)}</span>
           </div>
           {isAdmin && (
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#FAFAFA", borderRadius:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>🏦 Bazooka True Net</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.bazTrueNet)}</span>
           </div>
@@ -3270,7 +3275,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           {s.marketMultiple && !s.binOnly && (
             <div style={{ marginTop:10, fontSize:12, color:"#AAAAAA", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
           )}
-          {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#FAFAFA", borderRadius:7, fontSize:12, color:"#AAAAAA", fontStyle:"italic" }}>{s.notes}</div>}
+          {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#111111", borderRadius:7, fontSize:12, color:"#AAAAAA", fontStyle:"italic" }}>{s.notes}</div>}
         </div>
       </div>
     );
@@ -3282,8 +3287,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={cancelEdit} style={{ background:"#FAFAFA", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Cancel</button>
-          <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>{editing==="new"?"New Stream":"Edit Stream"}</div>
+          <button onClick={cancelEdit} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Cancel</button>
+          <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0" }}>{editing==="new"?"New Stream":"Edit Stream"}</div>
           {importing && (
             <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               📂 Select Whatnot CSV
@@ -3292,7 +3297,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           )}
           <Btn onClick={()=>setImporting(p=>!p)} variant="ghost">{importing?"Cancel Import":"📂 Import CSV"}</Btn>
         </div>
-        {csvError && <div style={{ padding:"10px 14px", background:"#FAFAFA", borderRadius:8, color:"#E8317A", fontSize:13 }}>{csvError}</div>}
+        {csvError && <div style={{ padding:"10px 14px", background:"#111111", borderRadius:8, color:"#E8317A", fontSize:13 }}>{csvError}</div>}
 
         {/* Stream info */}
         <div style={S.card}>
@@ -3362,7 +3367,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 { l:"Rep Expenses",  v:`$${preview.repExp.toFixed(2)}`,   c:"#991b1b" },
                 { l:`Commission (${(preview.rate*100).toFixed(0)}%)`, v:`$${preview.commAmt.toFixed(2)}`, c:"#166534" },
               ].map(({l,v,c}) => (
-                <div key={l} style={{ textAlign:"center", background:"#FAFAFA", borderRadius:8, padding:"10px 8px" }}>
+                <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
                   <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                 </div>
@@ -3431,7 +3436,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <button key={b} onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
               style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {b === "all" ? "👥 All Breakers" : b}
-              {b !== "all" && <span style={{ marginLeft:6, background:"#FAFAFA", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
+              {b !== "all" && <span style={{ marginLeft:6, background:"#111111", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
                 {visibleStreams.filter(s=>s.breaker===b).length}
               </span>}
             </button>
@@ -3451,12 +3456,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#111827" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
                 <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#111827"}}>{fmt(c.gross)}</strong></span>
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#111827"}}>{fmt(c.netRev)}</strong></span>
+                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#F0F0F0"}}>{fmt(c.gross)}</strong></span>
+                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
                   {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
                   {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
@@ -3661,11 +3666,11 @@ export default function App() {
     { id:"performance", label:"📈 Performance"  },
   ];
 
-  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FAFAFA", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
+  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:"#F7F4F8", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#111827" }}>
+    <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0" }}>
       <GlobalStyles />
 
       {/* ── GLOBAL SEARCH OVERLAY ── */}
@@ -3687,7 +3692,7 @@ export default function App() {
             {/* Backdrop */}
             <div onClick={()=>{ setGOpen(false); setGSearch(""); }} style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(2px)" }}/>
             {/* Panel */}
-            <div style={{ position:"relative", zIndex:1000, margin:"60px auto 0", width:"100%", maxWidth:720, background:"#FAFAFA", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.8)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
+            <div style={{ position:"relative", zIndex:1000, margin:"60px auto 0", width:"100%", maxWidth:720, background:"#111111", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.8)", border:"1px solid #2a2a2a", overflow:"hidden" }}>
               {/* Search input */}
               <div style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 20px", borderBottom:"1px solid #222" }}>
                 <span style={{ fontSize:18, color:"#E8317A" }}>🔍</span>
@@ -3696,7 +3701,7 @@ export default function App() {
                   value={gSearch}
                   onChange={e=>setGSearch(e.target.value)}
                   placeholder="Search cards, sellers, types, sources..."
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:"#111827", fontSize:16, fontFamily:"inherit" }}
+                  style={{ flex:1, background:"none", border:"none", outline:"none", color:"#F0F0F0", fontSize:16, fontFamily:"inherit" }}
                 />
                 {gSearch && <button onClick={()=>setGSearch("")} style={{ background:"none", border:"none", color:"#666", cursor:"pointer", fontSize:18 }}>✕</button>}
                 <kbd style={{ background:"#222", color:"#666", border:"1px solid #444", borderRadius:5, padding:"2px 8px", fontSize:11 }}>esc</kbd>
@@ -3709,19 +3714,19 @@ export default function App() {
                   : results.length === 0
                     ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#AAAAAA", fontSize:13 }}>No cards found for "{gSearch}"</div>
                     : <>
-                        <div style={{ padding:"8px 20px", fontSize:11, color:"#6B7280", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
+                        <div style={{ padding:"8px 20px", fontSize:11, color:"#999999", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
                         {results.map((c,i) => {
                           const st = getStatus(c);
                           const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                           return (
                             <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, padding:"12px 20px", borderBottom:"1px solid #1a1a1a", background:i%2===0?"#111111":"#161616" }}>
                               <div>
-                                <div style={{ fontWeight:700, color:"#111827", fontSize:14, marginBottom:4 }}>{c.cardName||"—"}</div>
+                                <div style={{ fontWeight:700, color:"#F0F0F0", fontSize:14, marginBottom:4 }}>{c.cardName||"—"}</div>
                                 <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                                   {c.cardType && <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{c.cardType}</span>}
                                   {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#aaa"}}>{c.seller}</strong></span>}
                                   {c.source && <span style={{ fontSize:11, color:"#666" }}>{c.source}</span>}
-                                  {c.date && <span style={{ fontSize:11, color:"#6B7280" }}>{c.date}</span>}
+                                  {c.date && <span style={{ fontSize:11, color:"#999999" }}>{c.date}</span>}
                                 </div>
                               </div>
                               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
@@ -3739,11 +3744,11 @@ export default function App() {
         );
       })()}
 
-      <div style={{ background:"#FAFAFA", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
+      <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <span className="nav-bazooka" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
-            <span style={{ fontSize:10, color:"#6B7280", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
+            <span style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>BoBA Tracker</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
             {TABS.map(t => (
@@ -3756,11 +3761,11 @@ export default function App() {
             {/* Search button */}
             <button
               onClick={()=>{ setGOpen(true); setGSearch(""); }}
-              style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a2e", border:"1px solid #E5E7EB", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}
+              style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a2e", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}
             >
               <span style={{ fontSize:13 }}>🔍</span>
               <span style={{ fontSize:12 }}>Search</span>
-              <kbd style={{ background:"#111", color:"#6B7280", border:"1px solid #E5E7EB", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
+              <kbd style={{ background:"#111", color:"#999999", border:"1px solid #2a2a2a", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
             </button>
             <span style={{ color:"#AAAAAA", fontSize:11 }}>{inventory.length} cards</span>
             {realRole.role === "Admin" && (
