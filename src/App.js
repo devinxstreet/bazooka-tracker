@@ -3109,8 +3109,9 @@ export default function App() {
   }
 
   const realRole = getUserRole(user);
-  const [viewAs,  setViewAs]  = useState(null); // null = real role
-  const userRole = viewAs ? viewAs : realRole;
+  const [viewAs,  setViewAs]  = useState(null);
+  const userRole    = viewAs ? viewAs : realRole;
+  const effectiveUser = viewAs ? { ...user, displayName: viewAs.displayName } : user;
   const TABS = [
     { id:"dashboard",   label:"📊 Dashboard"   },
     { id:"comp",        label:"🧮 Lot Comp"     },
@@ -3225,14 +3226,16 @@ export default function App() {
               <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
                 <span style={{ fontSize:10, color: viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
                 <select
-                  value={viewAs?.role||""}
+                  value={viewAs?.key||""}
                   onChange={e=>{
                     if (!e.target.value) { setViewAs(null); return; }
                     const ROLE_MAP = {
-                      Admin:       { role:"Admin",       label:"CEO",         email:user.email },
-                      Streamer:    { role:"Streamer",    label:"Streamer",    email:"preview@streamer.com" },
-                      Procurement: { role:"Procurement", label:"Procurement", email:"preview@procurement.com" },
-                      Shipping:    { role:"Shipping",    label:"Shipping",    email:"preview@shipping.com" },
+                      Admin:       { role:"Admin",       label:"CEO (Devin)",    key:"Admin",       displayName:user.displayName },
+                      Dev:         { role:"Streamer",    label:"Dev",            key:"Dev",         displayName:"Dev" },
+                      Dre:         { role:"Streamer",    label:"Dre",            key:"Dre",         displayName:"Dre" },
+                      Krystal:     { role:"Streamer",    label:"Krystal",        key:"Krystal",     displayName:"Krystal" },
+                      Procurement: { role:"Procurement", label:"Procurement",    key:"Procurement", displayName:"John" },
+                      Shipping:    { role:"Shipping",    label:"Shipping",       key:"Shipping",    displayName:"Jake" },
                     };
                     setViewAs(ROLE_MAP[e.target.value]);
                     setTab("dashboard");
@@ -3240,10 +3243,15 @@ export default function App() {
                   style={{ background:"none", border:"none", color: viewAs?"#f59e0b":"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none" }}
                 >
                   <option value="">— Real Role —</option>
-                  <option value="Admin">Admin (CEO)</option>
-                  <option value="Streamer">Streamer</option>
-                  <option value="Procurement">Procurement</option>
-                  <option value="Shipping">Shipping</option>
+                  <optgroup label="Streamers">
+                    <option value="Dev">Dev</option>
+                    <option value="Dre">Dre</option>
+                    <option value="Krystal">Krystal</option>
+                  </optgroup>
+                  <optgroup label="Other Roles">
+                    <option value="Procurement">Procurement (John)</option>
+                    <option value="Shipping">Shipping (Jake)</option>
+                  </optgroup>
                 </select>
               </div>
             )}
@@ -3257,17 +3265,17 @@ export default function App() {
 
       {viewAs && (
         <div style={{ background:"#78350f", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"center", gap:16 }}>
-          <span style={{ fontSize:12, color:"#fef3c7", fontWeight:700 }}>👁 Previewing as <strong style={{color:"#f59e0b"}}>{viewAs.label}</strong> — this is how they see the app</span>
+          <span style={{ fontSize:12, color:"#fef3c7", fontWeight:700 }}>👁 Previewing as <strong style={{color:"#f59e0b"}}>{viewAs.label}</strong> — this is exactly what they see</span>
           <button onClick={()=>{ setViewAs(null); }} style={{ background:"#f59e0b", color:"#78350f", border:"none", borderRadius:6, padding:"3px 12px", fontSize:11, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>Exit Preview</button>
         </div>
       )}
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
-        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
+        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
