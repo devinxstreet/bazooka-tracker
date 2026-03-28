@@ -2192,7 +2192,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         if (hasCoupon) buyerMap[username].couponCount++;
                       }
                       const streamId = `${breaker}_${streamDate}`;
-                      onUpsertBuyers(Object.values(buyerMap), streamId);
+                      onUpsertBuyers(Object.values(buyerMap), streamId, file.name);
                     }
                   } catch(err) { setCsvMsg({ type:"error", text:"Could not parse CSV. Make sure it's a Whatnot live sales export." }); }
                 };
@@ -4497,12 +4497,13 @@ function PublicQuote({ quoteId }) {
 
 
 // ─── BUYERS CRM ──────────────────────────────────────────────
-function BuyersCRM({ buyers=[], userRole }) {
+function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const [search,   setSearch]   = useState("");
-  const [sortBy,   setSortBy]   = useState("spend");
-  const [selected, setSelected] = useState(null);
+  const [search,      setSearch]      = useState("");
+  const [sortBy,      setSortBy]      = useState("spend");
+  const [selected,    setSelected]    = useState(null);
   const [stateFilter, setStateFilter] = useState("");
+  const [showImports, setShowImports] = useState(false);
 
   const US_STATES = [...new Set(buyers.map(b=>b.state).filter(Boolean))].sort();
 
@@ -4609,6 +4610,40 @@ function BuyersCRM({ buyers=[], userRole }) {
   // ── BUYER LIST ────────────────────────────────────────────
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Import History */}
+      {canSeeFinancials && (
+        <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <SectionLabel t={`📂 CSV Import History (${csvImports.length})`} />
+            <button onClick={()=>setShowImports(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {showImports?"▲ Hide":"▼ Show"}
+            </button>
+          </div>
+          {showImports && (
+            csvImports.length === 0
+              ? <div style={{ color:"#555", fontSize:13, padding:"12px 0" }}>No imports yet — upload a Whatnot CSV in Stream Recap.</div>
+              : <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:10 }}>
+                  {csvImports.map(imp => (
+                    <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:"#0d0d0d", border:"1px solid #222", borderRadius:8, gap:12, flexWrap:"wrap" }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0", marginBottom:3 }}>{imp.filename||"Unknown file"}</div>
+                        <div style={{ fontSize:11, color:"#666", display:"flex", gap:12, flexWrap:"wrap" }}>
+                          <span>📅 {new Date(imp.importedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                          <span>🎯 Stream: {imp.streamId||"—"}</span>
+                          <span>👥 {imp.rowCount||0} buyers</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={()=>{ if(window.confirm(`Delete import "${imp.filename}"?\n\nThis will recalculate or remove all ${imp.rowCount||0} buyers from this import.`)) onDeleteImport(imp.id); }}
+                        style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}
+                      >🗑 Delete Import</button>
+                    </div>
+                  ))}
+                </div>
+          )}
+        </div>
+      )}
 
       {/* Stats row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
@@ -4722,6 +4757,7 @@ export default function App() {
   const [payStubs,       setPayStubs]       = useState([]);
   const [quotes,         setQuotes]         = useState([]);
   const [buyers,         setBuyers]         = useState([]);
+  const [csvImports,     setCsvImports]     = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -4755,8 +4791,9 @@ export default function App() {
     const u11 = onSnapshot(query(collection(db,"pay_stubs"), orderBy("createdAt","desc")), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u12 = onSnapshot(query(collection(db,"quotes"), orderBy("createdAt","desc")), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u13 = onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u14 = onSnapshot(query(collection(db,"csv_imports"), orderBy("importedAt","desc")), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -4875,31 +4912,96 @@ export default function App() {
   async function handleDismissQuoteNotif(id) {
     await setDoc(doc(db,"quotes",id), { notified:true }, { merge:true });
   }
-  async function handleUpsertBuyers(buyerRows, streamId) {
-    // buyerRows: array of parsed buyer objects from CSV
+  async function handleUpsertBuyers(buyerRows, streamId, filename) {
+    const importId  = uid();
+    const importedAt = new Date().toISOString();
+    const usernames = buyerRows.map(b => b.username);
+
+    // Save the import record first
+    await setDoc(doc(db,"csv_imports", importId), {
+      id: importId, filename, streamId, importedAt,
+      rowCount: buyerRows.length,
+      buyerUsernames: usernames,
+    });
+
+    // Upsert each buyer, tracking which imports they came from
     for (const b of buyerRows) {
       const existing = buyers.find(x => x.id === b.username);
-      const prevStreams = existing?.streams || [];
-      const prevSpend   = existing?.totalSpend || 0;
-      const prevOrders  = existing?.orderCount || 0;
-      const isNew       = !existing;
-      await setDoc(doc(db,"buyers",b.username), {
-        id:           b.username,
-        username:     b.username,
-        fullName:     b.fullName,
-        city:         b.city,
-        state:        b.state,
-        zip:          b.zip,
-        totalSpend:   prevSpend + b.spend,
-        orderCount:   prevOrders + b.orders,
-        streams:      prevStreams.includes(streamId) ? prevStreams : [...prevStreams, streamId],
-        couponCount:  (existing?.couponCount||0) + b.couponCount,
-        firstSeen:    existing?.firstSeen || b.date,
-        lastSeen:     b.date,
-        isNew:        isNew,
-        updatedAt:    new Date().toISOString(),
+      const prevImports = existing?.importIds || [];
+      const isNew = !existing;
+      await setDoc(doc(db,"buyers", b.username), {
+        id:          b.username,
+        username:    b.username,
+        fullName:    b.fullName,
+        city:        b.city,
+        state:       b.state,
+        zip:         b.zip,
+        totalSpend:  (existing?.totalSpend||0) + b.spend,
+        orderCount:  (existing?.orderCount||0) + b.orders,
+        streams:     (existing?.streams||[]).includes(streamId) ? (existing?.streams||[]) : [...(existing?.streams||[]), streamId],
+        couponCount: (existing?.couponCount||0) + b.couponCount,
+        firstSeen:   existing?.firstSeen || b.date,
+        lastSeen:    b.date,
+        isNew,
+        importIds:   prevImports.includes(importId) ? prevImports : [...prevImports, importId],
+        // Store per-import data so we can recalculate on delete
+        [`importData_${importId}`]: { spend:b.spend, orders:b.orders, couponCount:b.couponCount, streamId, date:b.date },
+        updatedAt:   importedAt,
       }, { merge:true });
     }
+    showToast(`✅ Imported ${buyerRows.length} buyers from ${filename}`);
+  }
+
+  async function handleDeleteImport(importId) {
+    // Get the import record
+    const importSnap = await getDoc(doc(db,"csv_imports",importId));
+    if (!importSnap.exists()) return;
+    const importData = importSnap.data();
+
+    // For each buyer in this import, recalculate or delete
+    for (const username of (importData.buyerUsernames||[])) {
+      const buyerSnap = await getDoc(doc(db,"buyers",username));
+      if (!buyerSnap.exists()) continue;
+      const buyer = buyerSnap.data();
+      const remainingImports = (buyer.importIds||[]).filter(id => id !== importId);
+
+      if (remainingImports.length === 0) {
+        // No more imports — delete the buyer entirely
+        await deleteDoc(doc(db,"buyers",username));
+      } else {
+        // Recalculate totals from remaining imports only
+        let totalSpend = 0, orderCount = 0, couponCount = 0;
+        const streams = new Set();
+        let firstSeen = null, lastSeen = null;
+
+        for (const iid of remainingImports) {
+          const d = buyer[`importData_${iid}`];
+          if (!d) continue;
+          totalSpend  += d.spend || 0;
+          orderCount  += d.orders || 0;
+          couponCount += d.couponCount || 0;
+          if (d.streamId) streams.add(d.streamId);
+          if (!firstSeen || new Date(d.date) < new Date(firstSeen)) firstSeen = d.date;
+          if (!lastSeen  || new Date(d.date) > new Date(lastSeen))  lastSeen  = d.date;
+        }
+
+        // Remove the deleted import's data field
+        const update = {
+          importIds: remainingImports,
+          totalSpend, orderCount, couponCount,
+          streams: [...streams],
+          firstSeen, lastSeen,
+          updatedAt: new Date().toISOString(),
+        };
+        // We can't easily delete a field with setDoc merge, so set it to null
+        update[`importData_${importId}`] = null;
+        await setDoc(doc(db,"buyers",username), update, { merge:true });
+      }
+    }
+
+    // Delete the import record itself
+    await deleteDoc(doc(db,"csv_imports",importId));
+    showToast(`🗑 Import deleted — buyers recalculated`);
   }
   async function handleCloseQuote(id) {
     await setDoc(doc(db,"quotes",id), { status:"closed", closedAt:new Date().toISOString() }, { merge:true });
@@ -5115,7 +5217,7 @@ export default function App() {
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="buyers"      && <BuyersCRM buyers={buyers} userRole={userRole}/>}
+        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
