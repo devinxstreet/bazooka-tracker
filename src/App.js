@@ -320,13 +320,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
           const netRev   = gross - totalExp;
           const bazNet   = netRev * 0.30;
           const imcNet   = netRev * 0.70;
-          const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
+          const streamExp = coupons+promo+magpros+pack+topload+chaser;
+          const repExp   = streamExp * 0.135;
+          const imcExpReimb = streamExp * 0.70;
           const commBase = bazNet - repExp;
           const mm = parseFloat(s.marketMultiple)||0;
           const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
           const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt  = commBase * rate;
-          return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
+          return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -1555,13 +1557,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const imcNet   = netRev * 0.70;
-    const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
+    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const repExp   = streamExp * 0.135;
+    const imcExpReimb = streamExp * 0.70;
     const commBase = bazNet - repExp;
     const mm = parseFloat(recap.marketMultiple)||0;
     const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
     const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commAmt = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, imcNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
+    return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
   }
 
   async function handleSaveRecap() {
@@ -1833,9 +1837,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 2: bazooka true net */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #F0E0E8" }}>
                   {[
-                    { l:"Bazooka Earnings",                           v:fmt(rc.bazNet),    c:"#E8317A" },
-                    { l:`Rep Commission (${(rc.rate*100).toFixed(0)}%)`, v:"− "+fmt(rc.commAmt), c:"#991b1b" },
-                    { l:"Bazooka True Net",                           v:fmt(rc.bazTrueNet), c:"#166534" },
+                    { l:"Bazooka Earnings",          v:fmt(rc.bazNet),              c:"#E8317A" },
+                    { l:"− Rep Commission",           v:"− "+fmt(rc.commAmt),        c:"#991b1b" },
+                    { l:"+ IMC Expense Reimb (70%)",  v:"+ "+fmt(rc.imcExpReimb||0), c:"#166534" },
+                    { l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),          c:"#166534" },
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background: l==="Bazooka True Net"?"#D6F4E3":"#FFFFFF", borderRadius:8, padding:"10px 8px", border:`1px solid ${l==="Bazooka True Net"?"#16653444":"#F0E0E8"}` }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
@@ -1877,10 +1882,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && (() => {
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-          const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70, repExp=(coupons+promo+magpros+pack+topload+chaser)*0.135;
+          const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
+          const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135, imcExpReimb=streamExp*0.70;
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt=(bazNet-repExp)*rate;
-          return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet: bazNet-repExp-commAmt, rate };
+          return { gross, netRev, bazNet, imcNet, commAmt, imcExpReimb, bazTrueNet: bazNet-repExp-commAmt+imcExpReimb, rate };
         }
         const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
         return (
@@ -2841,11 +2847,13 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const bobaNet  = netRev * 0.70;
-    const repExp   = (coupons+promo+magpros+pack+topload+chaser) * 0.135;
+    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const repExp   = streamExp * 0.135;
+    const imcExpReimb = streamExp * 0.70;
     const commBase = bazNet - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt };
+    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
   }
 
   // Admins see all streams; streamers see only their own
@@ -2898,9 +2906,10 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
     acc.baz      += c.bazNet;
     acc.comm     += c.commAmt;
     acc.trueNet  += c.bazTrueNet||0;
+    acc.reimb    += c.imcExpReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, newBuyers:0 });
+  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, reimb:0, newBuyers:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
@@ -3026,9 +3035,10 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
             {[
-              { l:"Bazooka Earnings",        v:fmt(c.bazNet),      c:"#E8317A" },
-              { l:"Rep Expenses (13.5%)",    v:"− "+fmt(c.repExp), c:"#991b1b" },
-              { l:"Commission Base",         v:fmt(c.commBase),    c:"#1B4F8A" },
+              { l:"Bazooka Earnings",               v:fmt(c.bazNet),         c:"#E8317A" },
+              { l:"Rep Expenses (13.5%)",           v:"− "+fmt(c.repExp),    c:"#991b1b" },
+              { l:"IMC Expense Reimb (70%)",        v:"+ "+fmt(c.imcExpReimb||0), c:"#166534" },
+              { l:"Commission Base",                v:fmt(c.commBase),       c:"#1B4F8A" },
               { l:`Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280" },
             ].map(({l,v,c:clr}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #F0E0E8" }}>
