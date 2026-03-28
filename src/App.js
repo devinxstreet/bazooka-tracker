@@ -1925,7 +1925,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead>
-                  <tr>{["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+                  <tr>{["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {myStreams.map((s,i) => {
@@ -1949,6 +1949,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         {canSeeFinancials && <td style={{ ...S.td, color:"#166534", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#6B7280" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                         <td style={{ ...S.td, color:"#166534" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "—"}</td>
+                        {PRODUCT_TYPES.map(pt => {
+                          const qty = parseInt(s[`prod_${pt}`])||0;
+                          const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
+                          return (
+                            <td key={pt} style={{ ...S.td, color: qty>0?PT_COLORS[pt]:"#D1D5DB", fontWeight:qty>0?700:400, textAlign:"center" }}>
+                              {qty>0 ? qty : "—"}
+                            </td>
+                          );
+                        })}
                         <td style={S.td}>
                           <button
                             onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); } }}}
