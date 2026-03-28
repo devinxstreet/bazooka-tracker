@@ -1425,7 +1425,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [histSel,    setHistSel]    = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -1441,7 +1441,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
     if (existingStream) {
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"" });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"" });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -1510,6 +1510,19 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     try {
       const streamId = existingStream?.id || uid();
       await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:streamId, breaker, date });
+      // Log selected chaser cards out of inventory
+      if (recap.chaserCardIds) {
+        const cardIds = recap.chaserCardIds.split(",").filter(Boolean);
+        const alreadyLogged = new Set(breaks.filter(b=>b.streamId===streamId).map(b=>b.inventoryId));
+        const toLog = cardIds.filter(id => !alreadyLogged.has(id));
+        if (toLog.length > 0) {
+          const entries = toLog.map(id => {
+            const card = inventory.find(c=>c.id===id);
+            return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:"Chaser Cards", usage:"Chaser", notes:"Auto-logged from stream recap", streamId, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+          });
+          if (onBulkAdd) onBulkAdd(entries);
+        }
+      }
       // Save product usage from recap fields
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { const v=parseInt(recap[`prod_${pt}`])||0; if(v>0) acc[pt]=v; return acc; }, {});
       if (Object.keys(prodFields).length > 0 && onSaveProductUsage) {
@@ -1590,13 +1603,72 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ["whatnotFees",       "Whatnot Fees ($)",        "#991b1b", false],
             ["coupons",           "Coupons ($)",             "#991b1b", false],
             ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", false],
-            ["chaserCards",       "Chaser Cards ($)",        "#991b1b", false],
           ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
             <div key={key}>
               <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
               <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
             </div>
           ))}
+          {/* Chaser Cards — picker + manual override */}
+          <div style={{ gridColumn:"span 4" }}>
+            <label style={{ ...S.lbl, color:"#8B5E00" }}>🏆 Chaser Cards Used</label>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"start" }}>
+              <div>
+                {/* Card picker */}
+                {(() => {
+                  const usedIdSet = new Set(breaks.map(b=>b.inventoryId));
+                  const chasers = inventory.filter(c => c.cardType==="Chaser Cards" && !usedIdSet.has(c.id) && c.cardStatus!=="in_transit");
+                  const selectedChasers = recap.chaserCardIds ? recap.chaserCardIds.split(",").filter(Boolean) : [];
+                  const totalCost = selectedChasers.reduce((sum,id)=>{
+                    const card = inventory.find(c=>c.id===id);
+                    return sum + (card?.costPerCard||0);
+                  }, 0);
+                  return (
+                    <div>
+                      {chasers.length === 0
+                        ? <div style={{ fontSize:12, color:"#9CA3AF", padding:"8px 0" }}>No chaser cards available in inventory</div>
+                        : <div style={{ maxHeight:160, overflowY:"auto", border:"1px solid #F0D0DC", borderRadius:8, background:"#FFFFFF" }}>
+                            {chasers.map(c => {
+                              const isSel = selectedChasers.includes(c.id);
+                              return (
+                                <div key={c.id}
+                                  onClick={()=>{
+                                    const newSel = isSel
+                                      ? selectedChasers.filter(x=>x!==c.id)
+                                      : [...selectedChasers, c.id];
+                                    const newCost = newSel.reduce((sum,id)=>{
+                                      const card = inventory.find(x=>x.id===id);
+                                      return sum + (card?.costPerCard||0);
+                                    },0);
+                                    setRecap(p=>({...p, chaserCardIds:newSel.join(","), chaserCards:newCost>0?newCost.toFixed(2):p.chaserCards}));
+                                    setRecapSaved(false);
+                                  }}
+                                  style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:isSel?"#FFF0CC":"#FFFFFF", borderBottom:"1px solid #FFF0F5" }}
+                                >
+                                  <input type="checkbox" checked={isSel} onChange={()=>{}} style={{ flexShrink:0 }}/>
+                                  <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#111827", flex:1 }}>{c.cardName}</span>
+                                  {c.costPerCard>0 && <span style={{ fontSize:11, color:"#8B5E00" }}>${c.costPerCard.toFixed(2)}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                      }
+                      {selectedChasers.length > 0 && (
+                        <div style={{ fontSize:11, color:"#8B5E00", fontWeight:700, marginTop:4 }}>
+                          {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
+                          <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ marginLeft:8, background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:11 }}>✕ clear</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ minWidth:120 }}>
+                <label style={{ ...S.lbl, fontSize:10 }}>Override ($)</label>
+                <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, color:"#8B5E00" }}/>
+              </div>
+            </div>
+          </div>
           {/* Supply qty fields — auto-calc from cost per unit */}
           <div style={{ display:"contents" }}>
               {[
@@ -2558,7 +2630,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
 
-  const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", newBuyers:"", binOnly:false, notes:"" };
+  const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, notes:"" };
   const [form,      setForm]      = useState(EMPTY);
   const [editing,   setEditing]   = useState(null); // stream id or "new"
   const [viewStream,setViewStream]= useState(null); // stream id for detail view
