@@ -2087,7 +2087,6 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
 }
 
 // ─── CUSTOMERS CRM ──────────────────────────────────────────────
-}
 function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
