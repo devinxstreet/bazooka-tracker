@@ -232,9 +232,9 @@ function LoginScreen() {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
       <div style={{ background:"#111111", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
-        <div style={{ fontSize:40, fontWeight:900, color:"#000000", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
+        <div style={{ fontSize:40, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
         <div style={{ fontSize:11, color:"#E8317A", marginBottom:32, fontWeight:700, textTransform:"uppercase", letterSpacing:3 }}>Inventory Tracker</div>
-        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#111111", border:"2px solid #000000", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#F0F0F0", width:"100%", justifyContent:"center" }}>
+        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#1a1a1a", border:"2px solid #333333", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#F0F0F0", width:"100%", justifyContent:"center" }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
             <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
