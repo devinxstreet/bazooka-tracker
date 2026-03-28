@@ -951,6 +951,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
   const [custNote,     setCustNote]     = useState("");
   const [quoteLink,    setQuoteLink]    = useState(null);
   const [quoteCopied,  setQuoteCopied]  = useState(false);
+  const [bzCounterAmt, setBzCounterAmt] = useState({});
   const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
@@ -1208,7 +1209,6 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
       )}
 
       {compMode==="history" && (() => {
-        const [bzCounterAmt, setBzCounterAmt] = useState({});
         const activeQuotes = quotes.filter(q => !["closed"].includes(q.status));
 
         return (
