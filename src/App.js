@@ -362,10 +362,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const histTotals = histFiltered.reduce((acc,h) => {
           const gross   = parseFloat(h.grossRevenue)||0;
           const net     = parseFloat(h.netRevenue)||0;
+          const reimb   = parseFloat(h.imcReimb)||0;
           acc.gross    += gross;
           acc.imc      += net * 0.70;
-          acc.baz      += net * 0.30;
-          acc.trueNet  += net * 0.30; // no commission data for historical
+          acc.baz      += net * 0.30 + reimb;
+          acc.trueNet  += net * 0.30 + reimb; // no commission data for historical
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
