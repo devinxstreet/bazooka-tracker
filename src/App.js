@@ -1699,7 +1699,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               </div>
             )}
           </div>
-          </div>
         )}
 
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
