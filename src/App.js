@@ -1047,19 +1047,17 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                     ? <>
                                         <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
                                         {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
-                                        {tracking.trackingNum && (
-                                          {(() => {
+                                        {tracking.trackingNum && (() => {
                                             const num = tracking.trackingNum;
-                                            const CARRIER_URLS = {
+                                            const CURL = {
                                               USPS:  `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`,
                                               UPS:   `https://www.ups.com/track?tracknum=${num}`,
                                               FedEx: `https://www.fedex.com/fedextrack/?tracknumbers=${num}`,
                                               DHL:   `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${num}`,
                                             };
-                                            const url = CARRIER_URLS[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+num)}`;
-                                            return <a href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} ↗</a>;
+                                            const url = CURL[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent((tracking.carrier||'')+" tracking "+num)}`;
+                                            return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} ↗</a>;
                                           })()}
-                                        )}
                                         {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>· checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
                                       </>
                                     : <span style={{ fontSize:12, color:"#D1D5DB" }}>No tracking added yet</span>
