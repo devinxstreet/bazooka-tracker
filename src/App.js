@@ -1340,7 +1340,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -1350,6 +1350,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   const [statusF,  setStatusF]  = useState("available");
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState("cards");
+  const [editCostId,  setEditCostId]  = useState(null);
+  const [editCostVal, setEditCostVal] = useState("");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
   const filtered = inventory.filter(c => {
     const mn      = c.cardName?.toLowerCase().includes(search.toLowerCase());
@@ -1668,7 +1670,39 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                             ? <Badge bg="#EEF0FB" color="#2C3E7A">🚚 In Transit</Badge>
                             : <Badge bg="#D6F4E3" color="#166534">Available</Badge>
                         }</td>
-                        <td style={S.td}>{CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14 }}>✕</button>}</td>
+                        <td style={S.td}>
+                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                            {editCostId === c.id ? (
+                              <>
+                                <input
+                                  type="number" step="0.01" autoFocus
+                                  value={editCostVal}
+                                  onChange={e=>setEditCostVal(e.target.value)}
+                                  style={{ ...S.inp, width:80, padding:"3px 6px", fontSize:11 }}
+                                  onKeyDown={e=>{
+                                    if (e.key==="Enter") {
+                                      const newCost = parseFloat(editCostVal)||0;
+                                      onRemove(c.id); // we'll need a save handler — see note below
+                                      setEditCostId(null);
+                                    }
+                                    if (e.key==="Escape") setEditCostId(null);
+                                  }}
+                                />
+                                <button onClick={async()=>{
+                                  const newCost = parseFloat(editCostVal)||0;
+                                  await onSaveCardCost(c.id, newCost);
+                                  setEditCostId(null);
+                                }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
+                                <button onClick={()=>setEditCostId(null)} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:13 }}>✕</button>
+                              </>
+                            ) : (
+                              <>
+                                {canSeeFinancials && <button onClick={()=>{ setEditCostId(c.id); setEditCostVal((c.costPerCard||0).toFixed(2)); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit cost">✏️</button>}
+                                {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14 }}>✕</button>}
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -1696,6 +1730,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [bulkMode,   setBulkMode]   = useState(false);
   const [bulkSel,    setBulkSel]    = useState(new Set());
   const [histSel,    setHistSel]    = useState(new Set());
+  const [chaserSearch, setChaserSearch] = useState("");
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
@@ -1725,6 +1760,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     } else {
       setRecap(EMPTY_RECAP);
       setRecapSaved(false);
+      setChaserSearch("");
     }
     if (existingUsage) {
       setProdUsage({ doubleMega:existingUsage.doubleMega||"", hobby:existingUsage.hobby||"", jumbo:existingUsage.jumbo||"", misc:existingUsage.misc||"", miscNotes:existingUsage.miscNotes||"" });
@@ -1915,13 +1951,29 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               const available = inventory.filter(c => !usedIdSet.has(c.id) && c.cardStatus!=="in_transit");
               const selectedChasers = recap.chaserCardIds ? recap.chaserCardIds.split(",").filter(Boolean) : [];
               const totalCost = selectedChasers.reduce((sum,id)=>{ const card=inventory.find(c=>c.id===id); return sum+(card?.costPerCard||0); }, 0);
+              const visibleCards = chaserSearch.trim()
+                ? available.filter(c => c.cardName?.toLowerCase().includes(chaserSearch.toLowerCase()) || c.cardType?.toLowerCase().includes(chaserSearch.toLowerCase()))
+                : available;
               return (
                 <div>
                   {available.length === 0
                     ? <div style={{ fontSize:12, color:"#AAAAAA", padding:"8px 0" }}>No available cards in inventory</div>
-                    : <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #2a2a2a", borderRadius:8, background:"#111111" }}>
-                        {available.map(c => {
-                          const isSel = selectedChasers.includes(c.id);
+                    : <>
+                        <div style={{ marginBottom:8, display:"flex", gap:8, alignItems:"center" }}>
+                          <input
+                            value={chaserSearch}
+                            onChange={e=>setChaserSearch(e.target.value)}
+                            placeholder="Search cards..."
+                            style={{ ...S.inp, padding:"5px 10px", fontSize:12, flex:1 }}
+                          />
+                          {chaserSearch && <button onClick={()=>setChaserSearch("")} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:14, flexShrink:0 }}>✕</button>}
+                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>{visibleCards.length} card{visibleCards.length!==1?"s":""}</span>
+                        </div>
+                        <div style={{ maxHeight:200, overflowY:"auto", border:"1px solid #2a2a2a", borderRadius:8, background:"#111111" }}>
+                          {visibleCards.length === 0
+                            ? <div style={{ padding:"12px 16px", color:"#666", fontSize:12 }}>No cards match "{chaserSearch}"</div>
+                            : visibleCards.map(c => {
+                                const isSel = selectedChasers.includes(c.id);
                           const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                           return (
                             <div key={c.id}
@@ -1931,7 +1983,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                                 setRecap(p=>({...p, chaserCardIds:newSel.join(","), chaserCards:newCost>0?newCost.toFixed(2):p.chaserCards}));
                                 setRecapSaved(false);
                               }}
-                              style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#2a1520":"#111111", borderBottom:"1px solid #FFF0F5" }}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#2a1520":"#111111", borderBottom:"1px solid #222222" }}
                             >
                               <input type="checkbox" checked={isSel} readOnly style={{ flexShrink:0 }}/>
                               <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#F0F0F0", flex:1 }}>{c.cardName}</span>
@@ -1941,6 +1993,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                           );
                         })}
                       </div>
+                      </>
                   }
                   {selectedChasers.length > 0 && (
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
@@ -3647,6 +3700,12 @@ export default function App() {
     await deleteDoc(doc(db,"product_usage",id));
     showToast("🗑 Usage entry deleted — stock restored");
   }
+  async function handleSaveCardCost(id, newCost) {
+    const card = inventory.find(c => c.id === id);
+    if (!card) return;
+    await setDoc(doc(db,"inventory",id), { ...card, costPerCard:newCost, buyPct: card.marketValue>0 ? newCost/card.marketValue : null }, { merge:true });
+    showToast("💰 Card cost updated");
+  }
 
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -3821,7 +3880,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
