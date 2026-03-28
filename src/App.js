@@ -2687,8 +2687,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
 
         </div>
 
-        {/* Revenue waterfall — Admin only */}
-        {isAdmin && (
+        {/* Revenue waterfall */}
         <div style={S.card}>
           <SectionLabel t="Stream Revenue Breakdown" />
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -2712,7 +2711,6 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             </div>
           </div>
         </div>
-        )}
 
         {/* Split — Admin only */}
         {isAdmin && (
@@ -2735,7 +2733,6 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
         {/* Commission calc */}
         <div style={{ ...S.card, border:"2px solid #166534" }}>
           <SectionLabel t={`${s.breaker}'s Commission`} />
-          {isAdmin && (
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
             {[
               { l:"Bazooka Earnings",        v:fmt(c.bazNet),      c:"#E8317A" },
@@ -2749,8 +2746,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               </div>
             ))}
           </div>
-          )}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom: isAdmin ? 10 : 0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom:10 }}>
             <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
           </div>
