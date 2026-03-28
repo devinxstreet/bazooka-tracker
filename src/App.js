@@ -33,7 +33,7 @@ const BC = {
   Krystal: { bg:"#E0F7F4", text:"#0D6E6E", border:"#115e59" },
 };
 const CAN_DELETE        = ["Admin"];
-const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement"];
+const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
 const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"];
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
@@ -1065,7 +1065,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -1330,7 +1330,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
-      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices}/>}
+      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
@@ -1580,9 +1580,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {[
             ["grossRevenue",      "Gross Revenue ($)",       "#166534", false],
             ["whatnotFees",       "Whatnot Fees ($)",        "#991b1b", false],
-            ["coupons",           "Coupons ($)",             "#991b1b", !canSeeFinancials],
-            ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", !canSeeFinancials],
-            ["chaserCards",       "Chaser Cards ($)",        "#991b1b", !canSeeFinancials],
+            ["coupons",           "Coupons ($)",             "#991b1b", false],
+            ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", false],
+            ["chaserCards",       "Chaser Cards ($)",        "#991b1b", false],
           ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
             <div key={key}>
               <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
@@ -1590,8 +1590,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           ))}
           {/* Supply qty fields — auto-calc from cost per unit */}
-          {canSeeFinancials && (
-            <div style={{ display:"contents" }}>
+          <div style={{ display:"contents" }}>
               {[
                 { qtyKey:"magprosQty",   dollarKey:"magpros",           label:"MagPros",             supplyKey:"supply_magpros"   },
                 { qtyKey:"packagingQty", dollarKey:"packagingMaterial", label:"Packaging Materials", supplyKey:"supply_packaging" },
@@ -2027,7 +2026,7 @@ function Performance({ breaks, user, userRole }) {
 }
 
 // ─── PRODUCT INVENTORY ───────────────────────────────────────────
-function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, user, userRole, skuPrices={}, onSaveSkuPrices }) {
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
   const [form,          setForm]          = useState(EMPTY);
@@ -2242,27 +2241,36 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
       </div>
 
       {/* Usage log */}
-      {productUsage.length > 0 && (
-        <div style={S.card}>
-          <SectionLabel t="Usage Log (from Streams)" />
-          <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["Date","Breaker",...PRODUCT_TYPES].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {productUsage.map((u,i) => (
-                <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
-                  <td style={S.td}>{u.date}</td>
-                  <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
-                  {PRODUCT_TYPES.map(pt => (
-                    <td key={pt} style={{ ...S.td, color:(parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
-                      {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "—"}
+      <div style={S.card}>
+        <SectionLabel t="Usage Log (from Streams)" />
+        {productUsage.length === 0
+          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"20px 0" }}>No product usage logged yet</div>
+          : <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead><tr>{["Date","Breaker",...PRODUCT_TYPES,""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {productUsage.map((u,i) => (
+                  <tr key={u.id} style={{ background:i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                    <td style={S.td}>{u.date}</td>
+                    <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
+                    {PRODUCT_TYPES.map(pt => (
+                      <td key={pt} style={{ ...S.td, color:(parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
+                        {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "—"}
+                      </td>
+                    ))}
+                    <td style={S.td}>
+                      {canEdit && onDeleteProductUsage && (
+                        <button
+                          onClick={()=>{ if(window.confirm("Delete this usage entry? Stock will be restored.")) onDeleteProductUsage(u.id); }}
+                          style={{ background:"none", border:"1px solid #FCA5A5", color:"#991b1b", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
+                        >🗑</button>
+                      )}
                     </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        }
+      </div>
     </div>
   );
 }
@@ -2492,13 +2500,15 @@ function Sellers({ inventory, breaks, userRole }) {
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
 function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={} }) {
-  const isAdmin = ["Admin"].includes(userRole?.role);
-  const STREAM_TABS = [
-    { id:"recap",      label:"📋 Stream Recap" },
-    { id:"cards",      label:"🃏 Log Cards"    },
-    { id:"commission", label:"💵 Commission"   },
+  const isAdmin    = ["Admin"].includes(userRole?.role);
+  const isShipping = userRole?.role === "Shipping";
+  const ALL_STREAM_TABS = [
+    { id:"recap",      label:"📋 Stream Recap", roles:["Admin","Streamer","Procurement"] },
+    { id:"cards",      label:"🃏 Log Cards",    roles:["Admin","Streamer","Procurement","Shipping"] },
+    { id:"commission", label:"💵 Commission",   roles:["Admin","Streamer","Procurement"] },
   ];
-  const [streamTab, setStreamTab] = useState("recap");
+  const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
+  const [streamTab, setStreamTab] = useState(isShipping ? "cards" : "recap");
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -3057,6 +3067,10 @@ export default function App() {
     await setDoc(doc(db,"product_usage",id), { ...usage, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
     showToast("📋 Product usage logged");
   }
+  async function handleDeleteProductUsage(id) {
+    await deleteDoc(doc(db,"product_usage",id));
+    showToast("🗑 Usage entry deleted — stock restored");
+  }
 
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -3223,7 +3237,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
