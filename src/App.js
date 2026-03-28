@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "firebase/firestore";
 
 const CARD_TYPES = ["Giveaway/Standard Cards","First-Timer Cards","Chaser Cards"];
 const BREAKERS = ["Dev","Dre","Krystal"];
@@ -81,13 +81,37 @@ function getZone(pct) {
   return                   { label:"🔴 Red",    color:"#E8317A", bg:"#FEE2E2" };
 }
 
-const S = {
-  card: { background:"#111111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px", boxShadow:"0 4px 24px rgba(0,0,0,0.3)" },
-  inp:  { background:"#111111", border:"1px solid #E8317A", borderRadius:8, padding:"8px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-  lbl:  { fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-  th:   { padding:"9px 14px", background:"#000000", color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.15)" },
-  td:   { padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:13, color:"#F0F0F0" },
+const DARK_T = {
+  pageBg:"#000000", card:"#111111", cardBorder:"#2a2a2a",
+  inp:"#1a1a1a", inpBorder:"#333333", text:"#F0F0F0",
+  textSub:"#999999", textMute:"#777777",
+  rowA:"#111111", rowB:"#0d0d0d", rowHover:"#1a1a1a",
+  border:"#2a2a2a", thBg:"#000000", tdBorder:"rgba(255,255,255,0.04)",
 };
+const LIGHT_T = {
+  pageBg:"#F7F4F8", card:"#FFFFFF", cardBorder:"#EDE0EC",
+  inp:"#FDFCFE", inpBorder:"#E8D0DC", text:"#111827",
+  textSub:"#6B7280", textMute:"#9CA3AF",
+  rowA:"#FFFFFF", rowB:"#FFF8FB", rowHover:"#FFF0F5",
+  border:"#E5E7EB", thBg:"#1A1A2E", tdBorder:"#FFF0F5",
+};
+
+function makeS(dark) {
+  const T = dark ? DARK_T : LIGHT_T;
+  return {
+    card: { background:T.card, border:`1px solid ${T.cardBorder}`, borderRadius:14, padding:"18px 20px", boxShadow: dark?"0 4px 24px rgba(0,0,0,0.5)":"0 2px 16px rgba(232,49,122,0.07)" },
+    inp:  { background:T.inp, border:`1px solid ${T.inpBorder}`, borderRadius:8, padding:"8px 12px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+    lbl:  { fontSize:10, fontWeight:700, color:T.textMute, textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
+    th:   { padding:"9px 14px", background:T.thBg, color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.15)" },
+    td:   { padding:"8px 14px", borderBottom:`1px solid ${T.tdBorder}`, fontSize:13, color:T.text },
+    T, // expose theme tokens
+  };
+}
+
+// Default S = dark (components that don't receive darkMode prop use this)
+const S = makeS(true);
+
+
 
 function SectionLabel({ t }) {
   return (
@@ -159,7 +183,11 @@ function GlobalStyles() {
       * { box-sizing: border-box; }
       body { background: #000000 !important; color: #F0F0F0; }
       #root { background: #000000; min-height: 100vh; }
-      .tab-content { animation: fadeSlideUp 0.22s cubic-bezier(0.22,1,0.36,1) forwards; }
+      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
+      input::placeholder { color: #555555 !important; }
+      select option { background: #111111; color: #F0F0F0; }
       @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
       .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       @keyframes toastIn { from { opacity:0; transform:translateY(24px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
@@ -250,8 +278,17 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const curUser    = user?.displayName?.split(" ")[0] || "";
+  const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
+
+  // Pay stub notifications for this breaker
+  const myStubs = payStubs.filter(s => s.breaker === myBreaker && !s.read);
+  // Quote notifications for admins
+  const quoteNotifs = canSeeFinancials ? quotes.filter(q => !q.notified && ["accepted","declined","countered"].includes(q.status)) : [];
+  const [viewStub,  setViewStub]  = useState(null);
+  const [viewQuote, setViewQuote] = useState(null);
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
@@ -301,6 +338,92 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* ── QUOTE NOTIFICATIONS (Admin) ── */}
+      {quoteNotifs.map(q => {
+        const cfg = {
+          accepted: { icon:"🎉", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
+          declined: { icon:"❌", color:"#E8317A", bg:"#1a0a0a", border:"#E8317A33", title:"Offer Declined", body:`${q.seller?.name||"Seller"} declined your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
+          countered:{ icon:"🤝", color:"#FBBF24", bg:"#1a1400", border:"#FBBF2433", title:"Counter Offer!", body:`${q.seller?.name||"Seller"} countered at $${parseFloat(q.sellerCounter||0).toFixed(2)} (you offered $${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)})` },
+        }[q.status];
+        if (!cfg) return null;
+        return (
+          <div key={q.id} style={{ background:cfg.bg, border:`2px solid ${cfg.border}`, borderRadius:14, padding:"18px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ fontSize:28 }}>{cfg.icon}</div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:cfg.color, marginBottom:4 }}>{cfg.title}</div>
+                  <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
+                  {q.status==="accepted" && q.sellerPayment && (
+                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>💳 Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
+                  )}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>View Quote ↗</a>
+                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid #333", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✓ Dismiss</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── PAY STUB NOTIFICATIONS ── */}
+      {myStubs.length > 0 && myStubs.map(stub => (
+        <div key={stub.id} style={{ background:"linear-gradient(135deg,#0a1a0a,#111)", border:"2px solid #4ade80", borderRadius:14, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ fontSize:32 }}>💵</div>
+            <div>
+              <div style={{ fontSize:14, fontWeight:800, color:"#4ade80", marginBottom:4 }}>New Pay Stub from Bazooka!</div>
+              <div style={{ fontSize:12, color:"#888" }}>
+                Period: <strong style={{color:"#F0F0F0"}}>{stub.period}</strong>
+                &nbsp;·&nbsp; {stub.streamCount} stream{stub.streamCount!==1?"s":""}
+                &nbsp;·&nbsp; Generated {new Date(stub.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:16, flexShrink:0 }}>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:28, fontWeight:900, color:"#4ade80" }}>{fmt(stub.totalComm)}</div>
+              <div style={{ fontSize:10, color:"#666", textTransform:"uppercase", letterSpacing:1 }}>Commission Earned</div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>setViewStub(viewStub===stub.id?null:stub.id)} style={{ background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {viewStub===stub.id ? "▲ Hide" : "👁 View Details"}
+              </button>
+              <button onClick={()=>{ if(onDismissPayStub) onDismissPayStub(stub.id); }} style={{ background:"transparent", border:"1px solid #555", color:"#888", borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✓ Dismiss</button>
+            </div>
+          </div>
+          {viewStub===stub.id && (
+            <div style={{ width:"100%", borderTop:"1px solid #2a2a2a", paddingTop:14, marginTop:4 }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead><tr>
+                  {["Date","Type","Gross","Net","Rate","Commission"].map(h=><th key={h} style={S.th}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {(stub.streams||[]).map((s,i)=>(
+                    <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                      <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}</td>
+                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{fmt(s.netRev)}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{(s.rate*100).toFixed(0)}%</td>
+                      <td style={{ ...S.td, color:"#4ade80", fontWeight:900 }}>{fmt(s.commAmt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background:"#0a1a0a", borderTop:"2px solid #4ade8033" }}>
+                    <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({stub.streamCount} streams)</td>
+                    <td style={{ ...S.td, color:"#4ade80", fontWeight:900, fontSize:15 }}>{fmt(stub.totalComm)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
 
       {/* ── FINANCIAL OVERVIEW (Admin only) ── */}
       {canSeeFinancials && (() => {
@@ -814,7 +937,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   );
 }
 
-function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) {
+function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
@@ -822,6 +945,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   const [finalOffer,   setFOffer]       = useState("");
   const [custView,     setCustView]     = useState(false);
   const [custNote,     setCustNote]     = useState("");
+  const [quoteLink,    setQuoteLink]    = useState(null);
+  const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
@@ -1078,8 +1203,94 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         </div>
       )}
 
-      {compMode==="history" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {compMode==="history" && (() => {
+        const [bzCounterAmt, setBzCounterAmt] = useState({});
+        const activeQuotes = quotes.filter(q => !["closed"].includes(q.status));
+
+        return (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+          {/* ── ACTIVE QUOTES ── */}
+          {activeQuotes.length > 0 && (
+            <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
+              <SectionLabel t="🔗 Active Quote Links" />
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {activeQuotes.map(q => {
+                  const statusCfg = {
+                    pending:   { color:"#888",    bg:"#1a1a1a",  label:"⏳ Awaiting Response" },
+                    countered: { color:"#FBBF24", bg:"#1a1400",  label:"🤝 Counter Received" },
+                    accepted:  { color:"#4ade80", bg:"#0a1a0a",  label:"✅ Accepted" },
+                    declined:  { color:"#E8317A", bg:"#1a0a0a",  label:"❌ Declined" },
+                  }[q.status] || { color:"#888", bg:"#1a1a1a", label:q.status };
+
+                  const quoteUrl = `${window.location.origin}/quote/${q.id}`;
+                  const expiresAt = new Date(new Date(q.createdAt).getTime()+7*24*60*60*1000);
+                  const daysLeft = Math.max(0,Math.ceil((expiresAt-new Date())/86400000));
+
+                  return (
+                    <div key={q.id} style={{ background:statusCfg.bg, border:`1px solid ${statusCfg.color}33`, borderRadius:10, padding:"14px 16px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+                        <div>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                            <span style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{q.seller?.name||"Unknown Seller"}</span>
+                            <span style={{ background:statusCfg.bg, color:statusCfg.color, border:`1px solid ${statusCfg.color}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{statusCfg.label}</span>
+                          </div>
+                          <div style={{ fontSize:11, color:"#666" }}>
+                            {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
+                            {q.status==="countered" && <> · Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
+                            {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` — ${q.sellerHandle}`:""}</strong></>}
+                            &nbsp;· {daysLeft}d left
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                          <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>📋 Copy Link</button>
+                          <a href={quoteUrl} target="_blank" rel="noreferrer" style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, textDecoration:"none" }}>View ↗</a>
+                          {onCloseQuote && <button onClick={()=>{ if(window.confirm("Close this quote? The seller's link will show as expired.")) onCloseQuote(q.id); }} style={{ background:"none", border:"1px solid #333", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🔒 Close</button>}
+                        </div>
+                      </div>
+
+                      {/* Counter response UI */}
+                      {q.status==="countered" && (
+                        <div style={{ borderTop:"1px solid #333", paddingTop:10, display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+                          <div style={{ flex:1, minWidth:160 }}>
+                            <label style={{ fontSize:10, fontWeight:700, color:"#777", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:6 }}>Your Counter Back ($)</label>
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={bzCounterAmt[q.id]||""}
+                              onChange={e=>setBzCounterAmt(p=>({...p,[q.id]:e.target.value}))}
+                              placeholder={`Their counter: $${parseFloat(q.sellerCounter||0).toFixed(2)}`}
+                              style={{ ...S.inp, color:"#FBBF24" }}
+                            />
+                          </div>
+                          <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">🤝 Send Counter</Btn>
+                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">❌ Decline</Btn>
+                          {q.status==="countered" && (
+                            <Btn onClick={async()=>{
+                              // Accept their counter — update offer to their counter amount
+                              if(onBazookaCounter) {
+                                await setDoc(doc(db,"quotes",q.id),{ status:"pending", currentOffer:parseFloat(q.sellerCounter), history:[...(q.history||[]),{type:"bazooka_accepted_counter",amount:parseFloat(q.sellerCounter),timestamp:new Date().toISOString()}], notified:false },{ merge:true });
+                                showToast?.(`✅ Accepted counter at $${parseFloat(q.sellerCounter).toFixed(2)}`);
+                              }
+                            }} variant="green">✅ Accept Their Counter</Btn>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Accepted — import prompt */}
+                      {q.status==="accepted" && (
+                        <div style={{ borderTop:"1px solid #333", paddingTop:10, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+                          <span style={{ fontSize:12, color:"#4ade80" }}>🎉 Seller accepted! Ready to import into inventory.</span>
+                          <button onClick={()=>{ loadComp({ seller:q.seller?.name, contact:q.seller?.contact, date:q.seller?.date, source:q.seller?.source, payment:q.sellerPayment, paymentHandle:q.sellerHandle, cards:q.cards, offer:parseFloat(q.currentOffer||q.dispOffer), id:q.id }); setCompMode("builder"); }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📥 Load into Builder & Import</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── SAVED COMPS ── */}
           {(!comps||comps.length===0)
             ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>No comps saved yet.</div>
             : comps.map(c => {
@@ -1127,7 +1338,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
               })
           }
         </div>
-      )}
+        );
+      })()}
 
       {compMode==="builder" && <>
         {loadedCompId && (
@@ -1302,6 +1514,27 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
             <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
+            <Btn onClick={async()=>{
+              if (!onSaveQuote) return;
+              const id = await onSaveQuote({
+                seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                dispOffer, dispPct, totalMkt, custNote,
+                payment:seller.payment, paymentHandle:seller.paymentHandle,
+              });
+              const link = `${window.location.origin}/quote/${id}`;
+              setQuoteLink(link);
+              navigator.clipboard?.writeText(link);
+              setQuoteCopied(true);
+              setTimeout(()=>setQuoteCopied(false), 3000);
+            }} variant="ghost" disabled={included.length===0}>🔗 Share Quote</Btn>
+            {quoteLink && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"6px 12px", flex:1 }}>
+                <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{quoteCopied ? "✅ Copied!" : "🔗"}</span>
+                <span style={{ fontSize:11, color:"#888", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{quoteLink}</span>
+                <button onClick={()=>{ navigator.clipboard?.writeText(quoteLink); setQuoteCopied(true); setTimeout(()=>setQuoteCopied(false),3000); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#888", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit", whiteSpace:"nowrap" }}>Copy</button>
+                <a href={quoteLink} target="_blank" rel="noreferrer" style={{ color:"#E8317A", fontSize:11, textDecoration:"none", whiteSpace:"nowrap" }}>Open ↗</a>
+              </div>
+            )}
             <Btn onClick={()=>saveComp("saved")} variant="ghost">💾 Save Comp</Btn>
             <Btn onClick={()=>saveComp("passed")} variant="ghost">❌ Pass on Lot</Btn>
             <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green">✅ Accept & Import {totalCards} card{totalCards!==1?"s":""}</Btn>
@@ -3049,7 +3282,7 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[] }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -3074,23 +3307,28 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
 
       {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
-      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData}/>}
+      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub}/>}
     </div>
   );
 }
 
 // ─── COMMISSION ──────────────────────────────────────────────────
-function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[] }) {
+function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[], onSavePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
 
   const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, notes:"" };
   const [form,      setForm]      = useState(EMPTY);
-  const [editing,   setEditing]   = useState(null); // stream id or "new"
-  const [viewStream,setViewStream]= useState(null); // stream id for detail view
+  const [editing,   setEditing]   = useState(null);
+  const [viewStream,setViewStream]= useState(null);
   const [importing, setImporting] = useState(false);
   const [csvError,  setCsvError]  = useState("");
+  const [showStub,  setShowStub]  = useState(false);
+  const [stubBreaker, setStubBreaker] = useState("");
+  const [stubPeriod,  setStubPeriod]  = useState("week");
+  const [stubFrom,    setStubFrom]    = useState("");
+  const [stubTo,      setStubTo]      = useState("");
 
   // Commission rate from comp plan
   function getCommRate(stream) {
@@ -3443,6 +3681,232 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
+      {/* ── PAY STUB GENERATOR ── */}
+      {isAdmin && (
+        <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStub?14:0 }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1 }}/>
+              💵 Pay Stub Generator
+            </div>
+            <button onClick={()=>setShowStub(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {showStub ? "▲ Hide" : "▼ Generate"}
+            </button>
+          </div>
+          {showStub && (() => {
+            // Build stub data
+            const now = new Date();
+            function getWeekStart(d) {
+              const day = d.getDay();
+              const diff = day === 0 ? 6 : day - 1;
+              const s = new Date(d); s.setDate(d.getDate()-diff); s.setHours(0,0,0,0);
+              return s;
+            }
+            const weekStart = getWeekStart(now);
+            const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
+
+            function inStubPeriod(dateStr) {
+              const d = new Date(dateStr);
+              if (stubPeriod === "week") return d >= weekStart && d <= weekEnd;
+              if (stubPeriod === "custom" && stubFrom && stubTo) {
+                const f = new Date(stubFrom); f.setHours(0,0,0,0);
+                const t = new Date(stubTo);   t.setHours(23,59,59,999);
+                return d >= f && d <= t;
+              }
+              return false;
+            }
+
+            const targetBreaker = stubBreaker || (isAdmin ? BREAKERS[0] : myBreaker);
+            const stubStreams = streams.filter(s => s.breaker === targetBreaker && inStubPeriod(s.date));
+
+            function calcS(s) {
+              const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
+              const totalExp=fees+coupons+promo+magpros+pack+topload+chaser, netRev=gross-totalExp, bazNet=netRev*0.30;
+              const streamExp=coupons+promo+magpros+pack+topload+chaser, repExp=streamExp*0.135;
+              const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
+              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+              const commAmt=(bazNet-repExp)*rate;
+              return { gross, totalExp, netRev, bazNet, repExp, commAmt, rate };
+            }
+
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.net+=c.netRev; acc.comm+=c.commAmt; return acc; }, {gross:0,net:0,comm:0});
+            const periodLabel = stubPeriod==="week"
+              ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
+              : stubFrom && stubTo ? `${stubFrom} – ${stubTo}` : "Select dates";
+
+            function printStub() {
+              const w = window.open("","_blank","width=800,height=900");
+              const bc = BC[targetBreaker]||{text:"#E8317A"};
+              const streamRows = stubStreams.map(s => {
+                const c = calcS(s);
+                return `
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.netRev)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.repExp)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
+                  </tr>`;
+              }).join("");
+
+              w.document.write(`<!DOCTYPE html><html><head><title>Bazooka Pay Stub — ${targetBreaker}</title>
+                <style>
+                  * { box-sizing:border-box; margin:0; padding:0; font-family:'Trebuchet MS',sans-serif; }
+                  body { background:#fff; color:#111; padding:40px; }
+                  @media print { body { padding:20px; } .no-print { display:none; } }
+                  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; padding-bottom:20px; border-bottom:3px solid #E8317A; }
+                  .logo { font-size:28px; font-weight:900; letter-spacing:3px; color:#E8317A; }
+                  .sub { font-size:11px; color:#888; text-transform:uppercase; letter-spacing:2px; margin-top:4px; }
+                  .meta { text-align:right; }
+                  .meta div { font-size:13px; color:#444; margin-bottom:4px; }
+                  .meta strong { color:#111; }
+                  .breaker-badge { display:inline-block; background:#f0f0f0; border-radius:20px; padding:4px 16px; font-size:14px; font-weight:700; color:#333; margin-bottom:20px; }
+                  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+                  thead tr { background:#111; color:#E8317A; }
+                  thead th { padding:10px 12px; font-size:10px; text-transform:uppercase; letter-spacing:1px; text-align:left; }
+                  thead th:nth-child(n+3) { text-align:right; }
+                  tbody tr:nth-child(even) { background:#fafafa; }
+                  .totals { background:#f8f8f8; border:2px solid #E8317A22; border-radius:12px; padding:20px 24px; margin-bottom:24px; }
+                  .totals-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+                  .tot-item { text-align:center; }
+                  .tot-val { font-size:22px; font-weight:900; }
+                  .tot-lbl { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#888; margin-top:4px; }
+                  .payout { background:#111; color:#fff; border-radius:12px; padding:20px 28px; display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+                  .payout-label { font-size:16px; font-weight:700; color:#4ade80; }
+                  .payout-amt { font-size:32px; font-weight:900; color:#4ade80; }
+                  .footer { text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
+                  .print-btn { background:#E8317A; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; }
+                </style></head><body>
+                <button class="no-print print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+                <div class="header">
+                  <div>
+                    <div class="logo">BAZOOKA</div>
+                    <div class="sub">Commission Pay Stub</div>
+                  </div>
+                  <div class="meta">
+                    <div>Pay Period: <strong>${periodLabel}</strong></div>
+                    <div>Generated: <strong>${now.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</strong></div>
+                    <div>Streams: <strong>${stubStreams.length}</strong></div>
+                  </div>
+                </div>
+                <div class="breaker-badge">🎯 ${targetBreaker}</div>
+                ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
+                <table>
+                  <thead><tr>
+                    <th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Net Rev</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>
+                  </tr></thead>
+                  <tbody>${streamRows}</tbody>
+                </table>
+                <div class="totals">
+                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
+                  <div class="totals-grid">
+                    <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.net)}</div><div class="tot-lbl">Total Net Revenue</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
+                  </div>
+                </div>
+                <div class="payout">
+                  <div class="payout-label">💵 Commission Earned This Period</div>
+                  <div class="payout-amt">${fmt(totals.comm)}</div>
+                </div>`}
+                <div class="footer">Bazooka Breaks, LLC &nbsp;·&nbsp; This document is confidential and intended for the named recipient only.</div>
+              </body></html>`);
+              w.document.close();
+            }
+
+            return (
+              <div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap:12, marginBottom:16, alignItems:"end" }}>
+                  <div>
+                    <label style={S.lbl}>Breaker</label>
+                    <select value={stubBreaker||targetBreaker} onChange={e=>setStubBreaker(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                      {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Period</label>
+                    <select value={stubPeriod} onChange={e=>setStubPeriod(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                      <option value="week">This Week (Mon–Sun)</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+                  {stubPeriod==="custom" && <>
+                    <div>
+                      <label style={S.lbl}>From</label>
+                      <input type="date" value={stubFrom} onChange={e=>setStubFrom(e.target.value)} style={S.inp}/>
+                    </div>
+                    <div>
+                      <label style={S.lbl}>To</label>
+                      <input type="date" value={stubTo} onChange={e=>setStubTo(e.target.value)} style={S.inp}/>
+                    </div>
+                  </>}
+                  <Btn onClick={()=>{
+                    printStub();
+                    if (onSavePayStub) onSavePayStub({
+                      breaker: targetBreaker,
+                      period: periodLabel,
+                      periodType: stubPeriod,
+                      streamCount: stubStreams.length,
+                      totalGross: totals.gross,
+                      totalNet: totals.net,
+                      totalComm: totals.comm,
+                      streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, netRev:c.netRev, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
+                    });
+                  }} variant="green">🖨 Generate PDF</Btn>
+                </div>
+                {/* Preview */}
+                <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:10, padding:"16px 20px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                    <div>
+                      <span style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>{targetBreaker}</span>
+                      <span style={{ color:"#666", fontSize:12, marginLeft:10 }}>{periodLabel}</span>
+                    </div>
+                    <span style={{ fontSize:12, color:"#666" }}>{stubStreams.length} stream{stubStreams.length!==1?"s":""}</span>
+                  </div>
+                  {stubStreams.length === 0
+                    ? <div style={{ color:"#555", fontSize:12, padding:"12px 0" }}>No streams found for this period.</div>
+                    : <>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
+                          {[
+                            { l:"Gross Revenue", v:fmt(totals.gross), c:"#E8317A" },
+                            { l:"Net Revenue",   v:fmt(totals.net),   c:"#1B4F8A" },
+                            { l:"Commission",    v:fmt(totals.comm),  c:"#4ade80" },
+                          ].map(({l,v,c})=>(
+                            <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
+                              <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                              <div style={{ fontSize:9, color:"#666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                          <thead><tr>
+                            {["Date","Type","Gross","Net","Rate","Commission"].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                            {stubStreams.map((s,i)=>{
+                              const c=calcS(s);
+                              return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                                <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{fmt(c.netRev)}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{(c.rate*100).toFixed(0)}%</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#4ade80", fontWeight:900 }}>{fmt(c.commAmt)}</td>
+                              </tr>;
+                            })}
+                          </tbody>
+                        </table>
+                      </>
+                  }
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Period filter */}
       <div style={{ ...S.card, padding:"12px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
@@ -3536,6 +4000,383 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   );
 }
 
+// ─── PUBLIC QUOTE PAGE (no auth required) ────────────────────
+function PublicQuote({ quoteId }) {
+  const [quote,       setQuote]       = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [expired,     setExpired]     = useState(false);
+  const [notFound,    setNotFound]    = useState(false);
+  const [selPayment,  setSelPayment]  = useState("");
+  const [selHandle,   setSelHandle]   = useState("");
+  const [counterAmt,  setCounterAmt]  = useState("");
+  const [view,        setView]        = useState("quote"); // quote | accept | counter | done
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "quotes", quoteId), snap => {
+      if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
+      const data = snap.data();
+      const created = new Date(data.createdAt);
+      if ((new Date() - created) > 7 * 24 * 60 * 60 * 1000) { setExpired(true); setLoading(false); return; }
+      setQuote(data);
+      setLoading(false);
+    });
+    return unsub;
+  }, [quoteId]);
+
+  const pageStyle = { minHeight:"100vh", background:"#000000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", padding:"40px 20px", display:"flex", justifyContent:"center" };
+  const cardStyle = { background:"#111111", border:"1px solid #2a2a2a", borderRadius:16, overflow:"hidden", maxWidth:680, width:"100%" };
+
+  if (loading) return <div style={{...pageStyle,alignItems:"center"}}><div style={{color:"#E8317A",fontSize:18,fontWeight:700}}>Loading your quote...</div></div>;
+  if (notFound) return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>🔍</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Not Found</div><div style={{color:"#888",fontSize:14}}>This link may be invalid or has been removed.</div></div></div>;
+  if (expired)  return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⏰</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Expired</div><div style={{color:"#888",fontSize:14}}>This offer was valid for 7 days and has expired.</div><div style={{color:"#888",fontSize:14,marginTop:8}}>Please contact Bazooka for a fresh quote.</div></div></div>;
+
+  const { seller, cards=[], dispOffer=0, custNote, payment:bzPayment, paymentHandle:bzHandle, createdAt, status="pending", history=[], currentOffer } = quote;
+  const activeOffer = currentOffer || dispOffer;
+  const totalCards = cards.reduce((s,c)=>s+(parseInt(c.qty)||1),0);
+  const totalMkt   = cards.reduce((s,c)=>s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1),0);
+  const expiresAt  = new Date(new Date(createdAt).getTime()+7*24*60*60*1000);
+  const daysLeft   = Math.max(0,Math.ceil((expiresAt-new Date())/86400000));
+  const isClosed   = ["accepted","declined","closed"].includes(status);
+
+  const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash App","Cash","Check","Other"];
+  const PCFG = {
+    Venmo:    { color:"#3D95CE", href:(h,a)=>`venmo://paycharge?txn=pay&recipients=${h.replace(/^@/,"")}&amount=${a}&note=${encodeURIComponent("Bazooka card purchase")}`, webHref:(h)=>`https://venmo.com/${h.replace(/^@/,"")}` },
+    PayPal:   { color:"#003087", href:(h,a)=>`https://www.paypal.com/paypalme/${h.replace(/^@/,"")}${a?"/"+a:""}` },
+    Zelle:    { color:"#6D1ED4", href:null },
+    "Cash App":{ color:"#00C244",href:(h,a)=>`https://cash.app/$${h.replace(/^@/,"")}${a?"/"+a:""}` },
+    Cash:     { color:"#166534", href:null },
+    Other:    { color:"#888888", href:null },
+  };
+
+  async function submitResponse(type) {
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const now = new Date().toISOString();
+      const entry = { type, timestamp: now };
+      if (type === "accepted") {
+        if (!selPayment) { setSubmitError("Please select a payment method."); setSubmitting(false); return; }
+        entry.paymentMethod = selPayment;
+        entry.paymentHandle = selHandle;
+        await setDoc(doc(db,"quotes",quoteId), {
+          status:"accepted",
+          sellerPayment: selPayment,
+          sellerHandle:  selHandle,
+          acceptedAt:    now,
+          history:       [...history, entry],
+          notified:      false,
+        }, { merge:true });
+      } else if (type === "declined") {
+        await setDoc(doc(db,"quotes",quoteId), {
+          status:"declined", declinedAt:now,
+          history:[...history,entry], notified:false,
+        }, { merge:true });
+      } else if (type === "countered") {
+        const amt = parseFloat(counterAmt);
+        if (!amt || amt <= 0) { setSubmitError("Please enter a valid counter offer amount."); setSubmitting(false); return; }
+        entry.counterAmount = amt;
+        await setDoc(doc(db,"quotes",quoteId), {
+          status:"countered", currentOffer:amt,
+          sellerCounter:amt, counteredAt:now,
+          history:[...history,entry], notified:false,
+        }, { merge:true });
+      }
+      setView("done");
+    } catch(e) { setSubmitError("Something went wrong. Please try again."); }
+    setSubmitting(false);
+  }
+
+  // ── DONE STATE ──────────────────────────────────────────────
+  if (view === "done" || isClosed) {
+    const msgs = {
+      accepted: { icon:"🎉", title:"Offer Accepted!", color:"#4ade80", body:"Bazooka will reach out to confirm details. Ship your cards to the address below once confirmed." },
+      declined: { icon:"👋", title:"Offer Declined", color:"#E8317A", body:"No worries — feel free to reach out if you change your mind." },
+      countered:{ icon:"🤝", title:"Counter Offer Sent!", color:"#FBBF24", body:"Bazooka has been notified of your counter. They'll respond shortly on this same link — check back soon." },
+      closed:   { icon:"🔒", title:"Quote Closed", color:"#888", body:"This quote has been closed by Bazooka." },
+    };
+    const m = msgs[status] || msgs.countered;
+    return (
+      <div style={{...pageStyle,alignItems:"center"}}>
+        <div style={{...cardStyle,padding:"48px 40px",textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:16}}>{m.icon}</div>
+          <div style={{fontSize:24,fontWeight:900,color:m.color,marginBottom:12}}>{m.title}</div>
+          <div style={{fontSize:14,color:"#888",lineHeight:1.7,marginBottom:24}}>{m.body}</div>
+          {status==="accepted" && (
+            <div style={{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10,padding:"16px",textAlign:"left"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>📦 Ship Cards To</div>
+              <div style={{fontSize:13,color:"#F0F0F0",fontWeight:700,lineHeight:2}}>
+                Devin — Bazooka<br/>425 Prosperity Dr<br/>Warsaw, IN 46582
+              </div>
+            </div>
+          )}
+          {status==="countered" && (
+            <div style={{background:"#1a1400",border:"1px solid #FBBF2433",borderRadius:10,padding:"14px 18px"}}>
+              <div style={{fontSize:12,color:"#888"}}>Your counter offer: <strong style={{color:"#FBBF24",fontSize:16}}>${parseFloat(quote.sellerCounter||0).toFixed(2)}</strong></div>
+              <div style={{fontSize:11,color:"#666",marginTop:6}}>Original offer: ${parseFloat(dispOffer).toFixed(2)}</div>
+            </div>
+          )}
+          <div style={{marginTop:20,fontSize:11,color:"#555"}}>
+            {status==="countered" ? "This page will update when Bazooka responds." : "Thank you for working with Bazooka!"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ACCEPT VIEW ─────────────────────────────────────────────
+  if (view === "accept") {
+    const pcfg = PCFG[selPayment];
+    const handle = selHandle.trim();
+    const cleanHandle = handle.replace(/^@/,"");
+    const amt = activeOffer > 0 ? activeOffer.toFixed(2) : "";
+    return (
+      <div style={pageStyle}>
+        <div style={{...cardStyle,padding:"32px"}}>
+          <button onClick={()=>setView("quote")} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:13,marginBottom:20,fontFamily:"inherit"}}>← Back to offer</button>
+          <div style={{fontSize:22,fontWeight:900,color:"#4ade80",marginBottom:6}}>✅ Accept Offer</div>
+          <div style={{fontSize:13,color:"#888",marginBottom:24}}>You're accepting Bazooka's offer of <strong style={{color:"#4ade80"}}>${parseFloat(activeOffer).toFixed(2)}</strong>. Choose how you'd like to be paid:</div>
+
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>Payment Method</label>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {PAYMENT_METHODS.map(m=>(
+                <button key={m} onClick={()=>{setSelPayment(m);setSelHandle("");}} style={{background:selPayment===m?"#1a1a1a":"transparent",border:`1.5px solid ${selPayment===m?"#E8317A":"#333"}`,color:selPayment===m?"#E8317A":"#888",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{m}</button>
+              ))}
+            </div>
+          </div>
+
+          {selPayment && !["Cash","Check","Other"].includes(selPayment) && (
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>
+                {selPayment==="Venmo"?"Your Venmo Handle (e.g. @username)":selPayment==="PayPal"?"Your PayPal Username or Email":selPayment==="Zelle"?"Your Zelle Email or Phone":selPayment==="Cash App"?"Your Cash App $tag":"Your Info"}
+              </label>
+              <input
+                value={selHandle}
+                onChange={e=>setSelHandle(e.target.value)}
+                placeholder={selPayment==="Venmo"?"@yourhandle":selPayment==="PayPal"?"email or username":selPayment==="Zelle"?"email or phone number":"$yourtag"}
+                style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:8,padding:"10px 14px",color:"#F0F0F0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
+              />
+            </div>
+          )}
+
+          {selPayment==="Cash" && <div style={{marginBottom:16,padding:"12px 16px",background:"#0a1a0a",border:"1px solid #4ade8033",borderRadius:8,fontSize:13,color:"#4ade80"}}>💵 Bazooka will pay you cash upon receiving the cards.</div>}
+          {selPayment==="Check" && <div style={{marginBottom:16,padding:"12px 16px",background:"#0a0f1a",border:"1px solid #7B9CFF33",borderRadius:8,fontSize:13,color:"#7B9CFF"}}>📬 Bazooka will mail you a check. Please include your mailing address in the notes.</div>}
+
+          {/* Live payment preview */}
+          {selPayment && pcfg && handle && !["Cash","Check","Other"].includes(selPayment) && (
+            <div style={{marginBottom:16,padding:"14px 16px",background:"#0d0d0d",border:`1.5px solid ${pcfg.color}44`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:11,color:"#666",marginBottom:4}}>Bazooka will send payment to:</div>
+                <div style={{fontWeight:700,fontSize:15,color:pcfg.color}}>{handle}</div>
+                <div style={{fontSize:12,color:"#888",marginTop:2}}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>
+              </div>
+              {pcfg.href && (
+                <a href={pcfg.href(cleanHandle,amt)} style={{background:pcfg.color,color:"#fff",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,textDecoration:"none"}}>
+                  Open {selPayment} →
+                </a>
+              )}
+            </div>
+          )}
+
+          {submitError && <div style={{marginBottom:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:8,color:"#E8317A",fontSize:13}}>{submitError}</div>}
+
+          <button
+            onClick={()=>submitResponse("accepted")}
+            disabled={submitting||!selPayment}
+            style={{width:"100%",background:submitting||!selPayment?"#333":"#166534",color:submitting||!selPayment?"#666":"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:submitting||!selPayment?"not-allowed":"pointer",fontFamily:"inherit"}}
+          >{submitting?"Submitting...":"✅ Confirm & Accept Offer"}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── COUNTER VIEW ────────────────────────────────────────────
+  if (view === "counter") {
+    return (
+      <div style={pageStyle}>
+        <div style={{...cardStyle,padding:"32px"}}>
+          <button onClick={()=>setView("quote")} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:13,marginBottom:20,fontFamily:"inherit"}}>← Back to offer</button>
+          <div style={{fontSize:22,fontWeight:900,color:"#FBBF24",marginBottom:6}}>🤝 Make a Counter Offer</div>
+          <div style={{fontSize:13,color:"#888",marginBottom:24}}>Bazooka offered <strong style={{color:"#E8317A"}}>${parseFloat(activeOffer).toFixed(2)}</strong>. What would you like to counter with?</div>
+
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>Your Counter Offer ($)</label>
+            <input
+              type="number" step="0.01" min="0"
+              value={counterAmt}
+              onChange={e=>setCounterAmt(e.target.value)}
+              placeholder={`More than $${parseFloat(activeOffer).toFixed(2)}`}
+              style={{background:"#1a1a1a",border:"2px solid #FBBF2444",borderRadius:8,padding:"12px 16px",color:"#FBBF24",fontSize:20,fontWeight:900,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
+            />
+          </div>
+
+          {counterAmt && parseFloat(counterAmt) > 0 && (
+            <div style={{marginBottom:20,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              {[
+                {l:"Bazooka Offer",v:`$${parseFloat(activeOffer).toFixed(2)}`,c:"#E8317A"},
+                {l:"Your Counter",v:`$${parseFloat(counterAmt).toFixed(2)}`,c:"#FBBF24"},
+                {l:"Difference",v:`$${Math.abs(parseFloat(counterAmt)-parseFloat(activeOffer)).toFixed(2)}`,c:"#888"},
+              ].map(({l,v,c})=>(
+                <div key={l} style={{textAlign:"center",background:"#0d0d0d",borderRadius:8,padding:"10px"}}>
+                  <div style={{fontSize:16,fontWeight:900,color:c}}>{v}</div>
+                  <div style={{fontSize:9,color:"#666",textTransform:"uppercase",letterSpacing:1,marginTop:3}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {submitError && <div style={{marginBottom:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:8,color:"#E8317A",fontSize:13}}>{submitError}</div>}
+
+          <button
+            onClick={()=>submitResponse("countered")}
+            disabled={submitting||!counterAmt||parseFloat(counterAmt)<=0}
+            style={{width:"100%",background:submitting||!counterAmt?"#333":"#92400e",color:submitting||!counterAmt?"#666":"#FBBF24",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:submitting||!counterAmt?"not-allowed":"pointer",fontFamily:"inherit"}}
+          >{submitting?"Submitting...":"🤝 Send Counter Offer"}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── MAIN QUOTE VIEW ─────────────────────────────────────────
+  const statusBanner = {
+    countered: { bg:"#1a1400", border:"#FBBF2433", color:"#FBBF24", icon:"🤝", text:`You countered at $${parseFloat(quote.sellerCounter||0).toFixed(2)}. Waiting for Bazooka's response...` },
+    accepted:  { bg:"#0a1a0a", border:"#4ade8033", color:"#4ade80", icon:"✅", text:"You've accepted this offer." },
+    declined:  { bg:"#1a0a0a", border:"#E8317A33", color:"#E8317A", icon:"❌", text:"You've declined this offer." },
+  }[status];
+
+  return (
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        {/* Header */}
+        <div style={{background:"linear-gradient(135deg,#0a0a0a,#1a0a0f)",padding:"32px",textAlign:"center",borderBottom:"1px solid #2a2a2a"}}>
+          <div style={{fontSize:36,fontWeight:900,color:"#E8317A",letterSpacing:4,marginBottom:6}}>BAZOOKA</div>
+          <div style={{fontSize:11,color:"#888",textTransform:"uppercase",letterSpacing:3}}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
+          <div style={{marginTop:14,display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+            <span style={{background:"#E8317A22",border:"1px solid #E8317A44",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#E8317A"}}>⏰ {daysLeft} day{daysLeft!==1?"s":""} remaining</span>
+            <span style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#888"}}>{cards.length} card{cards.length!==1?"s":""} · {totalCards} total qty</span>
+          </div>
+        </div>
+
+        {/* Status banner if already responded */}
+        {statusBanner && (
+          <div style={{padding:"12px 20px",background:statusBanner.bg,border:`1px solid ${statusBanner.border}`,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>{statusBanner.icon}</span>
+            <span style={{fontSize:13,color:statusBanner.color,fontWeight:700}}>{statusBanner.text}</span>
+          </div>
+        )}
+
+        {/* Seller info */}
+        <div style={{padding:"14px 24px",borderBottom:"1px solid #222",display:"grid",gridTemplateColumns:"1fr 1fr",background:"#0d0d0d"}}>
+          <div><span style={{color:"#666",fontSize:11}}>Prepared for: </span><strong style={{color:"#F0F0F0"}}>{seller?.name||"—"}</strong></div>
+          <div style={{textAlign:"right"}}><span style={{color:"#666",fontSize:11}}>Date: </span><strong style={{color:"#F0F0F0"}}>{seller?.date||new Date(createdAt).toLocaleDateString()}</strong></div>
+        </div>
+
+        {/* Cards */}
+        <div style={{padding:"16px 24px 0"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr>
+              {["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{padding:"8px 10px",borderBottom:"2px solid #2a2a2a",color:"#E8317A",fontSize:10,fontWeight:700,textTransform:"uppercase",textAlign:"left"}}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {cards.length===0
+                ? <tr><td colSpan={5} style={{padding:"24px",textAlign:"center",color:"#555"}}>No cards listed</td></tr>
+                : cards.map((c,i)=>{
+                    const mv=parseFloat(c.mktVal)||0;
+                    const offerPerCard=totalMkt>0?(mv/totalMkt)*activeOffer:0;
+                    return (
+                      <tr key={i} style={{borderBottom:"1px solid #1a1a1a"}}>
+                        <td style={{padding:"9px 10px",color:"#555",fontSize:11}}>{i+1}</td>
+                        <td style={{padding:"9px 10px",fontWeight:700,color:"#F0F0F0"}}>{c.name}</td>
+                        <td style={{padding:"9px 10px",color:"#888",textAlign:"center"}}>{parseInt(c.qty)||1}</td>
+                        <td style={{padding:"9px 10px",color:"#888"}}>${mv.toFixed(2)}</td>
+                        <td style={{padding:"9px 10px",color:"#4ade80",fontWeight:700}}>${offerPerCard.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{padding:"16px 24px 24px"}}>
+          {/* Notes */}
+          {custNote?.trim() && (
+            <div style={{marginBottom:16,padding:"12px 16px",background:"#0d0d0d",borderLeft:"3px solid #E8317A",borderRadius:8}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Notes from Bazooka</div>
+              <p style={{margin:0,fontSize:13,color:"#CCCCCC",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{custNote}</p>
+            </div>
+          )}
+
+          {/* Offer */}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #222",marginBottom:8}}>
+            <span style={{color:"#888",fontSize:13}}>Total Cards</span>
+            <span style={{color:"#F0F0F0",fontWeight:700}}>{totalCards}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"12px 0 20px",padding:"18px 20px",background:"#0a1a0a",border:"2px solid #4ade8033",borderRadius:12}}>
+            <span style={{color:"#4ade80",fontWeight:800,fontSize:18}}>💰 Bazooka's Offer</span>
+            <span style={{color:"#4ade80",fontWeight:900,fontSize:28}}>${parseFloat(activeOffer).toFixed(2)}</span>
+          </div>
+
+          {/* Ship to */}
+          <div style={{marginBottom:16,padding:"14px 16px",background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>📦 Ship Cards To</div>
+            <div style={{fontSize:13,color:"#F0F0F0",fontWeight:700,lineHeight:2}}>
+              Devin — Bazooka<br/>425 Prosperity Dr<br/>Warsaw, IN 46582
+            </div>
+          </div>
+
+          {/* Negotiation history */}
+          {history.length > 0 && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>📋 Offer History</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {history.map((h,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:"#0d0d0d",borderRadius:7,border:"1px solid #222"}}>
+                    <span style={{fontSize:12,color:h.type==="countered"?"#FBBF24":h.type==="accepted"?"#4ade80":h.type==="declined"?"#E8317A":"#888",fontWeight:700}}>
+                      {h.type==="countered"?`🤝 Counter: $${parseFloat(h.counterAmount).toFixed(2)}`:h.type==="accepted"?"✅ Accepted":h.type==="declined"?"❌ Declined":h.type==="bazooka_counter"?`🏢 Bazooka Counter: $${parseFloat(h.amount||0).toFixed(2)}`:"—"}
+                    </span>
+                    <span style={{fontSize:11,color:"#555"}}>{new Date(h.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons — only show if not already responded */}
+          {!isClosed && status !== "countered" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <button onClick={()=>setView("accept")} style={{width:"100%",background:"#166534",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                ✅ Accept This Offer
+              </button>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <button onClick={()=>setView("counter")} style={{background:"#1a1400",color:"#FBBF24",border:"1.5px solid #FBBF2444",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  🤝 Make Counter Offer
+                </button>
+                <button onClick={()=>submitResponse("declined")} disabled={submitting} style={{background:"#1a0a0a",color:"#E8317A",border:"1.5px solid #E8317A44",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  ❌ Decline
+                </button>
+              </div>
+            </div>
+          )}
+
+          {status==="countered" && !isClosed && (
+            <div style={{textAlign:"center",padding:"16px",background:"#1a1400",border:"1px solid #FBBF2433",borderRadius:10,color:"#FBBF24",fontSize:13,fontWeight:700}}>
+              🤝 Your counter of <strong>${parseFloat(quote.sellerCounter||0).toFixed(2)}</strong> is pending. Check back soon!
+            </div>
+          )}
+
+          <div style={{marginTop:16,textAlign:"center",color:"#555",fontSize:11,fontStyle:"italic"}}>
+            This offer expires {expiresAt.toLocaleDateString()}. Bazooka Breaks, LLC.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [gSearch,   setGSearch]   = useState("");
@@ -3553,6 +4394,8 @@ export default function App() {
   const [productUsage, setProductUsage] = useState([]);
   const [skuPrices,    setSkuPrices]     = useState({});
   const [historicalData, setHistoricalData] = useState([]);
+  const [payStubs,       setPayStubs]       = useState([]);
+  const [quotes,         setQuotes]         = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -3583,8 +4426,10 @@ export default function App() {
     const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u9  = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
     const u10 = onSnapshot(query(collection(db,"historical_data"), orderBy("yearMonth","asc")), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u11 = onSnapshot(query(collection(db,"pay_stubs"), orderBy("createdAt","desc")), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u12 = onSnapshot(query(collection(db,"quotes"), orderBy("createdAt","desc")), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -3687,6 +4532,31 @@ export default function App() {
     await deleteDoc(doc(db,"historical_data",id));
     showToast("🗑 Historical entry deleted");
   }
+  async function handleSavePayStub(stub) {
+    const id = uid();
+    await setDoc(doc(db,"pay_stubs",id), { ...stub, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown", read:false });
+    showToast(`💵 Pay stub sent to ${stub.breaker}`);
+  }
+  async function handleDismissPayStub(id) {
+    await setDoc(doc(db,"pay_stubs",id), { read:true }, { merge:true });
+  }
+  async function handleSaveQuote(quoteData) {
+    const id = uid();
+    await setDoc(doc(db,"quotes",id), { ...quoteData, id, createdAt:new Date().toISOString() });
+    return id;
+  }
+  async function handleDismissQuoteNotif(id) {
+    await setDoc(doc(db,"quotes",id), { notified:true }, { merge:true });
+  }
+  async function handleCloseQuote(id) {
+    await setDoc(doc(db,"quotes",id), { status:"closed", closedAt:new Date().toISOString() }, { merge:true });
+    showToast("🔒 Quote closed");
+  }
+  async function handleBazookaCounter(id, amount, currentHistory=[]) {
+    const entry = { type:"bazooka_counter", amount, timestamp:new Date().toISOString() };
+    await setDoc(doc(db,"quotes",id), { status:"pending", currentOffer:amount, notified:false, history:[...currentHistory, entry] }, { merge:true });
+    showToast(`🤝 Counter sent: $${parseFloat(amount).toFixed(2)}`);
+  }
   async function handleSaveSkuPrices(prices) {
     await setDoc(doc(db,"settings","sku_prices"), prices);
     showToast("💰 SKU prices saved");
@@ -3728,6 +4598,11 @@ export default function App() {
   ];
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
+
+  // ── PUBLIC QUOTE ROUTE (no login required) ──
+  const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
+  if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
+
   if (!user) return <LoginScreen />;
 
   return (
@@ -3812,11 +4687,15 @@ export default function App() {
             <span style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
           </div>
           <nav style={{ display:"flex", gap:2, flex:1 }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab" style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent" }}>
-                {t.label}
-              </button>
-            ))}
+            {TABS.map(t => {
+              const pendingQuotes = t.id==="comp" ? quotes.filter(q=>!q.notified&&["accepted","declined","countered"].includes(q.status)).length : 0;
+              return (
+                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab" style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", position:"relative" }}>
+                  {t.label}
+                  {pendingQuotes > 0 && <span style={{ position:"absolute", top:4, right:4, background:"#E8317A", color:"#fff", borderRadius:"50%", width:16, height:16, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingQuotes}</span>}
+                </button>
+              );
+            })}
           </nav>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
             {/* Search button */}
@@ -3878,10 +4757,10 @@ export default function App() {
       )}
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical}/>}
-        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
+        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
