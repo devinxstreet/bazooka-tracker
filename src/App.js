@@ -495,22 +495,15 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         </div>
         <div style={{ padding:"8px 24px 0" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{ padding:"8px 10px", borderBottom:"2px solid #F0E0E8", color:"#9CA3AF", fontSize:10, fontWeight:700, textTransform:"uppercase", textAlign:"left" }}>{h}</th>)}</tr></thead>
+            <thead><tr>{["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{ padding:"8px 10px", borderBottom:"2px solid #F0E0E8", color:"#9CA3AF", fontSize:10, fontWeight:700, textTransform:"uppercase", textAlign:"left" }}>{h}</th>)}</tr></thead>
             <tbody>
-              {included.length===0 ? <EmptyRow msg="No cards added." cols={6}/> :
+              {included.length===0 ? <EmptyRow msg="No cards added." cols={5}/> :
                 included.map((r,i) => {
                   const mv = parseFloat(r.mktVal)||0;
-                  const cc = CC[r.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   return (
                     <tr key={r.id} style={{ borderBottom:"1px solid #FFF0F5" }}>
                       <td style={{ padding:"8px 10px", color:"#D1D5DB", fontSize:11, width:32, textAlign:"center" }}>{i+1}</td>
                       <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{r.name}</td>
-                      <td style={{ padding:"8px 10px" }}>
-                        {r.cardType
-                          ? <span style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.text}33`, borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{r.cardType}</span>
-                          : <span style={{ color:"#D1D5DB", fontSize:12 }}>—</span>
-                        }
-                      </td>
                       <td style={{ padding:"8px 10px", color:"#6B7280", textAlign:"center" }}>{parseInt(r.qty)||1}</td>
                       <td style={{ padding:"8px 10px", color:"#92400e", fontWeight:600 }}>${mv.toFixed(2)}</td>
                       <td style={{ padding:"8px 10px", color:"#166534", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
