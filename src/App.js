@@ -774,47 +774,50 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         )}
       </div>
 
-      <div style={S.card}>
-        <SectionLabel t="Inventory by Card Type" />
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {/* Header row */}
-          <div style={{ display:"grid", gridTemplateColumns:"200px 1fr 1fr 1fr 1fr 70px auto", gap:12, padding:"0 20px", alignItems:"center" }}>
-            <div/>
-            {["Stock","Used","Avail","Transit","Min"].map(h => (
-              <div key={h} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:1.5 }}>{h}</div>
-            ))}
-            <div/>
-          </div>
-          {CARD_TYPES.map(ct => {
-            const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
-            const avail   = d.total - d.used - d.inTransit;
-            const transit = d.inTransit;
-            const pct   = d.market > 0 ? d.invested/d.market : null;
-            const ok = avail >= buffer; const warn = avail >= buffer*0.5;
-            const sc = ok?"#166534":warn?"#92400e":"#991b1b";
-            const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
-            return (
-              <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}44`, borderRadius:12, padding:"16px 20px", display:"grid", gridTemplateColumns:"200px 1fr 1fr 1fr 1fr 70px auto", gap:12, alignItems:"center" }}>
-                <span style={{ fontWeight:800, color:cc.text, fontSize:14 }}>{ct}</span>
-                {[
-                  { v:d.total,  c:cc.text      },
-                  { v:d.used,   c:"#991b1b"    },
-                  { v:avail,    c:sc            },
-                  { v:transit,  c: transit>0 ? "#7B9CFF" : "#333" },
-                  { v:buffer,   c:"#555"        },
-                ].map(({v,c},i) => (
-                  <div key={i} style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:22, fontWeight:900, color:c }}>{v}</div>
-                  </div>
-                ))}
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                  {canSeeFinancials && <ZoneBadge pct={pct} />}
-                  <span className={!ok&&!warn?"status-critical":""} style={{ background:ok?"#0a1a0a":warn?"#1a1400":"#1a0a0a", color:ok?"#4ade80":warn?"#FBBF24":"#E8317A", border:`1px solid ${sc}44`, borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
-                </div>
-              </div>
-            );
-          })}
+      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+        <div style={{ padding:"16px 20px 12px" }}>
+          <SectionLabel t="Inventory by Card Type" />
         </div>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ borderBottom:"1px solid #222" }}>
+              <th style={{ ...S.th, textAlign:"left", paddingLeft:20, width:"30%" }}>Card Type</th>
+              <th style={{ ...S.th, textAlign:"center" }}>Stock</th>
+              <th style={{ ...S.th, textAlign:"center" }}>Used</th>
+              <th style={{ ...S.th, textAlign:"center" }}>Avail</th>
+              <th style={{ ...S.th, textAlign:"center" }}>Transit</th>
+              <th style={{ ...S.th, textAlign:"center" }}>Min</th>
+              <th style={{ ...S.th, textAlign:"right", paddingRight:20 }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CARD_TYPES.map((ct,i) => {
+              const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
+              const avail   = d.total - d.used - d.inTransit;
+              const transit = d.inTransit;
+              const pct     = d.market > 0 ? d.invested/d.market : null;
+              const ok = avail >= buffer; const warn = avail >= buffer*0.5;
+              const sc = ok?"#4ade80":warn?"#FBBF24":"#E8317A";
+              const sl = ok?"✅ Stocked":warn?"⚠️ Low":"🚨 Critical";
+              return (
+                <tr key={ct} style={{ background:i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
+                  <td style={{ padding:"14px 20px", fontWeight:800, color:cc.text, fontSize:14 }}>{ct}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:cc.text }}>{d.total}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:d.used>0?"#E8317A":"#333" }}>{d.used}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:ok?"#4ade80":warn?"#FBBF24":"#E8317A" }}>{avail}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:transit>0?"#7B9CFF":"#333" }}>{transit}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontSize:16, color:"#555", fontWeight:700 }}>{buffer}</td>
+                  <td style={{ padding:"14px 20px", textAlign:"right" }}>
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+                      {canSeeFinancials && <ZoneBadge pct={pct} />}
+                      <span style={{ background:ok?"#0a1a0a":warn?"#1a1400":"#1a0a0a", color:sc, border:`1px solid ${sc}33`, borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{sl}</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div style={S.card}>
