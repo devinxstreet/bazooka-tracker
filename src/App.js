@@ -132,7 +132,7 @@ function TextInput({ label, value, onChange, type="text", placeholder }) {
 function SelectInput({ label, value, onChange, options }) {
   return (
     <Field label={label}>
-      <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...S.inp, color:value?"#111827":"#9CA3AF", cursor:"pointer" }}>
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...S.inp, color:value?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
         <option value="">Select...</option>
         {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
@@ -495,7 +495,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   style={{ background:drillDown===key?"#1A1A2E":"#FAFAFA", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
                 >
                   <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#111827", marginBottom:3 }}>{label}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#F0F0F0", marginBottom:3 }}>{label}</div>
                   <div style={{ fontSize:10, color:drillDown===key?"#888":"#9CA3AF" }}>{drillDown===key?"▲ hide":"▼ "+sub}</div>
                 </div>
               ))}
@@ -575,9 +575,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         </div>
         <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
           {[
-            { l:"Total Cards",    v:inventory.length, c:"#111827" },
+            { l:"Total Cards",    v:inventory.length, c:"#F0F0F0" },
             { l:"Available",      v:availCount,       c:"#166534" },
-            { l:"In Transit",     v:transitCount,     c:"#2C3E7A" },
+            { l:"In Transit",     v:transitCount,     c:"#7B9CFF" },
             { l:"Used",           v:usedCount,        c:"#991b1b" },
             ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
           ].map(({l,v,c}) => (
@@ -1035,7 +1035,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12 }}>
           {[
-            { z:"🟢 Green",  p:"Under 65%", a:"Buy independently",          bg:"#D6F4E3", c:"#166534" },
+            { z:"🟢 Green",  p:"Under 65%", a:"Buy independently",          bg:"#0a1a0a", c:"#4ade80" },
             { z:"🟡 Yellow", p:"65–70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
             { z:"🔴 Red",    p:"Over 70%",  a:"Pass or get approval",        bg:"#FEE2E2", c:"#991b1b" },
           ].map(({z,p,a,bg,c}) => (
@@ -1113,7 +1113,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
                       {canSeeFinancials && <>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Market: <strong style={{color:"#AAAAAA"}}>${(c.totalMarket||0).toFixed(2)}</strong></span>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#E8317A"}}>${(c.offer||0).toFixed(2)}</strong></span>
-                        <span style={{ fontSize:12, color:"#AAAAAA" }}>Blended: <strong style={{color:z?.color||"#111827"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
+                        <span style={{ fontSize:12, color:"#AAAAAA" }}>Blended: <strong style={{color:z?.color||"#F0F0F0"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
                       </>}
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#F0F0F0"}}>{c.source||"—"}</strong></span>
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>
@@ -1200,7 +1200,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
           </div>
           {(offerAmt != null && offerAmt > 0) && totalMkt > 0 && (
             <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Effective buy rate: <strong style={{ color: lotZone?.color||"#111827" }}>{(dispPct*100).toFixed(1)}%</strong></span>
+              <span style={{ fontSize:12, color:"#AAAAAA" }}>Effective buy rate: <strong style={{ color: lotZone?.color||"#F0F0F0" }}>{(dispPct*100).toFixed(1)}%</strong></span>
               <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
             </div>
           )}
@@ -1235,7 +1235,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
 
                       </td>
                       <td style={{ ...S.td, width:155 }}>
-                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#111827":"#9CA3AF", cursor:"pointer" }}>
+                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
                           <option value="">Type...</option>
                           {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
                         </select>
@@ -1327,7 +1327,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
             </div>
             {(counterAmt!=null&&counterAmt>0) && totalMkt > 0 && (
               <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#F0F0F0"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#111827"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
+                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#F0F0F0"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#F0F0F0"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
                 <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
               </div>
             )}
@@ -1530,7 +1530,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
                                 <div>
                                   <label style={S.lbl}>Carrier</label>
-                                  <select value={trackingForm.carrier} onChange={e=>setTrackingForm(p=>({...p,carrier:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.carrier?"#111827":"#9CA3AF" }}>
+                                  <select value={trackingForm.carrier} onChange={e=>setTrackingForm(p=>({...p,carrier:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.carrier?"#F0F0F0":"#9CA3AF" }}>
                                     <option value="">Select...</option>
                                     {CARRIERS.map(c=><option key={c} value={c}>{c}</option>)}
                                   </select>
@@ -1541,7 +1541,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                 </div>
                                 <div>
                                   <label style={S.lbl}>Status</label>
-                                  <select value={trackingForm.status} onChange={e=>setTrackingForm(p=>({...p,status:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.status?"#111827":"#9CA3AF" }}>
+                                  <select value={trackingForm.status} onChange={e=>setTrackingForm(p=>({...p,status:e.target.value}))} style={{ ...S.inp, cursor:"pointer", color:trackingForm.status?"#F0F0F0":"#9CA3AF" }}>
                                     <option value="">Select...</option>
                                     {TRACKING_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
                                   </select>
@@ -1609,7 +1609,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
         <div style={S.card}>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
-            <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#111827":"#9CA3AF", cursor:"pointer" }}>
+            <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
               <option value="">All Types</option>
               {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
             </select>
@@ -2039,7 +2039,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 1: top-level split */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                   {[
-                    { l:"Gross Revenue",         v:fmt(rc.gross),   c:"#111827" },
+                    { l:"Gross Revenue",         v:fmt(rc.gross),   c:"#F0F0F0" },
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
                   ].map(({l,v,c}) => (
@@ -2853,7 +2853,7 @@ function Sellers({ inventory, breaks, userRole }) {
         <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?4:3},1fr)`, gap:12 }}>
           {[
             { l:"Total Lots",    v:s.lotCount,   c:"#1A1A2E" },
-            { l:"Total Cards",   v:totalCards,   c:"#111827" },
+            { l:"Total Cards",   v:totalCards,   c:"#F0F0F0" },
             { l:"Available",     v:availCount,   c:"#166534" },
             ...(canSeeFinancials ? [{ l:"Total Spent", v:`$${totalSpent.toFixed(2)}`, c:"#6B2D8B" }] : []),
           ].map(({l,v,c}) => (
@@ -3306,7 +3306,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>f("date")(e.target.value)} style={S.inp}/></div>
             <div>
               <label style={S.lbl}>Breaker</label>
-              <select value={form.breaker} onChange={e=>f("breaker")(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:form.breaker?"#111827":"#9CA3AF" }}>
+              <select value={form.breaker} onChange={e=>f("breaker")(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:form.breaker?"#F0F0F0":"#9CA3AF" }}>
                 <option value="">Select...</option>
                 {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
               </select>
@@ -3412,7 +3412,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {/* Summary */}
       <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:12 }}>
         {[
-          { l:"Total Streams",     v:filteredStreams.length,          c:"#111827" },
+          { l:"Total Streams",     v:filteredStreams.length,          c:"#F0F0F0" },
           { l:"Total Commission",  v:fmt(totals.comm),    c:"#166534" },
           { l:"🌱 New Buyers",     v:totals.newBuyers,                c:"#166534" },
           ...(isAdmin ? [
@@ -3686,7 +3686,7 @@ export default function App() {
             (usedIds.has(c.id) ? "used" : c.cardStatus === "in_transit" ? "in transit" : "available").includes(q)
           );
         });
-        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#2C3E7A" } : { l:"Available", bg:"#D6F4E3", c:"#166534" };
+        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#7B9CFF" } : { l:"Available", bg:"#0a1a0a", c:"#4ade80" };
         return (
           <div style={{ position:"fixed", inset:0, zIndex:999, display:"flex", flexDirection:"column" }}>
             {/* Backdrop */}
@@ -3703,7 +3703,7 @@ export default function App() {
                   placeholder="Search cards, sellers, types, sources..."
                   style={{ flex:1, background:"none", border:"none", outline:"none", color:"#F0F0F0", fontSize:16, fontFamily:"inherit" }}
                 />
-                {gSearch && <button onClick={()=>setGSearch("")} style={{ background:"none", border:"none", color:"#666", cursor:"pointer", fontSize:18 }}>✕</button>}
+                {gSearch && <button onClick={()=>setGSearch("")} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:18 }}>✕</button>}
                 <kbd style={{ background:"#222", color:"#666", border:"1px solid #444", borderRadius:5, padding:"2px 8px", fontSize:11 }}>esc</kbd>
               </div>
 
@@ -3724,7 +3724,7 @@ export default function App() {
                                 <div style={{ fontWeight:700, color:"#F0F0F0", fontSize:14, marginBottom:4 }}>{c.cardName||"—"}</div>
                                 <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                                   {c.cardType && <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{c.cardType}</span>}
-                                  {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#aaa"}}>{c.seller}</strong></span>}
+                                  {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#AAAAAA"}}>{c.seller}</strong></span>}
                                   {c.source && <span style={{ fontSize:11, color:"#666" }}>{c.source}</span>}
                                   {c.date && <span style={{ fontSize:11, color:"#999999" }}>{c.date}</span>}
                                 </div>
