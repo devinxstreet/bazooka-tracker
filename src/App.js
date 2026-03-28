@@ -186,9 +186,9 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, shippoKey="", onSaveShippoKey }) {
+function Dashboard({ inventory, breaks, user, userRole, aftershipKey="", onSaveAftershipKey }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const [shippoInput, setShippoInput] = useState("");
+  const [aftershipInput, setAftershipInput] = useState("");
   const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
@@ -408,25 +408,25 @@ function Dashboard({ inventory, breaks, user, userRole, shippoKey="", onSaveShip
         <SectionLabel t="Settings" />
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div>
-            <label style={S.lbl}>Shippo API Key (for live tracking status)</label>
+            <label style={S.lbl}>AfterShip API Key (for live tracking status)</label>
             <div style={{ display:"flex", gap:8 }}>
               <input
                 type="password"
-                value={shippoInput || shippoKey}
-                onChange={e=>setShippoInput(e.target.value)}
-                placeholder={shippoKey ? "••••••••••••••••••••••• (saved)" : "Paste your Shippo API key here..."}
+                value={aftershipInput || aftershipKey}
+                onChange={e=>setAftershipInput(e.target.value)}
+                placeholder={aftershipKey ? "••••••••••••••••••••••• (saved)" : "Paste your AfterShip API key here..."}
                 style={{ ...S.inp, flex:1, fontFamily:"monospace", fontSize:12 }}
               />
               <button
-                onClick={() => { if(shippoInput) { onSaveShippoKey(shippoInput); setShippoInput(""); } }}
-                disabled={!shippoInput}
-                style={{ background:shippoInput?"#166534":"#F3F4F6", color:shippoInput?"#fff":"#9CA3AF", border:`1.5px solid ${shippoInput?"#14532d":"#E5E7EB"}`, borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:shippoInput?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                onClick={() => { if(aftershipInput) { onSaveAftershipKey(aftershipInput); setAftershipInput(""); } }}
+                disabled={!aftershipInput}
+                style={{ background:aftershipInput?"#166534":"#F3F4F6", color:aftershipInput?"#fff":"#9CA3AF", border:`1.5px solid ${aftershipInput?"#14532d":"#E5E7EB"}`, borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:aftershipInput?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}
               >Save Key</button>
             </div>
             <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
-              Get a free key at <a href="https://goshippo.com" target="_blank" rel="noreferrer" style={{ color:"#E8317A" }}>goshippo.com</a> → Settings → API. Supports USPS, UPS, FedEx, DHL. Key is stored securely in Firestore.
+              Get a free key at <a href="https://aftership.com" target="_blank" rel="noreferrer" style={{ color:"#E8317A" }}>aftership.com</a> → Settings → API Keys → Generate API Key. Supports USPS, UPS, FedEx, DHL. Stored securely in Firestore.
             </div>
-            {shippoKey && <div style={{ marginTop:6, fontSize:11, color:"#166534", fontWeight:700 }}>✅ Shippo key is configured — tracking lookups are active</div>}
+            {aftershipKey && <div style={{ marginTop:6, fontSize:11, color:"#166534", fontWeight:700 }}>✅ AfterShip key is configured — tracking lookups are active</div>}
           </div>
         </div>
       </div>
@@ -936,7 +936,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shippoKey="" }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, aftershipKey="" }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
@@ -1627,7 +1627,7 @@ export default function App() {
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
-  const [shippoKey,    setShippoKey]    = useState("");
+  const [aftershipKey, setAftershipKey] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1641,8 +1641,8 @@ export default function App() {
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
     const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
-    // Load app settings (Shippo key etc.)
-    const u6 = onSnapshot(doc(db,"settings","app"), snap => { if (snap.exists()) setShippoKey(snap.data().shippoKey||""); });
+    // Load app settings (AfterShip key etc.)
+    const u6 = onSnapshot(doc(db,"settings","app"), snap => { if (snap.exists()) setAftershipKey(snap.data().aftershipKey||""); });
     return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
   }, [user]);
 
@@ -1690,26 +1690,38 @@ export default function App() {
     showToast("↩️ Break entry removed — card is available again");
   }
   async function handleSaveLotTracking(lotKey, data) {
-    const CARRIER_MAP = { USPS:"usps", UPS:"ups", FedEx:"fedex", DHL:"dhl_express" };
+    const CARRIER_MAP = { USPS:"usps", UPS:"ups", FedEx:"fedex", DHL:"dhlexpress" };
     let finalData = { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" };
 
-    // Auto-lookup from Shippo if key exists and tracking number is set
-    if (shippoKey && data.trackingNum && data.carrier) {
+    // Auto-lookup from AfterShip if key exists and tracking number is set
+    if (aftershipKey && data.trackingNum && data.carrier) {
       try {
-        const carrier = CARRIER_MAP[data.carrier] || data.carrier.toLowerCase();
-        const res = await fetch(`https://api.goshippo.com/tracks/${carrier}/${data.trackingNum}`, {
-          headers: { Authorization:`ShippoToken ${shippoKey}` }
+        const carrier = CARRIER_MAP[data.carrier] || data.carrier.toLowerCase().replace(/\s/g,"");
+        const res = await fetch(`https://api.aftership.com/v4/trackings/${carrier}/${data.trackingNum}`, {
+          headers: { "aftership-api-key": aftershipKey, "Content-Type": "application/json" }
         });
         if (res.ok) {
-          const t = await res.json();
-          const STATUS_MAP = { UNKNOWN:"Ordered", PRE_TRANSIT:"Label Created", TRANSIT:"In Transit", DELIVERED:"Delivered", RETURNED:"Exception", FAILURE:"Exception" };
-          const liveStatus = STATUS_MAP[t.tracking_status?.status];
-          if (liveStatus) finalData.status = liveStatus;
-          if (t.eta) finalData.eta = new Date(t.eta).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
-          finalData.lastEvent    = t.tracking_status?.status_details || "";
-          const loc = t.tracking_status?.location;
-          finalData.lastLocation = loc?.city ? `${loc.city}${loc.state?", "+loc.state:""}` : "";
-          finalData.lastChecked  = new Date().toISOString();
+          const json = await res.json();
+          const t    = json.data?.tracking;
+          if (t) {
+            const STATUS_MAP = {
+              Pending:        "Ordered",
+              InfoReceived:   "Label Created",
+              InTransit:      "In Transit",
+              OutForDelivery: "Out for Delivery",
+              AttemptFail:    "Exception",
+              Delivered:      "Delivered",
+              Exception:      "Exception",
+              Expired:        "Exception",
+            };
+            const liveStatus = STATUS_MAP[t.tag];
+            if (liveStatus) finalData.status = liveStatus;
+            if (t.expected_delivery) finalData.eta = new Date(t.expected_delivery).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+            const chk = t.checkpoints?.[t.checkpoints.length-1];
+            finalData.lastEvent    = chk?.message || "";
+            finalData.lastLocation = chk?.city ? `${chk.city}${chk.state?", "+chk.state:""}` : "";
+            finalData.lastChecked  = new Date().toISOString();
+          }
         }
       } catch(e) { /* silent fail — manual status still saves */ }
     }
@@ -1733,9 +1745,9 @@ export default function App() {
     await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast("📝 Notes saved");
   }
-  async function handleSaveShippoKey(key) {
-    await setDoc(doc(db,"settings","app"), { shippoKey:key }, { merge:true });
-    showToast("🔑 Shippo API key saved");
+  async function handleSaveAftershipKey(key) {
+    await setDoc(doc(db,"settings","app"), { aftershipKey:key }, { merge:true });
+    showToast("🔑 AfterShip API key saved");
   }
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -1784,9 +1796,9 @@ export default function App() {
       </div>
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} shippoKey={shippoKey} onSaveShippoKey={handleSaveShippoKey}/>}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} aftershipKey={aftershipKey} onSaveAftershipKey={handleSaveAftershipKey}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shippoKey={shippoKey}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} aftershipKey={aftershipKey}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
