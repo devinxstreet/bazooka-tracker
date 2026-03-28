@@ -1025,11 +1025,15 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
-      // Weight cost by this card's market value relative to total lot market value
-      // so a $10 card costs more of the offer than a $1 card
       const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
-      for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+      if (POOL_TYPES.includes(r.cardType)) {
+        // Pool types: create one record with qty instead of N individual records
+        cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, qty, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+      } else {
+        // Individual types: create one record per card
+        for (let i=0; i<qty; i++) {
+          cards.push({ id:uid(), cardName:r.name, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        }
       }
     });
     onAccept(cards, seller, user, custNote);
@@ -1683,7 +1687,7 @@ function CardPoolsSection({ cardPools=[], onSavePool, onDeletePool, onRestorePoo
             </div>
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            {POOL_CARD_TYPES.map(t=>(
+            {POOL_TYPES.map(t=>(
               <button key={t} onClick={()=>setFilterType(filterType===t?"":t)} style={{ background:filterType===t?"#1A1A2E":"transparent", color:filterType===t?"#E8317A":"#888", border:`1.5px solid ${filterType===t?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t}</button>
             ))}
             {canEdit && <Btn onClick={()=>{ setForm(EMPTY); setEditId(null); setShowForm(p=>!p); }} variant="ghost">{showForm?"▲ Cancel":"+ Add Pool"}</Btn>}
@@ -1701,7 +1705,7 @@ function CardPoolsSection({ cardPools=[], onSavePool, onDeletePool, onRestorePoo
               <div>
                 <label style={S.lbl}>Type</label>
                 <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                  {POOL_CARD_TYPES.map(t=><option key={t}>{t}</option>)}
+                  {POOL_TYPES.map(t=><option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
@@ -5654,18 +5658,60 @@ export default function App() {
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
 
   async function handleAccept(cards, seller, u, custNote) {
-    // Build key exactly as lot history does: seller__date from card data
     const firstCard  = cards[0];
     const lotKey     = `${firstCard?.seller||"Unknown"}__${firstCard?.date||"Unknown"}`;
     const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
     const cardStatus  = hasTracking && lotTracking[lotKey]?.status !== "Delivered" ? "in_transit" : "available";
-    for (const card of cards) {
+
+    // Split cards into pool types vs individual types
+    const poolCards  = cards.filter(c => POOL_TYPES.includes(c.cardType));
+    const indivCards = cards.filter(c => !POOL_TYPES.includes(c.cardType));
+
+    // Route individual cards to inventory as before
+    for (const card of indivCards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
     }
+
+    // Route pool cards — group by cardName+cardType and upsert pools
+    const poolGroups = {};
+    for (const card of poolCards) {
+      const key = `${card.cardType}__${card.cardName}`;
+      if (!poolGroups[key]) poolGroups[key] = { cardName:card.cardName, cardType:card.cardType, qty:0, costPerCard:card.costPerCard, marketValue:card.marketValue };
+      poolGroups[key].qty++;
+    }
+    for (const group of Object.values(poolGroups)) {
+      // Find existing pool with same name+type
+      const existing = cardPools.find(p => p.cardName === group.cardName && p.cardType === group.cardType);
+      if (existing) {
+        // Add to existing pool
+        await setDoc(doc(db,"card_pools",existing.id), {
+          totalQty: (parseInt(existing.totalQty)||0) + group.qty,
+          costPerCard: group.costPerCard || existing.costPerCard,
+          marketValue: group.marketValue || existing.marketValue,
+          updatedAt: new Date().toISOString(),
+        }, { merge:true });
+      } else {
+        // Create new pool
+        const pid = uid();
+        await setDoc(doc(db,"card_pools",pid), {
+          id:pid, cardName:group.cardName, cardType:group.cardType,
+          totalQty:group.qty, usedQty:0,
+          costPerCard:group.costPerCard||0, marketValue:group.marketValue||0,
+          updatedAt:new Date().toISOString(),
+        });
+      }
+    }
+
     if (custNote && custNote.trim()) {
       await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added${cardStatus==="in_transit"?" — In Transit":""}`);
+
+    const poolCount = poolCards.length;
+    const indivCount = indivCards.length;
+    const parts = [];
+    if (indivCount > 0) parts.push(`${indivCount} individual card${indivCount!==1?"s":""}`);
+    if (poolCount > 0) parts.push(`${poolCount} card${poolCount!==1?"s":""} added to pools`);
+    showToast(`✅ ${parts.join(" · ")}${cardStatus==="in_transit"?" — In Transit":""}`);
     setTab("inventory");
   }
   async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
