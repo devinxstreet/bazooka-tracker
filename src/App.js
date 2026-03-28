@@ -186,10 +186,9 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, aftershipKey="", onSaveAftershipKey }) {
+function Dashboard({ inventory, breaks, user, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const [aftershipInput, setAftershipInput] = useState("");
-  const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
+    const canSeeCosts      = ["Admin","Procurement"].includes(userRole?.role);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const stats = {};
@@ -402,35 +401,7 @@ function Dashboard({ inventory, breaks, user, userRole, aftershipKey="", onSaveA
       </div>
       )}
 
-      {/* Admin Settings */}
-      {canSeeFinancials && (
-      <div style={S.card}>
-        <SectionLabel t="Settings" />
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div>
-            <label style={S.lbl}>AfterShip API Key (for live tracking status)</label>
-            <div style={{ display:"flex", gap:8 }}>
-              <input
-                type="password"
-                value={aftershipInput || aftershipKey}
-                onChange={e=>setAftershipInput(e.target.value)}
-                placeholder={aftershipKey ? "••••••••••••••••••••••• (saved)" : "Paste your AfterShip API key here..."}
-                style={{ ...S.inp, flex:1, fontFamily:"monospace", fontSize:12 }}
-              />
-              <button
-                onClick={() => { if(aftershipInput) { onSaveAftershipKey(aftershipInput); setAftershipInput(""); } }}
-                disabled={!aftershipInput}
-                style={{ background:aftershipInput?"#166534":"#F3F4F6", color:aftershipInput?"#fff":"#9CA3AF", border:`1.5px solid ${aftershipInput?"#14532d":"#E5E7EB"}`, borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:aftershipInput?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}
-              >Save Key</button>
-            </div>
-            <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
-              Get a free key at <a href="https://aftership.com" target="_blank" rel="noreferrer" style={{ color:"#E8317A" }}>aftership.com</a> → Settings → API Keys → Generate API Key. Supports USPS, UPS, FedEx, DHL. Stored securely in Firestore.
-            </div>
-            {aftershipKey && <div style={{ marginTop:6, fontSize:11, color:"#166534", fontWeight:700 }}>✅ AfterShip key is configured — tracking lookups are active</div>}
-          </div>
-        </div>
-      </div>
-      )}
+
     </div>
   );
 }
@@ -936,20 +907,13 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole }) 
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, aftershipKey="" }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", notes:"" });
   const [notesEdit,      setNotesEdit]      = useState(null);
   const [notesForm,      setNotesForm]      = useState("");
-  const [refreshingLot,  setRefreshingLot]  = useState(null);
 
-  async function refreshTracking(lot, tracking) {
-    if (!tracking.trackingNum || !tracking.carrier) return;
-    setRefreshingLot(lot.key);
-    try { await onSaveLotTracking(lot.key, tracking); }
-    finally { setRefreshingLot(null); }
-  }
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
@@ -1084,7 +1048,17 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                         <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
                                         {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
                                         {tracking.trackingNum && (
-                                          <a href={`https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+tracking.trackingNum)}`} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{tracking.trackingNum} ↗</a>
+                                          {(() => {
+                                            const num = tracking.trackingNum;
+                                            const CARRIER_URLS = {
+                                              USPS:  `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`,
+                                              UPS:   `https://www.ups.com/track?tracknum=${num}`,
+                                              FedEx: `https://www.fedex.com/fedextrack/?tracknumbers=${num}`,
+                                              DHL:   `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${num}`,
+                                            };
+                                            const url = CARRIER_URLS[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent(tracking.carrier+' tracking '+num)}`;
+                                            return <a href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} ↗</a>;
+                                          })()}
                                         )}
                                         {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>· checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
                                       </>
@@ -1092,13 +1066,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   }
                                 </div>
                                 <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                                  {tracking.trackingNum && tracking.carrier && (
-                                    <button
-                                      onClick={() => refreshTracking(lot, tracking)}
-                                      disabled={refreshingLot === lot.key}
-                                      style={{ background: refreshingLot===lot.key ? "#F3F4F6" : "#1A1A2E", color: refreshingLot===lot.key ? "#9CA3AF" : "#E8317A", border:"1.5px solid #E8317A44", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor: refreshingLot===lot.key ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                                    >{refreshingLot===lot.key ? "⏳ Refreshing..." : "🔄 Refresh"}</button>
-                                  )}
+
                                   <button
                                     onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
                                     style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
@@ -1158,12 +1126,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   onClick={() => { onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
                                   style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
                                 >💾 Save Tracking</button>
-                                {trackingForm.trackingNum && trackingForm.carrier && (
-                                  <button
-                                    onClick={async () => { await onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
-                                    style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-                                  >💾 Save & Auto-Update</button>
-                                )}
+
                                 <button
                                   onClick={() => setTrackingEdit(null)}
                                   style={{ background:"#F3F4F6", color:"#6B7280", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
@@ -1627,7 +1590,6 @@ export default function App() {
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
-  const [aftershipKey, setAftershipKey] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1641,9 +1603,8 @@ export default function App() {
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
     const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
-    // Load app settings (AfterShip key etc.)
-    const u6 = onSnapshot(doc(db,"settings","app"), snap => { if (snap.exists()) setAftershipKey(snap.data().aftershipKey||""); });
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
+
+    return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -1690,41 +1651,7 @@ export default function App() {
     showToast("↩️ Break entry removed — card is available again");
   }
   async function handleSaveLotTracking(lotKey, data) {
-    const CARRIER_MAP = { USPS:"usps", UPS:"ups", FedEx:"fedex", DHL:"dhlexpress" };
     let finalData = { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" };
-
-    // Auto-lookup from AfterShip if key exists and tracking number is set
-    if (aftershipKey && data.trackingNum && data.carrier) {
-      try {
-        const carrier = CARRIER_MAP[data.carrier] || data.carrier.toLowerCase().replace(/\s/g,"");
-        const res = await fetch(`https://api.aftership.com/v4/trackings/${carrier}/${data.trackingNum}`, {
-          headers: { "aftership-api-key": aftershipKey, "Content-Type": "application/json" }
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const t    = json.data?.tracking;
-          if (t) {
-            const STATUS_MAP = {
-              Pending:        "Ordered",
-              InfoReceived:   "Label Created",
-              InTransit:      "In Transit",
-              OutForDelivery: "Out for Delivery",
-              AttemptFail:    "Exception",
-              Delivered:      "Delivered",
-              Exception:      "Exception",
-              Expired:        "Exception",
-            };
-            const liveStatus = STATUS_MAP[t.tag];
-            if (liveStatus) finalData.status = liveStatus;
-            if (t.expected_delivery) finalData.eta = new Date(t.expected_delivery).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
-            const chk = t.checkpoints?.[t.checkpoints.length-1];
-            finalData.lastEvent    = chk?.message || "";
-            finalData.lastLocation = chk?.city ? `${chk.city}${chk.state?", "+chk.state:""}` : "";
-            finalData.lastChecked  = new Date().toISOString();
-          }
-        }
-      } catch(e) { /* silent fail — manual status still saves */ }
-    }
 
     await setDoc(doc(db,"lot_tracking",lotKey), finalData);
 
@@ -1745,10 +1672,7 @@ export default function App() {
     await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast("📝 Notes saved");
   }
-  async function handleSaveAftershipKey(key) {
-    await setDoc(doc(db,"settings","app"), { aftershipKey:key }, { merge:true });
-    showToast("🔑 AfterShip API key saved");
-  }
+
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
     for (const id of cardIds) await deleteDoc(doc(db,"inventory",id));
@@ -1796,9 +1720,9 @@ export default function App() {
       </div>
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} aftershipKey={aftershipKey} onSaveAftershipKey={handleSaveAftershipKey}/>}
+        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} />}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} aftershipKey={aftershipKey}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
       </div>
