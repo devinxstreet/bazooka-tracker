@@ -1763,6 +1763,370 @@ function Sellers({ inventory, breaks, userRole }) {
   );
 }
 
+// ─── COMMISSION ──────────────────────────────────────────────────
+function Commission({ streams, onSave, onDelete, user, userRole }) {
+  const isAdmin    = ["Admin"].includes(userRole?.role);
+  const curUser    = user?.displayName?.split(" ")[0] || "";
+  const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
+  const canEdit    = isAdmin;
+
+  const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", marketMultiple:"", binOnly:false, notes:"" };
+  const [form,      setForm]      = useState(EMPTY);
+  const [editing,   setEditing]   = useState(null); // stream id or "new"
+  const [viewStream,setViewStream]= useState(null); // stream id for detail view
+  const [importing, setImporting] = useState(false);
+  const [csvError,  setCsvError]  = useState("");
+
+  // Commission rate from comp plan
+  function getCommRate(stream) {
+    if (stream.binOnly) return 0.35;
+    const mm = parseFloat(stream.marketMultiple) || 0;
+    if (mm >= 1.8) return 0.55;
+    if (mm >= 1.7) return 0.50;
+    if (mm >= 1.6) return 0.45;
+    if (mm >= 1.5) return 0.40;
+    return 0.35;
+  }
+
+  function calcStream(s) {
+    const gross    = parseFloat(s.grossRevenue)      || 0;
+    const fees     = parseFloat(s.whatnotFees)       || 0;
+    const coupons  = parseFloat(s.coupons)           || 0;
+    const promo    = parseFloat(s.whatnotPromo)      || 0;
+    const magpros  = parseFloat(s.magpros)           || 0;
+    const pack     = parseFloat(s.packagingMaterial) || 0;
+    const topload  = parseFloat(s.topLoaders)        || 0;
+    const chaser   = parseFloat(s.chaserCards)       || 0;
+    const totalExp = fees + coupons + promo + magpros + pack + topload + chaser;
+    const netRev   = gross - totalExp;
+    const bazNet   = netRev * 0.30;
+    const bobaNet  = netRev * 0.70;
+    const repExp   = totalExp * 0.135;
+    const commBase = bazNet - repExp;
+    const rate     = getCommRate(s);
+    const commAmt  = commBase * rate;
+    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, commBase, rate, commAmt };
+  }
+
+  // Filter by role
+  const visibleStreams = isAdmin ? streams : streams.filter(s => s.breaker === myBreaker);
+
+  // Aggregates
+  const totals = visibleStreams.reduce((acc, s) => {
+    const c = calcStream(s);
+    acc.gross    += c.gross;
+    acc.net      += c.netRev;
+    acc.baz      += c.bazNet;
+    acc.comm     += c.commAmt;
+    return acc;
+  }, { gross:0, net:0, baz:0, comm:0 });
+
+  function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
+  function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
+  function cancelEdit(){ setEditing(null); setForm(EMPTY); }
+
+  function f(k) { return v => setForm(p=>({...p,[k]:v})); }
+
+  async function handleSave() {
+    if (!form.date || !form.breaker) return;
+    await onSave({ ...form, id: editing === "new" ? uid() : editing });
+    setEditing(null); setForm(EMPTY);
+  }
+
+  // CSV import — parse Whatnot export
+  function handleCSV(e) {
+    const file = e.target.files[0]; if (!file) return;
+    setCsvError("");
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const lines = ev.target.result.split("\n").map(l=>l.trim()).filter(Boolean);
+        const headers = lines[0].split(",").map(h=>h.replace(/"/g,"").toLowerCase().trim());
+        const row = lines[1]?.split(",").map(c=>c.replace(/"/g,"").trim());
+        if (!row) { setCsvError("No data rows found in CSV."); return; }
+        const get = (key) => { const i=headers.findIndex(h=>h.includes(key)); return i>=0?row[i]:""; };
+        const gross   = parseFloat(get("gross")  || get("revenue") || get("total sales") || "0") || 0;
+        const fees    = parseFloat(get("fee")    || get("platform fee") || "0") || 0;
+        const coupons = parseFloat(get("coupon") || "0") || 0;
+        setForm(p=>({ ...p, grossRevenue:gross.toFixed(2), whatnotFees:fees.toFixed(2), coupons:coupons.toFixed(2) }));
+        setImporting(false);
+      } catch(err) { setCsvError("Could not parse CSV. Try entering values manually."); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  // ── DETAIL VIEW ──────────────────────────────────────────────
+  if (viewStream) {
+    const s = streams.find(x=>x.id===viewStream);
+    if (!s) { setViewStream(null); return null; }
+    const c = calcStream(s);
+    const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+    const EXPENSE_ROWS = [
+      { l:"Whatnot Fees",        v:parseFloat(s.whatnotFees)||0 },
+      { l:"Coupons",             v:parseFloat(s.coupons)||0 },
+      { l:"Whatnot Promo",       v:parseFloat(s.whatnotPromo)||0 },
+      { l:"MagPros",             v:parseFloat(s.magpros)||0 },
+      { l:"Packaging Materials", v:parseFloat(s.packagingMaterial)||0 },
+      { l:"Top Loaders",         v:parseFloat(s.topLoaders)||0 },
+      { l:"Chaser Cards",        v:parseFloat(s.chaserCards)||0 },
+    ];
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={()=>setViewStream(null)} style={{ background:"#F3F4F6", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>← Back</button>
+          <div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#111827" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{ fontSize:12, color:"#9CA3AF", marginTop:2, display:"flex", gap:10 }}>
+              <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
+              <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
+            </div>
+          </div>
+          {canEdit && (
+            <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+              <Btn onClick={()=>openEdit(s)} variant="ghost">✏️ Edit</Btn>
+              <Btn onClick={()=>{ if(window.confirm("Delete this stream?")) { onDelete(s.id); setViewStream(null); }}} variant="red">🗑</Btn>
+            </div>
+          )}
+        </div>
+
+        {/* Revenue waterfall */}
+        <div style={S.card}>
+          <SectionLabel t="Stream Revenue Breakdown" />
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {/* Gross */}
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#1A1A2E", borderRadius:8 }}>
+              <span style={{ fontWeight:700, color:"#FFFFFF", fontSize:14 }}>Gross Revenue</span>
+              <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>${c.gross.toFixed(2)}</span>
+            </div>
+            {/* Expense rows */}
+            {EXPENSE_ROWS.filter(r=>r.v>0).map(({l,v}) => (
+              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FEF3F2", borderRadius:7, border:"1px solid #FEE2E2" }}>
+                <span style={{ color:"#6B7280", fontSize:13 }}>− {l}</span>
+                <span style={{ color:"#991b1b", fontWeight:700, fontSize:13 }}>${v.toFixed(2)}</span>
+              </div>
+            ))}
+            {/* Total expenses */}
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#FEE2E2", borderRadius:7 }}>
+              <span style={{ fontWeight:700, color:"#991b1b", fontSize:13 }}>Total Expenses</span>
+              <span style={{ fontWeight:900, color:"#991b1b", fontSize:13 }}>${c.totalExp.toFixed(2)}</span>
+            </div>
+            {/* Net Revenue */}
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#F0F9FF", borderRadius:8, border:"2px solid #1B4F8A22" }}>
+              <span style={{ fontWeight:800, color:"#1B4F8A", fontSize:14 }}>Net Revenue</span>
+              <span style={{ fontWeight:900, color:"#1B4F8A", fontSize:16 }}>${c.netRev.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Split */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          <div style={S.card}>
+            <SectionLabel t="Bazooka Net (30%)" />
+            <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }}>${c.bazNet.toFixed(2)}</div>
+          </div>
+          <div style={S.card}>
+            <SectionLabel t="BoBA Net (70%)" />
+            <div style={{ fontSize:32, fontWeight:900, color:"#6B7280" }}>${c.bobaNet.toFixed(2)}</div>
+          </div>
+        </div>
+
+        {/* Commission calc */}
+        <div style={{ ...S.card, border:"2px solid #166534" }}>
+          <SectionLabel t={`${s.breaker}'s Commission`} />
+          <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
+            {[
+              { l:"Bazooka Net",           v:`$${c.bazNet.toFixed(2)}`,   c:"#E8317A" },
+              { l:"Rep Expenses (13.5%)",  v:`− $${c.repExp.toFixed(2)}`, c:"#991b1b" },
+              { l:"Commission Base",       v:`$${c.commBase.toFixed(2)}`, c:"#1B4F8A" },
+              { l:`Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280" },
+            ].map(({l,v,c:clr}) => (
+              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #F0E0E8" }}>
+                <span style={{ fontSize:13, color:"#6B7280" }}>{l}</span>
+                <span style={{ fontSize:13, fontWeight:700, color:clr }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10 }}>
+            <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>${c.commAmt.toFixed(2)}</span>
+          </div>
+          {s.marketMultiple && !s.binOnly && (
+            <div style={{ marginTop:10, fontSize:12, color:"#9CA3AF", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
+          )}
+          {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#F9FAFB", borderRadius:7, fontSize:12, color:"#6B7280", fontStyle:"italic" }}>{s.notes}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ── FORM ─────────────────────────────────────────────────────
+  if (editing) {
+    const preview = calcStream(form);
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={cancelEdit} style={{ background:"#F3F4F6", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#6B7280" }}>← Cancel</button>
+          <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>{editing==="new"?"New Stream":"Edit Stream"}</div>
+          {importing && (
+            <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              📂 Select Whatnot CSV
+              <input type="file" accept=".csv" onChange={handleCSV} style={{ display:"none" }}/>
+            </label>
+          )}
+          <Btn onClick={()=>setImporting(p=>!p)} variant="ghost">{importing?"Cancel Import":"📂 Import CSV"}</Btn>
+        </div>
+        {csvError && <div style={{ padding:"10px 14px", background:"#FEE2E2", borderRadius:8, color:"#991b1b", fontSize:13 }}>{csvError}</div>}
+
+        {/* Stream info */}
+        <div style={S.card}>
+          <SectionLabel t="Stream Info" />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
+            <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>f("date")(e.target.value)} style={S.inp}/></div>
+            <div>
+              <label style={S.lbl}>Breaker</label>
+              <select value={form.breaker} onChange={e=>f("breaker")(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:form.breaker?"#111827":"#9CA3AF" }}>
+                <option value="">Select...</option>
+                {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.lbl}>Break Type</label>
+              <select value={form.breakType} onChange={e=>f("breakType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                <option value="auction">Auction</option>
+                <option value="bin">BIN</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              <label style={S.lbl}>BIN Break (flat 35%)?</label>
+              <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:6 }}>
+                <input type="checkbox" checked={form.binOnly||false} onChange={e=>f("binOnly")(e.target.checked)} style={{ width:18, height:18 }}/>
+                <span style={{ fontSize:12, color:"#6B7280" }}>Override to flat 35%</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:12 }}>
+            <div><label style={S.lbl}>Market Multiple (e.g. 1.6)</label><input type="number" step="0.1" value={form.marketMultiple} onChange={e=>f("marketMultiple")(e.target.value)} placeholder="e.g. 1.6" style={S.inp} disabled={form.binOnly}/></div>
+            <div><label style={S.lbl}>Notes (optional)</label><input value={form.notes} onChange={e=>f("notes")(e.target.value)} placeholder="e.g. Holiday stream, slow night..." style={S.inp}/></div>
+          </div>
+        </div>
+
+        {/* Revenue */}
+        <div style={S.card}>
+          <SectionLabel t="Revenue & Expenses" />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
+            {[
+              ["grossRevenue",      "Gross Revenue ($)",        "#166534"],
+              ["whatnotFees",       "Whatnot Fees ($)",         "#991b1b"],
+              ["coupons",           "Coupons ($)",              "#991b1b"],
+              ["whatnotPromo",      "Whatnot Promo ($)",        "#991b1b"],
+              ["magpros",           "MagPros ($)",              "#991b1b"],
+              ["packagingMaterial", "Packaging Materials ($)",  "#991b1b"],
+              ["topLoaders",        "Top Loaders ($)",          "#991b1b"],
+              ["chaserCards",       "Chaser Cards ($)",         "#991b1b"],
+            ].map(([key, label, color]) => (
+              <div key={key}>
+                <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
+                <input type="number" step="0.01" value={form[key]||""} onChange={e=>f(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Live preview */}
+        {(parseFloat(form.grossRevenue)||0) > 0 && (
+          <div style={{ ...S.card, border:"2px solid #166534" }}>
+            <SectionLabel t="Live Preview" />
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+              {[
+                { l:"Net Revenue",   v:`$${preview.netRev.toFixed(2)}`,   c:"#1B4F8A" },
+                { l:"Bazooka 30%",   v:`$${preview.bazNet.toFixed(2)}`,   c:"#E8317A" },
+                { l:"BoBA 70%",      v:`$${preview.bobaNet.toFixed(2)}`,  c:"#6B7280" },
+                { l:"Rep Expenses",  v:`$${preview.repExp.toFixed(2)}`,   c:"#991b1b" },
+                { l:`Commission (${(preview.rate*100).toFixed(0)}%)`, v:`$${preview.commAmt.toFixed(2)}`, c:"#166534" },
+              ].map(({l,v,c}) => (
+                <div key={l} style={{ textAlign:"center", background:"#F9FAFB", borderRadius:8, padding:"10px 8px" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn onClick={handleSave} disabled={!form.date||!form.breaker} variant="green">💾 Save Stream</Btn>
+          <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // ── LIST VIEW ────────────────────────────────────────────────
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Summary */}
+      <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?4:2},1fr)`, gap:12 }}>
+        {[
+          { l:"Total Streams",     v:visibleStreams.length,           c:"#111827" },
+          { l:"Total Commission",  v:`$${totals.comm.toFixed(2)}`,    c:"#166534" },
+          ...(isAdmin ? [
+            { l:"Total Gross",     v:`$${totals.gross.toFixed(2)}`,   c:"#E8317A" },
+            { l:"Bazooka Net",     v:`$${totals.baz.toFixed(2)}`,     c:"#6B2D8B" },
+          ] : []),
+        ].map(({l,v,c}) => (
+          <div key={l} style={{ ...S.card, textAlign:"center" }}>
+            <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+            <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      {canEdit && (
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn onClick={openNew} variant="gold">+ Add Stream</Btn>
+        </div>
+      )}
+
+      {/* Stream list */}
+      {visibleStreams.length === 0
+        ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
+            <div style={{ color:"#9CA3AF" }}>No streams logged yet.{canEdit?" Click \"+ Add Stream\" to get started.":""}</div>
+          </div>
+        : visibleStreams.map(s => {
+            const c    = calcStream(s);
+            const bc   = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+            return (
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#111827" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                  <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
+                </div>
+                <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Gross: <strong style={{color:"#111827"}}>${c.gross.toFixed(2)}</strong></span>
+                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Net: <strong style={{color:"#1B4F8A"}}>${c.netRev.toFixed(2)}</strong></span>
+                  {isAdmin && <span style={{ fontSize:12, color:"#9CA3AF" }}>Bazooka: <strong style={{color:"#E8317A"}}>${c.bazNet.toFixed(2)}</strong></span>}
+                  <span style={{ fontSize:12, color:"#9CA3AF" }}>Rate: <strong style={{color:"#6B7280"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:"#166534" }}>${c.commAmt.toFixed(2)}</div>
+                    <div style={{ fontSize:9, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
+                  </div>
+                  <span style={{ color:"#D1D5DB", fontSize:18 }}>›</span>
+                </div>
+              </div>
+            );
+          })
+      }
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [user,      setUser]      = useState(null);
@@ -1773,6 +2137,7 @@ export default function App() {
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
+  const [streams,      setStreams]       = useState([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -1786,8 +2151,9 @@ export default function App() {
     const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
     const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
+    const u6 = onSnapshot(query(collection(db,"streams"), orderBy("date","desc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()}))));
 
-    return () => { u1(); u2(); u3(); u4(); u5(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -1859,6 +2225,15 @@ export default function App() {
     await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast("📝 Notes saved");
   }
+  async function handleSaveStream(stream) {
+    const id = stream.id || uid();
+    await setDoc(doc(db,"streams",id), { ...stream, id, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
+    showToast(stream.id ? "💾 Stream updated" : "✅ Stream saved");
+  }
+  async function handleDeleteStream(id) {
+    await deleteDoc(doc(db,"streams",id));
+    showToast("🗑 Stream deleted");
+  }
 
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
@@ -1875,6 +2250,7 @@ export default function App() {
     { id:"inventory",   label:"📦 Inventory"    },
     { id:"breaks",      label:"🎯 Break Log"    },
     { id:"performance", label:"📈 Performance"  },
+    { id:"commission",  label:"💵 Commission"   },
   ];
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -1912,6 +2288,7 @@ export default function App() {
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot}/>}
         {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
+        {tab==="commission"  && <Commission streams={streams} onSave={handleSaveStream} onDelete={handleDeleteStream} user={user} userRole={userRole}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
