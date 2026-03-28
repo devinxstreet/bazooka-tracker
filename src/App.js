@@ -1974,8 +1974,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [recapSaved,  setRecapSaved]  = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvMsg,       setCsvMsg]       = useState(null); // { type: 'success'|'error', text }
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvResult,    setCsvResult]    = useState(null); // { gross, coupons, rows }
 
   // Check existing product usage for this breaker+date
   const existingUsage = productUsage.find(u => u.breaker === breaker && u.date === date);
