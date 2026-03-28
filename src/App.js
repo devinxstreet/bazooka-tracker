@@ -38,6 +38,27 @@ const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"]
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 const fmt = n => isNaN(n) || n === "" || n === null ? "—" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+// ── useCountUp hook — animates numbers from 0 to target ──────────
+function useCountUp(target, duration=600) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!target || isNaN(target)) { setVal(target); return; }
+    const start = Date.now();
+    const from = 0;
+    const to = parseFloat(target);
+    function tick() {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease out cubic
+      setVal(from + (to - from) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }, [target]);
+  return val;
+}
+
 function getUserRole(user) {
   if (!user) return { role:"Viewer", label:"Viewer", color:"#9CA3AF", bg:"#F3F4F6" };
   const name = (user.displayName||"").toLowerCase();
@@ -130,30 +151,95 @@ function GlobalStyles() {
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; }
-      .tab-content { animation: fadeSlideUp 0.25s ease forwards; }
-      @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-      .toast { animation: toastIn 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-      @keyframes toastIn { from { opacity:0; transform:translateY(20px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+      /* ── Tab transitions ── */
+      .tab-content { animation: fadeSlideUp 0.22s cubic-bezier(0.22,1,0.36,1) forwards; }
+      @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+      /* ── Toast ── */
+      .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      @keyframes toastIn { from { opacity:0; transform:translateY(24px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+      /* ── Cards ── */
+      .card-hover { transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease !important; }
+      .card-hover:hover { transform: translateY(-3px) !important; box-shadow: 0 12px 32px rgba(232,49,122,0.13) !important; }
+
+      /* ── Buttons ── */
+      .btn-lift { transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease, opacity 0.15s ease !important; }
+      .btn-lift:hover:not(:disabled) { transform: translateY(-2px) scale(1.02) !important; box-shadow: 0 8px 24px rgba(232,49,122,0.3) !important; }
+      .btn-lift:active:not(:disabled) { transform: translateY(0) scale(0.97) !important; box-shadow: 0 2px 8px rgba(232,49,122,0.2) !important; }
+
+      /* ── Nav tabs ── */
+      .nav-tab { transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease !important; }
+      .nav-tab:hover { color: #E8317A !important; background: rgba(232,49,122,0.08) !important; transform: translateY(-1px) !important; }
+
+      /* ── Table rows ── */
+      .inv-row { transition: background 0.12s ease !important; }
       .inv-row:hover { background: #FFF0F5 !important; }
+      .break-row { transition: background 0.12s ease !important; }
       .break-row:hover { background: #FFF0F5 !important; }
-      .btn-lift { transition: transform 0.15s ease, box-shadow 0.15s ease !important; }
-      .btn-lift:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(232,49,122,0.25) !important; }
-      .nav-tab { transition: color 0.15s ease, background 0.15s ease !important; }
-      .nav-tab:hover { color: #E8317A !important; background: rgba(232,49,122,0.08) !important; }
+      .stream-row { transition: background 0.12s ease, transform 0.12s ease !important; }
+      .stream-row:hover { background: #FFF5F8 !important; }
+      .clickable-row { transition: background 0.12s ease, box-shadow 0.12s ease !important; cursor: pointer !important; }
+      .clickable-row:hover { background: #FFF0F5 !important; box-shadow: inset 3px 0 0 #E8317A !important; }
+
+      /* ── Stat cards ── */
+      .stat-card { transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease !important; }
+      .stat-card:hover { transform: translateY(-4px) scale(1.02) !important; box-shadow: 0 16px 40px rgba(232,49,122,0.15) !important; }
+
+      /* ── Number pop ── */
+      .num-pop { animation: numPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      @keyframes numPop { from { transform: scale(0.7); opacity:0; } to { transform: scale(1); opacity:1; } }
+
+      /* ── Fade in rows ── */
+      .fade-in { animation: fadeIn 0.3s ease forwards; }
+      @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+      /* ── Slide in from right ── */
+      .slide-in { animation: slideIn 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
+      @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+      /* ── Pulse animations ── */
       .zone-red { animation: pulsRed 2.5s ease-in-out infinite; }
       @keyframes pulsRed { 0%,100% { box-shadow:0 0 0 0 rgba(153,27,27,0.4); } 50% { box-shadow:0 0 0 6px rgba(153,27,27,0); } }
       .zone-yellow { animation: pulsYellow 2.5s ease-in-out infinite; }
       @keyframes pulsYellow { 0%,100% { box-shadow:0 0 0 0 rgba(146,64,14,0.3); } 50% { box-shadow:0 0 0 5px rgba(146,64,14,0); } }
-      .status-critical { animation: pulsCritical 2.5s ease-in-out infinite; }
-      @keyframes pulsCritical { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.7); } 50% { box-shadow:0 0 0 6px rgba(220,38,38,0.1),0 0 12px 4px rgba(220,38,38,0.3); } }
+      .status-critical { animation: pulsCritical 2s ease-in-out infinite; }
+      @keyframes pulsCritical { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.7); } 50% { box-shadow:0 0 0 8px rgba(220,38,38,0.05), 0 0 16px 4px rgba(220,38,38,0.2); } }
+
+      /* ── Logo glow ── */
       .nav-bazooka { text-shadow:0 0 20px rgba(232,49,122,0.6),0 0 40px rgba(232,49,122,0.3); transition:text-shadow 0.3s ease; }
-      .nav-bazooka:hover { text-shadow:0 0 30px rgba(232,49,122,0.9),0 0 60px rgba(232,49,122,0.5); }
+      .nav-bazooka:hover { text-shadow:0 0 30px rgba(232,49,122,0.9),0 0 60px rgba(232,49,122,0.5),0 0 80px rgba(232,49,122,0.2); }
+
+      /* ── Inputs ── */
       input[type="checkbox"] { cursor:pointer; accent-color:#E8317A; }
-      input:focus, select:focus { outline:none !important; border-color:#E8317A !important; box-shadow:0 0 0 3px rgba(232,49,122,0.12) !important; }
-      ::-webkit-scrollbar { width:6px; height:6px; }
-      ::-webkit-scrollbar-track { background:#fff; }
-      ::-webkit-scrollbar-thumb { background:#F0D0DC; border-radius:3px; }
+      input:focus, select:focus, textarea:focus { outline:none !important; border-color:#E8317A !important; box-shadow:0 0 0 3px rgba(232,49,122,0.12) !important; transition: box-shadow 0.15s ease, border-color 0.15s ease !important; }
+      input, select, textarea { transition: border-color 0.15s ease !important; }
+
+      /* ── Scrollbar ── */
+      ::-webkit-scrollbar { width:5px; height:5px; }
+      ::-webkit-scrollbar-track { background:transparent; }
+      ::-webkit-scrollbar-thumb { background:#F0D0DC; border-radius:10px; }
       ::-webkit-scrollbar-thumb:hover { background:#E8317A; }
+
+      /* ── Badge pop on hover ── */
+      .badge-hover { transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1) !important; }
+      .badge-hover:hover { transform: scale(1.08) !important; }
+
+      /* ── Drill-down expand ── */
+      .drill-down { animation: expandDown 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
+      @keyframes expandDown { from { opacity:0; transform:scaleY(0.95) translateY(-8px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
+
+      /* ── Green save flash ── */
+      .save-flash { animation: saveFlash 0.6s ease forwards; }
+      @keyframes saveFlash { 0% { box-shadow:0 0 0 0 rgba(22,101,52,0.6); } 50% { box-shadow:0 0 0 12px rgba(22,101,52,0.1); } 100% { box-shadow:0 0 0 0 rgba(22,101,52,0); } }
+
+      /* ── Shimmer loading ── */
+      .shimmer { background: linear-gradient(90deg, #f5f5f5 25%, #efefef 50%, #f5f5f5 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+      @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+      /* ── Selection highlight ── */
+      ::selection { background: rgba(232,49,122,0.2); color: #1A1A2E; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -385,7 +471,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[] }) {
             </div>
           </div>
 
-          {drillDown && renderDrillDown()}
+          {drillDown && <div className="drill-down">{renderDrillDown()}</div>}
           </>
         );
       })()}
@@ -1371,7 +1457,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                     const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/86400000) : null;
                     const isAging = !used && daysIn !== null && daysIn >= 60;
                     return (
-                      <tr key={c.id} className="inv-row" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
+                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8", opacity:used?0.45:1 }}>
                         <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)}/></td>
                         <td style={{ ...S.td, fontWeight:700 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -1849,6 +1935,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     return (
                       <tr key={s.id}
                         onClick={()=>{ setBreaker(s.breaker); setDate(s.date); setEditingStreamId(s.id); setRecapSaved(false); }}
+                        className="clickable-row"
                         style={{ background:isActive?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF8FB", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
@@ -1987,7 +2074,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                   const isSel=histSel.has(b.id);
                   return (
-                    <tr key={b.id} className="break-row" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8" }}>
+                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#FFF0F5":i%2===0?"#FFFFFF":"#FFF5F8" }}>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
                       <td style={{ ...S.td, color:"#9CA3AF", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
@@ -2081,7 +2168,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
         <SectionLabel t="📦 This Month's Key Metrics" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
           <div style={{ ...S.card, textAlign:"center", background:"#EEF0FB" }}>
-            <div style={{ fontSize:32, fontWeight:900, color:"#2C3E7A" }}>{monthTotal}</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#2C3E7A" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
             <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Boxes Ripped</div>
             <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginTop:8 }}>
               {PRODUCT_TYPES.map(pt => monthBoxes[pt]>0 ? (
@@ -2090,12 +2177,12 @@ function Performance({ breaks, user, userRole, streams=[] }) {
             </div>
           </div>
           <div style={{ ...S.card, textAlign:"center", background:"#FFF0F5" }}>
-            <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }}>{fmt(monthGross)}</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#E8317A" }} className="num-pop"><AnimatedNumber value={monthGross}/></div>
             <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Gross Revenue</div>
             <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>{thisMonth.length} stream{thisMonth.length!==1?"s":""}</div>
           </div>
           <div style={{ ...S.card, textAlign:"center", background:"#F0FDF4" }}>
-            <div style={{ fontSize:32, fontWeight:900, color:"#166534" }}>{monthNewBuyers}</div>
+            <div style={{ fontSize:32, fontWeight:900, color:"#166534" }} className="num-pop"><AnimatedNumber value={monthNewBuyers} format="count"/></div>
             <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>New Buyers</div>
           </div>
         </div>
@@ -2168,7 +2255,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                 { l:"📈 Avg Market Multiple", v:stats.breakerAvgMM?`${stats.breakerAvgMM.toFixed(2)}x`:"—", c:stats.breakerAvgMM>=1.6?"#166534":stats.breakerAvgMM>=1.5?"#92400e":"#9CA3AF" },
                 { l:"Active Streak",        v:stats.streak>0?`${stats.streak}d`:"—",                    c:stats.streak>0?"#E8317A":"#9CA3AF" },
               ].map(({l,v,c}) => (
-                <div key={l} style={{ ...S.card, textAlign:"center" }}>
+                <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
                   <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
                 </div>
@@ -2572,7 +2659,7 @@ function Sellers({ inventory, breaks, userRole }) {
             { l:"Available",     v:availCount,   c:"#166534" },
             ...(canSeeFinancials ? [{ l:"Total Spent", v:`$${totalSpent.toFixed(2)}`, c:"#6B2D8B" }] : []),
           ].map(({l,v,c}) => (
-            <div key={l} style={{ ...S.card, textAlign:"center" }}>
+            <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
               <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
               <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
@@ -2663,8 +2750,8 @@ function Sellers({ inventory, breaks, userRole }) {
                 <div
                   key={s.name}
                   onClick={() => setSelectedSeller(s.name)}
-                  style={{ ...S.card, cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"box-shadow 0.15s" }}
-                  className="inv-row"
+                  className="card-hover" style={{ ...S.card, cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"box-shadow 0.15s" }}
+                  className="inv-row fade-in"
                 >
                   {/* Rank */}
                   <div style={{ width:32, height:32, borderRadius:"50%", background: rank<=3?"#1A1A2E":"#F3F4F6", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:rank<=3?"#E8317A":"#9CA3AF", flexShrink:0 }}>
@@ -2944,7 +3031,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#D6F4E3", borderRadius:10, marginBottom:10 }} className="save-flash">
             <span style={{ fontWeight:800, fontSize:16, color:"#166534" }}>💵 Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#166534" }}>{fmt(c.commAmt)}</span>
           </div>
@@ -3081,7 +3168,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             { l:"Bazooka Net",     v:fmt(totals.baz),     c:"#6B2D8B" },
           ] : []),
         ].map(({l,v,c}) => (
-          <div key={l} style={{ ...S.card, textAlign:"center" }}>
+          <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
             <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
             <div style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
           </div>
@@ -3113,7 +3200,7 @@ function Commission({ streams, onSave, onDelete, user, userRole }) {
             const c    = calcStream(s);
             const bc   = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
                 <div>
                   <div style={{ fontWeight:700, fontSize:13, color:"#111827" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
