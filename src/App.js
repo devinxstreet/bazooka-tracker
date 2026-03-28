@@ -4094,18 +4094,20 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     </div>
                   </>}
                   <Btn onClick={()=>{ printStub(); }} variant="ghost">👁 Preview PDF</Btn>
-                  <Btn onClick={()=>{
+                  <Btn onClick={async()=>{
                     printStub();
-                    if (onSavePayStub) onSavePayStub({
-                      breaker: targetBreaker,
-                      period: periodLabel,
-                      periodType: stubPeriod,
-                      streamCount: stubStreams.length,
-                      totalGross: totals.gross,
-                      totalNet: totals.net,
-                      totalComm: totals.comm,
-                      streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
-                    });
+                    try {
+                      if (onSavePayStub) await onSavePayStub({
+                        breaker: targetBreaker,
+                        period: periodLabel,
+                        periodType: stubPeriod,
+                        streamCount: stubStreams.length,
+                        totalGross: totals.gross,
+                        totalBaz: totals.baz,
+                        totalComm: totals.comm,
+                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
+                      });
+                    } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>📤 Send to {targetBreaker}</Btn>
                   <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px" }}>
                     <span style={{ fontSize:11, color:"#666" }}>PDF View:</span>
