@@ -1294,7 +1294,6 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                               );
                             })()}
                           </div>
-                          </div>
                           <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">🤝 Send Counter</Btn>
                           <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">❌ Decline</Btn>
                           {q.status==="countered" && (
