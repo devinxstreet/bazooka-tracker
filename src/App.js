@@ -1388,7 +1388,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[] }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -1507,7 +1507,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* ── STREAM RECAP ── */}
-      <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
+      {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
           <SectionLabel t="Stream Recap" />
           {recapSaved && <span style={{ background:"#D6F4E3", color:"#166534", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
@@ -1603,10 +1603,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </Btn>
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#92400e" }}>⚠ Unsaved changes</span>}
         </div>
-      </div>
+      </div>}
 
       {/* ── LOG CARDS ── */}
-      <div style={S.card}>
+      {!recapOnly && <div style={S.card}>
         <SectionLabel t="Log Card Out" />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
           <SelectInput label="Breaker"    value={breaker} onChange={setBreaker} options={BREAKERS}/>
@@ -1685,9 +1685,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           );
         })}
-      </div>
+      </div>}
 
-      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+      {!recapOnly && <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ padding:"16px 20px 0" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
             <SectionLabel t="Break History"/>
@@ -1732,7 +1732,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2208,6 +2208,35 @@ function Sellers({ inventory, breaks, userRole }) {
             })}
           </div>
       }
+    </div>
+  );
+}
+
+// ─── STREAMS (wrapper: recap + cards + commission) ───────────────
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[] }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const STREAM_TABS = [
+    { id:"recap",      label:"📋 Stream Recap" },
+    { id:"cards",      label:"🃏 Log Cards"    },
+    { id:"commission", label:"💵 Commission"   },
+  ];
+  const [streamTab, setStreamTab] = useState("recap");
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      {/* Sub-tab bar */}
+      <div style={{ display:"flex", gap:6 }}>
+        {STREAM_TABS.map(t => (
+          <button key={t.id} onClick={()=>setStreamTab(t.id)}
+            style={{ background:streamTab===t.id?"#1A1A2E":"transparent", color:streamTab===t.id?"#E8317A":"#9CA3AF", border:`1.5px solid ${streamTab===t.id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true}/>}
+      {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true}/>}
+      {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole}/>}
     </div>
   );
 }
@@ -2741,9 +2770,8 @@ export default function App() {
     { id:"dashboard",   label:"📊 Dashboard"   },
     { id:"comp",        label:"🧮 Lot Comp"     },
     { id:"inventory",   label:"📦 Inventory"    },
-    { id:"breaks",      label:"🎯 Break Log"    },
+    { id:"streams",     label:"🎯 Streams"       },
     { id:"performance", label:"📈 Performance"  },
-    { id:"commission",  label:"💵 Commission"   },
   ];
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#FFFFFF", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -2860,9 +2888,8 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={user} userRole={userRole} streams={streams}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={user} userRole={userRole}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} user={user} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment}/>}
-        {tab==="breaks"      && (CAN_LOG_BREAKS.includes(userRole.role) ? <BreakLog inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="performance" && <Performance breaks={breaks} user={user} userRole={userRole}/>}
-        {tab==="commission"  && <Commission streams={streams} onSave={handleSaveStream} onDelete={handleDeleteStream} user={user} userRole={userRole}/>}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
