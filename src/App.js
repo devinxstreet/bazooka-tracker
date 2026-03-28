@@ -1044,9 +1044,9 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||tracking.lastEvent) ? 8 : 0 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                                   <span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
-                                  {tracking.status
+                                  {tracking.trackingNum || tracking.status
                                     ? <>
-                                        <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>
+                                        {tracking.status && <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>}
                                         {tracking.carrier && <span style={{ fontSize:12, color:"#6B7280" }}>{tracking.carrier}</span>}
                                         {tracking.trackingNum && (() => {
                                             const num = tracking.trackingNum;
@@ -1069,7 +1069,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                   <button
                                     onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
                                     style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                                  >{tracking.status ? "✏️ Edit" : "+ Add Tracking"}</button>
+                                  >{tracking.trackingNum ? "✏️ Edit" : "+ Add Tracking"}</button>
                                 </div>
                               </div>
                               {/* ETA + last event row */}
@@ -1102,7 +1102,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, user, userRole, 
                                 </div>
                                 <div>
                                   <label style={S.lbl}>Tracking Number</label>
-                                  <input value={trackingForm.trackingNum} onChange={e=>setTrackingForm(p=>({...p,trackingNum:e.target.value}))} placeholder="e.g. 9400111899..." style={S.inp}/>
+                                  <input value={trackingForm.trackingNum} onChange={e=>setTrackingForm(p=>({...p,trackingNum:e.target.value, status:p.status||"In Transit"}))} placeholder="e.g. 9400111899..." style={S.inp}/>
                                 </div>
                                 <div>
                                   <label style={S.lbl}>Status</label>
