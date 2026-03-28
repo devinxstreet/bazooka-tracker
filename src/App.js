@@ -3317,9 +3317,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10, marginBottom:10 }} className="save-flash">
-            <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>💵 Commission Earned</span>
-            <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.commAmt)}</span>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:10 }} className="save-flash">
+            <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>💵 Commission Earned</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt)}</span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
