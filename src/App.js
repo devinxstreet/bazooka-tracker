@@ -1261,6 +1261,17 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                             {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` — ${q.sellerHandle}`:""}</strong></>}
                             &nbsp;· {daysLeft}d left
                           </div>
+                          {/* View tracking */}
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
+                            {(q.viewCount||0) === 0
+                              ? <span style={{ fontSize:11, color:"#444" }}>👁 Not opened yet</span>
+                              : <span style={{ fontSize:11, color:(q.viewCount||0)>=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
+                                  👁 Opened {q.viewCount} time{q.viewCount!==1?"s":""}
+                                  {q.lastViewedAt && <span style={{color:"#555",fontWeight:400}}> · Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
+                                  {(q.viewCount||0)>=5 && <span style={{color:"#FBBF24",marginLeft:6}}>🔥 Interested!</span>}
+                                </span>
+                            }
+                          </div>
                         </div>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                           <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>📋 Copy Link</button>
@@ -4976,6 +4987,23 @@ function PublicQuote({ quoteId }) {
     });
     return unsub;
   }, [quoteId]);
+
+  // Log view once when quote loads successfully
+  useEffect(() => {
+    if (!quote) return;
+    const isClosed = ["accepted","declined","closed"].includes(quote.status);
+    if (isClosed) return; // don't track views on closed quotes
+    const viewEntry = {
+      timestamp: new Date().toISOString(),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
+      locale: navigator.language || "unknown",
+    };
+    setDoc(doc(db, "quotes", quoteId), {
+      viewCount: (quote.viewCount||0) + 1,
+      lastViewedAt: viewEntry.timestamp,
+      views: [...(quote.views||[]), viewEntry],
+    }, { merge:true }).catch(()=>{});
+  }, [!!quote]); // only fire once when quote first loads
 
   const pageStyle = { minHeight:"100vh", background:"#000000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", padding:"40px 20px", display:"flex", justifyContent:"center" };
   const cardStyle = { background:"#111111", border:"1px solid #2a2a2a", borderRadius:16, overflow:"hidden", maxWidth:680, width:"100%" };
