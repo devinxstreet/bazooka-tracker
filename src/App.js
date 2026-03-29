@@ -188,7 +188,7 @@ function GlobalStyles() {
       body { background: #000000 !important; color: #F0F0F0; }
       #root { background: #000000; min-height: 100vh; }
       input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
       input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input::placeholder { color: #555555 !important; }
       select option { background: #111111; color: #F0F0F0; }
@@ -227,12 +227,12 @@ function GlobalStyles() {
       input[type="checkbox"] { cursor:pointer; accent-color:#E8317A; }
       input:focus, select:focus, textarea:focus { outline:none !important; border-color:#E8317A !important; box-shadow:0 0 0 3px rgba(232,49,122,0.2) !important; }
       input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
       input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input::placeholder { color: #555555 !important; }
       select option { background: #111111; color: #F0F0F0; }
       input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
       input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input::placeholder { color: #444444 !important; }
       input, select, textarea { color: #FFFFFF !important; background-color: #000000; }
@@ -3291,12 +3291,35 @@ function Performance({ breaks, user, userRole, streams=[] }) {
   const now  = new Date();
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-  // Boxes ripped calculations
-  const thisMonth = streams.filter(s => {
-    const d = parseLocalDate(s.date);
-    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
-  });
-  const thisYear = streams.filter(s => parseLocalDate(s.date).getFullYear()===now.getFullYear());
+  const [perfPeriod, setPerfPeriod] = useState("month");
+  const [perfFrom,   setPerfFrom]   = useState("");
+  const [perfTo,     setPerfTo]     = useState("");
+
+  function getPerfStreams() {
+    return streams.filter(s => {
+      if (!s.date) return false;
+      const d = parseLocalDate(s.date);
+      if (perfPeriod === "week") {
+        const day=d.getDay(), diff=day===0?6:day-1;
+        const wStart=new Date(now); wStart.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)); wStart.setHours(0,0,0,0);
+        const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+        return d >= wStart && d <= wEnd;
+      }
+      if (perfPeriod === "month") return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+      if (perfPeriod === "quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q && d.getFullYear()===now.getFullYear(); }
+      if (perfPeriod === "year") return d.getFullYear()===now.getFullYear();
+      if (perfPeriod === "custom" && perfFrom && perfTo) {
+        const f=new Date(perfFrom); f.setHours(0,0,0,0);
+        const t=new Date(perfTo);   t.setHours(23,59,59,999);
+        return d >= f && d <= t;
+      }
+      return true;
+    });
+  }
+
+  const filteredStreams = getPerfStreams();
+  const thisMonth = filteredStreams;
+  const thisYear  = streams.filter(s => parseLocalDate(s.date).getFullYear()===now.getFullYear());
 
   function boxesForStreams(slist) {
     return PRODUCT_TYPES.reduce((acc, pt) => {
@@ -3346,10 +3369,24 @@ function Performance({ breaks, user, userRole, streams=[] }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
+      {/* Period Filter */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+        {[["week","This Week"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
+          <button key={val} onClick={()=>setPerfPeriod(val)} style={{ background:perfPeriod===val?"#E8317A":"#1a1a1a", color:perfPeriod===val?"#fff":"#888", border:`1px solid ${perfPeriod===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+        ))}
+        {perfPeriod==="custom" && (
+          <>
+            <input type="date" value={perfFrom} onChange={e=>setPerfFrom(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:12 }}/>
+            <span style={{ color:"#555", fontSize:12 }}>→</span>
+            <input type="date" value={perfTo} onChange={e=>setPerfTo(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:12 }}/>
+          </>
+        )}
+      </div>
+
       {/* Boxes Ripped Summary */}
       {(monthTotal > 0 || yearTotal > 0 || monthGross > 0 || monthNewBuyers > 0) && (
       <div style={S.card}>
-        <SectionLabel t="📦 This Month's Key Metrics" />
+        <SectionLabel t={`📦 ${perfPeriod==="month"?"This Month's":perfPeriod==="week"?"This Week's":perfPeriod==="year"?"This Year's":perfPeriod==="quarter"?"This Quarter's":perfPeriod==="custom"?"Selected Period":""} Key Metrics`} />
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
           <div style={{ ...S.card, textAlign:"center", background:"#111111" }}>
             <div style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }} className="num-pop"><AnimatedNumber value={monthTotal} format="count"/></div>
