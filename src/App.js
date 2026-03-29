@@ -5816,7 +5816,8 @@ function BobaChecklist({ userRole, user }) {
   const [deckSaving,     setDeckSaving]     = useState(false);
   const [deckLoadId,     setDeckLoadId]     = useState(null);
   const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
-  const [deckSlotSort,   setDeckSlotSort]   = useState("added"); // added | power | name | weapon
+  const [deckSlotSort,   setDeckSlotSort]   = useState("added");
+  const [deckType,       setDeckType]       = useState("none"); // none | spec | apex
   // Playbook state
   const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
   const [pbName,         setPbName]         = useState("My Playbook");
@@ -5880,7 +5881,7 @@ function BobaChecklist({ userRole, user }) {
     await setDoc(doc(db,"boba_decks",id), {
       id, userId: user?.uid||"shared", name: deckName.trim(),
       cardIds: deckCards, cardCount: deckCards.length,
-      savedAt: new Date().toISOString(),
+      deckType, savedAt: new Date().toISOString(),
     }, { merge:true });
     setDeckLoadId(id);
     setDeckSaving(false);
@@ -5896,6 +5897,7 @@ function BobaChecklist({ userRole, user }) {
     setDeckLoadId(deck.id);
     setDeckName(deck.name);
     setDeckCards(deck.cardIds||[]);
+    setDeckType(deck.deckType||"none");
     setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
   }
 
@@ -7007,6 +7009,36 @@ function BobaChecklist({ userRole, user }) {
         const inDeck   = cards.filter(c => deckSet.has(c.id));
         const empty    = DECK_SIZE - inDeck.length;
 
+        // ── Deck rules ──
+        const isSpec = deckType === "spec";
+        const isApex = deckType === "apex";
+        const hasRules = isSpec || isApex;
+
+        // Duplicate check: same hero + variation + power + weapon = duplicate
+        const dupKey = c => `${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+        const inDeckDupKeys = new Set(inDeck.map(dupKey));
+
+        // Power level count: how many cards at each power value
+        const powerCount = {};
+        inDeck.forEach(c => { const p = c.power||"0"; powerCount[p] = (powerCount[p]||0)+1; });
+
+        // Validation errors for cards already in deck
+        const deckViolations = hasRules ? inDeck.filter(c => {
+          if (isSpec && parseFloat(c.power||0) > 160) return true;
+          if ((powerCount[c.power||"0"]||0) > 6) return true;
+          return false;
+        }) : [];
+
+        // Can a card be added?
+        function canAdd(c) {
+          if (deckSet.has(c.id)) return { ok:false, reason:"Already in deck" };
+          if (inDeck.length >= DECK_SIZE) return { ok:false, reason:"Deck full" };
+          if (isSpec && parseFloat(c.power||0) > 160) return { ok:false, reason:`Power ${c.power} exceeds 160 limit` };
+          if (hasRules && inDeckDupKeys.has(dupKey(c))) return { ok:false, reason:"Duplicate (same hero, pose, power & weapon)" };
+          if (hasRules && (powerCount[c.power||"0"]||0) >= 6) return { ok:false, reason:`Already 6 cards at power ${c.power}` };
+          return { ok:true };
+        }
+
         // Stats
         const totalPower  = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
         const weaponBreak = {};
@@ -7022,7 +7054,7 @@ function BobaChecklist({ userRole, user }) {
         const cardPool = (deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards)
           .filter(c => { const n = String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL") && !n.startsWith("BPL"); });
 
-        // Available cards to add (not already in deck, passes filters)
+        // Available cards to add
         const available = cardPool.filter(c => {
           if (deckSet.has(c.id)) return false;
           if (deckFilterWeap && c.weapon !== deckFilterWeap) return false;
@@ -7043,6 +7075,13 @@ function BobaChecklist({ userRole, user }) {
                 <input value={deckName} onChange={e=>setDeckName(e.target.value)}
                   style={{ ...S.inp, fontSize:15, fontWeight:800, flex:1, minWidth:180 }}
                   placeholder="Deck name..."/>
+                <select value={deckType} onChange={e=>setDeckType(e.target.value)}
+                  style={{ ...S.inp, width:"auto", fontWeight:700, cursor:"pointer",
+                    color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7":"#888" }}>
+                  <option value="none">No Restrictions</option>
+                  <option value="spec">Spec Deck (≤160 power)</option>
+                  <option value="apex">Apex Deck (no power limit)</option>
+                </select>
                 <span style={{ fontSize:12, color: inDeck.length===DECK_SIZE?"#4ade80":inDeck.length>DECK_SIZE?"#E8317A":"#FBBF24", fontWeight:700 }}>
                   {inDeck.length}/{DECK_SIZE} cards
                 </span>
@@ -7111,26 +7150,33 @@ function BobaChecklist({ userRole, user }) {
                     const wc = WEAPON_COLORS[c.weapon]||"#444";
                     const full = inDeck.length >= DECK_SIZE;
                     return (
-                      <div key={c.id} onClick={()=>{ if(!full) setDeckCards(p=>[...p,c.id]); }}
-                        style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:full?"not-allowed":"pointer", opacity:full?0.4:1 }}
-                        className="inv-row">
-                        {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
-                          <div style={{ display:"flex", gap:6, marginTop:3, flexWrap:"wrap" }}>
-                            <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
-                            {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
-                            {c.treatment && <span style={{ fontSize:10, color:"#555" }}>{c.treatment}</span>}
-                            {!deckOwnedOnly && (
-                              <span style={{ fontSize:10, fontWeight:700, color:ownedSet.has(c.id)?"#4ade80":"#333" }}>
-                                {ownedSet.has(c.id)?"✓ owned":"not owned"}
-                              </span>
-                            )}
+                      (() => {
+                        const { ok, reason } = canAdd(c);
+                        return (
+                          <div key={c.id} onClick={()=>{ if(ok) setDeckCards(p=>[...p,c.id]); }}
+                            style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
+                            className="inv-row"
+                            title={!ok?reason:""}>
+                            {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
+                              <div style={{ display:"flex", gap:6, marginTop:3, flexWrap:"wrap" }}>
+                                <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                                {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
+                                {c.treatment && <span style={{ fontSize:10, color:"#555" }}>{c.treatment}</span>}
+                                {!deckOwnedOnly && (
+                                  <span style={{ fontSize:10, fontWeight:700, color:ownedSet.has(c.id)?"#4ade80":"#333" }}>
+                                    {ownedSet.has(c.id)?"✓ owned":"not owned"}
+                                  </span>
+                                )}
+                                {!ok && reason && <span style={{ fontSize:10, color:"#E8317A" }}>{reason}</span>}
+                              </div>
+                            </div>
+                            {c.power && <div style={{ fontSize:16, fontWeight:900, color: isSpec&&parseFloat(c.power)>160?"#E8317A":wc, flexShrink:0 }}>{c.power}</div>}
+                            {ok && <div style={{ fontSize:18, color:"#4ade80", flexShrink:0 }}>+</div>}
                           </div>
-                        </div>
-                        {c.power && <div style={{ fontSize:16, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
-                        <div style={{ fontSize:18, color:"#4ade80", flexShrink:0 }}>+</div>
-                      </div>
+                        );
+                      })()
                     );
                   })}
                 </div>
@@ -7139,9 +7185,42 @@ function BobaChecklist({ userRole, user }) {
               {/* RIGHT: Deck + stats */}
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
 
-                {/* Stats */}
-                <div style={{ ...S.card }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Deck Stats</div>
+                  <div style={{ ...S.card }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Deck Stats
+                    {deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":"#A855F7", fontWeight:700 }}>
+                      {deckType==="spec"?"SPEC":"APEX"}
+                    </span>}
+                  </div>
+                  {/* Rule violations */}
+                  {deckViolations.length > 0 && (
+                    <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"8px 10px", marginBottom:10 }}>
+                      <div style={{ fontSize:10, color:"#E8317A", fontWeight:700, marginBottom:4 }}>⚠️ {deckViolations.length} Rule Violation{deckViolations.length!==1?"s":""}</div>
+                      {deckViolations.slice(0,3).map(c=>(
+                        <div key={c.id} style={{ fontSize:10, color:"#888" }}>• {c.hero} #{c.cardNum} ({c.power})</div>
+                      ))}
+                      {deckViolations.length > 3 && <div style={{ fontSize:10, color:"#555" }}>...and {deckViolations.length-3} more</div>}
+                    </div>
+                  )}
+                  {/* Rules summary */}
+                  {hasRules && (
+                    <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:10, fontSize:10, color:"#555", lineHeight:1.8 }}>
+                      {isSpec && <div style={{ color:"#FBBF24" }}>⚡ Max power: 160</div>}
+                      <div>⚡ No duplicates (same hero + pose + power + weapon)</div>
+                      <div>⚡ Max 6 cards per power level</div>
+                    </div>
+                  )}
+                  {/* Power level breakdown */}
+                  {hasRules && Object.keys(powerCount).length > 0 && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Power Level Counts</div>
+                      {Object.entries(powerCount).sort((a,b)=>parseFloat(b[0])-parseFloat(a[0])).map(([pwr,cnt])=>(
+                        <div key={pwr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:2 }}>
+                          <span style={{ color: isSpec && parseFloat(pwr)>160 ? "#E8317A" : "#888" }}>Power {pwr}</span>
+                          <span style={{ fontWeight:700, color: cnt>=6?"#E8317A":cnt>=4?"#FBBF24":"#4ade80" }}>{cnt}/6</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
                     {[
                       { l:"Cards", v:`${inDeck.length}/${DECK_SIZE}`, c:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24" },
