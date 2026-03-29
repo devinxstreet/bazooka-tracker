@@ -6300,10 +6300,17 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const isWanted = !!(wantList && wantList[c.id]);
   const cardRef = useRef(null);
   const foilRef = useRef(null);
+  const glareRef = useRef(null);
   const animRef = useRef(null);
   const currentTilt = useRef({ x:0, y:0 });
   const targetTilt  = useRef({ x:0, y:0 });
   const isHovering  = useRef(false);
+  const mousePos    = useRef({ x:0.5, y:0.5 });
+
+  function startAnimation() {
+    if (animRef.current) return;
+    animRef.current = requestAnimationFrame(animate);
+  }
 
   function onMouseMove(e) {
     if (isFlipped) return;
@@ -6311,49 +6318,63 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (!rect) return;
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top)  / rect.height;
-    targetTilt.current = { x: (y - 0.5) * 22, y: (x - 0.5) * -22 };
-    // Foil shine position
+    mousePos.current = { x, y };
+    targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
     if (foilRef.current) {
       foilRef.current.style.backgroundPosition = `${x * 100}% ${y * 100}%`;
       foilRef.current.style.opacity = "1";
     }
+    if (glareRef.current) {
+      glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.08) 35%, transparent 65%)`;
+      glareRef.current.style.opacity = "1";
+    }
+    startAnimation();
   }
 
   function onMouseLeave() {
     isHovering.current = false;
     targetTilt.current = { x:0, y:0 };
     if (foilRef.current) foilRef.current.style.opacity = "0";
+    if (glareRef.current) glareRef.current.style.opacity = "0";
+    startAnimation();
   }
 
   function onMouseEnter() {
     isHovering.current = true;
-    if (!animRef.current) animate();
+    startAnimation();
   }
 
   function animate() {
     const cur = currentTilt.current;
     const tgt = targetTilt.current;
-    cur.x += (tgt.x - cur.x) * 0.12;
-    cur.y += (tgt.y - cur.y) * 0.12;
+    cur.x += (tgt.x - cur.x) * 0.1;
+    cur.y += (tgt.y - cur.y) * 0.1;
     if (cardRef.current && !isFlipped) {
-      cardRef.current.style.transform = `rotateX(${cur.x}deg) rotateY(${cur.y}deg)`;
+      cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`;
     }
-    const stillMoving = Math.abs(tgt.x - cur.x) > 0.01 || Math.abs(tgt.y - cur.y) > 0.01 || isHovering.current;
-    if (stillMoving) {
+    const stillMoving = Math.abs(tgt.x - cur.x) > 0.05 || Math.abs(tgt.y - cur.y) > 0.05;
+    if (stillMoving || isHovering.current) {
       animRef.current = requestAnimationFrame(animate);
     } else {
       animRef.current = null;
-      if (cardRef.current) cardRef.current.style.transform = "";
+      cur.x = 0; cur.y = 0;
+      if (cardRef.current && !isFlipped) cardRef.current.style.transform = "";
     }
   }
 
-  // Stop animation on flip
   function handleClick() {
+    // Cancel tilt animation
     if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-    if (cardRef.current) cardRef.current.style.transform = "";
-    if (foilRef.current) foilRef.current.style.opacity = "0";
-    targetTilt.current = { x:0, y:0 };
-    setFlippedCard(isFlipped ? null : c.id);
+    currentTilt.current = { x:0, y:0 };
+    targetTilt.current  = { x:0, y:0 };
+    if (foilRef.current)  foilRef.current.style.opacity = "0";
+    if (glareRef.current) glareRef.current.style.opacity = "0";
+    if (cardRef.current)  cardRef.current.style.transform = "";
+    const nextFlipped = !isFlipped;
+    setFlippedCard(nextFlipped ? c.id : null);
+    // After flip back, re-enable tilt on next mousemove automatically
+    // by resetting isHovering so the next onMouseMove triggers startAnimation
+    isHovering.current = false;
   }
 
   const QtyControls = () => (
@@ -6366,7 +6387,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 
   if (c.imageUrl) {
     return (
-      <div style={{ perspective:"600px", aspectRatio:"3/4" }}
+      <div style={{ aspectRatio:"3/4" }}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         onMouseEnter={onMouseEnter}
@@ -6374,8 +6395,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{
           position:"relative", width:"100%", height:"100%",
           transformStyle:"preserve-3d",
-          transition: isFlipped ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "none",
-          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          transition: isFlipped ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "box-shadow 0.2s ease",
+          transform: isFlipped ? "perspective(600px) rotateY(180deg)" : undefined,
           borderRadius:10, cursor:"pointer",
           willChange:"transform",
         }}
@@ -6384,26 +6405,39 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
           {/* Front — card image */}
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {/* Foil shine overlay */}
+
+            {/* Rainbow foil layer */}
             <div ref={foilRef} style={{
               position:"absolute", inset:0, borderRadius:10,
-              background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
-              backgroundSize:"200% 200%",
-              mixBlendMode:"screen",
+              background:"linear-gradient(115deg, #ff000022 0%, #ff770044 10%, #ffff0055 20%, #00ff0044 30%, #00ffff55 40%, #0000ff44 50%, #ff00ff55 60%, #ff000044 70%, #ff770033 80%, #ffff0044 90%, #00ff0033 100%)",
+              backgroundSize:"400% 400%",
+              mixBlendMode:"color-dodge",
               opacity:0,
-              transition:"opacity 0.2s ease",
+              transition:"opacity 0.15s ease",
               pointerEvents:"none",
             }}/>
-            {/* Specular highlight */}
+
+            {/* Specular glare */}
+            <div ref={glareRef} style={{
+              position:"absolute", inset:0, borderRadius:10,
+              background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.35) 0%, transparent 65%)",
+              mixBlendMode:"overlay",
+              opacity:0,
+              transition:"opacity 0.15s ease",
+              pointerEvents:"none",
+            }}/>
+
+            {/* Edge shimmer */}
             <div style={{
               position:"absolute", inset:0, borderRadius:10,
-              background:"radial-gradient(ellipse at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.15) 0%, transparent 60%)",
+              boxShadow:"inset 0 0 20px rgba(255,255,255,0.05)",
               pointerEvents:"none",
-              mixBlendMode:"overlay",
             }}/>
+
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
           </div>
+
           {/* Back — card details */}
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
