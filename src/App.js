@@ -7117,15 +7117,16 @@ function BobaChecklist({ userRole }) {
               const wc = WEAPON_COLORS[c.weapon] || "#444";
               const hasImg = !!c.imageUrl;
               if (hasImg) {
+                const isFlipped = flippedCard === c.id;
                 return (
                   <div key={c.id} style={{ perspective:"800px", aspectRatio:"3/4" }}>
-                    <div className="boba-flip-card" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s", borderRadius:10, cursor:"pointer" }}
-                      className="boba-card-flip"
+                    <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1)", transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }}
+                      onClick={()=>setFlippedCard(isFlipped ? null : c.id)}
                     >
                       {/* Front — card image */}
                       <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
                         <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-                        <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>hover for details</div>
+                        <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
                         {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
                       </div>
                       {/* Back — card details + own toggle */}
