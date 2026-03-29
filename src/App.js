@@ -676,6 +676,20 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totZion     = periodStreams.reduce((s,r)=>s+(parseFloat(r.zionRevenue)||0),0);
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
+        // Card usage costs by type — join breaks with inventory costs
+        const periodStreamIds = new Set(periodStreams.map(s=>s.id));
+        const periodBreaks = breaks.filter(b => b.streamId && periodStreamIds.has(b.streamId));
+        const cardCostByType = {};
+        const cardQtyByType  = {};
+        CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
+        periodBreaks.forEach(b => {
+          if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
+          const inv = inventory.find(c => c.id === b.inventoryId);
+          const cost = inv?.costPerCard || 0;
+          cardCostByType[b.cardType] += cost;
+          cardQtyByType[b.cardType]  += 1;
+        });
+
         return (
           <div style={{ ...S.card }}>
             <SectionLabel t="📦 Ops Summary" />
@@ -694,6 +708,24 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {sub && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{sub}</div>}
                 </div>
               ))}
+            </div>
+            {/* Card usage by type */}
+            <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
+              <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Cards Used in Streams</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+                {CARD_TYPES.map(ct => {
+                  const cc = CC[ct]||{ text:"#888", bg:"#111" };
+                  const qty  = cardQtyByType[ct]||0;
+                  const cost = cardCostByType[ct]||0;
+                  return (
+                    <div key={ct} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid #2a2a2a" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:cc.text }}>{qty}</div>
+                      <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{ct.replace(" Cards","")}</div>
+                      {cost>0 && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>${cost.toFixed(2)} cost</div>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         );
