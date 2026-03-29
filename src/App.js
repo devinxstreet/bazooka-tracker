@@ -6293,10 +6293,11 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
 }
 
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, WEAPON_COLORS }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
+  const isWanted = !!(wantList && wantList[c.id]);
 
   const QtyControls = () => (
     <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
@@ -6333,7 +6334,10 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
               {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
-              <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯 Wanted":"+ Want"}</button>}
+                <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
+              </div>
             </div>
           </div>
         </div>
@@ -6352,10 +6356,13 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
       {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 {c.athlete}</div>}
-      {/* Bottom row: power + qty controls */}
+      {/* Bottom row: power + qty controls + want */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
-        <QtyControls/>
+        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+          {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯":"+ Want"}</button>}
+          <QtyControls/>
+        </div>
       </div>
     </div>
   );
@@ -6422,6 +6429,7 @@ function BobaChecklist({ userRole }) {
     });
     // Owned + imports stay realtime
     const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
+    const u3 = onSnapshot(doc(db,"boba_owned","wants"), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
@@ -6540,7 +6548,37 @@ function BobaChecklist({ userRole }) {
     setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
   }
 
-  async function setOwnedQty(cardId, qty) {
+  async function toggleWant(cardId) {
+    const next = { ...wantList };
+    if (next[cardId]) delete next[cardId];
+    else next[cardId] = true;
+    setWantList(next);
+    await setDoc(doc(db,"boba_owned","wants"), next);
+  }
+
+  function exportWantList() {
+    const wants = cards.filter(c => wantList[c.id]);
+    if (!wants.length) { alert("No cards on your want list!"); return; }
+    const rows = [["card_num","hero","treatment","weapon","notation","power"]];
+    wants.forEach(c => rows.push([c.cardNum, c.hero, c.treatment||"", c.weapon||"", c.notation||"", c.power||""]));
+    const csv = rows.map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="boba-want-list.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportHaveList() {
+    const haves = cards.filter(c => (owned[c.id]||0) > 1);
+    if (!haves.length) { alert("No duplicate cards to trade!"); return; }
+    const rows = [["card_num","hero","treatment","weapon","notation","quantity","extras"]];
+    haves.forEach(c => rows.push([c.cardNum, c.hero, c.treatment||"", c.weapon||"", c.notation||"", owned[c.id], (owned[c.id]||0)-1]));
+    const csv = rows.map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="boba-have-list.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
     const next = { ...owned };
     if (qty <= 0) delete next[cardId];
     else next[cardId] = qty;
@@ -6582,6 +6620,7 @@ function BobaChecklist({ userRole }) {
 
   // Import collection from CSV
   const [collectionImportResult, setCollectionImportResult] = useState(null);
+  const [wantList, setWantList] = useState({}); // { cardId: true }
   async function importCollectionCsv(file) {
     if (!file) return;
     const text = await file.text();
@@ -6787,7 +6826,7 @@ function BobaChecklist({ userRole }) {
           <span style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginRight:4 }}>🃏 BoBA Checklist</span>
           <span style={{ fontSize:11, color:"#555", flex:1 }}>{totalCards.toLocaleString()} cards · {totalOwned} unique · {totalCollection} total copies · {pct}%</span>
           <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
             ))}
           </div>
@@ -7115,7 +7154,7 @@ function BobaChecklist({ userRole }) {
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                           {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => {
                             const isOwned = !!owned[c.id];
-                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
+                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
                           })}
                         </div>
                         {/* Toggle all for hero */}
@@ -7195,7 +7234,7 @@ function BobaChecklist({ userRole }) {
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                         {visibleTcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
-                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
+                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
@@ -7212,6 +7251,174 @@ function BobaChecklist({ userRole }) {
       })()}
 
       {/* Card grid */}
+      {/* Stats View */}
+      {viewMode === "stats" && !loading && cards.length > 0 && (() => {
+        const haveList = cards.filter(c => (owned[c.id]||0) > 1);
+        const missingCards = cards.filter(c => !owned[c.id]);
+
+        // By treatment
+        const byTreat = {};
+        cards.forEach(c => {
+          const t = c.treatment || "Uncategorized";
+          if(!byTreat[t]) byTreat[t] = { total:0, owned:0 };
+          byTreat[t].total++;
+          if(owned[c.id]) byTreat[t].owned++;
+        });
+        const treatStats = Object.entries(byTreat)
+          .map(([t,s]) => ({ t, ...s, pct:Math.round(s.owned/s.total*100), missing:s.total-s.owned }))
+          .sort((a,b) => b.pct-a.pct);
+
+        // By weapon
+        const byWeapon = {};
+        cards.forEach(c => {
+          const w = c.weapon || "Unknown";
+          if(!byWeapon[w]) byWeapon[w] = { total:0, owned:0 };
+          byWeapon[w].total++;
+          if(owned[c.id]) byWeapon[w].owned++;
+        });
+        const weaponStats = Object.entries(byWeapon)
+          .map(([w,s]) => ({ w, ...s, pct:Math.round(s.owned/s.total*100) }))
+          .sort((a,b) => b.pct-a.pct);
+
+        // Heroes with zero cards
+        const heroZero = [...new Set(cards.map(c=>c.hero))].filter(h => !cards.some(c=>c.hero===h && owned[c.id])).length;
+        // Heroes complete
+        const heroComplete = [...new Set(cards.map(c=>c.hero))].filter(h => cards.filter(c=>c.hero===h).every(c=>owned[c.id])).length;
+        // Collection value estimate (power as proxy — not real $)
+        const collectionPower = cards.filter(c=>owned[c.id]).reduce((s,c)=>s+(parseFloat(c.power)||0)*( owned[c.id]||1),0);
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Summary cards */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:8 }}>
+              {[
+                { label:"Unique Owned", value:totalOwned.toLocaleString(), color:"#4ade80" },
+                { label:"Total Copies", value:totalCollection.toLocaleString(), color:"#7B9CFF" },
+                { label:"Still Missing", value:missingCards.length.toLocaleString(), color:"#E8317A" },
+                { label:"Tradeable Extras", value:haveList.length.toLocaleString(), color:"#FBBF24" },
+                { label:"Heroes Complete", value:heroComplete, color:"#4ade80" },
+                { label:"Heroes Not Started", value:heroZero, color:"#555" },
+                { label:"On Want List", value:Object.keys(wantList).length, color:"#FBBF24" },
+                { label:"Overall %", value:`${pct}%`, color:pct>75?"#4ade80":pct>40?"#FBBF24":"#E8317A" },
+              ].map(({label,value,color})=>(
+                <div key={label} style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>{label}</div>
+                  <div style={{ fontSize:22, fontWeight:900, color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Completion by Treatment */}
+            <div style={{ ...S.card }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>Completion by Treatment</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {treatStats.map(({t,total,owned:o,pct:p,missing})=>(
+                  <div key={t} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:11, color:p===100?"#4ade80":"#AAAAAA", minWidth:200, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p===100?"🌈 ":""}{t}</span>
+                    <div style={{ flex:1, height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ width:`${p}%`, height:"100%", borderRadius:3, background:p===100?"linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)":p>50?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)" }}/>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", minWidth:80, textAlign:"right" }}>{o}/{total} ({p}%)</span>
+                    {missing > 0 && <span style={{ fontSize:10, color:"#E8317A", minWidth:60, textAlign:"right" }}>-{missing}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Completion by Weapon */}
+            <div style={{ ...S.card }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>Completion by Weapon</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
+                {weaponStats.map(({w,total,owned:o,pct:p})=>{
+                  const wc = WEAPON_COLORS[w]||"#444";
+                  return (
+                    <div key={w} style={{ background:"#0a0a0a", borderRadius:8, padding:"10px 12px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                        <span style={{ fontSize:12, fontWeight:700, color:wc }}>{w}</span>
+                        <span style={{ fontSize:11, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", fontWeight:700 }}>{o}/{total}</span>
+                      </div>
+                      <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                        <div style={{ width:`${p}%`, height:"100%", background:wc, borderRadius:2 }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Tradeable extras */}
+            {haveList.length > 0 && (
+              <div style={{ ...S.card }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🔄 Tradeable Extras ({haveList.length} cards)</div>
+                  <button onClick={exportHaveList} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤 Export Have List</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                  {haveList.sort((a,b)=>(owned[b.id]||0)-(owned[a.id]||0)).map(c=>{
+                    const wc2 = WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={c.id} style={{ background:"#0a1a0a", border:"1px solid #4ade8022", borderRadius:8, padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div>
+                          <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
+                          <div style={{ fontSize:10, color:"#555" }}>#{c.cardNum} · <span style={{color:wc2}}>{c.weapon}</span></div>
+                        </div>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontSize:14, fontWeight:900, color:"#4ade80" }}>×{owned[c.id]||0}</div>
+                          <div style={{ fontSize:10, color:"#FBBF24" }}>+{(owned[c.id]||0)-1} extra</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Wants View */}
+      {viewMode === "wants" && !loading && (() => {
+        const wantedCards = cards.filter(c => wantList[c.id] && !owned[c.id]);
+        const wantedOwned = cards.filter(c => wantList[c.id] && owned[c.id]);
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🎯 Want List — {Object.keys(wantList).length} cards flagged</div>
+              <div style={{ display:"flex", gap:8 }}>
+                {wantedCards.length > 0 && <button onClick={exportWantList} style={{ background:"#1a0f00", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤 Export Want List</button>}
+              </div>
+            </div>
+            {wantedCards.length === 0 && wantedOwned.length === 0 && (
+              <div style={{ ...S.card, color:"#555", fontSize:13, textAlign:"center", padding:32 }}>
+                No cards on your want list yet. Click "+ Want" on any card to add it here.
+              </div>
+            )}
+            {wantedCards.length > 0 && (
+              <div style={{ ...S.card }}>
+                <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:8 }}>🎯 Still Need ({wantedCards.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                  {wantedCards.map(c => {
+                    const isOwned2 = !!owned[c.id];
+                    return <BobaCard key={c.id} c={c} isOwned={isOwned2} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+                  })}
+                </div>
+              </div>
+            )}
+            {wantedOwned.length > 0 && (
+              <div style={{ ...S.card }}>
+                <div style={{ fontSize:12, fontWeight:700, color:"#4ade80", marginBottom:8 }}>✅ Got It! ({wantedOwned.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                  {wantedOwned.map(c => {
+                    const isOwned2 = !!owned[c.id];
+                    return <BobaCard key={c.id} c={c} isOwned={isOwned2} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {viewMode === "cards" && (loading ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
       ) : cards.length === 0 ? (
@@ -7222,7 +7429,7 @@ function BobaChecklist({ userRole }) {
             {paginated.map(c => {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
-              return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
+              return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
             })}
           </div>
           {totalPages > 1 && (
