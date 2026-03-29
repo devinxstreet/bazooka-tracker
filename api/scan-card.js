@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-opus-4-6",
-        max_tokens: 100,
+        max_tokens: 200,
         messages: [{
           role: "user",
           content: [
@@ -44,7 +44,9 @@ module.exports = async function handler(req, res) {
             },
             {
               type: "text",
-              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}What is the hero name on this card? Return ONLY a JSON object with no other text: {"hero":"the hero name as it appears on the card"}\nIf you cannot read the hero name, return {"hero":null}`
+              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}Extract ALL visible fields and return ONLY a JSON object with no other text:
+{"cardNum":"card number shown (e.g. RAD-1, 1, P-5)","hero":"hero name exactly as printed","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","power":"power number (e.g. 135)","treatment":"treatment/set name if visible"}
+If you cannot read the card clearly, return {"cardNum":null}`
             }
           ]
         }]
@@ -69,9 +71,18 @@ module.exports = async function handler(req, res) {
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
-    return res.status(200).json({ identified: { hero: parsed.hero, treatment, weapon } });
+    // Fill in known values from modal if Claude missed them
+    return res.status(200).json({
+      identified: {
+        cardNum:   parsed.cardNum   || null,
+        hero:      parsed.hero      || null,
+        weapon:    parsed.weapon    || weapon  || null,
+        power:     parsed.power     || null,
+        treatment: parsed.treatment || treatment || null,
+      }
+    });
   } catch(parseErr) {
-    return res.status(200).json({ identified: { hero: null }, error: "parse failed" });
+    return res.status(200).json({ identified: { cardNum: null }, error: "parse failed" });
   }
 };
 
