@@ -1995,7 +1995,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2375,6 +2375,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                             ) : (
                               <>
                                 {canSeeFinancials && <button onClick={()=>{ setEditCostId(c.id); setEditCostVal((c.costPerCard||0).toFixed(2)); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit cost">✏️</button>}
+                                {!usedIds.has(c.id) && <button onClick={()=>setLogOutCard(c)} style={{ background:"#1a0a0f", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>📤 Log Out</button>}
                                 {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14 }}>✕</button>}
                                 {usedIds.has(c.id) && onPutBack && CAN_DELETE.includes(userRole?.role) && (
                                   <button onClick={()=>{ if(window.confirm(`Put "${c.cardName}" back in inventory?`)) onPutBack(c.id); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>↩ Put Back</button>
@@ -2391,6 +2392,45 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
             </table>
           </div>
         </div>
+
+      {/* Log Out Card Modal */}
+      {logOutCard && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setLogOutCard(null)}>
+          <div style={{ background:"#111111", border:"1.5px solid #E8317A44", borderRadius:14, padding:"24px", width:380, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:4 }}>📤 Log Out Card</div>
+            <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>{logOutCard.cardName} · {logOutCard.cardType}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div>
+                <label style={S.lbl}>Breaker</label>
+                <select value={logOutForm.breaker} onChange={e=>setLogOutForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.lbl}>Date</label>
+                <input type="date" value={logOutForm.date} onChange={e=>setLogOutForm(p=>({...p,date:e.target.value}))} style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.lbl}>Usage Type</label>
+                <select value={logOutForm.usage} onChange={e=>setLogOutForm(p=>({...p,usage:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                  <option value="Giveaway">Giveaway</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="First-Timer Pack">First-Timer Pack</option>
+                  <option value="Chaser">Chaser Pull</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:16 }}>
+              <Btn onClick={async()=>{
+                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:logOutCard.cardType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+                if (onAdd) await onAdd(entry);
+                setLogOutCard(null);
+              }} variant="green">✅ Log Out</Btn>
+              <Btn onClick={()=>setLogOutCard(null)} variant="ghost">Cancel</Btn>
+            </div>
+          </div>
+        </div>
+      )}
       </>}
     </div>
   );
@@ -2412,6 +2452,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [histSel,    setHistSel]    = useState(new Set());
   const [chaserSearch, setChaserSearch] = useState("");
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
+  const [streamLogBreaker, setStreamLogBreaker] = useState("");
+  const [logOutCard, setLogOutCard] = useState(null); // card being logged out
+  const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"" };
@@ -3085,22 +3128,21 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const commBase=bazNetForComm-repExp, commAmt=commBase*rate;
           return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet-repExp-commAmt+imcExpReimb-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
         }
-        const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
+        const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
+          .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker);
         return (
           <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
-              {streamBulkSel.size > 0 && (
-                <button onClick={()=>{
-                  if(window.confirm(`Delete ${streamBulkSel.size} stream${streamBulkSel.size!==1?"s":""}? Chaser cards will be restored.`)) {
-                    [...streamBulkSel].forEach(id => { if(onDeleteStream) onDeleteStream(id); });
-                    setStreamBulkSel(new Set());
-                  }
-                }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
-                </button>
-              )}
-            </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                {canSeeFinancials && (
+                  <select value={streamLogBreaker} onChange={e=>setStreamLogBreaker(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
+                    <option value="">All Breakers</option>
+                    {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+                {streamBulkSel.size > 0 && (
+                  <button onClick={()=>{\n                    if(window.confirm(`Delete ${streamBulkSel.size} stream${streamBulkSel.size!==1?"s":""}? Chaser cards will be restored.`)) {\n                      [...streamBulkSel].forEach(id => { if(onDeleteStream) onDeleteStream(id); });\n                      setStreamBulkSel(new Set());\n                    }\n                  }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>\n                    🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}\n                  </button>\n                )}\n              </div>\n            </div>
             {myStreams.length === 0
               ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet — save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
@@ -6621,7 +6663,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
