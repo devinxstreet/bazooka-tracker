@@ -5343,9 +5343,16 @@ function BobaShowcase({ uid }) {
   useEffect(() => {
     async function load() {
       try {
-        // 1. Load owned doc first — tiny and fast
-        const ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
-        const ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
+        // 1. Load owned doc — migrate from old shared doc if empty
+        let ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
+        let ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
+        if (Object.keys(ownedData).length === 0 && ownedDocId !== "owned") {
+          const oldSnap = await getDoc(doc(db, "boba_owned", "owned"));
+          if (oldSnap.exists() && Object.keys(oldSnap.data()).length > 0) {
+            ownedData = oldSnap.data();
+            await setDoc(doc(db, "boba_owned", ownedDocId), ownedData);
+          }
+        }
         setOwned(ownedData);
         const ownedIds = Object.keys(ownedData);
         if (ownedIds.length === 0) { setLoading(false); return; }
@@ -5815,6 +5822,16 @@ function BobaChecklist({ userRole, user }) {
   const [deckFilterHero, setDeckFilterHero] = useState("");
   const [deckSaving,     setDeckSaving]     = useState(false);
   const [deckLoadId,     setDeckLoadId]     = useState(null);
+  const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
+  // Playbook state
+  const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
+  const [pbName,         setPbName]         = useState("My Playbook");
+  const [savedPlaybooks, setSavedPlaybooks] = useState([]);
+  const [pbLoadId,       setPbLoadId]       = useState(null);
+  const [pbSearch,       setPbSearch]       = useState("");
+  const [pbOwnedOnly,    setPbOwnedOnly]    = useState(false);
+  const [pbSaving,       setPbSaving]       = useState(false);
+  const PLAY_LIMIT = 30;
   const DECK_SIZE = 60;
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -5844,7 +5861,24 @@ function BobaChecklist({ userRole, user }) {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards:sorted, ts:Date.now() })); } catch(e) {}
     });
     // Owned + imports stay realtime
-    const u2 = onSnapshot(doc(db,"boba_owned",ownedDocId), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
+    const u2 = onSnapshot(doc(db,"boba_owned",ownedDocId), async snap => {
+      if (snap.exists() && Object.keys(snap.data()).length > 0) {
+        setOwned(snap.data());
+      } else if (ownedDocId !== "owned") {
+        // User doc is empty — check if there's data in the old shared "owned" doc to migrate
+        const oldSnap = await getDoc(doc(db,"boba_owned","owned"));
+        if (oldSnap.exists() && Object.keys(oldSnap.data()).length > 0) {
+          const oldData = oldSnap.data();
+          await setDoc(doc(db,"boba_owned",ownedDocId), oldData);
+          setOwned(oldData);
+          console.log(`Migrated ${Object.keys(oldData).length} owned cards to user doc`);
+        } else {
+          setOwned({});
+        }
+      } else {
+        setOwned({});
+      }
+    });
     const uWants = onSnapshot(doc(db,"boba_owned",wantsDocId), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
@@ -5853,7 +5887,11 @@ function BobaChecklist({ userRole, user }) {
       const uid = user?.uid || "shared";
       setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
     });
-    return ()=>{ u2(); u3(); u4(); uWants(); };
+    const u5 = onSnapshot(collection(db,"boba_playbooks"), snap => {
+      const uid = user?.uid || "shared";
+      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
+    });
+    return ()=>{ u2(); u3(); u4(); u5(); uWants(); };
   }, []);
 
   async function saveDeck() {
@@ -5887,6 +5925,41 @@ function BobaChecklist({ userRole, user }) {
     setDeckName("My Deck");
     setDeckCards([]);
     setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
+  }
+
+  async function savePlaybook() {
+    if (!pbName.trim() || pbCards.length === 0) return;
+    setPbSaving(true);
+    const id = pbLoadId || `pb_${Date.now()}`;
+    const plays = pbCards.filter(e=>e.type==="play").length;
+    const bonus = pbCards.filter(e=>e.type==="bonus").length;
+    await setDoc(doc(db,"boba_playbooks",id), {
+      id, userId: user?.uid||"shared", name: pbName.trim(),
+      entries: pbCards, playCount: plays, bonusCount: bonus,
+      savedAt: new Date().toISOString(),
+    }, { merge:true });
+    setPbLoadId(id);
+    setPbSaving(false);
+  }
+
+  async function deletePlaybook(id) {
+    if (!window.confirm("Delete this playbook?")) return;
+    await deleteDoc(doc(db,"boba_playbooks",id));
+    if (pbLoadId === id) { setPbLoadId(null); setPbName("My Playbook"); setPbCards([]); }
+  }
+
+  function loadPlaybook(pb) {
+    setPbLoadId(pb.id);
+    setPbName(pb.name);
+    setPbCards(pb.entries||[]);
+    setPbSearch("");
+  }
+
+  function newPlaybook() {
+    setPbLoadId(null);
+    setPbName("My Playbook");
+    setPbCards([]);
+    setPbSearch("");
   }
 
   async function scanPdfForCards(file, setName, treatment, weapon) {
@@ -6314,7 +6387,7 @@ function BobaChecklist({ userRole, user }) {
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3 }}>
-            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -6949,18 +7022,20 @@ function BobaChecklist({ userRole, user }) {
         });
         const weaponEntries = Object.entries(weaponBreak).sort((a,b)=>b[1]-a[1]);
 
-        // Available cards to add (owned, has image or not, not already in deck)
-        const available = cards.filter(c => {
+        // Card pool: all cards or owned only
+        const cardPool = deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards;
+
+        // Available cards to add (not already in deck, passes filters)
+        const available = cardPool.filter(c => {
           if (deckSet.has(c.id)) return false;
-          if (!ownedSet.has(c.id)) return false;
           if (deckFilterWeap && c.weapon !== deckFilterWeap) return false;
           if (deckFilterHero && c.hero !== deckFilterHero) return false;
           if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
           return true;
         }).sort((a,b) => (parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-        const deckHeroes  = [...new Set(cards.filter(c=>ownedSet.has(c.id)).map(c=>c.hero).filter(Boolean))].sort();
-        const deckWeapons = [...new Set(cards.filter(c=>ownedSet.has(c.id)).map(c=>c.weapon).filter(Boolean))].sort();
+        const deckHeroes  = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
+        const deckWeapons = [...new Set(cardPool.map(c=>c.weapon).filter(Boolean))].sort();
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -7005,6 +7080,16 @@ function BobaChecklist({ userRole, user }) {
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {/* Filters */}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                  {/* Owned only toggle */}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a1a", border:`1px solid ${deckOwnedOnly?"#4ade80":"#2a2a2a"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
+                    onClick={()=>setDeckOwnedOnly(p=>!p)}>
+                    <div style={{ width:28, height:16, borderRadius:8, background:deckOwnedOnly?"#4ade80":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
+                      <div style={{ position:"absolute", top:2, left:deckOwnedOnly?12:2, width:12, height:12, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:deckOwnedOnly?"#4ade80":"#666", whiteSpace:"nowrap" }}>
+                      {deckOwnedOnly?"✅ Owned Only":"All Cards"}
+                    </span>
+                  </div>
                   <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)}
                     placeholder="Search hero, card #, treatment..."
                     style={{ ...S.inp, flex:1, minWidth:160 }}/>
@@ -7039,6 +7124,11 @@ function BobaChecklist({ userRole, user }) {
                             <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
                             {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
                             {c.treatment && <span style={{ fontSize:10, color:"#555" }}>{c.treatment}</span>}
+                            {!deckOwnedOnly && (
+                              <span style={{ fontSize:10, fontWeight:700, color:ownedSet.has(c.id)?"#4ade80":"#333" }}>
+                                {ownedSet.has(c.id)?"✓ owned":"not owned"}
+                              </span>
+                            )}
                           </div>
                         </div>
                         {c.power && <div style={{ fontSize:16, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
@@ -7140,6 +7230,222 @@ function BobaChecklist({ userRole, user }) {
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {viewMode === "playbook" && (() => {
+        const ownedSet  = new Set(Object.keys(owned));
+        const pbEntryIds = new Set(pbCards.map(e=>e.id));
+        const playCount  = pbCards.filter(e=>e.type==="play").length;
+        const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
+        const playFull   = playCount >= PLAY_LIMIT;
+
+        // All Play-treatment cards
+        const allPlays = cards.filter(c => (c.treatment||"").toLowerCase().includes("play") || (c.playAbility||"").trim());
+        const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
+        const available = pbPool.filter(c => {
+          if (pbEntryIds.has(c.id)) return false;
+          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
+          return true;
+        }).sort((a,b)=>(a.hero||"").localeCompare(b.hero||""));
+
+        // Cards currently in playbook (resolved)
+        const pbResolved = pbCards.map(e => ({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card);
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+            {/* Header */}
+            <div style={{ ...S.card, padding:"12px 16px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <input value={pbName} onChange={e=>setPbName(e.target.value)}
+                  style={{ ...S.inp, fontSize:15, fontWeight:800, flex:1, minWidth:180 }}
+                  placeholder="Playbook name..."/>
+                <span style={{ fontSize:12, fontWeight:700 }}>
+                  <span style={{ color:playFull?"#E8317A":"#4ade80" }}>{playCount}/{PLAY_LIMIT}</span>
+                  <span style={{ color:"#555" }}> plays</span>
+                  {bonusCount > 0 && <span style={{ color:"#7B9CFF" }}> · {bonusCount} BPL</span>}
+                </span>
+                <button onClick={savePlaybook} disabled={pbSaving||pbCards.length===0}
+                  style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {pbSaving?"Saving...":"💾 Save Playbook"}
+                </button>
+                <button onClick={newPlaybook}
+                  style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  + New
+                </button>
+              </div>
+
+              {/* Saved playbooks */}
+              {savedPlaybooks.length > 0 && (
+                <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {savedPlaybooks.map(pb=>(
+                    <div key={pb.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===pb.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===pb.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+                      <button onClick={()=>loadPlaybook(pb)} style={{ background:"none", border:"none", color:pbLoadId===pb.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        {pb.name} <span style={{ color:"#555", fontWeight:400 }}>({pb.playCount}P{pb.bonusCount>0?` +${pb.bonusCount}B`:""})</span>
+                      </button>
+                      <button onClick={()=>deletePlaybook(pb.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 360px", gap:14, alignItems:"start" }}>
+
+              {/* LEFT: Play card picker */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                  {/* Owned toggle */}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a1a", border:`1px solid ${pbOwnedOnly?"#4ade80":"#2a2a2a"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
+                    onClick={()=>setPbOwnedOnly(p=>!p)}>
+                    <div style={{ width:28, height:16, borderRadius:8, background:pbOwnedOnly?"#4ade80":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
+                      <div style={{ position:"absolute", top:2, left:pbOwnedOnly?12:2, width:12, height:12, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:pbOwnedOnly?"#4ade80":"#666", whiteSpace:"nowrap" }}>
+                      {pbOwnedOnly?"✅ Owned Only":"All Cards"}
+                    </span>
+                  </div>
+                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)}
+                    placeholder="Search hero, play ability..."
+                    style={{ ...S.inp, flex:1 }}/>
+                  <span style={{ fontSize:11, color:"#555" }}>{available.length} plays available</span>
+                </div>
+
+                <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
+                  {available.length === 0 ? (
+                    <div style={{ padding:"32px", textAlign:"center", color:"#333", fontSize:13 }}>
+                      {allPlays.length === 0 ? "No Play cards found — make sure your CSV has a Treatment or Play Ability column" : "No cards match your search"}
+                    </div>
+                  ) : available.map((c,i) => {
+                    const isOwned = ownedSet.has(c.id);
+                    const wc = WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px" }}>
+                          {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0, opacity:isOwned?1:0.4 }}/>}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+                              <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</span>
+                              {!pbOwnedOnly && <span style={{ fontSize:10, fontWeight:700, color:isOwned?"#4ade80":"#333" }}>{isOwned?"✓":"—"}</span>}
+                            </div>
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:c.playAbility?4:0 }}>
+                              <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                              {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
+                              {c.treatment && <span style={{ fontSize:10, color:"#7B9CFF" }}>{c.treatment}</span>}
+                            </div>
+                            {c.playAbility && <div style={{ fontSize:10, color:"#888", lineHeight:1.4, fontStyle:"italic" }}>{c.playAbility}</div>}
+                            {c.playCost && <div style={{ fontSize:10, color:"#FBBF24", marginTop:2 }}>Cost: {c.playCost}</div>}
+                          </div>
+                          <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                            <button onClick={()=>{ if(!playFull) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
+                              disabled={playFull}
+                              style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:playFull?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:playFull?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                              + Play
+                            </button>
+                            <button onClick={()=>setPbCards(p=>[...p,{id:c.id,type:"bonus"}])}
+                              style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                              + BPL
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RIGHT: Playbook */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+
+                {/* Stats */}
+                <div style={{ ...S.card }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>📖 Playbook</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    {[
+                      { l:"Plays", v:`${playCount}/${PLAY_LIMIT}`, c:playFull?"#E8317A":"#4ade80" },
+                      { l:"Bonus Plays", v:bonusCount, c:"#7B9CFF" },
+                    ].map(({l,v,c})=>(
+                      <div key={l} style={{ background:"#111", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                        <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                        <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Play slots bar */}
+                  <div style={{ marginTop:10 }}>
+                    <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ width:`${Math.min(playCount/PLAY_LIMIT*100,100)}%`, height:"100%", borderRadius:3, background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)", transition:"width 0.3s" }}/>
+                    </div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:4 }}>{PLAY_LIMIT-playCount} play slots remaining</div>
+                  </div>
+                </div>
+
+                {/* Plays list */}
+                {pbResolved.length > 0 ? (
+                  <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+                    {/* Plays */}
+                    {pbResolved.filter(e=>e.type==="play").length > 0 && (
+                      <div>
+                        <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>
+                          ⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})
+                        </div>
+                        {pbResolved.filter(e=>e.type==="play").map((e,i) => {
+                          const c = e.card;
+                          const wc = WEAPON_COLORS[c.weapon]||"#444";
+                          return (
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}>
+                              <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>
+                              {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
+                              </div>
+                              <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
+                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Bonus plays */}
+                    {pbResolved.filter(e=>e.type==="bonus").length > 0 && (
+                      <div>
+                        <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>
+                          ⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})
+                        </div>
+                        {pbResolved.filter(e=>e.type==="bonus").map((e,i) => {
+                          const c = e.card;
+                          return (
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}>
+                              <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>B{i+1}</div>
+                              {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
+                              </div>
+                              <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
+                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{ padding:"10px 14px" }}>
+                      <button onClick={()=>{ if(window.confirm("Clear entire playbook?")) setPbCards([]); }}
+                        style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+                        ✕ Clear Playbook
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ ...S.card, textAlign:"center", color:"#333", padding:32, fontSize:13 }}>
+                    Add plays from the left panel.<br/>Max {PLAY_LIMIT} plays + unlimited BPL.
+                  </div>
+                )}
               </div>
             </div>
           </div>
