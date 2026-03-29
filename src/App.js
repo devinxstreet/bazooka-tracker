@@ -342,7 +342,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
     const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commBase=bazNetForComm-repExp, commAmt=commBase*rate;
-    return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, totalExp, bazTrueNet:bazNet-commAmt+imcExpReimb-repExp, rate };
+    return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, totalExp, collabAmt:bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0), bazTrueNet:bazNet-commAmt+imcExpReimb-repExp-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
   }
 
   return (
@@ -488,7 +488,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
           const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt  = commBase * rate;
-          return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
+          const collabAmt = bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
+          return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb - collabAmt };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -3063,7 +3064,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commBase=bazNetForComm-repExp, commAmt=commBase*rate;
-          return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, bazTrueNet: bazNet-repExp-commAmt+imcExpReimb, rate };
+          return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet-repExp-commAmt+imcExpReimb-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
         }
         const myStreams = canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker);
         return (
@@ -4337,7 +4338,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const commBase = bazNetForComm - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
+    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet - repExp - commAmt + imcExpReimb - bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0) };
   }
 
   // Admins see all streams; streamers see only their own
@@ -4661,7 +4662,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
               const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
               const commAmt=(bazNetForComm-repExp)*rate;
-              const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb;
+              const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0); const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb-collabAmt;
               return { gross, totalExp, netRev, bazNet, bazNetForComm, repExp, imcExpReimb, commAmt, bazTrueNet, rate };
             }
 
