@@ -1026,8 +1026,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
-      const cardName = r.name === "__new__" ? (r._newName||"").trim() : r.name;
-      if (!cardName) return;
+      const cardName = r.name === "__new__" ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
       const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
       for (let i=0; i<qty; i++) {
         cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
@@ -1490,18 +1489,22 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                           {POOL_TYPES.includes(r.cardType) ? (
-                            // Pool type — show dropdown of existing pools + option to type new
-                            <select
-                              value={r.name}
-                              onChange={e=>{ upd(r.id,"name",e.target.value); }}
-                              style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
-                            >
-                              <option value="">— Select Pool —</option>
-                              {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                              ))}
-                              <option value="__new__">+ New pool...</option>
-                            </select>
+                            // Pool type — show dropdown if pools exist, otherwise free text
+                            cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
+                              <select
+                                value={r.name}
+                                onChange={e=>upd(r.id,"name",e.target.value)}
+                                style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
+                              >
+                                <option value="">— Select Pool —</option>
+                                {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                  <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                                ))}
+                                <option value="__new__">+ Type new name...</option>
+                              </select>
+                            ) : (
+                              <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                            )
                           ) : (
                             // Individual type — free text input
                             <>
@@ -1658,161 +1661,6 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
 
 // ─── CARD POOL GLOBALS ───────────────────────────────────────
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
-
-function CardPoolsSection({ cardPools=[], onSavePool, onDeletePool, onRestorePoolQty, userRole, canSeeFinancials }) {
-  const canEdit = ["Admin","Procurement"].includes(userRole?.role);
-  const [showForm,   setShowForm]   = useState(false);
-  const [editId,     setEditId]     = useState(null);
-  const [restoreId,  setRestoreId]  = useState(null);
-  const [restoreQty, setRestoreQty] = useState("");
-  const [filterType, setFilterType] = useState("");
-  const [form, setForm] = useState({ cardName:"", cardType:"Giveaway", parallel:"Base", totalQty:"", costPerCard:"", marketValue:"" });
-
-  const EMPTY = { cardName:"", cardType:"Giveaway", parallel:"Base", totalQty:"", costPerCard:"", marketValue:"" };
-
-  function startEdit(p) {
-    setForm({ cardName:p.cardName, cardType:p.cardType, parallel:p.parallel||"Base", totalQty:String(p.totalQty||0), costPerCard:String(p.costPerCard||0), marketValue:String(p.marketValue||0) });
-    setEditId(p.id);
-    setShowForm(true);
-  }
-
-  async function handleSubmit() {
-    if (!form.cardName.trim()) return;
-    const qty = parseInt(form.totalQty)||0;
-    const cost = parseFloat(form.costPerCard)||0;
-    const mv = parseFloat(form.marketValue)||0;
-    await onSavePool({
-      id: editId||undefined,
-      cardName: form.cardName.trim(),
-      cardType: form.cardType,
-      parallel: form.parallel,
-      totalQty: qty,
-      usedQty: editId ? (cardPools.find(p=>p.id===editId)?.usedQty||0) : 0,
-      totalInvested: cost * qty,
-      costPerCard: cost,
-      marketValue: mv,
-    });
-    setForm(EMPTY); setEditId(null); setShowForm(false);
-  }
-
-  const filtered = filterType ? cardPools.filter(p=>p.cardType===filterType) : cardPools;
-  const totalCards = cardPools.reduce((s,p)=>s+(p.totalQty||0),0);
-  const totalAvail = cardPools.reduce((s,p)=>s+((p.totalQty||0)-(p.usedQty||0)),0);
-  const totalUsed  = cardPools.reduce((s,p)=>s+(p.usedQty||0),0);
-
-  if (cardPools.length === 0 && !showForm) return (
-    <div style={{ ...S.card, textAlign:"center", padding:"32px 20px", marginBottom:14 }}>
-      <div style={{ fontSize:28, marginBottom:10 }}>🃏</div>
-      <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>No Card Pools Yet</div>
-      <div style={{ fontSize:12, color:"#666", marginBottom:16 }}>Pools let you track bulk cards (e.g. 200 Silver Battlefoils) as a single quantity instead of individual records.</div>
-      {canEdit && <Btn onClick={()=>setShowForm(true)} variant="ghost">+ Create First Pool</Btn>}
-    </div>
-  );
-
-  return (
-    <div style={{ marginBottom:14 }}>
-      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ padding:"14px 20px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <SectionLabel t="🃏 Card Pools" />
-            <div style={{ display:"flex", gap:12, fontSize:12 }}>
-              <span style={{ color:"#F0F0F0", fontWeight:700 }}>{totalCards} total</span>
-              <span style={{ color:"#4ade80", fontWeight:700 }}>{totalAvail} avail</span>
-              <span style={{ color:"#E8317A", fontWeight:700 }}>{totalUsed} used</span>
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            {POOL_TYPES.map(t=>(
-              <button key={t} onClick={()=>setFilterType(filterType===t?"":t)} style={{ background:filterType===t?"#1A1A2E":"transparent", color:filterType===t?"#E8317A":"#888", border:`1.5px solid ${filterType===t?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t}</button>
-            ))}
-            {canEdit && <Btn onClick={()=>{ setForm(EMPTY); setEditId(null); setShowForm(p=>!p); }} variant="ghost">{showForm?"▲ Cancel":"+ Add Pool"}</Btn>}
-          </div>
-        </div>
-
-        {/* Add/Edit form */}
-        {showForm && (
-          <div style={{ padding:"14px 20px", borderTop:"1px solid #222", background:"#0d0d0d" }}>
-            <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto", gap:10, alignItems:"end" }}>
-              <div>
-                <label style={S.lbl}>Card Name</label>
-                <input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="e.g. Silver Battlefoil" style={S.inp}/>
-              </div>
-              <div>
-                <label style={S.lbl}>Type</label>
-                <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                  {POOL_TYPES.map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Parallel/Insert</label>
-                <select value={form.parallel} onChange={e=>setForm(p=>({...p,parallel:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                  {DEFAULT_PARALLELS.map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Qty</label>
-                <input type="number" min="0" value={form.totalQty} onChange={e=>setForm(p=>({...p,totalQty:e.target.value}))} placeholder="0" style={S.inp}/>
-              </div>
-              <div>
-                <label style={S.lbl}>Cost/Card ($)</label>
-                <input type="number" min="0" step="0.01" value={form.costPerCard} onChange={e=>setForm(p=>({...p,costPerCard:e.target.value}))} placeholder="0.00" style={S.inp}/>
-              </div>
-              <Btn onClick={handleSubmit} disabled={!form.cardName.trim()||!form.totalQty} variant="green">{editId?"✅ Update":"✅ Save"}</Btn>
-            </div>
-          </div>
-        )}
-
-        {/* Pool table */}
-        {filtered.length > 0 && (
-          <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr>
-              {["Card Name","Type","Parallel","Total","Used","Available","Cost/Card",""].map(h=><th key={h} style={S.th}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {filtered.map((p,i) => {
-                const avail = (p.totalQty||0) - (p.usedQty||0);
-                const pct = p.totalQty > 0 ? avail/p.totalQty : 1;
-                const ac = pct > 0.5 ? "#4ade80" : pct > 0.2 ? "#FBBF24" : "#E8317A";
-                return (
-                  <tr key={p.id} style={{ background:i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
-                    <td style={{ ...S.td, fontWeight:700, color:"#F0F0F0" }}>{p.cardName}</td>
-                    <td style={S.td}><span style={{ background:CC[p.cardType+"s"]?.bg||CC[p.cardType+" Cards"]?.bg||"#1a1a1a", color:CC[p.cardType+"s"]?.text||CC[p.cardType+" Cards"]?.text||"#888", borderRadius:4, padding:"2px 7px", fontSize:10, fontWeight:700 }}>{p.cardType}</span></td>
-                    <td style={{ ...S.td, color:"#888" }}>{p.parallel||"Base"}</td>
-                    <td style={{ ...S.td, textAlign:"center", fontWeight:700, color:"#F0F0F0" }}>{p.totalQty||0}</td>
-                    <td style={{ ...S.td, textAlign:"center", color:p.usedQty>0?"#E8317A":"#333" }}>{p.usedQty||0}</td>
-                    <td style={{ ...S.td, textAlign:"center", fontWeight:900, color:ac, fontSize:15 }}>{avail}</td>
-                    {canSeeFinancials
-                      ? <td style={{ ...S.td, color:"#888" }}>${(p.costPerCard||0).toFixed(2)}</td>
-                      : <td style={S.td}>—</td>
-                    }
-                    <td style={{ ...S.td }}>
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        {restoreId===p.id
-                          ? <>
-                              <input type="number" min="1" max={p.usedQty||0} value={restoreQty} onChange={e=>setRestoreQty(e.target.value)} placeholder="qty" style={{ ...S.inp, width:60, padding:"2px 6px", fontSize:11 }}/>
-                              <button onClick={()=>{ if(onRestorePoolQty&&restoreQty) { onRestorePoolQty(p.id,parseInt(restoreQty)); setRestoreId(null); setRestoreQty(""); }}} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>↩</button>
-                              <button onClick={()=>setRestoreId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer" }}>✕</button>
-                            </>
-                          : <>
-                              {canEdit && <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>}
-                              {(p.usedQty||0) > 0 && <button onClick={()=>{ setRestoreId(p.id); setRestoreQty(""); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>↩ Restore</button>}
-                              {canEdit && <button onClick={()=>{ if(window.confirm(`Delete ${p.cardName} pool?`)) onDeletePool(p.id); }} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>}
-                            </>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
 
 // ─── CARD POOLS ──────────────────────────────────────────────
 function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials }) {
@@ -2432,7 +2280,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], onLogPoolUsage, imcFormUrl="", onSaveImcFormUrl }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -4139,7 +3987,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], onLogPoolUsage, imcFormUrl="", onSaveImcFormUrl }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -4164,7 +4012,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
       </div>
 
       {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl}/>}
-      {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools} onLogPoolUsage={onLogPoolUsage}/>}
+      {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
     </div>
@@ -6047,30 +5895,6 @@ export default function App() {
     await setDoc(doc(db,"card_pools",poolId), { totalQty:newTotal, updatedAt:new Date().toISOString() }, { merge:true });
     showToast("✅ Added " + qty + " cards to " + pool.cardName + " pool");
   }
-  async function handleUpsertPool(cardName, cardType, parallel, qty, costPerCard, marketValue) {
-    const existing = cardPools.find(p => p.cardName === cardName && (p.parallel||"") === (parallel||""));
-    if (existing) {
-      const newQty = (existing.totalQty||0) + qty;
-      const newInvested = (existing.totalInvested||0) + (costPerCard * qty);
-      const newAvgCost = newQty > 0 ? newInvested / newQty : 0;
-      await setDoc(doc(db,"card_pools",existing.id), { totalQty:newQty, totalInvested:newInvested, costPerCard:newAvgCost, marketValue, updatedAt:new Date().toISOString() }, { merge:true });
-      showToast(`Added ${qty} to ${cardName} pool`);
-    } else {
-      const id = uid();
-      await setDoc(doc(db,"card_pools",id), { id, cardName, cardType, parallel:parallel||"", totalQty:qty, usedQty:0, totalInvested:costPerCard*qty, costPerCard, marketValue, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
-      showToast(`Created pool: ${cardName}${parallel?" · "+parallel:""} (${qty} cards)`);
-    }
-  }
-  async function handleLogPoolUsage(poolId, qty, breaker, date, usage) {
-    const pool = cardPools.find(p => p.id === poolId);
-    if (!pool) return;
-    if ((pool.usedQty||0) + qty > pool.totalQty) { showToast("Not enough cards in pool"); return; }
-    const newUsed = (pool.usedQty||0) + qty;
-    await setDoc(doc(db,"card_pools",poolId), { usedQty:newUsed, updatedAt:new Date().toISOString() }, { merge:true });
-    const bid = uid();
-    await setDoc(doc(db,"breaks",bid), { id:bid, poolId, poolName:pool.cardName, parallel:pool.parallel, cardType:pool.cardType, qty, breaker, date, usage:usage||"Giveaway", isPool:true, dateAdded:new Date().toISOString() });
-    showToast(`Logged ${qty}× ${pool.cardName} from pool`);
-  }
   async function handleSavePool(pool) {
     const id = pool.id || uid();
     await setDoc(doc(db,"card_pools",id), { ...pool, id, updatedAt:new Date().toISOString() }, { merge:true });
@@ -6079,12 +5903,6 @@ export default function App() {
   async function handleDeletePool(poolId) {
     await deleteDoc(doc(db,"card_pools",poolId));
     showToast("Pool deleted");
-  }
-  async function handleRestorePoolQty(poolId, qty) {
-    const pool = cardPools.find(p => p.id === poolId);
-    if (!pool) return;
-    await setDoc(doc(db,"card_pools",poolId), { usedQty:Math.max(0,(pool.usedQty||0)-qty), updatedAt:new Date().toISOString() }, { merge:true });
-    showToast(`Restored ${qty} cards to pool`);
   }
 
   async function handleDeleteLot(lotKey, cardIds) {
@@ -6270,9 +6088,9 @@ export default function App() {
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
-        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onUpsertPool={handleUpsertPool}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} onLogPoolUsage={handleLogPoolUsage} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
