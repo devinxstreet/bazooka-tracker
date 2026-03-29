@@ -7282,6 +7282,21 @@ function BobaChecklist({ userRole }) {
           .map(([w,s]) => ({ w, ...s, pct:Math.round(s.owned/s.total*100) }))
           .sort((a,b) => b.pct-a.pct);
 
+        // Per-set weapon stats (built separately so we can filter)
+        const [weaponSetFilter, setWeaponSetFilter] = React.useState("");
+        const weaponFilteredCards = weaponSetFilter ? cards.filter(c => c.setName === weaponSetFilter) : cards;
+        const byWeaponFiltered = {};
+        weaponFilteredCards.forEach(c => {
+          const w = c.weapon || "Unknown";
+          if(!byWeaponFiltered[w]) byWeaponFiltered[w] = { total:0, owned:0 };
+          byWeaponFiltered[w].total++;
+          if(owned[c.id]) byWeaponFiltered[w].owned++;
+        });
+        const weaponStatsFiltered = Object.entries(byWeaponFiltered)
+          .map(([w,s]) => ({ w, ...s, pct:Math.round(s.owned/s.total*100) }))
+          .sort((a,b) => b.pct-a.pct);
+        const availSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+
         // Heroes with zero cards
         const heroZero = [...new Set(cards.map(c=>c.hero))].filter(h => !cards.some(c=>c.hero===h && owned[c.id])).length;
         // Heroes complete
@@ -7329,9 +7344,17 @@ function BobaChecklist({ userRole }) {
 
             {/* Completion by Weapon */}
             <div style={{ ...S.card }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>Completion by Weapon</div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>Completion by Weapon</div>
+                {availSets.length > 1 && (
+                  <select value={weaponSetFilter} onChange={e=>setWeaponSetFilter(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
+                    <option value="">All Sets</option>
+                    {availSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+              </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
-                {weaponStats.map(({w,total,owned:o,pct:p})=>{
+                {weaponStatsFiltered.map(({w,total,owned:o,pct:p})=>{
                   const wc = WEAPON_COLORS[w]||"#444";
                   return (
                     <div key={w} style={{ background:"#0a0a0a", borderRadius:8, padding:"10px 12px" }}>
@@ -7342,6 +7365,7 @@ function BobaChecklist({ userRole }) {
                       <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
                         <div style={{ width:`${p}%`, height:"100%", background:wc, borderRadius:2 }}/>
                       </div>
+                      <div style={{ fontSize:10, color:"#555", marginTop:4, textAlign:"right" }}>{p}%</div>
                     </div>
                   );
                 })}
