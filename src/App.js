@@ -2820,7 +2820,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ].filter(Boolean).join(", ") || "None";
             const formDate = date ? new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : "";
             const params = new URLSearchParams({
-              [`entry.546325134`]:  breaker,
+              [`entry.546325134`]:  "Bazooka Vault",
               [`entry.53983190`]:   formDate,
               [`entry.1397101824`]: hobby||"0",
               [`entry.473640875`]:  jumbo||"0",
@@ -2829,9 +2829,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               [`entry.1550026312`]: (parseFloat(recap.grossRevenue)||0).toFixed(2),
               [`entry.1898010524`]: (parseFloat(recap.whatnotFees)||0).toFixed(2),
               [`entry.2063681927`]: streamExpenses,
-              [`entry.1117405477`]: breaker,
+              [`entry.1117405477`]: "Devin Street",
             });
-            const imcUrl = `${formBase}?usp=pp_url&${params.toString()}`;
+            const imcUrl = `${formBase}?usp=pp_url&entry.emailAddress=devin%40bazookabreaks.com&${params.toString()}`;
             return (
               <a href={imcUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#1a0a0f", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
                 📋 Submit to IMC ↗
