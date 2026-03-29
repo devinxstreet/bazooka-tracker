@@ -6389,6 +6389,7 @@ function BobaChecklist({ userRole }) {
   const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
+  const [treatOwnedFilter, setTreatOwnedFilter] = useState("all"); // all | owned | missing
   const [sortBy,           setSortBy]           = useState("cardNum");
   const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
@@ -7081,15 +7082,20 @@ function BobaChecklist({ userRole }) {
                     {/* Expanded — fan out all cards */}
                     {isExpanded && (
                       <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
+                        <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+                          {[["all","All"],["owned","✅ Have"],["missing","❌ Missing"]].map(([v,l])=>(
+                            <button key={v} onClick={e=>{ e.stopPropagation(); setTreatOwnedFilter(v); }} style={{ background:treatOwnedFilter===v?"#1A1A2E":"transparent", color:treatOwnedFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                          ))}
+                        </div>
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
-                          {heroCardList.map(c => {
+                          {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => {
                             const isOwned = !!owned[c.id];
                             return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
                           })}
                         </div>
                         {/* Toggle all for hero */}
                         <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
                           <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
                         </div>
                       </div>
@@ -7122,9 +7128,18 @@ function BobaChecklist({ userRole }) {
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            <div style={{ fontSize:11, color:"#555", paddingLeft:2 }}>{treatmentList.length} treatments · respects active filters</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:"#555" }}>{treatmentList.length} treatments · respects active filters</span>
+              <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
+                {[["all","All"],["owned","✅ Have"],["missing","❌ Missing"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setTreatOwnedFilter(v)} style={{ background:treatOwnedFilter===v?"#1A1A2E":"transparent", color:treatOwnedFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                ))}
+              </div>
+            </div>
             {treatmentList.map(({ treatment, tcards, ownedCount, pct, complete }) => {
               const isExp = expandedTreat === treatment;
+              // Filter expanded cards by owned status
+              const visibleTcards = treatOwnedFilter === "owned" ? tcards.filter(c=>owned[c.id]) : treatOwnedFilter === "missing" ? tcards.filter(c=>!owned[c.id]) : tcards;
               return (
                 <div key={treatment} style={{ background:"#111111", border:`1.5px solid ${complete?"#ffffff22":pct>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
                   {/* Treatment header row */}
@@ -7153,7 +7168,7 @@ function BobaChecklist({ userRole }) {
                   {isExp && (
                     <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
-                        {tcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
+                        {visibleTcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
                           return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
                         })}
