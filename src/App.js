@@ -2305,7 +2305,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -2331,7 +2331,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", ...prodFields });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -2488,8 +2488,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     const couponIdx = getIdx("coupon_price");
                     const cancelIdx = getIdx("cancelled_or_failed");
                     const dateIdx   = getIdx("placed_at");
+                    const titleIdx  = getIdx("product_description") !== -1 ? getIdx("product_description") : getIdx("product_name") !== -1 ? getIdx("product_name") : getIdx("listing_title");
                     if (origIdx === -1) { alert("Couldn't find original_item_price column. Make sure this is a Whatnot live sales CSV."); return; }
-                    let gross=0, coupons=0, streamDate="", skipped=0;
+                    let gross=0, coupons=0, zionGross=0, streamDate="", skipped=0;
                     for (let i=1; i<lines.length; i++) {
                       const cols=[]; let cur="", inQuote=false;
                       for (const ch of lines[i]) {
@@ -2499,15 +2500,23 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       }
                       cols.push(cur.trim());
                       if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
-                      gross   += (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
-                      coupons += parseFloat(cols[couponIdx]||0)||0;
+                      const itemTitle = titleIdx !== -1 ? (cols[titleIdx]||"") : "";
+                      const isZion = itemTitle.toLowerCase().includes("zion");
+                      const rowGross = (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
+                      const rowCoupon = parseFloat(cols[couponIdx]||0)||0;
+                      if (isZion) {
+                        zionGross += rowGross;
+                      } else {
+                        gross   += rowGross;
+                        coupons += rowCoupon;
+                      }
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
-                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons }));
+                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
                     if (streamDate) { csvJustLoaded.current = true; setDate(streamDate); }
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)} (autofilled)`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
-                    setTimeout(()=>setCsvMsg(null), 6000);
+                    setCsvMsg({ type:"success", text:`✅ Imported! IMC Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (Bazooka-only): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
+                    setTimeout(()=>setCsvMsg(null), 8000);
 
                     // Parse buyers for CRM
                     if (onUpsertBuyers) {
@@ -2606,16 +2615,25 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Financials */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
           {[
-            ["grossRevenue",      "Gross Revenue ($)",       "#166534", false],
-            ["whatnotFees",       "Whatnot Fees ($)",        "#991b1b", false],
-            ["coupons",           "Coupons ($)",             "#991b1b", false],
-            ["whatnotPromo",      "Whatnot Promo ($)",       "#991b1b", false],
+            ["grossRevenue",      "Gross Revenue ($) — IMC",  "#166534", false],
+            ["whatnotFees",       "Whatnot Fees ($)",          "#991b1b", false],
+            ["coupons",           "Coupons ($)",               "#991b1b", false],
+            ["whatnotPromo",      "Whatnot Promo ($)",         "#991b1b", false],
           ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
             <div key={key}>
               <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
               <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
             </div>
           ))}
+        </div>
+        {/* Zion Cases Revenue — Bazooka only */}
+        <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ flex:1 }}>
+            <label style={{ ...S.lbl, color:"#4ade80", margin:0 }}>🟢 Zion Cases Revenue ($) — Bazooka Only</label>
+            <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-filled from CSV · Not included in IMC split</div>
+          </div>
+          <input type="number" step="0.01" value={recap.zionRevenue||""} onChange={e=>rf("zionRevenue")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:120, color:"#4ade80", fontWeight:700 }}/>
+        </div>
           {/* Chaser Cards — picker + manual override */}
           <div style={{ gridColumn:"span 4", background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -2773,9 +2791,22 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 1: top-level split */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                   {[
-                    { l:"Gross Revenue",         v:fmt(rc.gross),   c:"#F0F0F0" },
+                    { l:"Gross Revenue (IMC)",      v:fmt(rc.gross),   c:"#F0F0F0" },
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
+                  ].map(({l,v,c}) => (
+                    <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px", border:"1px solid #2a2a2a" }}>
+                      <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+                      <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                {parseFloat(recap.zionRevenue||0) > 0 && (
+                  <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>🟢 Zion Cases — Bazooka Only</span>
+                    <span style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt(parseFloat(recap.zionRevenue||0))}</span>
+                  </div>
+                )}
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px", border:"1px solid #2a2a2a" }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
