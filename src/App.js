@@ -5343,16 +5343,9 @@ function BobaShowcase({ uid }) {
   useEffect(() => {
     async function load() {
       try {
-        // 1. Load owned doc — migrate from old shared doc if empty
-        let ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
-        let ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
-        if (Object.keys(ownedData).length === 0 && ownedDocId !== "owned") {
-          const oldSnap = await getDoc(doc(db, "boba_owned", "owned"));
-          if (oldSnap.exists() && Object.keys(oldSnap.data()).length > 0) {
-            ownedData = oldSnap.data();
-            await setDoc(doc(db, "boba_owned", ownedDocId), ownedData);
-          }
-        }
+        // 1. Load owned doc
+        const ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
+        const ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
         setOwned(ownedData);
         const ownedIds = Object.keys(ownedData);
         if (ownedIds.length === 0) { setLoading(false); return; }
@@ -5862,23 +5855,8 @@ function BobaChecklist({ userRole, user }) {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards:sorted, ts:Date.now() })); } catch(e) {}
     });
     // Owned + imports stay realtime
-    const u2 = onSnapshot(doc(db,"boba_owned",ownedDocId), async snap => {
-      if (snap.exists() && Object.keys(snap.data()).length > 0) {
-        setOwned(snap.data());
-      } else if (ownedDocId !== "owned") {
-        // User doc is empty — check if there's data in the old shared "owned" doc to migrate
-        const oldSnap = await getDoc(doc(db,"boba_owned","owned"));
-        if (oldSnap.exists() && Object.keys(oldSnap.data()).length > 0) {
-          const oldData = oldSnap.data();
-          await setDoc(doc(db,"boba_owned",ownedDocId), oldData);
-          setOwned(oldData);
-          console.log(`Migrated ${Object.keys(oldData).length} owned cards to user doc`);
-        } else {
-          setOwned({});
-        }
-      } else {
-        setOwned({});
-      }
+    const u2 = onSnapshot(doc(db,"boba_owned",ownedDocId), snap => {
+      if (snap.exists()) setOwned(snap.data()); else setOwned({});
     });
     const uWants = onSnapshot(doc(db,"boba_owned",wantsDocId), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
@@ -6399,6 +6377,22 @@ function BobaChecklist({ userRole, user }) {
                 📂 Import Cards
                 <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
               </label>
+            )}
+            {isAdmin && totalOwned === 0 && (
+              <button onClick={async()=>{
+                if (!window.confirm("Copy your collection from the old shared doc to your personal account?")) return;
+                const oldSnap = await getDoc(doc(db,"boba_owned","owned"));
+                if (oldSnap.exists() && Object.keys(oldSnap.data()).length > 0) {
+                  const data = oldSnap.data();
+                  await setDoc(doc(db,"boba_owned",ownedDocId), data);
+                  setOwned(data);
+                  alert(`✅ Imported ${Object.keys(data).length} cards to your account!`);
+                } else {
+                  alert("No data found in the shared collection.");
+                }
+              }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                ↑ Restore My Collection
+              </button>
             )}
             <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               📥 Collection
