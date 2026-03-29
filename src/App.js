@@ -4398,16 +4398,21 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         {/* Commission calc */}
         <div style={{ ...S.card, border:"2px solid #166534" }}>
           <SectionLabel t={`${s.breaker}'s Commission`} />
-          <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:16 }}>
             {[
-              { l:"Bazooka Earnings",               v:fmt(c.bazNet),         c:"#E8317A" },
-              { l:"Rep Expenses (13.5%)",           v:"− "+fmt(c.repExp),    c:"#991b1b" },
-              ...(isAdmin ? [{ l:"IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0), c:"#166534" }] : []),
-              { l:"Commission Base",                v:fmt(c.commBase),       c:"#1B4F8A" },
-              { l:`Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280" },
-            ].map(({l,v,c:clr}) => (
-              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #333333" }}>
-                <span style={{ fontSize:13, color:"#AAAAAA" }}>{l}</span>
+              { l:"Gross Revenue",                        v:fmt(c.gross),                          c:"#F0F0F0", indent:false },
+              { l:`− Whatnot Fees`,                       v:"− "+fmt(parseFloat(s.whatnotFees)||0), c:"#666",    indent:true  },
+              { l:`− Coupons`,                            v:"− "+fmt(parseFloat(s.coupons)||0),     c:"#666",    indent:true  },
+              { l:`− Stream Expenses`,                    v:"− "+fmt(parseFloat(s.whatnotPromo||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)), c:"#666", indent:true },
+              { l:"= Net Revenue",                        v:fmt(c.netRev),                          c:"#F0F0F0", indent:false, bold:true },
+              { l:"× 30% (Bazooka Share)",                v:fmt(c.bazNet),                          c:"#E8317A", indent:true  },
+              { l:`− Your Expenses (13.5% of stream costs)`, v:"− "+fmt(c.repExp),                 c:"#991b1b", indent:true  },
+              ...(isAdmin ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0),        c:"#166534", indent:true  }] : []),
+              { l:"= Commission Base",                    v:fmt(c.bazNet - c.repExp),               c:"#7B9CFF", indent:false, bold:true },
+              { l:`× Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
+            ].map(({l,v,c:clr,indent,bold}) => (
+              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
+                <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
                 <span style={{ fontSize:13, fontWeight:700, color:clr }}>{v}</span>
               </div>
             ))}
