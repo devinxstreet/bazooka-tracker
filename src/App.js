@@ -5823,6 +5823,7 @@ function BobaChecklist({ userRole, user }) {
   const [deckSaving,     setDeckSaving]     = useState(false);
   const [deckLoadId,     setDeckLoadId]     = useState(null);
   const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
+  const [deckSlotSort,   setDeckSlotSort]   = useState("added"); // added | power | name | weapon
   // Playbook state
   const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
   const [pbName,         setPbName]         = useState("My Playbook");
@@ -7197,12 +7198,28 @@ function BobaChecklist({ userRole, user }) {
 
                 {/* 60-slot grid */}
                 <div style={{ ...S.card }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>
-                    Deck Slots — {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+                    <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>
+                      Deck Slots — {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
+                    </div>
+                    <select value={deckSlotSort} onChange={e=>setDeckSlotSort(e.target.value)}
+                      style={{ ...S.inp, width:"auto", fontSize:10, padding:"3px 8px", cursor:"pointer" }}>
+                      <option value="added">Order Added</option>
+                      <option value="power">Power ↓</option>
+                      <option value="name">Name A→Z</option>
+                      <option value="weapon">Weapon</option>
+                    </select>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
-                    {Array.from({ length: DECK_SIZE }).map((_,i) => {
-                      const c = inDeck[i];
+                    {(() => {
+                      const sorted = [...inDeck].sort((a,b) => {
+                        if (deckSlotSort === "power")  return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+                        if (deckSlotSort === "name")   return (a.hero||"").localeCompare(b.hero||"");
+                        if (deckSlotSort === "weapon") return (a.weapon||"").localeCompare(b.weapon||"");
+                        return 0; // "added" = natural order
+                      });
+                      return Array.from({ length: DECK_SIZE }).map((_,i) => {
+                        const c = sorted[i];
                       if (c) {
                         const wc = WEAPON_COLORS[c.weapon]||"#444";
                         return (
@@ -7222,7 +7239,7 @@ function BobaChecklist({ userRole, user }) {
                           <span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span>
                         </div>
                       );
-                    })}
+                    })})()}
                   </div>
                   {inDeck.length > 0 && (
                     <button onClick={()=>{ if(window.confirm("Clear all cards from deck?")) setDeckCards([]); }}
