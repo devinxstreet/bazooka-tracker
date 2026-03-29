@@ -4368,7 +4368,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             ))}
             <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7 }}>
               <span style={{ fontWeight:700, color:"#E8317A", fontSize:13 }}>Total Expenses</span>
-              <span style={{ fontWeight:900, color:"#E8317A", fontSize:13 }}>${c.totalExp.toFixed(2)}</span>
+              <span style={{ fontWeight:900, color:"#E8317A", fontSize:13 }}>${((parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)).toFixed(2)}</span>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:"#111111", borderRadius:8, border:"2px solid #1B4F8A22" }}>
               <span style={{ fontWeight:800, color:"#F0F0F0", fontSize:14 }}>Net Revenue</span>
