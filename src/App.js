@@ -2467,6 +2467,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
+          <div style={{ background:"#1a1400", border:"1px solid #FBBF2444", borderRadius:8, padding:"8px 14px", fontSize:12, color:"#FBBF24", fontWeight:600, marginBottom:8 }}>
+            ⚠️ Select your breaker first, then import the CSV
+          </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             {/* Whatnot CSV Import */}
             <label style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1.5px solid #E8317A44", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, color:"#E8317A", cursor:"pointer", whiteSpace:"nowrap" }}>
