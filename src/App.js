@@ -5343,13 +5343,40 @@ function BobaShowcase({ uid }) {
   useEffect(() => {
     async function load() {
       try {
-        const [cardSnap, ownedSnap] = await Promise.all([
-          getDocs(collection(db, "boba_checklist")),
-          getDoc(doc(db, "boba_owned", ownedDocId)),
-        ]);
-        const allCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
-        setCards(allCards);
-        setOwned(ownedSnap.exists() ? ownedSnap.data() : {});
+        // 1. Load owned doc first — tiny and fast
+        const ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
+        const ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
+        setOwned(ownedData);
+        const ownedIds = Object.keys(ownedData);
+        if (ownedIds.length === 0) { setLoading(false); return; }
+
+        // 2. Check localStorage cache for image cards (valid 30 min)
+        const CACHE_KEY = "boba_showcase_cards_v2";
+        let cachedCards = null;
+        try {
+          const raw = localStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const { cards: cc, ts } = JSON.parse(raw);
+            if (Date.now() - ts < 30 * 60 * 1000 && cc.length > 0) cachedCards = cc;
+          }
+        } catch(e) {}
+
+        if (cachedCards) {
+          setCards(cachedCards.filter(c => ownedData[c.id]));
+          setLoading(false);
+          // Refresh cache in background
+          getDocs(collection(db, "boba_checklist")).then(snap => {
+            const fresh = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: fresh, ts: Date.now() })); } catch(e) {}
+          });
+          return;
+        }
+
+        // 3. No cache — fetch all, filter to image-only
+        const cardSnap = await getDocs(collection(db, "boba_checklist"));
+        const allImageCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: allImageCards, ts: Date.now() })); } catch(e) {}
+        setCards(allImageCards.filter(c => ownedData[c.id]));
       } catch(e) { console.error(e); }
       setLoading(false);
     }
