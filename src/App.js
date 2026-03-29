@@ -6412,10 +6412,12 @@ If you cannot read the card clearly, return {"cardNum":null}` }
         });
         const data = await resp.json();
         const text = data.content?.[0]?.text || "";
+        console.log(`Page ${pageNum} raw response:`, text);
         identified = JSON.parse(text.replace(/```json|```/g,"").trim());
-      } catch(e) { identified = null; }
+        console.log(`Page ${pageNum} identified:`, identified);
+      } catch(e) { console.error(`Page ${pageNum} error:`, e); identified = null; }
 
-      if (!identified?.cardNum) continue;
+      if (!identified?.cardNum) { console.log(`Page ${pageNum}: no cardNum, skipping`); continue; }
 
       // Find matching card in checklist — prefer same set
       const match = cards.find(c =>
@@ -6431,7 +6433,8 @@ If you cannot read the card clearly, return {"cardNum":null}` }
          c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
          c.treatment?.toLowerCase() === identified.treatment?.toLowerCase())
       );
-      if (!match) continue;
+      if (!match) { console.log(`Page ${pageNum}: no match found for`, identified); continue; }
+      console.log(`Page ${pageNum}: matched to card`, match.id, match.cardNum, match.hero);
 
       // Upload image to Firebase Storage
       const imgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
