@@ -6393,22 +6393,13 @@ function BobaChecklist({ userRole }) {
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
       const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
 
-      // Send to Claude Vision
+      // Send to Claude Vision via proxy
       let identified = null;
       try {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        const resp = await fetch("/api/scan-card", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 200,
-            messages: [{ role:"user", content:[
-              { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:base64 }},
-              { type:"text", text:`This is a Bo Jackson Battle Arena (BoBA) trading card. Extract ONLY these fields as JSON with no other text:
-{"cardNum":"the card number (e.g. 1, 42, P-5)","hero":"hero name","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","treatment":"card treatment/set name"}
-If you cannot read the card clearly, return {"cardNum":null}` }
-            ]}]
-          })
+          body: JSON.stringify({ imageBase64: base64 }),
         });
         const data = await resp.json();
         const text = data.content?.[0]?.text || "";
