@@ -6506,18 +6506,20 @@ function BobaChecklist({ userRole }) {
       const heroName = identified.hero ? identified.hero.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim() : null;
 
       // 1. Card number + set name (most reliable)
-      let match = identified.cardNum
+      // Normalize card nums — strip spaces/dashes for comparison: "ALT-4" == "ALT4" == "ALT 4"
+      function normalizeCardNum(n) { return String(n||"").toLowerCase().replace(/[\s\-]/g,""); }
+      const identifiedNum = normalizeCardNum(identified.cardNum);
+
+      let match = identifiedNum
         ? cards.find(c =>
-            String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() &&
+            normalizeCardNum(c.cardNum) === identifiedNum &&
             (!setName || c.setName === setName)
           )
         : null;
 
       // 2. Card number only (cross-set fallback)
-      if (!match && identified.cardNum) {
-        match = cards.find(c =>
-          String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase()
-        );
+      if (!match && identifiedNum) {
+        match = cards.find(c => normalizeCardNum(c.cardNum) === identifiedNum);
       }
 
       // 3. Hero + treatment + weapon (fuzzy)
