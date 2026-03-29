@@ -6308,8 +6308,10 @@ function BobaChecklist({ userRole }) {
   const [filterOwned,    setFilterOwned]    = useState("all");
   const [renamingId,   setRenamingId]   = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
-  const [scanPdf,      setScanPdf]      = useState(null);  // PDF being scanned
-  const [scanProgress, setScanProgress] = useState(null);  // { current, total, status }
+  const [scanPdf,      setScanPdf]      = useState(null);
+  const [scanProgress, setScanProgress] = useState(null);
+  const [scanConfig,   setScanConfig]   = useState(null); // { file, setName, treatment, weapon }
+  const [pendingScan,  setPendingScan]  = useState(null); // file waiting for config
   const [scanPaused,   setScanPaused]   = useState(false);
   const scanPausedRef = useRef(false);
   const [flippedCard,  setFlippedCard]  = useState(null);
@@ -6354,7 +6356,7 @@ function BobaChecklist({ userRole }) {
     return ()=>{ u2(); u3(); };
   }, []);
 
-  async function scanPdfForCards(file, setName) {
+  async function scanPdfForCards(file, setName, treatment, weapon) {
     setScanPdf(file.name);
     setScanProgress({ current:0, total:0, status:"Loading PDF..." });
     scanPausedRef.current = false;
@@ -6402,7 +6404,7 @@ function BobaChecklist({ userRole }) {
         const resp = await fetch("/api/scan-card", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64 }),
+          body: JSON.stringify({ imageBase64: base64, treatment, weapon }),
         });
         const data = await resp.json();
         const text = data.content?.[0]?.text || "";
@@ -6413,21 +6415,20 @@ function BobaChecklist({ userRole }) {
 
       if (!identified?.cardNum) { console.log(`Page ${pageNum}: no cardNum, skipping`); continue; }
 
-      // Find matching card in checklist — prefer same set
+      // Match using hero name + known treatment/weapon
+      const heroName = identified?.hero?.toLowerCase();
+      if (!heroName) { console.log(`Page ${pageNum}: no hero name, skipping`); continue; }
       const match = cards.find(c =>
-        (!setName || c.setName === setName) && (
-          String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() ||
-          (c.hero?.toLowerCase() === identified.hero?.toLowerCase() &&
-           c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
-           c.treatment?.toLowerCase() === identified.treatment?.toLowerCase())
-        )
+        c.hero?.toLowerCase() === heroName &&
+        (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
+        (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase()) &&
+        (!setName  || c.setName === setName)
       ) || cards.find(c =>
-        String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() ||
-        (c.hero?.toLowerCase() === identified.hero?.toLowerCase() &&
-         c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
-         c.treatment?.toLowerCase() === identified.treatment?.toLowerCase())
+        c.hero?.toLowerCase() === heroName &&
+        (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
+        (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase())
       );
-      if (!match) { console.log(`Page ${pageNum}: no match found for`, identified); continue; }
+      if (!match) { console.log(`Page ${pageNum}: no match for hero "${heroName}" treatment="${treatment}" weapon="${weapon}"`); continue; }
       console.log(`Page ${pageNum}: matched to card`, match.id, match.cardNum, match.hero);
 
       // Upload image to Firebase Storage
@@ -6631,6 +6632,41 @@ function BobaChecklist({ userRole }) {
         </div>
       </div>
 
+      {/* Scan Config Modal */}
+      {pendingScan && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setPendingScan(null)}>
+          <div style={{ background:"#111111", border:"1.5px solid #7B9CFF44", borderRadius:14, padding:"24px", width:420, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:4 }}>🔍 Scan PDF: {pendingScan.file.name}</div>
+            <div style={{ fontSize:12, color:"#555", marginBottom:16 }}>Tell Claude what's in this PDF so it only needs to match hero names</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div>
+                <label style={S.lbl}>Treatment</label>
+                <select value={pendingScan.treatment||""} onChange={e=>setPendingScan(p=>({...p,treatment:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                  <option value="">-- Select Treatment --</option>
+                  {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.lbl}>Weapon</label>
+                <select value={pendingScan.weapon||""} onChange={e=>setPendingScan(p=>({...p,weapon:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                  <option value="">-- Select Weapon --</option>
+                  {["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"].map(w=><option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ fontSize:11, color:"#555", marginTop:10 }}>
+              {pendingScan.treatment && pendingScan.weapon
+                ? `Will match hero names to ${pendingScan.treatment} / ${pendingScan.weapon} cards`
+                : "Select treatment and weapon to narrow matching"}
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:16 }}>
+              <button onClick={()=>{ if(!pendingScan.treatment||!pendingScan.weapon){ alert("Please select both treatment and weapon"); return; } scanPdfForCards(pendingScan.file, pendingScan.setName, pendingScan.treatment, pendingScan.weapon); setPendingScan(null); }} style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🔍 Start Scan</button>
+              <button onClick={()=>setPendingScan(null)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:8, padding:"8px 18px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PDF Scan Progress */}
       {scanProgress && (
         <div style={{ ...S.card, border:"1.5px solid #7B9CFF44", background:"#0a0f1a" }}>
@@ -6731,7 +6767,7 @@ function BobaChecklist({ userRole }) {
                     {!scanPdf && (
                       <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                         🔍 Scan PDF
-                        <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) scanPdfForCards(f, imp.setName); e.target.value=""; }} style={{ display:"none" }}/>
+                        <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) setPendingScan({ file:f, setName:imp.setName }); e.target.value=""; }} style={{ display:"none" }}/>
                       </label>
                     )}
                     <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
