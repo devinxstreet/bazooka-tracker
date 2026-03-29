@@ -6341,21 +6341,22 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     );
   }
   return (
-    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", display:"flex", gap:10, alignItems:"center" }}>
-      <QtyControls/>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-          <span style={{ fontSize:10, fontWeight:700, color:"#555", minWidth:32 }}>#{c.cardNum}</span>
-          <span style={{ fontSize:13, fontWeight:800, color:isOwned?"#4ade80":"#F0F0F0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</span>
-        </div>
-        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-          {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-          {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-          {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
-        </div>
-        {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+      {/* Hero name — large and readable */}
+      <div style={{ fontSize:14, fontWeight:900, color:isOwned?"#4ade80":"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
+      {/* Card # + weapon + treatment row */}
+      <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:10, color:"#555", fontWeight:700 }}>#{c.cardNum}</span>
+        {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+        {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+        {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
-      {c.power && <div style={{ fontSize:14, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
+      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 {c.athlete}</div>}
+      {/* Bottom row: power + qty controls */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
+        {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
+        <QtyControls/>
+      </div>
     </div>
   );
 }
@@ -6779,75 +6780,63 @@ function BobaChecklist({ userRole }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* Header */}
-      <div style={{ ...S.card, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0", marginBottom:8 }}>🃏 BoBA Checklist</div>
-          <div style={{ fontSize:11, color:"#555", marginBottom:6 }}>{totalCards.toLocaleString()} total cards · {totalOwned} owned across all sets</div>
-          {/* Per-set progress bars */}
-          {imports.length === 0 ? (
-            <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", width:220 }}>
-              <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:4 }}/>
-            </div>
-          ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {imports.map(imp => {
-                const setCards = cards.filter(c => c.setName === imp.setName);
-                const setOwned = setCards.filter(c => owned[c.id]).length;
-                const setPct   = setCards.length > 0 ? Math.round(setOwned/setCards.length*100) : 0;
-                const isComplete = setPct === 100;
-                return (
-                  <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:11, color:isComplete?"#4ade80":"#AAAAAA", fontWeight:isComplete?700:400, minWidth:160, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                      {isComplete?"🌈 ":""}{imp.setName}
-                    </span>
-                    <div style={{ flex:1, height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden", minWidth:100, maxWidth:200 }}>
-                      <div style={{ width:`${setPct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                        background: isComplete
-                          ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
-                          : "linear-gradient(90deg,#E8317A,#7B2FF7)"
-                      }}/>
-                    </div>
-                    <span style={{ fontSize:11, fontWeight:700, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#555", minWidth:40 }}>
-                      {setOwned}/{setCards.length}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
-          <div style={{ display:"flex", gap:4 }}>
+      {/* Header — slim top bar */}
+      <div style={{ ...S.card, padding:"12px 16px" }}>
+        {/* Row 1: title + view toggles + actions */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+          <span style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginRight:4 }}>🃏 BoBA Checklist</span>
+          <span style={{ fontSize:11, color:"#555", flex:1 }}>{totalCards.toLocaleString()} cards · {totalOwned} unique · {totalCollection} total copies · {pct}%</span>
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
             {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+              <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
             ))}
           </div>
           {isAdmin && (
-            <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              📂 Import CSV
+            <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              📂 Import Cards
               <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
             </label>
           )}
-
           {totalOwned > 0 && (
-            <button onClick={exportCollection} style={{ background:"#0a1a0a", border:"1.5px solid #4ade8044", color:"#4ade80", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              📤 Export Collection
-            </button>
+            <button onClick={exportCollection} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>📤 Export</button>
           )}
-          <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF44", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             📥 Import Collection
             <input type="file" accept=".csv" onChange={e=>{ const f=e.target.files[0]; if(f) importCollectionCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
           </label>
-          <button onClick={downloadTemplate} style={{ background:"transparent", border:"1px solid #333", color:"#7B9CFF", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-            📋 Download Template
-          </button>
+          <button onClick={downloadTemplate} style={{ background:"transparent", border:"1px solid #333", color:"#7B9CFF", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>📋 Template</button>
           {totalOwned > 0 && (
-            <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards? This cannot be undone.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              ✕ Clear Collection
-            </button>
+            <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards?`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"transparent", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear</button>
           )}
         </div>
+        {/* Row 2: per-set progress bars */}
+        {imports.length > 0 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {imports.map(imp => {
+              const setCards = cards.filter(c => c.setName === imp.setName);
+              const setOwned = setCards.filter(c => owned[c.id]).length;
+              const setPct   = setCards.length > 0 ? Math.round(setOwned/setCards.length*100) : 0;
+              const isComplete = setPct === 100;
+              return (
+                <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:11, color:isComplete?"#4ade80":"#AAAAAA", fontWeight:isComplete?700:400, minWidth:180, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {isComplete?"🌈 ":""}{imp.setName}
+                  </span>
+                  <div style={{ flex:1, height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                    <div style={{ width:`${setPct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
+                      background: isComplete
+                        ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
+                        : "linear-gradient(90deg,#E8317A,#7B2FF7)"
+                    }}/>
+                  </div>
+                  <span style={{ fontSize:11, fontWeight:700, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#555", minWidth:55, textAlign:"right" }}>
+                    {setOwned}/{setCards.length} ({setPct}%)
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Collection Import Result Modal */}
@@ -6943,93 +6932,6 @@ function BobaChecklist({ userRole }) {
             </Btn>
             <Btn onClick={()=>setPendingFile(null)} variant="ghost">Cancel</Btn>
           </div>
-        </div>
-      )}
-
-      {/* Imported sets */}
-      {isAdmin && (
-        <div style={{ ...S.card }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-            <SectionLabel t={`Imported Sets (${imports.length})`} />
-            {cards.length > 0 && imports.length === 0 && (
-              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record — use Rename below or re-import</div>
-            )}
-          </div>
-          {imports.length === 0 ? (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-              <div style={{ fontSize:12, color:"#555" }}>
-                No import records found.
-                {cards.length > 0 && (
-                  <span style={{ color:"#FBBF24", marginLeft:8 }}>{cards.length.toLocaleString()} cards in Firestore from a previous import — clear them and re-import below.</span>
-                )}
-              </div>
-              {cards.length > 0 && (
-                <button onClick={async () => {
-                  if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards and all owned data? This cannot be undone.`)) return;
-                  const chunkSize = 200;
-                  const allIds = cards.map(c=>c.id);
-                  for(let i=0;i<allIds.length;i+=chunkSize){
-                    await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
-                  }
-                  await setDoc(doc(db,"boba_owned","owned"), {});
-                  setOwned({});
-                  try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
-                }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  🗑 Clear All Cards
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {imports.map(imp=>(
-                <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    {renamingId === imp.id ? (
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
-                          onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
-                          style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
-                        <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
-                        <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
-                      </div>
-                    ) : (
-                      <>
-                        <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
-                        <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.importedAt?.slice(0,10)}</span>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                    <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
-                    {!scanPdf && (
-                      <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                        🔍 Scan PDF
-                        <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) setPendingScan({ file:f, setName:imp.setName }); e.target.value=""; }} style={{ display:"none" }}/>
-                      </label>
-                    )}
-                    <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {cards.length > 0 && (
-            <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #1a1a1a", display:"flex", justifyContent:"flex-end" }}>
-              <button onClick={async () => {
-                if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards, all import records, and all owned data? This cannot be undone.`)) return;
-                const chunkSize = 200;
-                const allIds = cards.map(c=>c.id);
-                for(let i=0;i<allIds.length;i+=chunkSize){
-                  await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
-                }
-                await Promise.all(imports.map(imp=>deleteDoc(doc(db,"boba_imports",imp.id))));
-                await setDoc(doc(db,"boba_owned","owned"), {});
-                setOwned({});
-              }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                🗑 Clear All & Restart
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -7210,7 +7112,7 @@ function BobaChecklist({ userRole }) {
                             <button key={v} onClick={e=>{ e.stopPropagation(); setTreatOwnedFilter(v); }} style={{ background:treatOwnedFilter===v?"#1A1A2E":"transparent", color:treatOwnedFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                           ))}
                         </div>
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                           {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => {
                             const isOwned = !!owned[c.id];
                             return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
@@ -7290,7 +7192,7 @@ function BobaChecklist({ userRole }) {
                   {/* Expanded cards */}
                   {isExp && (
                     <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                         {visibleTcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
                           return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
@@ -7316,7 +7218,7 @@ function BobaChecklist({ userRole }) {
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
       ) : (
         <>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:8 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
             {paginated.map(c => {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
@@ -7332,6 +7234,93 @@ function BobaChecklist({ userRole }) {
           )}
         </>
       ))}
+      {/* Imported sets */}
+      {isAdmin && (
+        <div style={{ ...S.card }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+            <SectionLabel t={`Imported Sets (${imports.length})`} />
+            {cards.length > 0 && imports.length === 0 && (
+              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record — use Rename below or re-import</div>
+            )}
+          </div>
+          {imports.length === 0 ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+              <div style={{ fontSize:12, color:"#555" }}>
+                No import records found.
+                {cards.length > 0 && (
+                  <span style={{ color:"#FBBF24", marginLeft:8 }}>{cards.length.toLocaleString()} cards in Firestore from a previous import — clear them and re-import below.</span>
+                )}
+              </div>
+              {cards.length > 0 && (
+                <button onClick={async () => {
+                  if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards and all owned data? This cannot be undone.`)) return;
+                  const chunkSize = 200;
+                  const allIds = cards.map(c=>c.id);
+                  for(let i=0;i<allIds.length;i+=chunkSize){
+                    await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
+                  }
+                  await setDoc(doc(db,"boba_owned","owned"), {});
+                  setOwned({});
+                  try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
+                }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  🗑 Clear All Cards
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {imports.map(imp=>(
+                <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    {renamingId === imp.id ? (
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+                          onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
+                          style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
+                        <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
+                        <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
+                        <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.importedAt?.slice(0,10)}</span>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                    <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
+                    {!scanPdf && (
+                      <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                        🔍 Scan PDF
+                        <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) setPendingScan({ file:f, setName:imp.setName }); e.target.value=""; }} style={{ display:"none" }}/>
+                      </label>
+                    )}
+                    <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {cards.length > 0 && (
+            <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #1a1a1a", display:"flex", justifyContent:"flex-end" }}>
+              <button onClick={async () => {
+                if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards, all import records, and all owned data? This cannot be undone.`)) return;
+                const chunkSize = 200;
+                const allIds = cards.map(c=>c.id);
+                for(let i=0;i<allIds.length;i+=chunkSize){
+                  await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
+                }
+                await Promise.all(imports.map(imp=>deleteDoc(doc(db,"boba_imports",imp.id))));
+                await setDoc(doc(db,"boba_owned","owned"), {});
+                setOwned({});
+              }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                🗑 Clear All & Restart
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
