@@ -6501,23 +6501,49 @@ function BobaChecklist({ userRole }) {
         identified = data.identified;
       } catch(e) { console.error(`Page ${pageNum} error:`, e); }
 
-      if (!identified?.hero) return;
+      if (!identified?.hero && !identified?.cardNum) return;
 
-      const heroName = identified.hero.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
-      if (!heroName) return;
+      const heroName = identified.hero ? identified.hero.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim() : null;
 
-      const match = cards.find(c =>
-        fuzzyMatch(c.hero, heroName) &&
-        (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
-        (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase()) &&
-        (!setName  || c.setName === setName)
-      ) || cards.find(c =>
-        fuzzyMatch(c.hero, heroName) &&
-        (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
-        (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase())
-      );
-      if (!match) { console.log(`Page ${pageNum}: no match for "${heroName}"`); return; }
-      console.log(`Page ${pageNum}: matched ${match.hero}`);
+      // 1. Card number + set name (most reliable)
+      let match = identified.cardNum
+        ? cards.find(c =>
+            String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() &&
+            (!setName || c.setName === setName)
+          )
+        : null;
+
+      // 2. Card number only (cross-set fallback)
+      if (!match && identified.cardNum) {
+        match = cards.find(c =>
+          String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase()
+        );
+      }
+
+      // 3. Hero + treatment + weapon (fuzzy)
+      if (!match && heroName) {
+        match = cards.find(c =>
+          fuzzyMatch(c.hero, heroName) &&
+          (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
+          (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase()) &&
+          (!setName  || c.setName === setName)
+        ) || cards.find(c =>
+          fuzzyMatch(c.hero, heroName) &&
+          (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
+          (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase())
+        );
+      }
+
+      // 4. Hero + weapon only
+      if (!match && heroName) {
+        match = cards.find(c =>
+          fuzzyMatch(c.hero, heroName) &&
+          (!weapon || c.weapon?.toLowerCase() === weapon.toLowerCase())
+        );
+      }
+
+      if (!match) { console.log(`Page ${pageNum}: no match — cardNum="${identified.cardNum}" hero="${identified.hero}"`); return; }
+      console.log(`Page ${pageNum}: matched ${match.hero} #${match.cardNum}`);
 
       // Render high quality version for storage
       const hiCanvas = document.createElement("canvas");
