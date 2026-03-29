@@ -6312,6 +6312,7 @@ function BobaChecklist({ userRole }) {
   const [scanProgress, setScanProgress] = useState(null);  // { current, total, status }
   const [scanPaused,   setScanPaused]   = useState(false);
   const scanPausedRef = useRef(false);
+  const [flippedCard,  setFlippedCard]  = useState(null);
   const [viewMode,       setViewMode]       = useState("cards");
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
@@ -6353,7 +6354,7 @@ function BobaChecklist({ userRole }) {
     return ()=>{ u2(); u3(); };
   }, []);
 
-  async function scanPdfForCards(file) {
+  async function scanPdfForCards(file, setName) {
     setScanPdf(file.name);
     setScanProgress({ current:0, total:0, status:"Loading PDF..." });
     scanPausedRef.current = false;
@@ -6416,8 +6417,15 @@ If you cannot read the card clearly, return {"cardNum":null}` }
 
       if (!identified?.cardNum) continue;
 
-      // Find matching card in checklist
+      // Find matching card in checklist — prefer same set
       const match = cards.find(c =>
+        (!setName || c.setName === setName) && (
+          String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() ||
+          (c.hero?.toLowerCase() === identified.hero?.toLowerCase() &&
+           c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
+           c.treatment?.toLowerCase() === identified.treatment?.toLowerCase())
+        )
+      ) || cards.find(c =>
         String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() ||
         (c.hero?.toLowerCase() === identified.hero?.toLowerCase() &&
          c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
@@ -6569,15 +6577,43 @@ If you cannot read the card clearly, return {"cardNum":null}` }
 
       {/* Header */}
       <div style={{ ...S.card, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-        <div>
-          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>🃏 BoBA Checklist</div>
-          <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>{totalCards.toLocaleString()} total cards · {totalOwned} owned · {pct}% complete</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0", marginBottom:8 }}>🃏 BoBA Checklist</div>
+          <div style={{ fontSize:11, color:"#555", marginBottom:6 }}>{totalCards.toLocaleString()} total cards · {totalOwned} owned across all sets</div>
+          {/* Per-set progress bars */}
+          {imports.length === 0 ? (
+            <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", width:220 }}>
+              <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:4 }}/>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {imports.map(imp => {
+                const setCards = cards.filter(c => c.setName === imp.setName);
+                const setOwned = setCards.filter(c => owned[c.id]).length;
+                const setPct   = setCards.length > 0 ? Math.round(setOwned/setCards.length*100) : 0;
+                const isComplete = setPct === 100;
+                return (
+                  <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:11, color:isComplete?"#4ade80":"#AAAAAA", fontWeight:isComplete?700:400, minWidth:160, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {isComplete?"🌈 ":""}{imp.setName}
+                    </span>
+                    <div style={{ flex:1, height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden", minWidth:100, maxWidth:200 }}>
+                      <div style={{ width:`${setPct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
+                        background: isComplete
+                          ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
+                          : "linear-gradient(90deg,#E8317A,#7B2FF7)"
+                      }}/>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#555", minWidth:40 }}>
+                      {setOwned}/{setCards.length}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:180, height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
-            <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:4 }}/>
-          </div>
-          <span style={{ fontSize:12, fontWeight:700, color:"#E8317A" }}>{pct}%</span>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
           <div style={{ display:"flex", gap:4 }}>
             {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
@@ -6589,12 +6625,7 @@ If you cannot read the card clearly, return {"cardNum":null}` }
               <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
             </label>
           )}
-          {isAdmin && cards.length > 0 && !scanPdf && (
-            <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              🔍 Scan PDF
-              <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) scanPdfForCards(f); e.target.value=""; }} style={{ display:"none" }}/>
-            </label>
-          )}
+
           {totalOwned > 0 && (
             <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned checkmarks? Your collection progress will be reset.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               ✕ Clear My Collection
@@ -6700,6 +6731,12 @@ If you cannot read the card clearly, return {"cardNum":null}` }
                   </div>
                   <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                     <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
+                    {!scanPdf && (
+                      <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                        🔍 Scan PDF
+                        <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) scanPdfForCards(f, imp.setName); e.target.value=""; }} style={{ display:"none" }}/>
+                      </label>
+                    )}
                     <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
                   </div>
                 </div>
@@ -6729,7 +6766,7 @@ If you cannot read the card clearly, return {"cardNum":null}` }
       {/* Filters */}
       <div style={{ ...S.card, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
         <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search card #, hero, athlete..." style={{ ...S.inp, flex:1, minWidth:200 }}/>
-        {sets.length > 1 && (
+        {sets.length > 0 && (
           <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setFilterTreat("");setFilterWeapon("");setFilterNote("");setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
             <option value="">All Sets</option>
             {sets.map(s=><option key={s} value={s}>{s}</option>)}
@@ -6816,7 +6853,7 @@ If you cannot read the card clearly, return {"cardNum":null}` }
             {/* Filter */}
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
               {/* Set selector */}
-              {availableSets.length > 1 && (
+              {availableSets.length > 0 && (
                 <div style={{ display:"flex", gap:4, marginRight:8 }}>
                   {[["","🌈 All Sets"], ...availableSets.map(s=>[s,s])].map(([v,l])=>(
                     <button key={v} onClick={()=>setRainbowSetFilter(v)} style={{ background:rainbowSetFilter===v?"#1A1A2E":"transparent", color:rainbowSetFilter===v?"#7B9CFF":"#9CA3AF", border:`1.5px solid ${rainbowSetFilter===v?"#7B9CFF":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
@@ -7022,32 +7059,40 @@ If you cannot read the card clearly, return {"cardNum":null}` }
               const wc = WEAPON_COLORS[c.weapon] || "#444";
               const hasImg = !!c.imageUrl;
               if (hasImg) {
-                // Card flip tile
                 return (
                   <div key={c.id} style={{ perspective:"600px", height:200 }}>
-                    <div className="boba-flip-card" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s", transform: isOwned ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }} onClick={()=>toggleOwned(c.id)}>
+                    <div className="boba-flip-card" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s", borderRadius:10, cursor:"pointer" }}
+                      onMouseEnter={e=>e.currentTarget.style.transform="rotateY(180deg)"}
+                      onMouseLeave={e=>e.currentTarget.style.transform="rotateY(0deg)"}
+                    >
                       {/* Front — card image */}
                       <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
                         <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-                        {!isOwned && <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>tap to own</div>}
+                        <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>hover for details</div>
+                        {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
                       </div>
-                      {/* Back — card details */}
-                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#0a1a0a", border:"2px solid #4ade8044", borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+                      {/* Back — card details + own toggle */}
+                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
                         <div>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                            <span style={{ fontSize:10, color:"#4ade80", fontWeight:700 }}>✅ OWNED</span>
                             <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                            <button onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?"#0a1a0a":"#1a0a0f", border:`1.5px solid ${isOwned?"#4ade80":"#E8317A"}`, color:isOwned?"#4ade80":"#E8317A", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                              {isOwned ? "✅ Owned" : "⬜ Not Owned"}
+                            </button>
                           </div>
-                          <div style={{ fontSize:15, fontWeight:900, color:"#4ade80", marginBottom:4 }}>{c.hero}</div>
+                          <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
                           <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
                             {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+                            {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                             {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
                           </div>
-                          <div style={{ fontSize:10, color:"#888" }}>{c.treatment}</div>
                           {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+                          {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
                         </div>
-                        {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc, textAlign:"right" }}>{c.power}</div>}
-                        <div style={{ fontSize:9, color:"#333", textAlign:"center" }}>tap to unown</div>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+                          {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
+                          <div style={{ fontSize:9, color:"#333" }}>hover away to flip back</div>
+                        </div>
                       </div>
                     </div>
                   </div>
