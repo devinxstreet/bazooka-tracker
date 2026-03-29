@@ -6381,14 +6381,25 @@ function BobaChecklist({ userRole }) {
     const total = pdf.numPages;
     setScanProgress({ current:0, total, status:"Starting scan..." });
 
-    for (let pageNum = 1; pageNum <= total; pageNum++) {
-      // Check pause
+    const BATCH_SIZE = 5; // process 5 pages at a time
+    let completed = 0;
+
+    function normalize(s) { return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(); }
+    function fuzzyMatch(a, b) {
+      const na = normalize(a), nb = normalize(b);
+      if (na === nb) return true;
+      if (na.includes(nb) || nb.includes(na)) return true;
+      const wa = na.split(/\s+/), wb = nb.split(/\s+/);
+      const shared = wa.filter(w => wb.includes(w)).length;
+      return shared > 0 && shared / Math.max(wa.length, wb.length) >= 0.5;
+    }
+
+    async function processPage(pageNum) {
       while (scanPausedRef.current) {
         await new Promise(r => setTimeout(r, 500));
       }
-      setScanProgress({ current:pageNum, total, status:`Scanning page ${pageNum} of ${total}...` });
 
-      // Render page to canvas — cap at 800px wide to keep payload small
+      // Render small version for Claude Vision
       const page = await pdf.getPage(pageNum);
       const rawViewport = page.getViewport({ scale: 1 });
       const scale = Math.min(0.8, 800 / rawViewport.width);
@@ -6398,9 +6409,8 @@ function BobaChecklist({ userRole }) {
       canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
       const base64 = canvas.toDataURL("image/jpeg", 0.5).split(",")[1];
-      console.log(`Page ${pageNum} image size: ~${Math.round(base64.length/1024)}KB`);
 
-      // Send to Claude Vision via proxy
+      // Send to Claude Vision
       let identified = null;
       try {
         const resp = await fetch("/api/scan-card", {
@@ -6409,29 +6419,13 @@ function BobaChecklist({ userRole }) {
           body: JSON.stringify({ imageBase64: base64, treatment, weapon }),
         });
         const data = await resp.json();
-        console.log(`Page ${pageNum} response:`, data);
         identified = data.identified;
-        console.log(`Page ${pageNum} identified:`, identified);
-      } catch(e) { console.error(`Page ${pageNum} error:`, e); identified = null; }
+      } catch(e) { console.error(`Page ${pageNum} error:`, e); }
 
-      if (!identified?.hero) { console.log(`Page ${pageNum}: no hero, skipping`); continue; }
+      if (!identified?.hero) return;
 
-      // Match using hero name + known treatment/weapon
-      const heroName = identified?.hero?.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
-      if (!heroName) { console.log(`Page ${pageNum}: no hero name, skipping`); continue; }
-
-      // Fuzzy match — strip punctuation and compare
-      function normalize(s) { return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(); }
-      function fuzzyMatch(a, b) {
-        const na = normalize(a), nb = normalize(b);
-        if (na === nb) return true;
-        // Check if one contains the other
-        if (na.includes(nb) || nb.includes(na)) return true;
-        // Check word overlap — if >50% of words match
-        const wa = na.split(/\s+/), wb = nb.split(/\s+/);
-        const shared = wa.filter(w => wb.includes(w)).length;
-        return shared > 0 && shared / Math.max(wa.length, wb.length) >= 0.5;
-      }
+      const heroName = identified.hero.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+      if (!heroName) return;
 
       const match = cards.find(c =>
         fuzzyMatch(c.hero, heroName) &&
@@ -6443,11 +6437,10 @@ function BobaChecklist({ userRole }) {
         (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
         (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase())
       );
-      if (!match) { console.log(`Page ${pageNum}: no match for hero "${heroName}" treatment="${treatment}" weapon="${weapon}"`); continue; }
-      console.log(`Page ${pageNum}: matched to card`, match.id, match.cardNum, match.hero);
+      if (!match) { console.log(`Page ${pageNum}: no match for "${heroName}"`); return; }
+      console.log(`Page ${pageNum}: matched ${match.hero}`);
 
-      // Upload image to Firebase Storage
-      // Re-render at higher quality for storage
+      // Render high quality version for storage
       const hiCanvas = document.createElement("canvas");
       const hiViewport = page.getViewport({ scale: 2.0 });
       hiCanvas.width = hiViewport.width;
@@ -6457,6 +6450,21 @@ function BobaChecklist({ userRole }) {
       const storageRef = ref(storage, `boba_cards/${match.id}.jpg`);
       await uploadBytes(storageRef, imgBlob);
       const imageUrl = await getDownloadURL(storageRef);
+      await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
+    }
+
+    for (let i = 1; i <= total; i += BATCH_SIZE) {
+      while (scanPausedRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      const batch = [];
+      for (let j = i; j < Math.min(i + BATCH_SIZE, total + 1); j++) {
+        batch.push(processPage(j));
+      }
+      await Promise.all(batch);
+      completed = Math.min(i + BATCH_SIZE - 1, total);
+      setScanProgress({ current:completed, total, status:`Scanning pages ${i}–${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
+    }
 
       // Save URL to Firestore
       await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
