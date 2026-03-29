@@ -6416,15 +6416,29 @@ function BobaChecklist({ userRole }) {
       if (!identified?.cardNum) { console.log(`Page ${pageNum}: no cardNum, skipping`); continue; }
 
       // Match using hero name + known treatment/weapon
-      const heroName = identified?.hero?.toLowerCase();
+      const heroName = identified?.hero?.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
       if (!heroName) { console.log(`Page ${pageNum}: no hero name, skipping`); continue; }
+
+      // Fuzzy match — strip punctuation and compare
+      function normalize(s) { return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(); }
+      function fuzzyMatch(a, b) {
+        const na = normalize(a), nb = normalize(b);
+        if (na === nb) return true;
+        // Check if one contains the other
+        if (na.includes(nb) || nb.includes(na)) return true;
+        // Check word overlap — if >50% of words match
+        const wa = na.split(/\s+/), wb = nb.split(/\s+/);
+        const shared = wa.filter(w => wb.includes(w)).length;
+        return shared > 0 && shared / Math.max(wa.length, wb.length) >= 0.5;
+      }
+
       const match = cards.find(c =>
-        c.hero?.toLowerCase() === heroName &&
+        fuzzyMatch(c.hero, heroName) &&
         (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
         (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase()) &&
         (!setName  || c.setName === setName)
       ) || cards.find(c =>
-        c.hero?.toLowerCase() === heroName &&
+        fuzzyMatch(c.hero, heroName) &&
         (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
         (!weapon   || c.weapon?.toLowerCase()   === weapon.toLowerCase())
       );
