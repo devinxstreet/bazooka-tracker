@@ -1995,7 +1995,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2274,7 +2274,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
-      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams}/>}
+      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
 
       {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials}/>}
 
@@ -3656,7 +3656,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
 }
 
 // ─── PRODUCT INVENTORY ───────────────────────────────────────────
-function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[] }) {
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[], skuPriceHistory=[] }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
   const [form,          setForm]          = useState(EMPTY);
@@ -3708,39 +3708,61 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
 
       {/* SKU Price History Chart */}
       {(() => {
-        // Build price history from stream streamSkuPrices overrides
+        // Build price history: global saves + per-stream overrides merged and sorted by date
         const history = {};
         PRODUCT_TYPES.forEach(pt => history[pt] = []);
+
+        // 1. Global SKU price saves (from sku_price_history collection)
+        skuPriceHistory.forEach(h => {
+          PRODUCT_TYPES.forEach(pt => {
+            const price = parseFloat(h.prices?.[pt]);
+            if (price > 0) history[pt].push({ date: h.date, price, source: "global" });
+          });
+        });
+
+        // 2. Per-stream overrides (deduplicate by date, override wins)
         [...streams]
           .filter(s => s.date && s.streamSkuPrices && Object.keys(s.streamSkuPrices).length > 0)
           .sort((a,b) => new Date(a.date)-new Date(b.date))
           .forEach(s => {
             PRODUCT_TYPES.forEach(pt => {
               const price = parseFloat(s.streamSkuPrices[pt]);
-              if (price > 0) history[pt].push({ date: s.date, price });
+              if (price > 0) {
+                // Only add if no global entry on same date
+                if (!history[pt].some(e => e.date === s.date && e.source === "global")) {
+                  history[pt].push({ date: s.date, price, source: "stream" });
+                }
+              }
             });
           });
-        const hasData = PRODUCT_TYPES.some(pt => history[pt].length > 1);
+
+        // Sort each product's history by date and deduplicate same-day entries (keep last)
+        PRODUCT_TYPES.forEach(pt => {
+          const byDate = {};
+          history[pt].forEach(e => { byDate[e.date] = e; });
+          history[pt] = Object.values(byDate).sort((a,b) => a.date.localeCompare(b.date));
+        });
+
+        const hasData = PRODUCT_TYPES.some(pt => history[pt].length >= 1);
         if (!hasData) return (
           <div style={{ ...S.card, border:"1px solid #2a2a2a", textAlign:"center", color:"#555", fontSize:12, padding:"20px" }}>
-            📈 SKU price history will appear here once you have streams with price overrides
+            📈 SKU price history will appear here once SKU prices have been saved
           </div>
         );
         const COLORS = { "Double Mega":"#E8317A", "Hobby":"#7B9CFF", "Jumbo":"#4ade80", "Miscellaneous":"#FBBF24" };
-        const [activePt, setActivePt] = React.useState(PRODUCT_TYPES.find(pt => history[pt].length > 1) || PRODUCT_TYPES[0]);
+        const [activePt, setActivePt] = React.useState(PRODUCT_TYPES.find(pt => history[pt].length >= 1) || PRODUCT_TYPES[0]);
         const pts = history[activePt] || [];
-        const allDates = [...new Set(pts.map(p=>p.date))].sort();
         const color = COLORS[activePt] || "#E8317A";
         const minP = Math.min(...pts.map(p=>p.price));
         const maxP = Math.max(...pts.map(p=>p.price));
         const range = maxP - minP || 1;
-        const W = 600, H = 180, PAD = { t:20, r:20, b:40, l:60 };
+        const W = 600, H = 200, PAD = { t:24, r:20, b:40, l:60 };
         const chartW = W - PAD.l - PAD.r;
         const chartH = H - PAD.t - PAD.b;
         const points = pts.map((p, i) => ({
-          x: PAD.l + (i / Math.max(pts.length-1,1)) * chartW,
+          x: PAD.l + (pts.length > 1 ? (i / (pts.length-1)) * chartW : chartW/2),
           y: PAD.t + chartH - ((p.price - minP) / range) * chartH,
-          price: p.price, date: p.date
+          price: p.price, date: p.date, source: p.source
         }));
         const pathD = points.map((p,i) => `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
         const areaD = points.length > 0 ? `${pathD} L${points[points.length-1].x},${PAD.t+chartH} L${points[0].x},${PAD.t+chartH} Z` : "";
@@ -3755,7 +3777,6 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               </div>
             </div>
             <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto" }}>
-              {/* Grid lines */}
               {[0,0.25,0.5,0.75,1].map(t => {
                 const y = PAD.t + chartH * (1-t);
                 const val = minP + range * t;
@@ -3764,22 +3785,17 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                   <text x={PAD.l-6} y={y+4} textAnchor="end" fill="#555" fontSize="10">${val.toFixed(0)}</text>
                 </g>;
               })}
-              {/* Area fill */}
               {areaD && <path d={areaD} fill={color} fillOpacity="0.08"/>}
-              {/* Line */}
               {pathD && <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>}
-              {/* Points */}
               {points.map((p,i) => (
                 <g key={i}>
-                  <circle cx={p.x} cy={p.y} r="4" fill={color} stroke="#111" strokeWidth="1.5"/>
+                  <circle cx={p.x} cy={p.y} r="4" fill={p.source==="stream"?color+"88":color} stroke="#111" strokeWidth="1.5"/>
                   <text x={p.x} y={p.y-10} textAnchor="middle" fill={color} fontSize="10" fontWeight="700">${p.price.toFixed(0)}</text>
                 </g>
               ))}
-              {/* X axis dates */}
               {points.map((p,i) => (
-                <text key={i} x={p.x} y={H-8} textAnchor="middle" fill="#555" fontSize="9">{p.date.slice(5)}</text>
+                <text key={i} x={p.x} y={H-6} textAnchor="middle" fill="#555" fontSize="9">{p.date.slice(5)}</text>
               ))}
-              {/* Axes */}
               <line x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={PAD.t+chartH} stroke="#333" strokeWidth="1"/>
               <line x1={PAD.l} y1={PAD.t+chartH} x2={W-PAD.r} y2={PAD.t+chartH} stroke="#333" strokeWidth="1"/>
             </svg>
@@ -3787,7 +3803,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               const first = pts[0].price, last = pts[pts.length-1].price;
               const diff = last - first, pct = ((diff/first)*100).toFixed(1);
               return <div style={{ fontSize:11, color:diff>=0?"#4ade80":"#E8317A", textAlign:"right", marginTop:4 }}>
-                {diff>=0?"↑":"↓"} ${Math.abs(diff).toFixed(0)} ({Math.abs(pct)}%) since first recorded
+                {diff>=0?"↑":"↓"} ${Math.abs(diff).toFixed(0)} ({Math.abs(pct)}%) since {pts[0].date}
               </div>;
             })()}
           </div>
@@ -6286,7 +6302,8 @@ export default function App() {
   const [streams,      setStreams]       = useState([]);
   const [shipments,    setShipments]     = useState([]);
   const [productUsage, setProductUsage] = useState([]);
-  const [skuPrices,    setSkuPrices]     = useState({});
+  const [skuPrices,       setSkuPrices]       = useState({});
+  const [skuPriceHistory, setSkuPriceHistory] = useState([]);
   const [historicalData, setHistoricalData] = useState([]);
   const [payStubs,       setPayStubs]       = useState([]);
   const [quotes,         setQuotes]         = useState([]);
@@ -6323,6 +6340,7 @@ export default function App() {
     const u7 = onSnapshot(query(collection(db,"shipments"), orderBy("date","desc")), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u9  = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
+    const u9b = onSnapshot(collection(db,"sku_price_history"), snap => { setSkuPriceHistory(snap.docs.map(d=>d.data()).sort((a,b)=>a.savedAt?.localeCompare(b.savedAt))); });
     const u10 = onSnapshot(query(collection(db,"historical_data"), orderBy("yearMonth","asc")), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u11 = onSnapshot(query(collection(db,"pay_stubs"), orderBy("createdAt","desc")), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u12 = onSnapshot(query(collection(db,"quotes"), orderBy("createdAt","desc")), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()}))));
@@ -6331,7 +6349,7 @@ export default function App() {
     const u15 = onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u16 = onSnapshot(doc(db,"settings","imc_form"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); });
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -6611,6 +6629,14 @@ export default function App() {
   }
   async function handleSaveSkuPrices(prices) {
     await setDoc(doc(db,"settings","sku_prices"), prices);
+    // Log price history snapshot
+    const histId = uid();
+    await setDoc(doc(db,"sku_price_history", histId), {
+      id: histId,
+      date: new Date().toISOString().split("T")[0],
+      savedAt: new Date().toISOString(),
+      prices,
+    });
     showToast("💰 SKU prices saved");
   }
   async function handleSaveImcFormUrl(url) {
@@ -6858,7 +6884,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
