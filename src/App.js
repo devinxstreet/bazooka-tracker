@@ -2634,8 +2634,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
           <input type="number" step="0.01" value={recap.zionRevenue||""} onChange={e=>rf("zionRevenue")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:120, color:"#4ade80", fontWeight:700 }}/>
         </div>
-          {/* Chaser Cards — picker + manual override */}
-          <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+        {/* Chaser Cards — picker + manual override */}
+        <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>🏆 Cards Used as Chasers</label>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -2739,7 +2739,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 );
               })}
             </div>
-        </div>
 
         <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
