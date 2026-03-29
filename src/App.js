@@ -5816,6 +5816,7 @@ function BobaChecklist({ userRole, user }) {
   const [deckSaving,     setDeckSaving]     = useState(false);
   const [deckLoadId,     setDeckLoadId]     = useState(null);
   const DECK_SIZE = 60;
+  const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
 
   useEffect(() => {
