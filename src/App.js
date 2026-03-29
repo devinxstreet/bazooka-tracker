@@ -5887,6 +5887,8 @@ function BobaChecklist({ userRole, user }) {
     setDeckCards([]);
     setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
   }
+
+  async function scanPdfForCards(file, setName, treatment, weapon) {
     setScanPdf(file.name);
     setScanProgress({ current:0, total:0, status:"Loading PDF..." });
     scanPausedRef.current = false;
