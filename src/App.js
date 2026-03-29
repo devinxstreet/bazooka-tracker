@@ -1716,6 +1716,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
         <Btn onClick={startNew} variant="green">+ New Pool</Btn>
         <Btn onClick={()=>setShowLog(p=>!p)} variant="ghost">📤 Log Out Cards</Btn>
         <Btn onClick={()=>setShowAdd(p=>!p)} variant="ghost">📥 Add to Pool</Btn>
+        {isAdmin && cardPools.length > 0 && <Btn onClick={async()=>{ if(window.confirm(`Reset ALL ${cardPools.length} pools to 0? This clears all totals and used qtys.`)) { for(const p of cardPools) await onSavePool({...p, totalQty:0, usedQty:0}); }}} variant="ghost" style={{ color:"#FBBF24", border:"1px solid #FBBF2444" }}>↺ Reset All</Btn>}
       </div>
 
       {/* Log Out form */}
@@ -1876,6 +1877,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
                           <div style={{ fontSize:9, color:"#555", marginTop:3, textAlign:"center" }}>{pct.toFixed(0)}% left</div>
                         </div>
                         <div style={{ display:"flex", gap:6 }}>
+                          {isAdmin && <button onClick={async()=>{ if(window.confirm(`Reset ${p.cardName} to 0? This clears total and used qty.`)) { await onSavePool({ ...p, totalQty:0, usedQty:0 }); }}} style={{ background:"none", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Reset qty to 0">↺ Reset</button>}
                           {isAdmin && <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>}
                           {isAdmin && <button onClick={()=>{ if(window.confirm(`Delete ${p.cardName} pool?`)) onDeletePool(p.id); }} style={{ background:"none", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
                         </div>
