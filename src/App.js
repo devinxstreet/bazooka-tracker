@@ -5313,7 +5313,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
     if (!b.importIds) return false;
     return b.importIds.some(id => {
       const imp = csvImports.find(i => i.id === id);
-      return imp && filteredStreamIds.has(`${imp.breaker||""}_${imp.date||""}`);
+      return imp && imp.streamId && filteredStreamIds.has(imp.streamId);
     });
   });
 
