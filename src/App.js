@@ -6298,6 +6298,63 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
   const isWanted = !!(wantList && wantList[c.id]);
+  const cardRef = useRef(null);
+  const foilRef = useRef(null);
+  const animRef = useRef(null);
+  const currentTilt = useRef({ x:0, y:0 });
+  const targetTilt  = useRef({ x:0, y:0 });
+  const isHovering  = useRef(false);
+
+  function onMouseMove(e) {
+    if (isFlipped) return;
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top)  / rect.height;
+    targetTilt.current = { x: (y - 0.5) * 22, y: (x - 0.5) * -22 };
+    // Foil shine position
+    if (foilRef.current) {
+      foilRef.current.style.backgroundPosition = `${x * 100}% ${y * 100}%`;
+      foilRef.current.style.opacity = "1";
+    }
+  }
+
+  function onMouseLeave() {
+    isHovering.current = false;
+    targetTilt.current = { x:0, y:0 };
+    if (foilRef.current) foilRef.current.style.opacity = "0";
+  }
+
+  function onMouseEnter() {
+    isHovering.current = true;
+    if (!animRef.current) animate();
+  }
+
+  function animate() {
+    const cur = currentTilt.current;
+    const tgt = targetTilt.current;
+    cur.x += (tgt.x - cur.x) * 0.12;
+    cur.y += (tgt.y - cur.y) * 0.12;
+    if (cardRef.current && !isFlipped) {
+      cardRef.current.style.transform = `rotateX(${cur.x}deg) rotateY(${cur.y}deg)`;
+    }
+    const stillMoving = Math.abs(tgt.x - cur.x) > 0.01 || Math.abs(tgt.y - cur.y) > 0.01 || isHovering.current;
+    if (stillMoving) {
+      animRef.current = requestAnimationFrame(animate);
+    } else {
+      animRef.current = null;
+      if (cardRef.current) cardRef.current.style.transform = "";
+    }
+  }
+
+  // Stop animation on flip
+  function handleClick() {
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+    if (cardRef.current) cardRef.current.style.transform = "";
+    if (foilRef.current) foilRef.current.style.opacity = "0";
+    targetTilt.current = { x:0, y:0 };
+    setFlippedCard(isFlipped ? null : c.id);
+  }
 
   const QtyControls = () => (
     <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
@@ -6306,17 +6363,48 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
       <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
     </div>
   );
+
   if (c.imageUrl) {
     return (
-      <div style={{ perspective:"800px", aspectRatio:"3/4" }}>
-        <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1)", transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }}
-          onClick={()=>setFlippedCard(isFlipped ? null : c.id)}
+      <div style={{ perspective:"600px", aspectRatio:"3/4" }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+        onMouseEnter={onMouseEnter}
+      >
+        <div ref={cardRef} style={{
+          position:"relative", width:"100%", height:"100%",
+          transformStyle:"preserve-3d",
+          transition: isFlipped ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "none",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          borderRadius:10, cursor:"pointer",
+          willChange:"transform",
+        }}
+          onClick={handleClick}
         >
+          {/* Front — card image */}
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            {/* Foil shine overlay */}
+            <div ref={foilRef} style={{
+              position:"absolute", inset:0, borderRadius:10,
+              background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
+              backgroundSize:"200% 200%",
+              mixBlendMode:"screen",
+              opacity:0,
+              transition:"opacity 0.2s ease",
+              pointerEvents:"none",
+            }}/>
+            {/* Specular highlight */}
+            <div style={{
+              position:"absolute", inset:0, borderRadius:10,
+              background:"radial-gradient(ellipse at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.15) 0%, transparent 60%)",
+              pointerEvents:"none",
+              mixBlendMode:"overlay",
+            }}/>
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
           </div>
+          {/* Back — card details */}
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
