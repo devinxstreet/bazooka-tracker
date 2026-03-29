@@ -1995,7 +1995,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2272,7 +2272,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
-      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices}/>}
+      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams}/>
 
       {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials}/>}
 
@@ -3656,7 +3656,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
 }
 
 // ─── PRODUCT INVENTORY ───────────────────────────────────────────
-function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices }) {
+function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[] }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
   const [form,          setForm]          = useState(EMPTY);
@@ -3705,6 +3705,94 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* SKU Price History Chart */}
+      {(() => {
+        // Build price history from stream streamSkuPrices overrides
+        const history = {};
+        PRODUCT_TYPES.forEach(pt => history[pt] = []);
+        [...streams]
+          .filter(s => s.date && s.streamSkuPrices && Object.keys(s.streamSkuPrices).length > 0)
+          .sort((a,b) => new Date(a.date)-new Date(b.date))
+          .forEach(s => {
+            PRODUCT_TYPES.forEach(pt => {
+              const price = parseFloat(s.streamSkuPrices[pt]);
+              if (price > 0) history[pt].push({ date: s.date, price });
+            });
+          });
+        const hasData = PRODUCT_TYPES.some(pt => history[pt].length > 1);
+        if (!hasData) return (
+          <div style={{ ...S.card, border:"1px solid #2a2a2a", textAlign:"center", color:"#555", fontSize:12, padding:"20px" }}>
+            📈 SKU price history will appear here once you have streams with price overrides
+          </div>
+        );
+        const COLORS = { "Double Mega":"#E8317A", "Hobby":"#7B9CFF", "Jumbo":"#4ade80", "Miscellaneous":"#FBBF24" };
+        const [activePt, setActivePt] = React.useState(PRODUCT_TYPES.find(pt => history[pt].length > 1) || PRODUCT_TYPES[0]);
+        const pts = history[activePt] || [];
+        const allDates = [...new Set(pts.map(p=>p.date))].sort();
+        const color = COLORS[activePt] || "#E8317A";
+        const minP = Math.min(...pts.map(p=>p.price));
+        const maxP = Math.max(...pts.map(p=>p.price));
+        const range = maxP - minP || 1;
+        const W = 600, H = 180, PAD = { t:20, r:20, b:40, l:60 };
+        const chartW = W - PAD.l - PAD.r;
+        const chartH = H - PAD.t - PAD.b;
+        const points = pts.map((p, i) => ({
+          x: PAD.l + (i / Math.max(pts.length-1,1)) * chartW,
+          y: PAD.t + chartH - ((p.price - minP) / range) * chartH,
+          price: p.price, date: p.date
+        }));
+        const pathD = points.map((p,i) => `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        const areaD = points.length > 0 ? `${pathD} L${points[points.length-1].x},${PAD.t+chartH} L${points[0].x},${PAD.t+chartH} Z` : "";
+        return (
+          <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+              <SectionLabel t="📈 SKU Price History" />
+              <div style={{ display:"flex", gap:6 }}>
+                {PRODUCT_TYPES.filter(pt => history[pt].length > 0).map(pt => (
+                  <button key={pt} onClick={()=>setActivePt(pt)} style={{ background:activePt===pt?COLORS[pt]+"22":"transparent", color:activePt===pt?COLORS[pt]:"#555", border:`1.5px solid ${activePt===pt?COLORS[pt]:"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{pt}</button>
+                ))}
+              </div>
+            </div>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto" }}>
+              {/* Grid lines */}
+              {[0,0.25,0.5,0.75,1].map(t => {
+                const y = PAD.t + chartH * (1-t);
+                const val = minP + range * t;
+                return <g key={t}>
+                  <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="#1a1a1a" strokeWidth="1"/>
+                  <text x={PAD.l-6} y={y+4} textAnchor="end" fill="#555" fontSize="10">${val.toFixed(0)}</text>
+                </g>;
+              })}
+              {/* Area fill */}
+              {areaD && <path d={areaD} fill={color} fillOpacity="0.08"/>}
+              {/* Line */}
+              {pathD && <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>}
+              {/* Points */}
+              {points.map((p,i) => (
+                <g key={i}>
+                  <circle cx={p.x} cy={p.y} r="4" fill={color} stroke="#111" strokeWidth="1.5"/>
+                  <text x={p.x} y={p.y-10} textAnchor="middle" fill={color} fontSize="10" fontWeight="700">${p.price.toFixed(0)}</text>
+                </g>
+              ))}
+              {/* X axis dates */}
+              {points.map((p,i) => (
+                <text key={i} x={p.x} y={H-8} textAnchor="middle" fill="#555" fontSize="9">{p.date.slice(5)}</text>
+              ))}
+              {/* Axes */}
+              <line x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={PAD.t+chartH} stroke="#333" strokeWidth="1"/>
+              <line x1={PAD.l} y1={PAD.t+chartH} x2={W-PAD.r} y2={PAD.t+chartH} stroke="#333" strokeWidth="1"/>
+            </svg>
+            {pts.length > 1 && (() => {
+              const first = pts[0].price, last = pts[pts.length-1].price;
+              const diff = last - first, pct = ((diff/first)*100).toFixed(1);
+              return <div style={{ fontSize:11, color:diff>=0?"#4ade80":"#E8317A", textAlign:"right", marginTop:4 }}>
+                {diff>=0?"↑":"↓"} ${Math.abs(diff).toFixed(0)} ({Math.abs(pct)}%) since first recorded
+              </div>;
+            })()}
+          </div>
+        );
+      })()}
 
       {/* SKU Pricing — Admin only */}
       {canEdit && (
@@ -6770,7 +6858,7 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
