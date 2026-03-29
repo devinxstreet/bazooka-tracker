@@ -6399,6 +6399,7 @@ function BobaChecklist({ userRole }) {
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all"); // all | owned | missing
   const [sortBy,           setSortBy]           = useState("cardNum");
+  const [weaponSetFilter,  setWeaponSetFilter]  = useState("");
   const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -7283,7 +7284,6 @@ function BobaChecklist({ userRole }) {
           .sort((a,b) => b.pct-a.pct);
 
         // Per-set weapon stats (built separately so we can filter)
-        const [weaponSetFilter, setWeaponSetFilter] = React.useState("");
         const weaponFilteredCards = weaponSetFilter ? cards.filter(c => c.setName === weaponSetFilter) : cards;
         const byWeaponFiltered = {};
         weaponFilteredCards.forEach(c => {
