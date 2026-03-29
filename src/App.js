@@ -529,7 +529,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           trueNet: streamTotals.trueNet + histTotals.trueNet,
         };
 
-        const PERIOD_LABELS = { week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
+        const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
 
         // Drill-down modal content
         const renderDrillDown = () => {
@@ -604,7 +604,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
               <SectionLabel t="Financial Overview" />
               <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
+                {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
                   <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
                 ))}
               </div>
@@ -2003,6 +2003,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
+  const [sortInv,  setSortInv]  = useState("date");
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState("cards");
   const [editCostId,  setEditCostId]  = useState(null);
@@ -2018,6 +2019,15 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                   : statusF==="used"        ? used
                   : true;
     return mn && mt && ms;
+  }).sort((a,b) => {
+    if (sortInv==="name")    return (a.cardName||"").localeCompare(b.cardName||"");
+    if (sortInv==="mv_desc") return (b.marketValue||0)-(a.marketValue||0);
+    if (sortInv==="mv_asc")  return (a.marketValue||0)-(b.marketValue||0);
+    if (sortInv==="cost_desc") return (b.costPerCard||0)-(a.costPerCard||0);
+    if (sortInv==="cost_asc")  return (a.costPerCard||0)-(b.costPerCard||0);
+    if (sortInv==="type")    return (a.cardType||"").localeCompare(b.cardType||"");
+    // default: date desc
+    return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
   });
   function toggleSelect(id) { setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function toggleAll() { setSelected(selected.size===filtered.length ? new Set() : new Set(filtered.map(c=>c.id))); }
@@ -2273,6 +2283,15 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
             <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={{ ...S.inp, width:"auto", minWidth:160, color:typeF?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
               <option value="">All Types</option>
               {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
+            </select>
+            <select value={sortInv} onChange={e=>setSortInv(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+              <option value="date">Sort: Date Added</option>
+              <option value="name">Sort: Name A→Z</option>
+              <option value="type">Sort: Type</option>
+              <option value="mv_desc">Sort: MV High→Low</option>
+              <option value="mv_asc">Sort: MV Low→High</option>
+              <option value="cost_desc">Sort: Cost High→Low</option>
+              <option value="cost_asc">Sort: Cost Low→High</option>
             </select>
             <div style={{ display:"flex", gap:4 }}>
               {[["available","✅ Available"],["in_transit","🚚 In Transit"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
@@ -3371,7 +3390,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
 
       {/* Period Filter */}
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-        {[["week","This Week"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
+        {[["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
           <button key={val} onClick={()=>setPerfPeriod(val)} style={{ background:perfPeriod===val?"#E8317A":"#1a1a1a", color:perfPeriod===val?"#fff":"#888", border:`1px solid ${perfPeriod===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
         {perfPeriod==="custom" && (
@@ -4960,7 +4979,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       <div style={{ ...S.card, padding:"12px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           <span style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
-          {[["all","All Time"],["week","This Week"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["custom","Custom"]].map(([val,label]) => (
+          {[["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
             <button key={val} onClick={()=>{ setPeriod(val); setViewStream(null); }}
               style={{ background:period===val?"#1A1A2E":"transparent", color:period===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${period===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {label}
