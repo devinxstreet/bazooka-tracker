@@ -5273,7 +5273,7 @@ function PublicQuote({ quoteId }) {
 
 
 // ─── BUYERS CRM ──────────────────────────────────────────────
-function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
+function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [search,      setSearch]      = useState("");
   const [sortBy,      setSortBy]      = useState("spend");
@@ -5283,6 +5283,231 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole }) {
   const [period,      setPeriod]      = useState("all");
   const [rangeFrom,   setRangeFrom]   = useState("");
   const [rangeTo,     setRangeTo]     = useState("");
+  const [slide,       setSlide]       = useState(0);
+  const [sessionFilter, setSessionFilter] = useState("all");
+
+  const SESSION_OPTS = [
+    { value:"all",     label:"All Sessions" },
+    { value:"day",     label:"☀️ Day (Mon-Thurs)" },
+    { value:"night",   label:"🌙 Night (Mon-Thurs)" },
+    { value:"weekend", label:"📅 Weekend (Fri-Sun)" },
+    { value:"event",   label:"🎉 Event" },
+  ];
+
+  // Get stream IDs matching session filter
+  const filteredStreamIds = sessionFilter === "all"
+    ? null
+    : new Set(streams.filter(s => s.sessionType === sessionFilter).map(s => `${s.breaker}_${s.date}`));
+
+  // Filter buyers by session type
+  const sessionBuyers = filteredStreamIds === null ? buyers : buyers.filter(b => {
+    if (!b.importIds) return false;
+    return b.importIds.some(id => {
+      const imp = csvImports.find(i => i.id === id);
+      return imp && filteredStreamIds.has(`${imp.breaker||""}_${imp.date||""}`);
+    });
+  });
+
+  // State breakdown
+  const stateCounts = {};
+  const stateSpend  = {};
+  sessionBuyers.forEach(b => {
+    if (!b.state) return;
+    stateCounts[b.state] = (stateCounts[b.state]||0) + 1;
+    stateSpend[b.state]  = (stateSpend[b.state]||0) + (b.totalSpend||0);
+  });
+  const topStates = Object.entries(stateCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxStateCount = topStates[0]?.[1] || 1;
+
+  // Timezone breakdown (inferred from state)
+  const TZ_MAP = {
+    ET:["ME","NH","VT","MA","RI","CT","NY","NJ","PA","DE","MD","VA","WV","NC","SC","GA","FL","OH","MI","IN","KY","TN"],
+    CT:["WI","IL","MN","IA","MO","AR","LA","MS","AL","OK","TX","KS","NE","SD","ND"],
+    MT:["MT","ID","WY","CO","UT","AZ","NM"],
+    PT:["WA","OR","CA","NV"],
+  };
+  const tzCounts = { ET:0, CT:0, MT:0, PT:0, Other:0 };
+  sessionBuyers.forEach(b => {
+    if (!b.state) { tzCounts.Other++; return; }
+    const tz = Object.entries(TZ_MAP).find(([,states])=>states.includes(b.state))?.[0]||"Other";
+    tzCounts[tz]++;
+  });
+  const totalTz = Object.values(tzCounts).reduce((a,b)=>a+b,0)||1;
+
+  // Session performance
+  const sessionStats = {};
+  streams.forEach(s => {
+    const key = s.sessionType||"untagged";
+    if (!sessionStats[key]) sessionStats[key] = { count:0, gross:0 };
+    sessionStats[key].count++;
+    sessionStats[key].gross += parseFloat(s.grossRevenue)||0;
+  });
+
+  // Export mailing list
+  function exportMailingList() {
+    const rows = [["Full Name","City","State","Zip"]];
+    sessionBuyers.filter(b=>b.fullName||b.city||b.state||b.zip).forEach(b => {
+      rows.push([b.fullName||"", b.city||"", b.state||"", b.zip||""]);
+    });
+    const csv = rows.map(r=>r.map(v=>`"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `bazooka-mailing-list-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  const SLIDES = [
+    { id:"states",   label:"📍 Top States" },
+    { id:"timezone", label:"🕐 Time Zones" },
+    { id:"sessions", label:"📊 Session Performance" },
+    { id:"export",   label:"📤 Mailing List" },
+  ];
+
+  const fmt = v => "$"+parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Analytics Carousel */}
+      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ padding:"14px 20px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1a1a1a" }}>
+          <SectionLabel t="📊 CRM Analytics" />
+          <select value={sessionFilter} onChange={e=>setSessionFilter(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
+            {SESSION_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        {/* Slide content */}
+        <div style={{ padding:"20px", minHeight:280 }}>
+
+          {/* Slide 0: Top States */}
+          {slide===0 && (
+            <div>
+              <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers · {topStates.length} states represented</div>
+              {topStates.length === 0
+                ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No state data yet</div>
+                : topStates.map(([state, count]) => (
+                  <div key={state} style={{ marginBottom:10 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{state}</span>
+                      <span style={{ fontSize:12, color:"#888" }}>{count} buyer{count!==1?"s":""}{canSeeFinancials && stateSpend[state]>0?` · ${fmt(stateSpend[state])}`:""}</span>
+                    </div>
+                    <div style={{ background:"#1a1a1a", borderRadius:4, height:8, overflow:"hidden" }}>
+                      <div style={{ width:`${(count/maxStateCount)*100}%`, height:"100%", background:"#E8317A", borderRadius:4, transition:"width 0.4s" }}/>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* Slide 1: Time Zones */}
+          {slide===1 && (
+            <div>
+              <div style={{ fontSize:12, color:"#666", marginBottom:20 }}>{sessionBuyers.length} buyers by time zone</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+                {Object.entries(tzCounts).map(([tz, count]) => {
+                  const pct = Math.round((count/totalTz)*100);
+                  const colors = { ET:"#E8317A", CT:"#7B9CFF", MT:"#4ade80", PT:"#FBBF24", Other:"#555" };
+                  return (
+                    <div key={tz} style={{ ...S.card, textAlign:"center", padding:"16px 8px" }}>
+                      <div style={{ fontSize:28, fontWeight:900, color:colors[tz]||"#888" }}>{count}</div>
+                      <div style={{ fontSize:14, fontWeight:800, color:colors[tz]||"#888", margin:"4px 0" }}>{tz}</div>
+                      <div style={{ fontSize:11, color:"#555" }}>{pct}%</div>
+                      <div style={{ background:"#1a1a1a", borderRadius:4, height:4, marginTop:8, overflow:"hidden" }}>
+                        <div style={{ width:`${pct}%`, height:"100%", background:colors[tz]||"#333", borderRadius:4 }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:16, fontSize:11, color:"#444" }}>ET=Eastern · CT=Central · MT=Mountain · PT=Pacific</div>
+            </div>
+          )}
+
+          {/* Slide 2: Session Performance */}
+          {slide===2 && (
+            <div>
+              <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{streams.length} total streams tagged</div>
+              {Object.keys(sessionStats).length === 0
+                ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No streams tagged with session type yet</div>
+                : <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
+                    {[
+                      { key:"day",     label:"☀️ Day Break",     sub:"Mon-Thurs" },
+                      { key:"night",   label:"🌙 Night Break",   sub:"Mon-Thurs" },
+                      { key:"weekend", label:"📅 Weekend Break", sub:"Fri-Sun" },
+                      { key:"event",   label:"🎉 Event",         sub:"Special" },
+                    ].map(({ key, label, sub }) => {
+                      const s = sessionStats[key] || { count:0, gross:0 };
+                      const avg = s.count > 0 ? s.gross/s.count : 0;
+                      return (
+                        <div key={key} style={{ ...S.card, padding:"14px 16px" }}>
+                          <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0", marginBottom:2 }}>{label}</div>
+                          <div style={{ fontSize:10, color:"#555", marginBottom:10 }}>{sub}</div>
+                          <div style={{ display:"flex", justifyContent:"space-between" }}>
+                            <div style={{ textAlign:"center" }}>
+                              <div style={{ fontSize:22, fontWeight:900, color:"#7B9CFF" }}>{s.count}</div>
+                              <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Streams</div>
+                            </div>
+                            {canSeeFinancials && <>
+                              <div style={{ textAlign:"center" }}>
+                                <div style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>{fmt(s.gross)}</div>
+                                <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Total Gross</div>
+                              </div>
+                              <div style={{ textAlign:"center" }}>
+                                <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>{fmt(avg)}</div>
+                                <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Avg/Stream</div>
+                              </div>
+                            </>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+              }
+            </div>
+          )}
+
+          {/* Slide 3: Mailing List Export */}
+          {slide===3 && (
+            <div>
+              <div style={{ fontSize:12, color:"#666", marginBottom:16 }}>
+                {sessionBuyers.filter(b=>b.fullName||b.city||b.state||b.zip).length} buyers with address data
+                {sessionFilter!=="all"?` · filtered to ${SESSION_OPTS.find(o=>o.value===sessionFilter)?.label}`:""}
+              </div>
+              <div style={{ ...S.card, padding:"20px", textAlign:"center", marginBottom:14 }}>
+                <div style={{ fontSize:32, marginBottom:12 }}>📬</div>
+                <div style={{ fontSize:15, fontWeight:800, color:"#F0F0F0", marginBottom:6 }}>Export Mailing List</div>
+                <div style={{ fontSize:12, color:"#666", marginBottom:16 }}>Downloads a CSV with Full Name, City, State, Zip</div>
+                <button onClick={exportMailingList} style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:9, padding:"10px 28px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                  ⬇️ Download CSV
+                </button>
+              </div>
+              <div style={{ fontSize:11, color:"#444" }}>
+                Use the session filter above to export buyers from specific break types only, or leave on "All Sessions" for the full list.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dots navigation */}
+        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"12px 20px", borderTop:"1px solid #1a1a1a" }}>
+          {SLIDES.map((s,i) => (
+            <button key={s.id} onClick={()=>setSlide(i)} style={{ background:"none", border:"none", cursor:"pointer", padding:"4px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+              <div style={{ width:i===slide?24:8, height:8, borderRadius:4, background:i===slide?"#E8317A":"#2a2a2a", transition:"all 0.2s" }}/>
+              {i===slide && <span style={{ fontSize:10, color:"#E8317A", fontWeight:700, whiteSpace:"nowrap" }}>{s.label}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Prev/Next arrows */}
+        <div style={{ display:"flex", justifyContent:"space-between", padding:"0 20px 14px" }}>
+          <button onClick={()=>setSlide(s=>Math.max(0,s-1))} disabled={slide===0} style={{ background:"none", border:"1px solid #2a2a2a", color:slide===0?"#333":"#888", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:slide===0?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
+          <button onClick={()=>setSlide(s=>Math.min(SLIDES.length-1,s+1))} disabled={slide===SLIDES.length-1} style={{ background:"none", border:"1px solid #2a2a2a", color:slide===SLIDES.length-1?"#333":"#888", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:slide===SLIDES.length-1?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
+        </div>
+      </div>
 
   // Compute period date bounds
   function getPeriodBounds() {
@@ -6135,7 +6360,7 @@ export default function App() {
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
+        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
 
