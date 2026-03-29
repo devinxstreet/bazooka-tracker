@@ -4343,18 +4343,24 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:14 }}>Gross Revenue</span>
               <span style={{ fontWeight:900, color:"#E8317A", fontSize:16 }}>{fmt(c.gross)}</span>
             </div>
-            {/* Platform fees — excluded from rep 13.5% */}
+            {/* Platform fees + coupons — excluded from rep 13.5% */}
             {parseFloat(s.whatnotFees) > 0 && (
               <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7, border:"1px solid #2a2a2a" }}>
                 <span style={{ color:"#AAAAAA", fontSize:13 }}>− Whatnot Fees <span style={{ fontSize:10, color:"#AAAAAA", marginLeft:6 }}>(platform cost — not included in rep expenses)</span></span>
                 <span style={{ color:"#AAAAAA", fontWeight:700, fontSize:13 }}>${(parseFloat(s.whatnotFees)||0).toFixed(2)}</span>
               </div>
             )}
+            {parseFloat(s.coupons) > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7, border:"1px solid #2a2a2a" }}>
+                <span style={{ color:"#AAAAAA", fontSize:13 }}>− Coupons <span style={{ fontSize:10, color:"#AAAAAA", marginLeft:6 }}>(revenue offset — not included in rep expenses)</span></span>
+                <span style={{ color:"#AAAAAA", fontWeight:700, fontSize:13 }}>${(parseFloat(s.coupons)||0).toFixed(2)}</span>
+              </div>
+            )}
             {/* Supply/stream expenses — included in rep 13.5% */}
-            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).length > 0 && (
+            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.l !== "Coupons" && r.v>0).length > 0 && (
               <div style={{ fontSize:10, color:"#AAAAAA", fontWeight:700, textTransform:"uppercase", letterSpacing:1, padding:"4px 2px" }}>Stream Expenses (rep pays 13.5% of these)</div>
             )}
-            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.v>0).map(({l,v}) => (
+            {EXPENSE_ROWS.filter(r=>r.l !== "Whatnot Fees" && r.l !== "Coupons" && r.v>0).map(({l,v}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 14px", background:"#111111", borderRadius:7, border:"1px solid #FEE2E2" }}>
                 <span style={{ color:"#AAAAAA", fontSize:13 }}>− {l}</span>
                 <span style={{ color:"#E8317A", fontWeight:700, fontSize:13 }}>${v.toFixed(2)}</span>
