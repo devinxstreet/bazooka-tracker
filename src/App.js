@@ -2481,7 +2481,23 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 const reader = new FileReader();
                 reader.onload = ev => {
                   try {
-                    const lines = ev.target.result.split("\n").map(l=>l.trim()).filter(Boolean);
+                    const raw = ev.target.result;
+                    // Rejoin lines that are split inside quoted fields
+                    const fixedLines = [];
+                    let current = "";
+                    let inQ = false;
+                    for (let ci = 0; ci < raw.length; ci++) {
+                      const ch = raw[ci];
+                      if (ch === '"') inQ = !inQ;
+                      if ((ch === '\n' || ch === '\r') && !inQ) {
+                        if (current.trim()) fixedLines.push(current.replace(/\r/g,''));
+                        current = "";
+                      } else {
+                        current += ch;
+                      }
+                    }
+                    if (current.trim()) fixedLines.push(current.replace(/\r/g,''));
+                    const lines = fixedLines;
                     const rawHeaders = lines[0].split(",").map(h=>h.replace(/"/g,"").toLowerCase().trim());
                     const getIdx = key => rawHeaders.findIndex(h=>h===key);
                     const origIdx   = getIdx("original_item_price");
@@ -2491,6 +2507,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     const descIdx  = getIdx("product_description");
                     const nameIdx  = getIdx("product_name");
                     const titleIdx = getIdx("listing_title") !== -1 ? getIdx("listing_title") : getIdx("item_name");
+                    // Zion Cases: check product_name first (that's where it lives), then description
                     if (origIdx === -1) { alert("Couldn't find original_item_price column. Make sure this is a Whatnot live sales CSV."); return; }
                     let gross=0, coupons=0, streamDate="", skipped=0;
                     for (let i=1; i<lines.length; i++) {
@@ -2501,7 +2518,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         else { cur+=ch; }
                       }
                       cols.push(cur.trim());
-                      if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
+                      const cancelVal = (cols[cancelIdx]||"").toLowerCase();
+                      if (cancelVal === "true" || cancelVal === "failed") { skipped++; continue; }
                       const itemDesc  = descIdx  !== -1 ? (cols[descIdx]||"")  : "";
                       const itemName  = nameIdx  !== -1 ? (cols[nameIdx]||"")  : "";
                       const itemTitle = titleIdx !== -1 ? (cols[titleIdx]||"") : "";
@@ -2535,7 +2553,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                           else { cur+=ch; }
                         }
                         cols.push(cur.trim());
-                        if ((cols[cancelIdx]||"").toLowerCase()==="true") continue;
+                        const cv = (cols[cancelIdx]||"").toLowerCase();
+                        if (cv === "true" || cv === "failed") continue;
                         const username = cols[usernameIdx]||"";
                         if (!username) continue;
                         const address = cols[addressIdx]||"";
