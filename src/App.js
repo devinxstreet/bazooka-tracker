@@ -5594,7 +5594,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
   const totalOrders  = periodBuyers.reduce((s,b)=>s+(b.orderCount||0),0);
   const newThisMonth = periodBuyers.filter(b=>{ const d=new Date(b.firstSeen||0); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear(); }).length;
   const stateGroups  = periodBuyers.reduce((acc,b)=>{ if(b.state){acc[b.state]=(acc[b.state]||0)+1;} return acc; },{});
-  const topStates    = Object.entries(stateGroups).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const topStatesList = Object.entries(stateGroups).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   // ── BUYER DETAIL ──────────────────────────────────────────
   if (selected) {
@@ -5746,7 +5746,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
       </div>
 
       {/* Top states */}
-      {topStates.length > 0 && (
+      {topStatesList.length > 0 && (
         <div style={S.card}>
           <SectionLabel t="📍 Top States" />
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
