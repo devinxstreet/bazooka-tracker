@@ -5806,7 +5806,16 @@ function BobaChecklist({ userRole, user }) {
   const [sortBy,           setSortBy]           = useState("cardNum");
   const [weaponSetFilter,  setWeaponSetFilter]  = useState("");
   const [page,           setPage]           = useState(1);
-  const PAGE_SIZE = 100;
+  // Deck builder state
+  const [deckCards,      setDeckCards]      = useState([]); // array of card ids in current deck
+  const [deckName,       setDeckName]       = useState("My Deck");
+  const [savedDecks,     setSavedDecks]     = useState([]);
+  const [deckSearch,     setDeckSearch]     = useState("");
+  const [deckFilterWeap, setDeckFilterWeap] = useState("");
+  const [deckFilterHero, setDeckFilterHero] = useState("");
+  const [deckSaving,     setDeckSaving]     = useState(false);
+  const [deckLoadId,     setDeckLoadId]     = useState(null);
+  const DECK_SIZE = 60;
   const isAdmin = ["Admin"].includes(userRole?.role);
 
   useEffect(() => {
@@ -5839,10 +5848,45 @@ function BobaChecklist({ userRole, user }) {
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
-    return ()=>{ u2(); u3(); uWants(); };
+    const u4 = onSnapshot(collection(db,"boba_decks"), snap => {
+      const uid = user?.uid || "shared";
+      setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
+    });
+    return ()=>{ u2(); u3(); u4(); uWants(); };
   }, []);
 
-  async function scanPdfForCards(file, setName, treatment, weapon) {
+  async function saveDeck() {
+    if (!deckName.trim() || deckCards.length === 0) return;
+    setDeckSaving(true);
+    const id = deckLoadId || `deck_${Date.now()}`;
+    await setDoc(doc(db,"boba_decks",id), {
+      id, userId: user?.uid||"shared", name: deckName.trim(),
+      cardIds: deckCards, cardCount: deckCards.length,
+      savedAt: new Date().toISOString(),
+    }, { merge:true });
+    setDeckLoadId(id);
+    setDeckSaving(false);
+  }
+
+  async function deleteDeck(id) {
+    if (!window.confirm("Delete this deck?")) return;
+    await deleteDoc(doc(db,"boba_decks",id));
+    if (deckLoadId === id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
+  }
+
+  function loadDeck(deck) {
+    setDeckLoadId(deck.id);
+    setDeckName(deck.name);
+    setDeckCards(deck.cardIds||[]);
+    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
+  }
+
+  function newDeck() {
+    setDeckLoadId(null);
+    setDeckName("My Deck");
+    setDeckCards([]);
+    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
+  }
     setScanPdf(file.name);
     setScanProgress({ current:0, total:0, status:"Loading PDF..." });
     scanPausedRef.current = false;
@@ -6267,7 +6311,7 @@ function BobaChecklist({ userRole, user }) {
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3 }}>
-            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -6880,6 +6924,221 @@ function BobaChecklist({ userRole, user }) {
                 </div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+
+      {viewMode === "deck" && (() => {
+        const ownedSet = new Set(Object.keys(owned));
+        const deckSet  = new Set(deckCards);
+        const inDeck   = cards.filter(c => deckSet.has(c.id));
+        const empty    = DECK_SIZE - inDeck.length;
+
+        // Stats
+        const totalPower  = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
+        const weaponBreak = {};
+        const heroCover   = new Set();
+        inDeck.forEach(c => {
+          const w = c.weapon||"Unknown";
+          weaponBreak[w] = (weaponBreak[w]||0) + 1;
+          if(c.hero) heroCover.add(c.hero);
+        });
+        const weaponEntries = Object.entries(weaponBreak).sort((a,b)=>b[1]-a[1]);
+
+        // Available cards to add (owned, has image or not, not already in deck)
+        const available = cards.filter(c => {
+          if (deckSet.has(c.id)) return false;
+          if (!ownedSet.has(c.id)) return false;
+          if (deckFilterWeap && c.weapon !== deckFilterWeap) return false;
+          if (deckFilterHero && c.hero !== deckFilterHero) return false;
+          if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
+          return true;
+        }).sort((a,b) => (parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+
+        const deckHeroes  = [...new Set(cards.filter(c=>ownedSet.has(c.id)).map(c=>c.hero).filter(Boolean))].sort();
+        const deckWeapons = [...new Set(cards.filter(c=>ownedSet.has(c.id)).map(c=>c.weapon).filter(Boolean))].sort();
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+            {/* Header */}
+            <div style={{ ...S.card, padding:"12px 16px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <input value={deckName} onChange={e=>setDeckName(e.target.value)}
+                  style={{ ...S.inp, fontSize:15, fontWeight:800, flex:1, minWidth:180 }}
+                  placeholder="Deck name..."/>
+                <span style={{ fontSize:12, color: inDeck.length===DECK_SIZE?"#4ade80":inDeck.length>DECK_SIZE?"#E8317A":"#FBBF24", fontWeight:700 }}>
+                  {inDeck.length}/{DECK_SIZE} cards
+                </span>
+                <button onClick={saveDeck} disabled={deckSaving||deckCards.length===0}
+                  style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {deckSaving?"Saving...":"💾 Save Deck"}
+                </button>
+                <button onClick={newDeck}
+                  style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  + New Deck
+                </button>
+              </div>
+
+              {/* Saved decks */}
+              {savedDecks.length > 0 && (
+                <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {savedDecks.map(d=>(
+                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+                      <button onClick={()=>loadDeck(d)} style={{ background:"none", border:"none", color:deckLoadId===d.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        {d.name} <span style={{ color:"#555", fontWeight:400 }}>({d.cardCount})</span>
+                      </button>
+                      <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 340px", gap:14, alignItems:"start" }}>
+
+              {/* LEFT: Card picker */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {/* Filters */}
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                  <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)}
+                    placeholder="Search hero, card #, treatment..."
+                    style={{ ...S.inp, flex:1, minWidth:160 }}/>
+                  <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                    <option value="">All Weapons</option>
+                    {deckWeapons.map(w=><option key={w} value={w}>{w}</option>)}
+                  </select>
+                  <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                    <option value="">All Heroes</option>
+                    {deckHeroes.map(h=><option key={h} value={h}>{h}</option>)}
+                  </select>
+                  <span style={{ fontSize:11, color:"#555" }}>{available.length} available</span>
+                </div>
+
+                {/* Available cards list */}
+                <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:520, overflowY:"auto" }}>
+                  {available.length === 0 ? (
+                    <div style={{ padding:"32px", textAlign:"center", color:"#333", fontSize:13 }}>
+                      {Object.keys(owned).length === 0 ? "No owned cards — mark cards as owned in the Checklist first" : "No cards match your filters"}
+                    </div>
+                  ) : available.map((c,i) => {
+                    const wc = WEAPON_COLORS[c.weapon]||"#444";
+                    const full = inDeck.length >= DECK_SIZE;
+                    return (
+                      <div key={c.id} onClick={()=>{ if(!full) setDeckCards(p=>[...p,c.id]); }}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:full?"not-allowed":"pointer", opacity:full?0.4:1 }}
+                        className="inv-row">
+                        {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
+                          <div style={{ display:"flex", gap:6, marginTop:3, flexWrap:"wrap" }}>
+                            <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                            {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
+                            {c.treatment && <span style={{ fontSize:10, color:"#555" }}>{c.treatment}</span>}
+                          </div>
+                        </div>
+                        {c.power && <div style={{ fontSize:16, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
+                        <div style={{ fontSize:18, color:"#4ade80", flexShrink:0 }}>+</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RIGHT: Deck + stats */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+
+                {/* Stats */}
+                <div style={{ ...S.card }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Deck Stats</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+                    {[
+                      { l:"Cards", v:`${inDeck.length}/${DECK_SIZE}`, c:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24" },
+                      { l:"Total Power", v:Math.round(totalPower).toLocaleString(), c:"#E8317A" },
+                      { l:"Heroes", v:heroCover.size, c:"#7B9CFF" },
+                      { l:"Avg Power", v:inDeck.length>0?Math.round(totalPower/inDeck.length):0, c:"#FBBF24" },
+                    ].map(({l,v,c})=>(
+                      <div key={l} style={{ background:"#111", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                        <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                        <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Weapon breakdown */}
+                  {weaponEntries.length > 0 && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Weapon Balance</div>
+                      {weaponEntries.map(([w,count])=>{
+                        const wc = WEAPON_COLORS[w]||"#444";
+                        const pct = Math.round(count/inDeck.length*100);
+                        return (
+                          <div key={w} style={{ marginBottom:5 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                              <span style={{ fontSize:11, color:wc, fontWeight:700 }}>{w}</span>
+                              <span style={{ fontSize:11, color:"#555" }}>{count} ({pct}%)</span>
+                            </div>
+                            <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                              <div style={{ width:`${pct}%`, height:"100%", background:wc, borderRadius:2 }}/>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Hero coverage */}
+                  {heroCover.size > 0 && (
+                    <div>
+                      <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Heroes ({heroCover.size})</div>
+                      <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                        {[...heroCover].sort().map(h=>(
+                          <span key={h} style={{ fontSize:10, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 7px", color:"#888" }}>{h}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 60-slot grid */}
+                <div style={{ ...S.card }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>
+                    Deck Slots — {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
+                    {Array.from({ length: DECK_SIZE }).map((_,i) => {
+                      const c = inDeck[i];
+                      if (c) {
+                        const wc = WEAPON_COLORS[c.weapon]||"#444";
+                        return (
+                          <div key={i} title={`${c.hero} — ${c.weapon||""} ${c.power||""}`}
+                            onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))}
+                            style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>
+                            {c.imageUrl
+                              ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                              : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2, lineHeight:1.2 }}>{c.hero?.split(" ")[0]}</div>
+                            }
+                            <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", transition:"background 0.15s" }} className="deck-slot-hover"/>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {inDeck.length > 0 && (
+                    <button onClick={()=>{ if(window.confirm("Clear all cards from deck?")) setDeckCards([]); }}
+                      style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+                      ✕ Clear Deck
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         );
       })()}
