@@ -2806,13 +2806,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     <span style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt(parseFloat(recap.zionRevenue||0))}</span>
                   </div>
                 )}
-                  ].map(({l,v,c}) => (
-                    <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px 8px", border:"1px solid #2a2a2a" }}>
-                      <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
-                      <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
                 {/* Row 2: bazooka true net */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #222222" }}>
                   {[
