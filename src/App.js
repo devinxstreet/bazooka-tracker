@@ -6068,7 +6068,30 @@ export default function App() {
     const chaserIds = stream?.chaserCardIds ? stream.chaserCardIds.split(",").filter(Boolean) : [];
     const chaserBreaks = breaks.filter(b => chaserIds.includes(b.inventoryId));
     for (const b of chaserBreaks) await deleteDoc(doc(db,"breaks",b.id));
-    showToast(`🗑 Stream deleted${chaserIds.length>0?` — ${chaserIds.length} chaser card${chaserIds.length!==1?"s":""} restored to inventory`:""}${linked.length>0?" — product usage removed":""}`);
+    // Clean up buyers linked to this stream's CSV import
+    const streamKey = stream ? `${stream.breaker}_${stream.date}` : null;
+    if (streamKey) {
+      const linkedImports = csvImports.filter(i => i.streamId === streamKey);
+      for (const imp of linkedImports) {
+        // Remove this import from each buyer's importIds
+        const impBuyers = buyers.filter(b => (b.importIds||[]).includes(imp.id));
+        for (const b of impBuyers) {
+          const remaining = (b.importIds||[]).filter(i => i !== imp.id);
+          if (remaining.length === 0) {
+            // Buyer has no other imports — delete them
+            await deleteDoc(doc(db,"buyers",b.id));
+          } else {
+            // Buyer has other imports — just remove this one
+            const update = { importIds: remaining };
+            update[`importData_${imp.id}`] = null;
+            await setDoc(doc(db,"buyers",b.id), update, { merge:true });
+          }
+        }
+        // Delete the import record itself
+        await deleteDoc(doc(db,"csv_imports",imp.id));
+      }
+    }
+    showToast(`🗑 Stream deleted${chaserIds.length>0?` — ${chaserIds.length} chaser card${chaserIds.length!==1?"s":""} restored`:""}${linked.length>0?" — product usage removed":""}`);
   }
 
   async function handleSaveShipment(shipment) {
