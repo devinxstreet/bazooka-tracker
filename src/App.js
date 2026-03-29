@@ -6433,7 +6433,7 @@ function BobaChecklist({ userRole }) {
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
-    return ()=>{ u2(); u3(); };
+    return ()=>{ u2(); u3(); uWants(); };
   }, []);
 
   async function scanPdfForCards(file, setName, treatment, weapon) {
@@ -6579,6 +6579,8 @@ function BobaChecklist({ userRole }) {
     const a = document.createElement("a"); a.href=url; a.download="boba-have-list.csv"; a.click();
     URL.revokeObjectURL(url);
   }
+
+  async function setOwnedQty(cardId, qty) {
     const next = { ...owned };
     if (qty <= 0) delete next[cardId];
     else next[cardId] = qty;
@@ -7595,7 +7597,7 @@ export default function App() {
     const u15 = onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u16 = onSnapshot(doc(db,"settings","imc_form"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); });
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); uWants(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -7936,16 +7938,6 @@ export default function App() {
     await setDoc(doc(db,"card_pools",poolId), { totalQty:newTotal, updatedAt:new Date().toISOString() }, { merge:true });
     showToast("✅ Added " + qty + " cards to " + pool.cardName + " pool");
   }
-  async function handleSavePool(pool) {
-    const id = pool.id || uid();
-    await setDoc(doc(db,"card_pools",id), { ...pool, id, updatedAt:new Date().toISOString() }, { merge:true });
-    showToast(pool.id ? "Pool updated" : "Pool created");
-  }
-  async function handleDeletePool(poolId) {
-    await deleteDoc(doc(db,"card_pools",poolId));
-    showToast("Pool deleted");
-  }
-
   async function handleDeleteLot(lotKey, cardIds) {
     if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
     for (const id of cardIds) await deleteDoc(doc(db,"inventory",id));
