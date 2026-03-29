@@ -6293,6 +6293,73 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
 }
 
 
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, WEAPON_COLORS }) {
+  const wc = WEAPON_COLORS[c.weapon] || "#444";
+  const isFlipped = flippedCard === c.id;
+  const qty = ownedQty || 0;
+
+  const QtyControls = () => (
+    <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
+      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+      <span style={{ fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#555", minWidth:16, textAlign:"center" }}>{qty}</span>
+      <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+    </div>
+  );
+  if (c.imageUrl) {
+    return (
+      <div style={{ perspective:"800px", aspectRatio:"3/4" }}>
+        <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1)", transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }}
+          onClick={()=>setFlippedCard(isFlipped ? null : c.id)}
+        >
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
+            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
+            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
+          </div>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                <QtyControls/>
+              </div>
+              <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
+                {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+                {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+                {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+              </div>
+              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+              {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
+              <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", display:"flex", gap:10, alignItems:"center" }}>
+      <QtyControls/>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+          <span style={{ fontSize:10, fontWeight:700, color:"#555", minWidth:32 }}>#{c.cardNum}</span>
+          <span style={{ fontSize:13, fontWeight:800, color:isOwned?"#4ade80":"#F0F0F0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</span>
+        </div>
+        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+          {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+          {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+          {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+        </div>
+        {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+      </div>
+      {c.power && <div style={{ fontSize:14, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
+    </div>
+  );
+}
+
 function BobaChecklist({ userRole }) {
   const [cards,        setCards]        = useState([]);
   const [imports,      setImports]      = useState([]); // list of {id, setName, filename, importedAt, cardIds}
@@ -6471,11 +6538,17 @@ function BobaChecklist({ userRole }) {
     setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
   }
 
-  async function toggleOwned(cardId) {
-    const next = { ...owned, [cardId]: !owned[cardId] };
-    if(!next[cardId]) delete next[cardId];
+  async function setOwnedQty(cardId, qty) {
+    const next = { ...owned };
+    if (qty <= 0) delete next[cardId];
+    else next[cardId] = qty;
     setOwned(next);
     await setDoc(doc(db,"boba_owned","owned"), next);
+  }
+
+  // Keep toggleOwned as convenience (0→1, 1→0)
+  async function toggleOwned(cardId) {
+    await setOwnedQty(cardId, owned[cardId] ? 0 : 1);
   }
 
   function handleFileSelect(e) {
@@ -6599,7 +6672,8 @@ function BobaChecklist({ userRole }) {
     return 0;
   });
 
-  const totalOwned = Object.keys(owned).length;
+  const totalOwned = Object.keys(owned).length; // unique cards
+  const totalCollection = Object.values(owned).reduce((s,q)=>s+(q||0),0); // total copies
   const totalCards = cards.length;
   const pct = totalCards > 0 ? Math.round(totalOwned/totalCards*100) : 0;
   const totalPages = Math.ceil(filtered.length/PAGE_SIZE);
@@ -7010,22 +7084,7 @@ function BobaChecklist({ userRole }) {
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
                           {heroCardList.map(c => {
                             const isOwned = !!owned[c.id];
-                            const wc = WEAPON_COLORS[c.weapon] || "#444";
-                            return (
-                              <div key={c.id} onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?wc+"18":"#111111", border:`1.5px solid ${isOwned?wc+"55":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center" }}>
-                                <div style={{ fontSize:16, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:2 }}>
-                                    <span style={{ fontSize:10, color:"#555", flexShrink:0 }}>#{c.cardNum}</span>
-                                    {c.weapon && <span style={{ fontSize:11, fontWeight:700, color:wc }}>{c.weapon}</span>}
-                                    {c.notation && <span style={{ fontSize:9, color:"#FBBF24", fontWeight:700 }}>{c.notation}</span>}
-                                  </div>
-                                  <div style={{ fontSize:11, color:"#AAAAAA", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.treatment}</div>
-                                  {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
-                                </div>
-                                {c.power && <div style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
-                              </div>
-                            );
+                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
                           })}
                         </div>
                         {/* Toggle all for hero */}
@@ -7096,22 +7155,7 @@ function BobaChecklist({ userRole }) {
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
                         {tcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
-                          const wc = WEAPON_COLORS[c.weapon] || "#444";
-                          return (
-                            <div key={c.id} onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?wc+"18":"#111111", border:`1.5px solid ${isOwned?wc+"55":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center" }}>
-                              <div style={{ fontSize:16, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:2 }}>
-                                  <span style={{ fontSize:10, color:"#555", flexShrink:0 }}>#{c.cardNum}</span>
-                                  {c.weapon && <span style={{ fontSize:11, fontWeight:700, color:wc }}>{c.weapon}</span>}
-                                  {c.notation && <span style={{ fontSize:9, color:"#FBBF24", fontWeight:700 }}>{c.notation}</span>}
-                                </div>
-                                <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
-                                {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
-                              </div>
-                              {c.power && <div style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
-                            </div>
-                          );
+                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
@@ -7138,67 +7182,7 @@ function BobaChecklist({ userRole }) {
             {paginated.map(c => {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
-              const hasImg = !!c.imageUrl;
-              if (hasImg) {
-                const isFlipped = flippedCard === c.id;
-                return (
-                  <div key={c.id} style={{ perspective:"800px", aspectRatio:"3/4" }}>
-                    <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1)", transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }}
-                      onClick={()=>setFlippedCard(isFlipped ? null : c.id)}
-                    >
-                      {/* Front — card image */}
-                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-                        <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-                        <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
-                        {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
-                      </div>
-                      {/* Back — card details + own toggle */}
-                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
-                        <div>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                            <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
-                            <button onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?"#0a1a0a":"#1a0a0f", border:`1.5px solid ${isOwned?"#4ade80":"#E8317A"}`, color:isOwned?"#4ade80":"#E8317A", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                              {isOwned ? "✅ Owned" : "⬜ Not Owned"}
-                            </button>
-                          </div>
-                          <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
-                          <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
-                            {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-                            {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-                            {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
-                          </div>
-                          {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
-                          {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
-                        </div>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-                          {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
-                          <div style={{ fontSize:9, color:"#333" }}>hover away to flip back</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              // No image — standard tile
-              return (
-                <div key={c.id} onClick={()=>toggleOwned(c.id)} style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", cursor:"pointer", display:"flex", gap:10, alignItems:"center" }}>
-                  <div style={{ fontSize:18, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:"#555", minWidth:32 }}>#{c.cardNum}</span>
-                      <span style={{ fontSize:13, fontWeight:800, color:isOwned?"#4ade80":"#F0F0F0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</span>
-                    </div>
-                    <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                      {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-                      {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-                      {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
-                    </div>
-                    {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
-                    {c.setName && sets.length > 1 && <div style={{ fontSize:9, color:"#333", marginTop:1 }}>{c.setName}</div>}
-                  </div>
-                  {c.power && <div style={{ fontSize:14, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
-                </div>
-              );
+              return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} WEAPON_COLORS={WEAPON_COLORS}/>;
             })}
           </div>
           {totalPages > 1 && (
