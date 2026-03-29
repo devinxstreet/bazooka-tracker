@@ -646,6 +646,59 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })()}
 
+      {/* Ops Summary */}
+      {canSeeFinancials && (() => {
+        const periodStreams = streams.filter(s => {
+          if (!s.date) return false;
+          const d = parseLocalDate(s.date);
+          const now = new Date();
+          if (financialPeriod==="week") {
+            const day=d.getDay(), diff=day===0?6:day-1;
+            const wStart=new Date(d); wStart.setDate(d.getDate()-diff); wStart.setHours(0,0,0,0);
+            const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+            const today=new Date(); const tDay=today.getDay(), tDiff=tDay===0?6:tDay-1;
+            const twStart=new Date(today); twStart.setDate(today.getDate()-tDiff); twStart.setHours(0,0,0,0);
+            return wStart >= twStart;
+          }
+          if (financialPeriod==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+          if (financialPeriod==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear(); }
+          if (financialPeriod==="year") return d.getFullYear()===now.getFullYear();
+          return true;
+        });
+
+        const totMagpros  = periodStreams.reduce((s,r)=>s+(parseFloat(r.magpros)||0),0);
+        const totPack     = periodStreams.reduce((s,r)=>s+(parseFloat(r.packagingMaterial)||0),0);
+        const totTopload  = periodStreams.reduce((s,r)=>s+(parseFloat(r.topLoaders)||0),0);
+        const totChaser   = periodStreams.reduce((s,r)=>s+(parseFloat(r.chaserCards)||0),0);
+        const totMagQty   = periodStreams.reduce((s,r)=>s+(parseInt(r.magprosQty)||0),0);
+        const totPackQty  = periodStreams.reduce((s,r)=>s+(parseInt(r.packagingQty)||0),0);
+        const totTopQty   = periodStreams.reduce((s,r)=>s+(parseInt(r.topLoadersQty)||0),0);
+        const totZion     = periodStreams.reduce((s,r)=>s+(parseFloat(r.zionRevenue)||0),0);
+        const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
+
+        return (
+          <div style={{ ...S.card }}>
+            <SectionLabel t="📦 Ops Summary" />
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+              {[
+                { l:"MagPros",          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
+                { l:"Packaging",        v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"",        c:"#7B9CFF" },
+                { l:"Top Loaders",      v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",          c:"#7B9CFF" },
+                { l:"Chaser Cards",     v:`$${totChaser.toFixed(2)}`,   sub:"",                                           c:"#E8317A" },
+                { l:"Coupons Given",    v:`$${totCoupons.toFixed(2)}`,  sub:"",                                           c:"#FBBF24" },
+                { l:"🟢 Zion Cases",     v:totZion>0?`$${totZion.toFixed(2)}`:"—", sub:totZion>0?`~${Math.round(totZion/3)} units sold`:"Bazooka-only", c:"#4ade80" },
+              ].map(({l,v,sub,c}) => (
+                <div key={l} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid #2a2a2a" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{l}</div>
+                  {sub && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{sub}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Year-End Projections */}
       {canSeeFinancials && (() => {
         const now = new Date();
