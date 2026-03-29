@@ -45,7 +45,7 @@ module.exports = async function handler(req, res) {
             {
               type: "text",
               text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}Extract ALL visible fields and return ONLY a JSON object with no other text:
-{"cardNum":"card number shown (e.g. RAD-1, 1, P-5)","hero":"hero name exactly as printed","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","power":"power number (e.g. 135)","treatment":"treatment/set name if visible"}
+{"cardNum":"card number exactly as printed (e.g. RAD-1, ALT-4, 1, P-5 — include any prefix like RAD-, ALT-, etc.)","hero":"hero name exactly as printed including any punctuation (e.g. X.L., Bojax, The Kid)","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic — Alt cards often have no weapon symbol)","power":"power number (e.g. 135)","treatment":"treatment/set name if visible"}
 If you cannot read the card clearly, return {"cardNum":null}`
             }
           ]
@@ -57,9 +57,7 @@ If you cannot read the card clearly, return {"cardNum":null}`
   }
 
   let data;
-  try {
-    data = await anthropicResponse.json();
-  } catch(jsonErr) {
+  try { data = await anthropicResponse.json(); } catch(e) {
     return res.status(500).json({ error: "JSON parse failed", identified: null });
   }
 
@@ -71,7 +69,6 @@ If you cannot read the card clearly, return {"cardNum":null}`
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
-    // Fill in known values from modal if Claude missed them
     return res.status(200).json({
       identified: {
         cardNum:   parsed.cardNum   || null,
@@ -87,9 +84,5 @@ If you cannot read the card clearly, return {"cardNum":null}`
 };
 
 module.exports.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb",
-    },
-  },
+  api: { bodyParser: { sizeLimit: "10mb" } },
 };
