@@ -414,7 +414,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                       <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"☀️",night:"🌙",weekend:"📅",event:"🎉"}}[s.sessionType]||""</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{fmt(s.netRev)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{(s.rate*100).toFixed(0)}%</td>
@@ -2304,7 +2304,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", commissionOverride:"", streamNotes:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -2330,7 +2330,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", ...prodFields });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -2579,6 +2579,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <option value="auction">Auction</option>
               <option value="bin">BIN</option>
               <option value="mixed">Mixed</option>
+            </select>
+          </div>
+          <div>
+            <label style={S.lbl}>Session Type</label>
+            <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+              <option value="">— Select —</option>
+              <option value="day">☀️ Day Break</option>
+              <option value="night">🌙 Night Break</option>
+              <option value="weekend">📅 Weekend Break</option>
+              <option value="event">🎉 Event</option>
             </select>
           </div>
           <div>
@@ -4070,7 +4080,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
               {(stub.streams||[]).map((s,i)=>(
                 <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                   <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                  <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}</td>
+                  <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:11,color:"#7B9CFF"}}>{({day:"☀️",night:"🌙",weekend:"📅",event:"🎉"})[s.sessionType]||""}</span>:""}</td>
                   <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                   <td style={{ ...S.td, color:"#7B9CFF" }}>{fmt(s.bazNet||0)}</td>
                   <td style={{ ...S.td, color:"#888" }}>{(s.rate*100).toFixed(0)}%</td>
