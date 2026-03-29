@@ -2394,7 +2394,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -2420,7 +2420,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", ...prodFields });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -2878,6 +2878,33 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
+        {/* Collab Stream */}
+        <div style={{ background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <input type="checkbox" checked={!!recap.collabPartner} onChange={e=>{ if(!e.target.checked){ rf("collabPartner")(""); rf("collabPct")(""); } else rf("collabPartner")("_"); }} style={{ width:15, height:15 }}/>
+            <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab Stream</span>
+            {!!recap.collabPartner && (
+              <>
+                <input value={recap.collabPartner === "_" ? "" : recap.collabPartner} onChange={e=>rf("collabPartner")(e.target.value||"_")} placeholder="Partner name / channel" style={{ ...S.inp, flex:1, fontSize:12 }}/>
+                <input type="number" min="0" max="100" step="1" value={recap.collabPct||""} onChange={e=>rf("collabPct")(e.target.value)} placeholder="%" style={{ ...S.inp, width:70, textAlign:"center", fontSize:12, color:"#7B9CFF" }}/>
+                <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>% of Bazooka Net</span>
+              </>
+            )}
+          </div>
+          {!!recap.collabPartner && recap.collabPct && (() => {
+            const pct = parseFloat(recap.collabPct)||0;
+            const baz = rc.bazNet || 0;
+            const collabAmt = baz * (pct/100);
+            const bazAfter  = baz - collabAmt;
+            return (
+              <div style={{ display:"flex", gap:16, fontSize:12, marginTop:8 }}>
+                <span style={{ color:"#888" }}>Collab payout: <strong style={{color:"#7B9CFF"}}>${collabAmt.toFixed(2)}</strong></span>
+                <span style={{ color:"#888" }}>Bazooka after collab: <strong style={{color:"#E8317A"}}>${bazAfter.toFixed(2)}</strong></span>
+              </div>
+            );
+          })()}
+        </div>
+
         {/* Product used this stream */}
         <div style={{ marginBottom:14 }}>
           <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>📦 Product Used This Stream</label>
@@ -2914,6 +2941,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                     </div>
                   ))}
+                </div>
+                {recap.collabPartner && recap.collabPartner !== "_" && parseFloat(recap.collabPct) > 0 && (() => {
+                  const collabAmt = rc.bazNet * (parseFloat(recap.collabPct)/100);
+                  return (
+                    <div style={{ marginBottom:10, padding:"8px 14px", background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab — {recap.collabPartner} ({recap.collabPct}%)</span>
+                      <span style={{ fontSize:14, fontWeight:900, color:"#7B9CFF" }}>− {fmt(collabAmt)}</span>
+                    </div>
+                  );
+                })()}
                 </div>
                 {parseFloat(recap.zionRevenue||0) > 0 && (
                   <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
