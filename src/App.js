@@ -2509,7 +2509,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     const titleIdx = getIdx("listing_title") !== -1 ? getIdx("listing_title") : getIdx("item_name");
                     // Zion Cases: check product_name first (that's where it lives), then description
                     if (origIdx === -1) { alert("Couldn't find original_item_price column. Make sure this is a Whatnot live sales CSV."); return; }
-                    let gross=0, coupons=0, streamDate="", skipped=0;
+                    let gross=0, coupons=0, zionGross=0, streamDate="", skipped=0;
                     for (let i=1; i<lines.length; i++) {
                       const cols=[]; let cur="", inQuote=false;
                       for (const ch of lines[i]) {
@@ -2526,16 +2526,18 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       const isZion = itemDesc.toLowerCase().includes("zion") || itemName.toLowerCase().includes("zion") || itemTitle.toLowerCase().includes("zion");
                       const rowGross = (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
                       const rowCoupon = parseFloat(cols[couponIdx]||0)||0;
-                      if (!isZion) {
+                      if (isZion) {
+                        zionGross += rowGross;
+                      } else {
                         gross   += rowGross;
                         coupons += rowCoupon;
                       }
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
-                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons }));
+                    setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
                     if (streamDate) { csvJustLoaded.current = true; setDate(streamDate); }
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
+                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
                     setTimeout(()=>setCsvMsg(null), 8000);
 
                     // Parse buyers for CRM
@@ -2648,6 +2650,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           ))}
         </div>
 
+        {/* Zion Cases Revenue — auto-filled, read-only, Bazooka only */}
+        {parseFloat(recap.zionRevenue||0) > 0 && (
+          <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>🟢 Zion Cases Revenue — Bazooka Only</div>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-detected from CSV · Not included in IMC gross</div>
+            </div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>${parseFloat(recap.zionRevenue||0).toFixed(2)}</div>
+          </div>
+        )}
         {/* Chaser Cards — picker + manual override */}
         <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -2814,6 +2826,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     </div>
                   ))}
                 </div>
+                {parseFloat(recap.zionRevenue||0) > 0 && (
+                  <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div>
+                      <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>🟢 Zion Cases — Bazooka Only</span>
+                      <span style={{ fontSize:10, color:"#555", marginLeft:8 }}>not in IMC split</span>
+                    </div>
+                    <span style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt(parseFloat(recap.zionRevenue||0))}</span>
+                  </div>
+                )}
 
                 {/* Row 2: bazooka true net */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #222222" }}>
@@ -5319,55 +5340,6 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
   const [sessionFilter, setSessionFilter] = useState("all");
   const [chartJsLoaded, setChartJsLoaded] = useState(false);
 
-  // Load Chart.js once
-  useEffect(() => {
-    if (window.Chart) { setChartJsLoaded(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    s.onload = () => setChartJsLoaded(true);
-    document.head.appendChild(s);
-  }, []);
-
-  // Draw charts when slide or data changes
-  useEffect(() => {
-    if (!chartJsLoaded || !window.Chart) return;
-    if (slide === 0) {
-      const el = document.getElementById("stateChart");
-      if (!el) return;
-      if (window._stateChart) window._stateChart.destroy();
-      const labels = topStates.map(([s])=>s);
-      const counts = topStates.map(([,c])=>c);
-      const spends = topStates.map(([s])=>stateSpend[s]||0);
-      const grad = el.getContext("2d").createLinearGradient(0,0,0,260);
-      grad.addColorStop(0,"#E8317A"); grad.addColorStop(1,"#7B2FF7");
-      window._stateChart = new window.Chart(el, {
-        type:"bar",
-        data:{ labels, datasets:[{ data:counts, backgroundColor:grad, borderRadius:6, borderSkipped:false }]},
-        options:{ responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers"+(canSeeFinancials&&spends[c.dataIndex]>0?" · $"+spends[c.dataIndex].toFixed(2):"")}}},
-          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
-      });
-    }
-    if (slide === 1) {
-      const el = document.getElementById("tzChart");
-      if (!el) return;
-      if (window._tzChart) window._tzChart.destroy();
-      const tzLabels = ["ET","CT","MT","PT","Other"];
-      const tzData   = tzLabels.map(t=>tzCounts[t]||0);
-      const tzColors = ["#E8317A","#7B9CFF","#4ade80","#FBBF24","#555555"];
-      const grads = tzColors.map(c => {
-        const g = el.getContext("2d").createLinearGradient(0,0,0,240);
-        g.addColorStop(0,c); g.addColorStop(1,c+"44"); return g;
-      });
-      window._tzChart = new window.Chart(el, {
-        type:"bar",
-        data:{ labels:["Eastern","Central","Mountain","Pacific","Other"], datasets:[{ data:tzData, backgroundColor:grads, borderRadius:6, borderSkipped:false }]},
-        options:{ responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers ("+Math.round(c.parsed.y/(sessionBuyers.length||1)*100)+"%)"}}},
-          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
-      });
-    }
-  }, [slide, chartJsLoaded, topStates.length, sessionFilter]);
 
   const SESSION_OPTS = [
     { value:"all",     label:"All Sessions" },
@@ -5425,6 +5397,56 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
     sessionStats[key].count++;
     sessionStats[key].gross += parseFloat(s.grossRevenue)||0;
   });
+
+  // Load Chart.js once
+  useEffect(() => {
+    if (window.Chart) { setChartJsLoaded(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    s.onload = () => setChartJsLoaded(true);
+    document.head.appendChild(s);
+  }, []);
+
+  // Draw charts when slide or data changes
+  useEffect(() => {
+    if (!chartJsLoaded || !window.Chart) return;
+    if (slide === 0) {
+      const el = document.getElementById("stateChart");
+      if (!el) return;
+      if (window._stateChart) window._stateChart.destroy();
+      const labels = topStates.map(([s])=>s);
+      const counts = topStates.map(([,c])=>c);
+      const spends = topStates.map(([s])=>stateSpend[s]||0);
+      const grad = el.getContext("2d").createLinearGradient(0,0,0,260);
+      grad.addColorStop(0,"#E8317A"); grad.addColorStop(1,"#7B2FF7");
+      window._stateChart = new window.Chart(el, {
+        type:"bar",
+        data:{ labels, datasets:[{ data:counts, backgroundColor:grad, borderRadius:6, borderSkipped:false }]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers"+(canSeeFinancials&&spends[c.dataIndex]>0?" · $"+spends[c.dataIndex].toFixed(2):"")}}},
+          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
+      });
+    }
+    if (slide === 1) {
+      const el = document.getElementById("tzChart");
+      if (!el) return;
+      if (window._tzChart) window._tzChart.destroy();
+      const tzLabels = ["ET","CT","MT","PT","Other"];
+      const tzData   = tzLabels.map(t=>tzCounts[t]||0);
+      const tzColors = ["#E8317A","#7B9CFF","#4ade80","#FBBF24","#555555"];
+      const grads = tzColors.map(c => {
+        const g = el.getContext("2d").createLinearGradient(0,0,0,240);
+        g.addColorStop(0,c); g.addColorStop(1,c+"44"); return g;
+      });
+      window._tzChart = new window.Chart(el, {
+        type:"bar",
+        data:{ labels:["Eastern","Central","Mountain","Pacific","Other"], datasets:[{ data:tzData, backgroundColor:grads, borderRadius:6, borderSkipped:false }]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers ("+Math.round(c.parsed.y/(sessionBuyers.length||1)*100)+"%)"}}},
+          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
+      });
+    }
+  }, [slide, chartJsLoaded, topStates.length, sessionFilter]);
 
   // Export mailing list
   function exportMailingList() {
