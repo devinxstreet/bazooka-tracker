@@ -6573,7 +6573,8 @@ function BobaChecklist({ userRole, user }) {
 
       {/* Rainbow Tracker */}
       {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
-        const rainbowCards = rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards;
+        const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
+          .filter(c => { const n = String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL") && !n.startsWith("BPL"); });
         const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
 
         // Group filtered cards by hero
