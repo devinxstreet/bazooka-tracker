@@ -2436,7 +2436,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], onLogPoolUsage }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], onLogPoolUsage, imcFormUrl="", onSaveImcFormUrl }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -2951,6 +2951,41 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <Btn onClick={handleSaveRecap} disabled={!breaker||!date||!recap.grossRevenue||recapSaving} variant="green">
             {recapSaving ? "Saving..." : recapSaved ? "✅ Update Recap" : "💾 Save Stream Recap"}
           </Btn>
+          {recapSaved && (() => {
+            // Build IMC pre-fill URL
+            const formBase = (imcFormUrl||"").trim() || "https://docs.google.com/forms/d/e/1FAIpQLSeElbeOg-0ZsXcKBVA4xuaG0x66H_8qzgjMRLVMvDVHa6DmIA/viewform";
+            const hobby  = parseInt(recap[`prod_Hobby`])||0;
+            const jumbo  = parseInt(recap[`prod_Jumbo`])||0;
+            const dmega  = parseInt(recap[`prod_Double Mega`])||0;
+            const misc   = parseInt(recap[`prod_Miscellaneous`])||0;
+            const streamExpenses = [
+              recap.whatnotPromo>0?`WN Promo: $${recap.whatnotPromo}`:"",
+              recap.coupons>0?`Coupons: $${recap.coupons}`:"",
+              recap.magpros>0?`MagPros: $${recap.magpros}`:"",
+              recap.packagingMaterial>0?`Packaging: $${recap.packagingMaterial}`:"",
+              recap.topLoaders>0?`Top Loaders: $${recap.topLoaders}`:"",
+              recap.chaserCards>0?`Chasers: $${recap.chaserCards}`:"",
+            ].filter(Boolean).join(", ") || "None";
+            const formDate = date ? new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : "";
+            const params = new URLSearchParams({
+              [`entry.546325134`]:  breaker,
+              [`entry.53983190`]:   formDate,
+              [`entry.1397101824`]: hobby||"0",
+              [`entry.473640875`]:  jumbo||"0",
+              [`entry.2005003030`]: dmega||"0",
+              [`entry.1594275904`]: misc>0?`Miscellaneous: ${misc} box${misc!==1?"es":""}. `+"":"",
+              [`entry.1550026312`]: parseFloat(recap.grossRevenue||0).toFixed(2),
+              [`entry.1898010524`]: parseFloat(recap.whatnotFees||0).toFixed(2),
+              [`entry.2063681927`]: streamExpenses,
+              [`entry.1117405477`]: breaker,
+            });
+            const imcUrl = `${formBase}?usp=pp_url&${params.toString()}`;
+            return (
+              <a href={imcUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#1a0a0f", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
+                📋 Submit to IMC ↗
+              </a>
+            );
+          })()}
           {recapSaved && (
             <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
               + New Stream
@@ -2958,6 +2993,18 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#AAAAAA" }}>⚠ Unsaved changes</span>}
         </div>
+        {/* IMC Form URL setting — Admin only */}
+        {isAdmin && (
+          <div style={{ marginTop:12, display:"flex", gap:8, alignItems:"center" }}>
+            <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>IMC Form URL:</span>
+            <input
+              defaultValue={imcFormUrl}
+              onBlur={e=>{ if(onSaveImcFormUrl && e.target.value.trim() !== imcFormUrl) onSaveImcFormUrl(e.target.value.trim()); }}
+              placeholder="Paste new Google Form URL here each month..."
+              style={{ ...S.inp, fontSize:11, padding:"4px 10px", color:"#666" }}
+            />
+          </div>
+        )}
       </div>}
 
       {/* ── STREAM LOG ── */}
@@ -4096,7 +4143,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], onLogPoolUsage }) {
+function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], onLogPoolUsage, imcFormUrl="", onSaveImcFormUrl }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -4120,7 +4167,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools} onLogPoolUsage={onLogPoolUsage}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
@@ -5679,6 +5726,7 @@ export default function App() {
   const [buyers,         setBuyers]         = useState([]);
   const [csvImports,     setCsvImports]     = useState([]);
   const [cardPools,      setCardPools]      = useState([]);
+  const [imcFormUrl,     setImcFormUrl]     = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
@@ -5714,8 +5762,9 @@ export default function App() {
     const u13 = onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u14 = onSnapshot(query(collection(db,"csv_imports"), orderBy("importedAt","desc")), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u15 = onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u16 = onSnapshot(doc(db,"settings","imc_form"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); });
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
@@ -5990,6 +6039,10 @@ export default function App() {
     await setDoc(doc(db,"settings","sku_prices"), prices);
     showToast("💰 SKU prices saved");
   }
+  async function handleSaveImcFormUrl(url) {
+    await setDoc(doc(db,"settings","imc_form"), { url });
+    showToast("✅ IMC form URL saved");
+  }
   async function handleSaveProductUsage(usage) {
     const id = usage.id || uid();
     await setDoc(doc(db,"product_usage",id), { ...usage, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
@@ -6262,7 +6315,7 @@ export default function App() {
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onUpsertPool={handleUpsertPool}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} onLogPoolUsage={handleLogPoolUsage}/> : <AccessDenied msg="Break Log access is restricted." />)}
+        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} onLogPoolUsage={handleLogPoolUsage} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
       </div>
