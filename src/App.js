@@ -2488,7 +2488,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     const couponIdx = getIdx("coupon_price");
                     const cancelIdx = getIdx("cancelled_or_failed");
                     const dateIdx   = getIdx("placed_at");
-                    const titleIdx  = getIdx("product_description") !== -1 ? getIdx("product_description") : getIdx("product_name") !== -1 ? getIdx("product_name") : getIdx("listing_title");
+                    const descIdx  = getIdx("product_description");
+                    const nameIdx  = getIdx("product_name");
+                    const titleIdx = getIdx("listing_title") !== -1 ? getIdx("listing_title") : getIdx("item_name");
                     if (origIdx === -1) { alert("Couldn't find original_item_price column. Make sure this is a Whatnot live sales CSV."); return; }
                     let gross=0, coupons=0, zionGross=0, streamDate="", skipped=0;
                     for (let i=1; i<lines.length; i++) {
@@ -2500,8 +2502,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       }
                       cols.push(cur.trim());
                       if ((cols[cancelIdx]||"").toLowerCase()==="true") { skipped++; continue; }
+                      const itemDesc  = descIdx  !== -1 ? (cols[descIdx]||"")  : "";
+                      const itemName  = nameIdx  !== -1 ? (cols[nameIdx]||"")  : "";
                       const itemTitle = titleIdx !== -1 ? (cols[titleIdx]||"") : "";
-                      const isZion = itemTitle.toLowerCase().includes("zion");
+                      const isZion = itemDesc.toLowerCase().includes("zion") || itemName.toLowerCase().includes("zion") || itemTitle.toLowerCase().includes("zion");
                       const rowGross = (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
                       const rowCoupon = parseFloat(cols[couponIdx]||0)||0;
                       if (isZion) {
@@ -5393,6 +5397,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* Analytics Carousel */}
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         {/* Header */}
         <div style={{ padding:"14px 20px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1a1a1a" }}>
@@ -5406,49 +5411,101 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
         <div style={{ padding:"20px", minHeight:280 }}>
 
           {/* Slide 0: Top States */}
-          {slide===0 && (
-            <div>
-              <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers · {topStates.length} states represented</div>
-              {topStates.length === 0
-                ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No state data yet</div>
-                : topStates.map(([state, count]) => (
-                  <div key={state} style={{ marginBottom:10 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                      <span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{state}</span>
-                      <span style={{ fontSize:12, color:"#888" }}>{count} buyer{count!==1?"s":""}{canSeeFinancials && stateSpend[state]>0?` · ${fmt(stateSpend[state])}`:""}</span>
+          {slide===0 && (() => {
+            const labels = topStates.map(([s])=>s);
+            const counts = topStates.map(([,c])=>c);
+            const spends = topStates.map(([s])=>stateSpend[s]||0);
+            const chartId = "stateChart";
+            return (
+              <div>
+                <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers · {topStates.length} states</div>
+                {topStates.length === 0
+                  ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No state data yet</div>
+                  : <div style={{ position:"relative", height:260 }}>
+                      <canvas id={chartId}></canvas>
+                      <script dangerouslySetInnerHTML={{ __html:`
+                        (function() {
+                          if (window._stateChart) { window._stateChart.destroy(); }
+                          const ctx = document.getElementById('${chartId}');
+                          if (!ctx) return;
+                          const grad = ctx.getContext('2d').createLinearGradient(0,0,0,260);
+                          grad.addColorStop(0,'#E8317A');
+                          grad.addColorStop(1,'#7B2FF7');
+                          window._stateChart = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                              labels: ${JSON.stringify(labels)},
+                              datasets: [{
+                                label: 'Buyers',
+                                data: ${JSON.stringify(counts)},
+                                backgroundColor: grad,
+                                borderRadius: 6,
+                                borderSkipped: false,
+                              }]
+                            },
+                            options: {
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: { legend: { display: false }, tooltip: {
+                                callbacks: { label: ctx => ctx.parsed.y + ' buyers' + (${JSON.stringify(canSeeFinancials)} && ${JSON.stringify(spends)}[ctx.dataIndex] > 0 ? ' · $' + ${JSON.stringify(spends)}[ctx.dataIndex].toFixed(2) : '') }
+                              }},
+                              scales: {
+                                x: { grid: { color:'#1a1a1a' }, ticks: { color:'#888', font:{ size:11 } } },
+                                y: { grid: { color:'#1a1a1a' }, ticks: { color:'#888', font:{ size:11 }, stepSize:1 }, beginAtZero:true }
+                              }
+                            }
+                          });
+                        })();
+                      `}}/>
                     </div>
-                    <div style={{ background:"#1a1a1a", borderRadius:4, height:8, overflow:"hidden" }}>
-                      <div style={{ width:`${(count/maxStateCount)*100}%`, height:"100%", background:"#E8317A", borderRadius:4, transition:"width 0.4s" }}/>
-                    </div>
-                  </div>
-                ))
-              }
-            </div>
-          )}
+                }
+              </div>
+            );
+          })()}
 
           {/* Slide 1: Time Zones */}
-          {slide===1 && (
-            <div>
-              <div style={{ fontSize:12, color:"#666", marginBottom:20 }}>{sessionBuyers.length} buyers by time zone</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
-                {Object.entries(tzCounts).map(([tz, count]) => {
-                  const pct = Math.round((count/totalTz)*100);
-                  const colors = { ET:"#E8317A", CT:"#7B9CFF", MT:"#4ade80", PT:"#FBBF24", Other:"#555" };
-                  return (
-                    <div key={tz} style={{ ...S.card, textAlign:"center", padding:"16px 8px" }}>
-                      <div style={{ fontSize:28, fontWeight:900, color:colors[tz]||"#888" }}>{count}</div>
-                      <div style={{ fontSize:14, fontWeight:800, color:colors[tz]||"#888", margin:"4px 0" }}>{tz}</div>
-                      <div style={{ fontSize:11, color:"#555" }}>{pct}%</div>
-                      <div style={{ background:"#1a1a1a", borderRadius:4, height:4, marginTop:8, overflow:"hidden" }}>
-                        <div style={{ width:`${pct}%`, height:"100%", background:colors[tz]||"#333", borderRadius:4 }}/>
-                      </div>
-                    </div>
-                  );
-                })}
+          {slide===1 && (() => {
+            const tzLabels = ["ET","CT","MT","PT","Other"];
+            const tzData   = tzLabels.map(t=>tzCounts[t]||0);
+            const tzColors = ["#E8317A","#7B9CFF","#4ade80","#FBBF24","#555555"];
+            return (
+              <div>
+                <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers by time zone</div>
+                <div style={{ position:"relative", height:240 }}>
+                  <canvas id="tzChart"></canvas>
+                  <script dangerouslySetInnerHTML={{ __html:`
+                    (function() {
+                      if (window._tzChart) { window._tzChart.destroy(); }
+                      const ctx = document.getElementById('tzChart');
+                      if (!ctx) return;
+                      const grads = ${JSON.stringify(tzColors)}.map((c,i) => {
+                        const g = ctx.getContext('2d').createLinearGradient(0,0,0,240);
+                        g.addColorStop(0, c);
+                        g.addColorStop(1, c + '44');
+                        return g;
+                      });
+                      window._tzChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                          labels: ['Eastern','Central','Mountain','Pacific','Other'],
+                          datasets: [{ data: ${JSON.stringify(tzData)}, backgroundColor: grads, borderRadius:6, borderSkipped:false }]
+                        },
+                        options: {
+                          responsive:true, maintainAspectRatio:false,
+                          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y + ' buyers (' + Math.round(ctx.parsed.y/${sessionBuyers.length||1}*100) + '%)' }}},
+                          scales:{
+                            x:{ grid:{ color:'#1a1a1a' }, ticks:{ color:'#888', font:{ size:11 }}},
+                            y:{ grid:{ color:'#1a1a1a' }, ticks:{ color:'#888', font:{ size:11 }, stepSize:1 }, beginAtZero:true }
+                          }
+                        }
+                      });
+                    })();
+                  `}}/>
+                </div>
+                <div style={{ marginTop:12, fontSize:11, color:"#444" }}>ET=Eastern · CT=Central · MT=Mountain · PT=Pacific</div>
               </div>
-              <div style={{ marginTop:16, fontSize:11, color:"#444" }}>ET=Eastern · CT=Central · MT=Mountain · PT=Pacific</div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Slide 2: Session Performance */}
           {slide===2 && (
