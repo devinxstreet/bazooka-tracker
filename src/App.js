@@ -686,9 +686,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
           const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          cardCostByType[b.cardType] += cost;
-          cardQtyByType[b.cardType]  += 1;
+          if (b.cardType !== "Chaser Cards") { // Chaser cost comes from stream field (includes overrides)
+            cardCostByType[b.cardType] += cost;
+          }
+          cardQtyByType[b.cardType] += 1;
         });
+        // Chaser Cards cost: use stream-level chaserCards field (captures manual overrides)
+        cardCostByType["Chaser Cards"] = periodStreams.reduce((s,r)=>s+(parseFloat(r.chaserCards)||0),0);
 
         return (
           <div style={{ ...S.card }}>
