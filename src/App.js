@@ -5621,9 +5621,30 @@ export default function App() {
     const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
     const cardStatus  = hasTracking && lotTracking[lotKey]?.status === "Delivered" ? "available" : "in_transit";
 
-    // Write all cards to inventory regardless of type
+    // Write all cards to inventory
     for (const card of cards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
+    }
+
+    // Update matching pool quantities for pool-type cards
+    if (POOL_TYPES.some(t => cards.find(c => c.cardType === t))) {
+      const poolUpdates = {};
+      for (const card of cards) {
+        if (!POOL_TYPES.includes(card.cardType)) continue;
+        const key = `${card.cardType}__${card.cardName}`;
+        poolUpdates[key] = (poolUpdates[key] || 0) + 1;
+      }
+      for (const [key, qty] of Object.entries(poolUpdates)) {
+        const [cardType, ...nameParts] = key.split("__");
+        const cardName = nameParts.join("__");
+        const existing = cardPools.find(p => p.cardType === cardType && p.cardName === cardName);
+        if (existing) {
+          await setDoc(doc(db,"card_pools",existing.id), {
+            totalQty: (parseInt(existing.totalQty)||0) + qty,
+            updatedAt: new Date().toISOString(),
+          }, { merge:true });
+        }
+      }
     }
 
     if (custNote && custNote.trim()) {
