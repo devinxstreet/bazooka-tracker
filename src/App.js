@@ -5325,6 +5325,349 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 }
 
 // ─── PUBLIC QUOTE PAGE (no auth required) ────────────────────
+// ─── BOBA SHOWCASE (public, no auth required) ────────────────
+const SHOWCASE_WEAPON_COLORS = { Fire:"#F97316",Ice:"#60A5FA",Steel:"#9CA3AF",Brawl:"#E8317A",Glow:"#4ade80",Hex:"#A855F7",Gum:"#FBBF24",Super:"#F472B6",Alt:"#AAAAAA",Metallic:"#E5E7EB" };
+const RARITY_TIERS = [
+  { label:"Legendary", minPower:200, color:"#FBBF24" },
+  { label:"Elite",     minPower:160, color:"#A855F7" },
+  { label:"Rare",      minPower:130, color:"#60A5FA" },
+  { label:"Common",    minPower:0,   color:"#9CA3AF" },
+];
+function getRarity(c) {
+  const p = parseFloat(c.power) || 0;
+  return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
+}
+
+function BobaShowcase() {
+  const [cards,     setCards]     = useState([]);
+  const [owned,     setOwned]     = useState({});
+  const [loading,   setLoading]   = useState(true);
+  const [spotlight, setSpotlight] = useState(null);
+  const [filterSet, setFilterSet] = useState("");
+  const [filterWeapon, setFilterWeapon] = useState("");
+  const [sortBy,    setSortBy]    = useState("set");
+  const [page,      setPage]      = useState(0);
+  const [pageDir,   setPageDir]   = useState(1); // 1=forward, -1=back for animation
+  const [copied,    setCopied]    = useState(false);
+  const CARDS_PER_PAGE = 9;
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [cardSnap, ownedSnap] = await Promise.all([
+          getDocs(collection(db, "boba_checklist")),
+          getDoc(doc(db, "boba_owned", "owned")),
+        ]);
+        const allCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
+        setCards(allCards);
+        setOwned(ownedSnap.exists() ? ownedSnap.data() : {});
+      } catch(e) { console.error(e); }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const ownedCards = cards.filter(c => owned[c.id]);
+
+  // Sort
+  const sorted = [...ownedCards].sort((a, b) => {
+    if (sortBy === "set") {
+      const s = (a.setName||"").localeCompare(b.setName||"");
+      return s !== 0 ? s : String(a.cardNum).localeCompare(String(b.cardNum), undefined, { numeric:true });
+    }
+    if (sortBy === "power") return (parseFloat(b.power)||0) - (parseFloat(a.power)||0);
+    if (sortBy === "hero")  return (a.hero||"").localeCompare(b.hero||"");
+    if (sortBy === "rarity") return getRarity(b).minPower - getRarity(a).minPower;
+    return 0;
+  });
+
+  const sets    = [...new Set(ownedCards.map(c => c.setName).filter(Boolean))].sort();
+  const weapons = [...new Set(ownedCards.map(c => c.weapon).filter(Boolean))].sort();
+
+  let filtered = sorted;
+  if (filterSet)    filtered = filtered.filter(c => c.setName === filterSet);
+  if (filterWeapon) filtered = filtered.filter(c => c.weapon  === filterWeapon);
+
+  const totalPages = Math.ceil(filtered.length / CARDS_PER_PAGE);
+  const pageCards  = filtered.slice(page * CARDS_PER_PAGE, (page + 1) * CARDS_PER_PAGE);
+
+  // Stats
+  const totalPower     = ownedCards.reduce((s, c) => s + (parseFloat(c.power)||0), 0);
+  const heroCount      = [...new Set(ownedCards.map(c=>c.hero).filter(Boolean))].length;
+  const legendaryCount = ownedCards.filter(c => getRarity(c).label === "Legendary").length;
+
+  useEffect(() => { setPage(0); }, [filterSet, filterWeapon, sortBy]);
+
+  function goPage(next) {
+    setPageDir(next > page ? 1 : -1);
+    setPage(Math.max(0, Math.min(totalPages - 1, next)));
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/showcase`).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:"#000", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Trebuchet MS',sans-serif" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🃏</div>
+        <div style={{ color:"#E8317A", fontWeight:700, fontSize:16 }}>Loading Showcase...</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#050505", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0" }}>
+
+      {/* ── Header ── */}
+      <div style={{ background:"linear-gradient(180deg,#0d0d0d 0%,#050505 100%)", borderBottom:"1px solid #1a1a1a", padding:"24px 32px" }}>
+        <div style={{ maxWidth:1200, margin:"0 auto" }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:20, marginBottom:20, flexWrap:"wrap" }}>
+            {/* Brand */}
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:28, fontWeight:900, letterSpacing:-1, lineHeight:1 }}>
+                <span style={{ color:"#E8317A" }}>BAZOOKA</span>
+                <span style={{ color:"#F0F0F0" }}> Collection</span>
+              </div>
+              <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
+            </div>
+            {/* Share button */}
+            <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "#1a1a1a", border:`1px solid ${copied?"#4ade80":"#2a2a2a"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
+              {copied ? "✅ Copied!" : "🔗 Share Link"}
+            </button>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:12, marginBottom:20 }}>
+            {[
+              { label:"Cards Owned",  value:ownedCards.length.toLocaleString(), color:"#4ade80",  icon:"🃏" },
+              { label:"Heroes",       value:heroCount,                           color:"#7B9CFF",  icon:"⚡" },
+              { label:"Sets",         value:sets.length,                         color:"#FBBF24",  icon:"📦" },
+              { label:"Legendaries",  value:legendaryCount,                      color:"#FBBF24",  icon:"👑" },
+              { label:"Power Score",  value:Math.round(totalPower).toLocaleString(), color:"#E8317A", icon:"💥" },
+            ].map(({ label, value, color, icon }) => (
+              <div key={label} style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:10, color:"#444", marginBottom:4 }}>{icon} {label}</div>
+                <div style={{ fontSize:20, fontWeight:900, color }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Filters + sort */}
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+            {/* Set filter */}
+            <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);}} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <option value="">All Sets</option>
+              {sets.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {/* Weapon filter */}
+            <select value={filterWeapon} onChange={e=>setFilterWeapon(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <option value="">All Weapons</option>
+              {weapons.map(w => <option key={w} value={w} style={{ color: SHOWCASE_WEAPON_COLORS[w]||"#888" }}>{w}</option>)}
+            </select>
+            {/* Sort */}
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <option value="set">Sort: Set</option>
+              <option value="power">Sort: Power ↓</option>
+              <option value="rarity">Sort: Rarity</option>
+              <option value="hero">Sort: Hero A→Z</option>
+            </select>
+            <div style={{ flex:1 }}/>
+            <span style={{ fontSize:11, color:"#333" }}>{filtered.length} cards · {totalPages} pages</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Binder ── */}
+      <div style={{ maxWidth:1200, margin:"0 auto", padding:"32px" }}>
+        {ownedCards.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"100px 0", color:"#333" }}>
+            <div style={{ fontSize:56, marginBottom:20 }}>🃏</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#555" }}>No cards yet</div>
+            <div style={{ fontSize:13, marginTop:8, color:"#333" }}>Mark cards as owned in the BoBA Checklist to populate your showcase.</div>
+          </div>
+        ) : (
+          <>
+            {/* Page nav top */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+              <button onClick={()=>goPage(page-1)} disabled={page===0}
+                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page===0?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page===0?"default":"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>
+                ← Prev
+              </button>
+              {/* Page pills */}
+              <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                {Array.from({ length: Math.min(totalPages, 9) }).map((_, i) => {
+                  const pIdx = totalPages <= 9 ? i : Math.max(0, Math.min(totalPages - 9, page - 4)) + i;
+                  return (
+                    <button key={pIdx} onClick={()=>goPage(pIdx)}
+                      style={{ background:page===pIdx?"#E8317A":"transparent", color:page===pIdx?"#fff":"#444", border:`1px solid ${page===pIdx?"#E8317A":"#2a2a2a"}`, borderRadius:6, width:30, height:30, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>
+                      {pIdx+1}
+                    </button>
+                  );
+                })}
+                {totalPages > 9 && <span style={{ color:"#333", fontSize:11 }}>…{totalPages}</span>}
+              </div>
+              <button onClick={()=>goPage(page+1)} disabled={page>=totalPages-1}
+                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page>=totalPages-1?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page>=totalPages-1?"default":"pointer", fontFamily:"inherit" }}>
+                Next →
+              </button>
+            </div>
+
+            {/* Binder page */}
+            <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:16, padding:"28px", boxShadow:"0 24px 80px rgba(0,0,0,0.7)" }}>
+              {/* Set label for this page */}
+              {pageCards[0] && (
+                <div style={{ fontSize:11, color:"#333", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:20 }}>
+                  {pageCards[0].setName} — Page {page+1} of {totalPages}
+                </div>
+              )}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }}>
+                {pageCards.map(c => (
+                  <ShowcaseCard key={c.id} c={c} onClick={()=>setSpotlight(c)} />
+                ))}
+                {Array.from({ length: CARDS_PER_PAGE - pageCards.length }).map((_,i) => (
+                  <div key={`empty-${i}`} style={{ aspectRatio:"3/4", border:"1px dashed #111", borderRadius:12, background:"#080808" }}/>
+                ))}
+              </div>
+            </div>
+
+            {/* Rarity legend */}
+            <div style={{ display:"flex", gap:16, marginTop:16, justifyContent:"center", flexWrap:"wrap" }}>
+              {RARITY_TIERS.map(r => (
+                <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#444" }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:r.color }}/>
+                  <span style={{ color:r.color, fontWeight:700 }}>{r.label}</span>
+                  <span>({r.minPower === 0 ? "<130" : `${r.minPower}+`} power)</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Spotlight Modal ── */}
+      {spotlight && (
+        <div onClick={()=>setSpotlight(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.95)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:48, alignItems:"center", maxWidth:900, width:"100%", flexWrap:"wrap" }}>
+            {/* Big card */}
+            <div style={{ width:280, flexShrink:0 }}>
+              <ShowcaseCard c={spotlight} onClick={()=>{}} large />
+            </div>
+            {/* Details */}
+            <div style={{ flex:1, minWidth:260 }}>
+              <div style={{ fontSize:11, color:"#444", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>
+                {spotlight.setName} · #{spotlight.cardNum}
+              </div>
+              <div style={{ fontSize:38, fontWeight:900, color:"#F0F0F0", lineHeight:1.1, marginBottom:12 }}>{spotlight.hero}</div>
+
+              {/* Rarity badge */}
+              {(() => { const r = getRarity(spotlight); return (
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:r.color+"22", border:`1px solid ${r.color}44`, borderRadius:20, padding:"4px 12px", marginBottom:14 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:r.color }}/>
+                  <span style={{ fontSize:11, color:r.color, fontWeight:700 }}>{r.label}</span>
+                </div>
+              ); })()}
+
+              {/* Tags */}
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20 }}>
+                {spotlight.weapon    && <span style={{ fontSize:12, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888", background:(SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888")+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.weapon}</span>}
+                {spotlight.treatment && <span style={{ fontSize:12, color:"#AAAAAA", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{spotlight.treatment}</span>}
+                {spotlight.notation  && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.notation}</span>}
+              </div>
+
+              {/* Power */}
+              {spotlight.power && (
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:10, color:"#444", marginBottom:4, letterSpacing:1 }}>POWER</div>
+                  <div style={{ fontSize:56, fontWeight:900, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#E8317A", lineHeight:1 }}>{spotlight.power}</div>
+                </div>
+              )}
+
+              {spotlight.athlete && <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>🏅 Inspired by {spotlight.athlete}</div>}
+              {spotlight.variation && <div style={{ fontSize:12, color:"#333", marginBottom:16 }}>{spotlight.variation}</div>}
+
+              <div style={{ display:"flex", gap:10, marginTop:8 }}>
+                <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i>0) setSpotlight(filtered[i-1]); }} disabled={filtered.indexOf(spotlight)===0}
+                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>← Prev</button>
+                <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i<filtered.length-1) setSpotlight(filtered[i+1]); }} disabled={filtered.indexOf(spotlight)===filtered.length-1}
+                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Next →</button>
+                <button onClick={()=>setSpotlight(null)}
+                  style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>✕ Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShowcaseCard({ c, onClick, large }) {
+  const wc = SHOWCASE_WEAPON_COLORS[c.weapon] || "#444";
+  const rarity = getRarity(c);
+  const cardRef  = useRef(null);
+  const foilRef  = useRef(null);
+  const glareRef = useRef(null);
+  const animRef  = useRef(null);
+  const currentTilt = useRef({ x:0, y:0 });
+  const targetTilt  = useRef({ x:0, y:0 });
+  const isHovering  = useRef(false);
+
+  function startAnimation() { if (!animRef.current) animRef.current = requestAnimationFrame(animate); }
+  function onMouseMove(e) {
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX-rect.left)/rect.width, y = (e.clientY-rect.top)/rect.height;
+    targetTilt.current = { x:(y-0.5)*28, y:(x-0.5)*-28 };
+    if (foilRef.current) { foilRef.current.style.backgroundPosition=`${x*100}% ${y*100}%`; foilRef.current.style.opacity="1"; }
+    if (glareRef.current) { glareRef.current.style.background=`radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`; glareRef.current.style.opacity="1"; }
+    startAnimation();
+  }
+  function onMouseLeave() {
+    isHovering.current=false; targetTilt.current={x:0,y:0};
+    if (foilRef.current) foilRef.current.style.opacity="0";
+    if (glareRef.current) glareRef.current.style.opacity="0";
+    startAnimation();
+  }
+  function onMouseEnter() { isHovering.current=true; startAnimation(); }
+  function animate() {
+    const cur=currentTilt.current, tgt=targetTilt.current;
+    cur.x+=(tgt.x-cur.x)*0.1; cur.y+=(tgt.y-cur.y)*0.1;
+    if (cardRef.current) cardRef.current.style.transform=`perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(${large?1.02:1.05},${large?1.02:1.05},${large?1.02:1.05})`;
+    if (Math.abs(tgt.x-cur.x)>0.05||Math.abs(tgt.y-cur.y)>0.05||isHovering.current) { animRef.current=requestAnimationFrame(animate); }
+    else { animRef.current=null; cur.x=0; cur.y=0; if(cardRef.current) cardRef.current.style.transform=""; }
+  }
+
+  return (
+    <div style={{ aspectRatio:"3/4", cursor:onClick?"pointer":"default" }}
+      onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onClick={onClick}>
+      <div ref={cardRef} style={{ width:"100%", height:"100%", borderRadius:large?16:12, overflow:"hidden", position:"relative", willChange:"transform",
+        boxShadow:`0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${rarity.color}22` }}>
+        <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+        {/* Foil */}
+        <div ref={foilRef} style={{ position:"absolute", inset:0,
+          background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
+          backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
+        {/* Glare */}
+        <div ref={glareRef} style={{ position:"absolute", inset:0, mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
+        {/* Rarity glow border */}
+        <div style={{ position:"absolute", inset:0, borderRadius:large?16:12, boxShadow:`inset 0 0 ${large?30:20}px ${rarity.color}18`, pointerEvents:"none" }}/>
+        {/* Bottom gradient + info */}
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(0,0,0,0.9))", padding:large?"36px 18px 16px":"24px 12px 10px" }}>
+          <div style={{ fontSize:large?15:12, fontWeight:900, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:3 }}>
+            {c.weapon && <span style={{ fontSize:large?12:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
+            {c.power  && <span style={{ fontSize:large?12:10, color:"#555" }}>· {c.power}</span>}
+            <span style={{ fontSize:large?11:9, color:rarity.color, marginLeft:"auto", fontWeight:700 }}>{rarity.label}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PublicQuote({ quoteId }) {
   const [quote,       setQuote]       = useState(null);
   const [loading,     setLoading]     = useState(true);
@@ -8131,6 +8474,7 @@ export default function App() {
     { id:"buyers",      label:"👥 Buyers",       roles:["Admin","Streamer"] },
     { id:"performance", label:"📈 Performance",  roles:["Admin","Streamer"] },
     { id:"checklist",   label:"🃏 BoBA",            roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"showcase",    label:"✨ Showcase",         roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
   ].filter(t => t.roles.includes(userRole?.role));
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -8138,6 +8482,8 @@ export default function App() {
   // ── PUBLIC QUOTE ROUTE (no login required) ──
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
+
+  if (window.location.pathname === "/showcase") return <BobaShowcase />;
 
   if (!user) return <LoginScreen />;
 
@@ -8301,6 +8647,7 @@ export default function App() {
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
         {tab==="checklist"   && <BobaChecklist userRole={userRole}/>}
+        {tab==="showcase"    && <BobaShowcase />}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
