@@ -6307,6 +6307,7 @@ function BobaChecklist({ userRole }) {
   const [renameVal,    setRenameVal]    = useState("");
   const [viewMode,       setViewMode]       = useState("cards");
   const [expandedHero,   setExpandedHero]   = useState(null);
+  const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,  setRainbowFilter]  = useState("all");
   const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
@@ -6468,7 +6469,7 @@ function BobaChecklist({ userRole }) {
           </div>
           <span style={{ fontSize:12, fontWeight:700, color:"#E8317A" }}>{pct}%</span>
           <div style={{ display:"flex", gap:4 }}>
-            {[["cards","🃏 Cards"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
             ))}
           </div>
@@ -6503,35 +6504,49 @@ function BobaChecklist({ userRole }) {
       )}
 
       {/* Imported sets */}
-      {isAdmin && imports.length > 0 && (
+      {isAdmin && (
         <div style={{ ...S.card }}>
-          <SectionLabel t="Imported Sets" />
-          <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
-            {imports.map(imp=>(
-              <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  {renamingId === imp.id ? (
-                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
-                        onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
-                        style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
-                      <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
-                      <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
-                    </div>
-                  ) : (
-                    <>
-                      <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
-                      <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.filename}</span>
-                    </>
-                  )}
-                </div>
-                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                  <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
-                  <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
-                </div>
-              </div>
-            ))}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+            <SectionLabel t={`Imported Sets (${imports.length})`} />
+            {cards.length > 0 && imports.length === 0 && (
+              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record — use Rename below or re-import</div>
+            )}
           </div>
+          {imports.length === 0 ? (
+            <div style={{ fontSize:12, color:"#555", padding:"8px 0" }}>
+              No import records found. Import a CSV above to get started.
+              {cards.length > 0 && (
+                <span style={{ color:"#FBBF24", marginLeft:8 }}>({cards.length.toLocaleString()} cards already in Firestore from a previous import)</span>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {imports.map(imp=>(
+                <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    {renamingId === imp.id ? (
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+                          onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
+                          style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
+                        <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
+                        <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
+                        <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.importedAt?.slice(0,10)}</span>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                    <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
+                    <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -6652,11 +6667,7 @@ function BobaChecklist({ userRole }) {
                         <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
                           <div style={{
                             width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                            background: complete
-                              ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
-                              : pct > 50
-                                ? "linear-gradient(90deg,#E8317A,#7B2FF7)"
-                                : "#E8317A"
+                            background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
                           }}/>
                         </div>
                       </div>
@@ -6697,6 +6708,90 @@ function BobaChecklist({ userRole }) {
                 );
               })}
             </div>
+          </div>
+        );
+      })()}
+
+      {/* Treatments View */}
+      {viewMode === "treatments" && !loading && cards.length > 0 && (() => {
+        // Group filtered cards by treatment
+        const treatmentMap = {};
+        filtered.forEach(c => {
+          const t = c.treatment || "Uncategorized";
+          if(!treatmentMap[t]) treatmentMap[t] = [];
+          treatmentMap[t].push(c);
+        });
+        const treatmentList = Object.entries(treatmentMap)
+          .map(([t, tcards]) => {
+            const ownedCount = tcards.filter(c => owned[c.id]).length;
+            const pct = Math.round(ownedCount / tcards.length * 100);
+            const complete = ownedCount === tcards.length;
+            return { treatment:t, tcards, ownedCount, pct, complete };
+          })
+          .sort((a,b) => b.pct - a.pct || a.treatment.localeCompare(b.treatment));
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ fontSize:11, color:"#555", paddingLeft:2 }}>{treatmentList.length} treatments · respects active filters</div>
+            {treatmentList.map(({ treatment, tcards, ownedCount, pct, complete }) => {
+              const isExp = expandedTreat === treatment;
+              return (
+                <div key={treatment} style={{ background:"#111111", border:`1.5px solid ${complete?"#ffffff22":pct>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                  {/* Treatment header row */}
+                  <div onClick={()=>setExpandedTreat(isExp ? null : treatment)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":pct>0?"#F0F0F0":"#555" }}>
+                          {complete && "✅ "}{treatment}
+                        </span>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":pct>0?"#FBBF24":"#555" }}>
+                            {ownedCount}/{tcards.length} · {pct}%
+                          </span>
+                          <span style={{ color:"#444", fontSize:12 }}>{isExp?"▲":"▼"}</span>
+                        </div>
+                      </div>
+                      <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{
+                          width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
+                          background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                        }}/>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Expanded cards */}
+                  {isExp && (
+                    <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
+                        {tcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
+                          const isOwned = !!owned[c.id];
+                          const wc = WEAPON_COLORS[c.weapon] || "#444";
+                          return (
+                            <div key={c.id} onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?wc+"18":"#111111", border:`1.5px solid ${isOwned?wc+"55":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center" }}>
+                              <div style={{ fontSize:16, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:2 }}>
+                                  <span style={{ fontSize:10, color:"#555", flexShrink:0 }}>#{c.cardNum}</span>
+                                  {c.weapon && <span style={{ fontSize:11, fontWeight:700, color:wc }}>{c.weapon}</span>}
+                                  {c.notation && <span style={{ fontSize:9, color:"#FBBF24", fontWeight:700 }}>{c.notation}</span>}
+                                </div>
+                                <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
+                                {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
+                              </div>
+                              {c.power && <div style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         );
       })()}
