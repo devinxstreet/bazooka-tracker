@@ -1263,7 +1263,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:8 }}>
-          {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],["history","📋 History"]].map(([mode,label]) => (
+          {[["builder","🧮 Builder"],["quick","⚡ Quick Mode"],...(["Admin","Procurement"].includes(userRole?.role)?[["history","📋 History"]]:[] )].map(([mode,label]) => (
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -2040,7 +2040,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
         <div style={{ display:"flex", gap:8, marginBottom:4 }}>
-          {[["cards","📦 Cards"],["pools","🗃 Card Pools"],["lots","🗂 Lot History"],["aging","⏰ Aging"],["customers","👥 Customers"],["product","🎁 Product"]].map(([id,label]) => (
+          {[["cards","📦 Cards"],["pools","🗃 Card Pools"],...(["Admin","Procurement"].includes(userRole?.role)?[["lots","🗂 Lot History"]]:[]),["product","🎁 Product"]].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab===id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -6492,13 +6492,13 @@ export default function App() {
   const userRole    = viewAs ? viewAs : realRole;
   const effectiveUser = viewAs ? { ...user, displayName: viewAs.displayName } : user;
   const TABS = [
-    { id:"dashboard",   label:"📊 Dashboard"   },
-    { id:"comp",        label:"🧮 Lot Comp"     },
-    { id:"inventory",   label:"📦 Inventory"    },
-    { id:"streams",     label:"🎯 Streams"      },
-    { id:"buyers",      label:"👥 Buyers"       },
-    { id:"performance", label:"📈 Performance"  },
-  ];
+    { id:"dashboard",   label:"📊 Dashboard",   roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"comp",        label:"🧮 Lot Comp",     roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"inventory",   label:"📦 Inventory",    roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"streams",     label:"🎯 Streams",      roles:["Admin","Streamer"] },
+    { id:"buyers",      label:"👥 Buyers",       roles:["Admin","Streamer"] },
+    { id:"performance", label:"📈 Performance",  roles:["Admin","Streamer"] },
+  ].filter(t => t.roles.includes(userRole?.role));
 
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
