@@ -5757,9 +5757,12 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
         <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <SectionLabel t={`📂 CSV Import History (${csvImports.length})`} />
-            <button onClick={()=>setShowImports(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              {showImports?"▲ Hide":"▼ Show"}
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              {buyers.length > 0 && <button onClick={async()=>{ if(window.confirm(`Delete all ${buyers.length} buyers and ${csvImports.length} imports? This cannot be undone.`)) { for(const b of buyers) await deleteDoc(doc(db,"buyers",b.id)); for(const i of csvImports) await deleteDoc(doc(db,"csv_imports",i.id)); }}} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Clear All Buyers</button>}
+              <button onClick={()=>setShowImports(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {showImports?"▲ Hide":"▼ Show"}
+              </button>
+            </div>
           </div>
           {showImports && (
             csvImports.length === 0
