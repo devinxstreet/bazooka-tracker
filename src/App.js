@@ -5628,6 +5628,122 @@ function getRarity(c) {
   return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
 }
 
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
+  const wc = WEAPON_COLORS[c.weapon] || "#444";
+  const isFlipped = flippedCard === c.id;
+  const qty = ownedQty || 0;
+  const isWanted = !!(wantList && wantList[c.id]);
+  const cardRef = useRef(null);
+  const foilRef = useRef(null);
+  const glareRef = useRef(null);
+  const animRef = useRef(null);
+  const currentTilt = useRef({ x:0, y:0 });
+  const targetTilt  = useRef({ x:0, y:0 });
+  const isHovering  = useRef(false);
+
+  function startAnimation() { if (animRef.current) return; animRef.current = requestAnimationFrame(animate); }
+  function onMouseMove(e) {
+    if (isFlipped) return;
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top)  / rect.height;
+    targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
+    if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
+    if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+    startAnimation();
+  }
+  function onMouseLeave() {
+    isHovering.current = false; targetTilt.current = { x:0, y:0 };
+    if (foilRef.current) foilRef.current.style.opacity = "0";
+    if (glareRef.current) glareRef.current.style.opacity = "0";
+    startAnimation();
+  }
+  function onMouseEnter() { isHovering.current = true; startAnimation(); }
+  function animate() {
+    const cur = currentTilt.current, tgt = targetTilt.current;
+    cur.x += (tgt.x - cur.x) * 0.1; cur.y += (tgt.y - cur.y) * 0.1;
+    if (cardRef.current && !isFlipped) cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`;
+    if (Math.abs(tgt.x-cur.x)>0.05||Math.abs(tgt.y-cur.y)>0.05||isHovering.current) { animRef.current = requestAnimationFrame(animate); }
+    else { animRef.current = null; cur.x = 0; cur.y = 0; if(cardRef.current && !isFlipped) cardRef.current.style.transform = ""; }
+  }
+  function handleClick() {
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+    currentTilt.current = { x:0, y:0 }; targetTilt.current = { x:0, y:0 };
+    if (foilRef.current) foilRef.current.style.opacity = "0";
+    if (glareRef.current) glareRef.current.style.opacity = "0";
+    if (cardRef.current) cardRef.current.style.transform = "";
+    isHovering.current = false;
+    setFlippedCard(!isFlipped ? c.id : null);
+  }
+
+  const QtyControls = () => (
+    <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
+      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+      <span style={{ fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#555", minWidth:16, textAlign:"center" }}>{qty}</span>
+      <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+    </div>
+  );
+
+  if (c.imageUrl) {
+    return (
+      <div style={{ aspectRatio:"3/4" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
+        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:isFlipped?"transform 0.45s cubic-bezier(0.4,0,0.2,1)":"box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":undefined, borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
+            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
+            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
+          </div>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                <QtyControls/>
+              </div>
+              <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
+                {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+                {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+                {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+              </div>
+              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+              {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯 Wanted":"+ Want"}</button>}
+                <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+      <div style={{ fontSize:14, fontWeight:900, color:isOwned?"#4ade80":"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
+      <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:10, color:"#555", fontWeight:700 }}>#{c.cardNum}</span>
+        {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+        {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+        {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+      </div>
+      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 {c.athlete}</div>}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
+        {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
+        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+          {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯":"+ Want"}</button>}
+          <QtyControls/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BobaChecklist({ userRole, user }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
