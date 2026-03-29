@@ -2585,9 +2585,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <label style={S.lbl}>Session Type</label>
             <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
               <option value="">— Select —</option>
-              <option value="day">☀️ Day Break</option>
-              <option value="night">🌙 Night Break</option>
-              <option value="weekend">📅 Weekend Break</option>
+              <option value="day">☀️ Day Break (Mon-Thurs)</option>
+              <option value="night">🌙 Night Break (Mon-Thurs)</option>
+              <option value="weekend">📅 Weekend Break (Fri-Sun)</option>
               <option value="event">🎉 Event</option>
             </select>
           </div>
