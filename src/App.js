@@ -332,7 +332,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-    const streamExp=promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+    const streamExp=coupons+promo+magpros+pack+topload+chaser; const reimbExp=promo+magpros+pack+topload+chaser;
     const totalExp=fees+coupons+streamExp, netRev=gross-totalExp;
     // bazNet for DISPLAY/SPLIT includes fees (true 30% of net)
     const bazNet=netRev*0.30, imcNet=netRev*0.70;
@@ -473,7 +473,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const pack    = parseFloat(s.packagingMaterial)||0;
           const topload = parseFloat(s.topLoaders)||0;
           const chaser  = parseFloat(s.chaserCards)||0;
-          const streamExp = promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+          const streamExp = coupons+promo+magpros+pack+topload+chaser;
+          const reimbExp  = promo+magpros+pack+topload+chaser;
           const totalExp = fees+coupons+streamExp;
           const netRev   = gross - totalExp;
           const bazNet   = netRev * 0.30;
@@ -2382,7 +2383,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const pack    = parseFloat(recap.packagingMaterial)||0;
     const topload = parseFloat(recap.topLoaders)||0;
     const chaser  = parseFloat(recap.chaserCards)||0;
-    const streamExp = promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const reimbExp  = promo+magpros+pack+topload+chaser;
     const totalExp = fees+coupons+streamExp;
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
@@ -2931,7 +2933,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && (() => {
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-          const streamExp=promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+          const streamExp=coupons+promo+magpros+pack+topload+chaser; const reimbExp=promo+magpros+pack+topload+chaser;
           const totalExp=fees+coupons+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
           const grossForComm=gross-streamExp, bazNetForComm=grossForComm*0.30;
           const reimbExp=promo+magpros+pack+topload+chaser; const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
@@ -3884,6 +3886,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   const whatnotFee  = targetGross * (parseFloat(whatnotPct)||0) / 100;
   const coupons     = parseFloat(couponAmt) || 0;
   const streamExp   = coupons;
+  const reimbExp    = 0; // no reimbursable expenses in planner (coupons not reimbursed)
   const netRev      = targetGross - whatnotFee - streamExp;
   const bazNet      = netRev * 0.30;
   const grossForComm = targetGross - streamExp;
@@ -3893,7 +3896,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   const rate        = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
   const commBase    = bazNetForComm - repExp;
   const commAmt     = commBase * rate;
-  const bazTrueNet  = bazNet - repExp - commAmt + (streamExp * 0.70);
+  const bazTrueNet  = bazNet - repExp - commAmt + reimbExp;
 
   // Zone based on market multiple (targetGross / totalMktVal)
   // 1.5x+ = green, 1.3-1.5x = yellow, <1.3x = red
@@ -4201,11 +4204,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const netRev   = gross - totalExp;
     const bazNet   = netRev * 0.30;
     const bobaNet  = netRev * 0.70;
-    const streamExp = promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+    const streamExp = coupons+promo+magpros+pack+topload+chaser;
+    const reimbExp  = promo+magpros+pack+topload+chaser;
     const grossForComm = gross - streamExp;
     const bazNetForComm = grossForComm * 0.30;
     const repExp   = streamExp * 0.135;
-    const imcExpReimb = streamExp * 0.70;
+    const imcExpReimb = reimbExp * 0.70;
     const commBase = bazNetForComm - repExp;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
@@ -4574,7 +4578,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
             function calcS(s) {
               const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
-              const streamExp=promo+magpros+pack+topload+chaser; // reimbursable only — excludes coupons and fees
+              const streamExp=coupons+promo+magpros+pack+topload+chaser; const reimbExp=promo+magpros+pack+topload+chaser;
               const totalExp=fees+coupons+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30;
               const grossForComm=gross-streamExp, bazNetForComm=grossForComm*0.30;
               const reimbExp=promo+magpros+pack+topload+chaser; const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
