@@ -6407,13 +6407,12 @@ function BobaChecklist({ userRole }) {
           body: JSON.stringify({ imageBase64: base64, treatment, weapon }),
         });
         const data = await resp.json();
-        const text = data.content?.[0]?.text || "";
-        console.log(`Page ${pageNum} raw response:`, text);
-        identified = JSON.parse(text.replace(/```json|```/g,"").trim());
+        console.log(`Page ${pageNum} response:`, data);
+        identified = data.identified;
         console.log(`Page ${pageNum} identified:`, identified);
       } catch(e) { console.error(`Page ${pageNum} error:`, e); identified = null; }
 
-      if (!identified?.cardNum) { console.log(`Page ${pageNum}: no cardNum, skipping`); continue; }
+      if (!identified?.hero) { console.log(`Page ${pageNum}: no hero, skipping`); continue; }
 
       // Match using hero name + known treatment/weapon
       const heroName = identified?.hero?.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
