@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc, getDocs } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
@@ -248,6 +249,8 @@ function GlobalStyles() {
       .save-flash { animation: saveFlash 0.6s ease forwards; }
       @keyframes saveFlash { 0% { box-shadow:0 0 0 0 rgba(22,101,52,0.8); } 50% { box-shadow:0 0 0 14px rgba(22,101,52,0.05); } 100% { box-shadow:none; } }
       ::selection { background: rgba(232,49,122,0.3); color:#fff; }
+      .boba-flip-card { transform-style: preserve-3d; }
+      .boba-flip-card > div { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -6305,29 +6308,136 @@ function BobaChecklist({ userRole }) {
   const [filterOwned,    setFilterOwned]    = useState("all");
   const [renamingId,   setRenamingId]   = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
+  const [scanPdf,      setScanPdf]      = useState(null);  // PDF being scanned
+  const [scanProgress, setScanProgress] = useState(null);  // { current, total, status }
+  const [scanPaused,   setScanPaused]   = useState(false);
+  const scanPausedRef = useRef(false);
   const [viewMode,       setViewMode]       = useState("cards");
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
-  const [rainbowFilter,  setRainbowFilter]  = useState("all");
+  const [rainbowFilter,    setRainbowFilter]    = useState("all");
+  const [rainbowSetFilter, setRainbowSetFilter] = useState(""); // "" = all sets
   const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
 
   useEffect(() => {
-    const u1 = onSnapshot(collection(db,"boba_checklist"), snap => {
-      setCards(snap.docs.map(d=>d.data()).sort((a,b)=>{
+    // Cards are static after import — use localStorage cache for instant load
+    const CACHE_KEY = "boba_checklist_cache";
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { cards: cachedCards, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 10 * 60 * 1000 && cachedCards.length > 0) {
+          setCards(cachedCards);
+          setLoading(false);
+        }
+      }
+    } catch(e) {}
+    // Always fetch fresh in background
+    getDocs(collection(db, "boba_checklist")).then(snap => {
+      const sorted = snap.docs.map(d=>d.data()).sort((a,b)=>{
         const n1=parseFloat(a.cardNum), n2=parseFloat(b.cardNum);
         if(!isNaN(n1)&&!isNaN(n2)) return n1-n2;
         return String(a.cardNum).localeCompare(String(b.cardNum));
-      }));
+      });
+      setCards(sorted);
       setLoading(false);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards:sorted, ts:Date.now() })); } catch(e) {}
     });
-    const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); });
+    // Owned + imports stay realtime
+    const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
-    return ()=>{ u1(); u2(); u3(); };
+    return ()=>{ u2(); u3(); };
   }, []);
+
+  async function scanPdfForCards(file) {
+    setScanPdf(file.name);
+    setScanProgress({ current:0, total:0, status:"Loading PDF..." });
+    scanPausedRef.current = false;
+    setScanPaused(false);
+
+    // Load pdf.js
+    if (!window.pdfjsLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const total = pdf.numPages;
+    setScanProgress({ current:0, total, status:"Starting scan..." });
+
+    for (let pageNum = 1; pageNum <= total; pageNum++) {
+      // Check pause
+      while (scanPausedRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      setScanProgress({ current:pageNum, total, status:`Scanning page ${pageNum} of ${total}...` });
+
+      // Render page to canvas
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+
+      // Send to Claude Vision
+      let identified = null;
+      try {
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 200,
+            messages: [{ role:"user", content:[
+              { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:base64 }},
+              { type:"text", text:`This is a Bo Jackson Battle Arena (BoBA) trading card. Extract ONLY these fields as JSON with no other text:
+{"cardNum":"the card number (e.g. 1, 42, P-5)","hero":"hero name","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","treatment":"card treatment/set name"}
+If you cannot read the card clearly, return {"cardNum":null}` }
+            ]}]
+          })
+        });
+        const data = await resp.json();
+        const text = data.content?.[0]?.text || "";
+        identified = JSON.parse(text.replace(/```json|```/g,"").trim());
+      } catch(e) { identified = null; }
+
+      if (!identified?.cardNum) continue;
+
+      // Find matching card in checklist
+      const match = cards.find(c =>
+        String(c.cardNum).toLowerCase() === String(identified.cardNum).toLowerCase() ||
+        (c.hero?.toLowerCase() === identified.hero?.toLowerCase() &&
+         c.weapon?.toLowerCase() === identified.weapon?.toLowerCase() &&
+         c.treatment?.toLowerCase() === identified.treatment?.toLowerCase())
+      );
+      if (!match) continue;
+
+      // Upload image to Firebase Storage
+      const imgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+      const storageRef = ref(storage, `boba_cards/${match.id}.jpg`);
+      await uploadBytes(storageRef, imgBlob);
+      const imageUrl = await getDownloadURL(storageRef);
+
+      // Save URL to Firestore
+      await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
+    }
+
+    setScanProgress({ current:total, total, status:"✅ Scan complete!" });
+    setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
+  }
 
   async function toggleOwned(cardId) {
     const next = { ...owned, [cardId]: !owned[cardId] };
@@ -6479,6 +6589,12 @@ function BobaChecklist({ userRole }) {
               <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
             </label>
           )}
+          {isAdmin && cards.length > 0 && !scanPdf && (
+            <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              🔍 Scan PDF
+              <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) scanPdfForCards(f); e.target.value=""; }} style={{ display:"none" }}/>
+            </label>
+          )}
           {totalOwned > 0 && (
             <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned checkmarks? Your collection progress will be reset.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               ✕ Clear My Collection
@@ -6486,6 +6602,27 @@ function BobaChecklist({ userRole }) {
           )}
         </div>
       </div>
+
+      {/* PDF Scan Progress */}
+      {scanProgress && (
+        <div style={{ ...S.card, border:"1.5px solid #7B9CFF44", background:"#0a0f1a" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ fontWeight:700, color:"#7B9CFF", fontSize:14 }}>🔍 Scanning: {scanPdf}</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>{ scanPausedRef.current=!scanPausedRef.current; setScanPaused(p=>!p); }} style={{ background:"#1a1a2e", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {scanPaused ? "▶ Resume" : "⏸ Pause"}
+              </button>
+            </div>
+          </div>
+          <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
+            <div style={{ width:`${scanProgress.total > 0 ? Math.round(scanProgress.current/scanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#7B9CFF,#C084FC)", borderRadius:4, transition:"width 0.3s" }}/>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
+            <span style={{ color:"#888" }}>{scanProgress.status}</span>
+            <span style={{ color:"#7B9CFF", fontWeight:700 }}>{scanProgress.current}/{scanProgress.total} pages</span>
+          </div>
+        </div>
+      )}
 
       {/* Import modal */}
       {pendingFile && (
@@ -6535,6 +6672,7 @@ function BobaChecklist({ userRole }) {
                   }
                   await setDoc(doc(db,"boba_owned","owned"), {});
                   setOwned({});
+                  try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
                 }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   🗑 Clear All Cards
                 </button>
@@ -6619,9 +6757,12 @@ function BobaChecklist({ userRole }) {
 
       {/* Rainbow Tracker */}
       {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
-        // Group all cards by hero
+        const rainbowCards = rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards;
+        const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+
+        // Group filtered cards by hero
         const heroCards = {};
-        cards.forEach(c => {
+        rainbowCards.forEach(c => {
           if(!c.hero) return;
           if(!heroCards[c.hero]) heroCards[c.hero] = [];
           heroCards[c.hero].push(c);
@@ -6632,7 +6773,15 @@ function BobaChecklist({ userRole }) {
           const total = hcards.length;
           const ownedCount = hcards.filter(c => owned[c.id]).length;
           const complete = total > 0 && ownedCount === total;
-          return { hero, total, ownedCount, complete };
+          // Group by set for multi-set heroes
+          const bySets = {};
+          hcards.forEach(c => {
+            const s = c.setName || "Unknown";
+            if(!bySets[s]) bySets[s] = { total:0, owned:0 };
+            bySets[s].total++;
+            if(owned[c.id]) bySets[s].owned++;
+          });
+          return { hero, total, ownedCount, complete, bySets };
         });
         const completedRainbows = heroStats.filter(h => h.complete).length;
         const partialRainbows   = heroStats.filter(h => h.ownedCount > 0 && !h.complete).length;
@@ -6640,7 +6789,6 @@ function BobaChecklist({ userRole }) {
         const filteredHeroes = heroStats.filter(h =>
           !search || h.hero.toLowerCase().includes(search.toLowerCase())
         );
-        // rainbowFilter / setRainbowFilter from component state
 
         const visibleHeroes = filteredHeroes.filter(h => {
           if(rainbowFilter === "complete") return h.complete;
@@ -6666,7 +6814,16 @@ function BobaChecklist({ userRole }) {
             </div>
 
             {/* Filter */}
-            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+              {/* Set selector */}
+              {availableSets.length > 1 && (
+                <div style={{ display:"flex", gap:4, marginRight:8 }}>
+                  {[["","🌈 All Sets"], ...availableSets.map(s=>[s,s])].map(([v,l])=>(
+                    <button key={v} onClick={()=>setRainbowSetFilter(v)} style={{ background:rainbowSetFilter===v?"#1A1A2E":"transparent", color:rainbowSetFilter===v?"#7B9CFF":"#9CA3AF", border:`1.5px solid ${rainbowSetFilter===v?"#7B9CFF":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
+                  ))}
+                  <div style={{ width:1, background:"#333", margin:"0 4px" }}/>
+                </div>
+              )}
               {[["all","All Heroes"],["complete","🌈 Complete"],["partial","🔶 In Progress"],["missing","⬜ Not Started"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setRainbowFilter(v)} style={{ background:rainbowFilter===v?"#1A1A2E":"transparent", color:rainbowFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${rainbowFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
               ))}
@@ -6690,7 +6847,7 @@ function BobaChecklist({ userRole }) {
                     {/* Hero row — click to expand */}
                     <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: Object.keys(bySets).length > 1 && !rainbowSetFilter ? 6 : 8 }}>
                           <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"#555" }}>
                             {complete && "🌈 "}{hero}
                           </span>
@@ -6701,11 +6858,29 @@ function BobaChecklist({ userRole }) {
                             <span style={{ color:"#444", fontSize:12 }}>{isExpanded?"▲":"▼"}</span>
                           </div>
                         </div>
+                        {/* Per-set mini progress when on All Sets and hero spans multiple sets */}
+                        {!rainbowSetFilter && Object.keys(bySets).length > 1 && (
+                          <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap" }}>
+                            {Object.entries(bySets).map(([setName, sd]) => {
+                              const sp = Math.round(sd.owned/sd.total*100);
+                              const sc = sd.owned===sd.total?"#4ade80":sd.owned>0?"#FBBF24":"#555";
+                              return (
+                                <div key={setName} style={{ display:"flex", alignItems:"center", gap:4, background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>
+                                  <span style={{ fontSize:10, color:"#555" }}>{setName}:</span>
+                                  <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
+                                  {sd.owned===sd.total && <span style={{ fontSize:10 }}>🌈</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                         {/* Rainbow progress bar */}
                         <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
                           <div style={{
                             width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                            background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                            background: complete
+                              ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                              : pct > 50 ? "linear-gradient(90deg,#E8317A,#7B2FF7)" : "#E8317A"
                           }}/>
                         </div>
                       </div>
@@ -6845,6 +7020,40 @@ function BobaChecklist({ userRole }) {
             {paginated.map(c => {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
+              const hasImg = !!c.imageUrl;
+              if (hasImg) {
+                // Card flip tile
+                return (
+                  <div key={c.id} style={{ perspective:"600px", height:200 }}>
+                    <div className="boba-flip-card" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s", transform: isOwned ? "rotateY(180deg)" : "rotateY(0deg)", borderRadius:10, cursor:"pointer" }} onClick={()=>toggleOwned(c.id)}>
+                      {/* Front — card image */}
+                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
+                        <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                        {!isOwned && <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>tap to own</div>}
+                      </div>
+                      {/* Back — card details */}
+                      <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#0a1a0a", border:"2px solid #4ade8044", borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+                        <div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                            <span style={{ fontSize:10, color:"#4ade80", fontWeight:700 }}>✅ OWNED</span>
+                            <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                          </div>
+                          <div style={{ fontSize:15, fontWeight:900, color:"#4ade80", marginBottom:4 }}>{c.hero}</div>
+                          <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
+                            {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
+                            {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+                          </div>
+                          <div style={{ fontSize:10, color:"#888" }}>{c.treatment}</div>
+                          {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+                        </div>
+                        {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc, textAlign:"right" }}>{c.power}</div>}
+                        <div style={{ fontSize:9, color:"#333", textAlign:"center" }}>tap to unown</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              // No image — standard tile
               return (
                 <div key={c.id} onClick={()=>toggleOwned(c.id)} style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", cursor:"pointer", display:"flex", gap:10, alignItems:"center" }}>
                   <div style={{ fontSize:18, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
