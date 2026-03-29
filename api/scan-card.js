@@ -14,12 +14,16 @@ module.exports = async function handler(req, res) {
   const { imageBase64 } = body || {};
   if (!imageBase64) return res.status(400).json({ error: "No image provided" });
 
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "No API key configured", identified: null });
+
+  let anthropicResponse;
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -40,15 +44,29 @@ module.exports = async function handler(req, res) {
         }]
       })
     });
+  } catch(fetchErr) {
+    return res.status(500).json({ error: "Fetch failed: " + fetchErr.message, identified: null });
+  }
 
-    const data = await response.json();
+  let data;
+  try {
+    data = await anthropicResponse.json();
+  } catch(jsonErr) {
+    const raw = await anthropicResponse.text().catch(() => "unreadable");
+    return res.status(500).json({ error: "JSON parse failed", raw, identified: null });
+  }
+
+  if (!anthropicResponse.ok) {
+    return res.status(500).json({ error: "Anthropic error", status: anthropicResponse.status, data, identified: null });
+  }
+
+  try {
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const identified = JSON.parse(clean);
     return res.status(200).json({ identified });
-  } catch (e) {
-    console.error("scan-card error:", e.message);
-    return res.status(500).json({ error: e.message, identified: null });
+  } catch(parseErr) {
+    return res.status(200).json({ identified: { cardNum: null }, error: "parse failed" });
   }
 };
 
