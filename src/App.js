@@ -6302,10 +6302,13 @@ function BobaChecklist({ userRole }) {
   const [filterWeapon, setFilterWeapon] = useState("");
   const [filterNote,   setFilterNote]   = useState("");
   const [filterSet,    setFilterSet]    = useState("");
-  const [filterOwned,  setFilterOwned]  = useState("all");
-  const [viewMode,     setViewMode]     = useState("cards"); // cards | rainbow
-  const [expandedHero, setExpandedHero] = useState(null);
-  const [page,         setPage]         = useState(1);
+  const [filterOwned,    setFilterOwned]    = useState("all");
+  const [renamingId,   setRenamingId]   = useState(null);
+  const [renameVal,    setRenameVal]    = useState("");
+  const [viewMode,       setViewMode]       = useState("cards");
+  const [expandedHero,   setExpandedHero]   = useState(null);
+  const [rainbowFilter,  setRainbowFilter]  = useState("all");
+  const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
 
@@ -6400,16 +6403,28 @@ function BobaChecklist({ userRole }) {
 
   async function handleDeleteImport(imp) {
     if(!window.confirm(`Delete set "${imp.setName}" (${imp.cardCount} cards)? This cannot be undone.`)) return;
-    // Delete all cards from this import
     const chunkSize = 200;
     for(let i=0;i<imp.cardIds.length;i+=chunkSize){
       await Promise.all(imp.cardIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
     }
-    // Remove owned entries for these cards
     const nextOwned = {...owned};
     imp.cardIds.forEach(id=>delete nextOwned[id]);
     await setDoc(doc(db,"boba_owned","owned"), nextOwned);
     await deleteDoc(doc(db,"boba_imports",imp.id));
+  }
+
+  async function handleRenameSet(imp, newName) {
+    if(!newName.trim()) return;
+    // Update import record
+    await setDoc(doc(db,"boba_imports",imp.id), { ...imp, setName:newName.trim() }, { merge:true });
+    // Update all cards in this import
+    const chunkSize = 200;
+    for(let i=0;i<imp.cardIds.length;i+=chunkSize){
+      await Promise.all(imp.cardIds.slice(i,i+chunkSize).map(id=>
+        setDoc(doc(db,"boba_checklist",id), { setName:newName.trim() }, { merge:true })
+      ));
+    }
+    setRenamingId(null);
   }
 
   const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
@@ -6493,12 +6508,27 @@ function BobaChecklist({ userRole }) {
           <SectionLabel t="Imported Sets" />
           <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
             {imports.map(imp=>(
-              <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8 }}>
-                <div>
-                  <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
-                  <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.filename}</span>
+              <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  {renamingId === imp.id ? (
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+                        onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
+                        style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
+                      <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
+                      <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
+                      <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.filename}</span>
+                    </>
+                  )}
                 </div>
-                <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
+                  <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+                </div>
               </div>
             ))}
           </div>
@@ -6557,7 +6587,7 @@ function BobaChecklist({ userRole }) {
         const filteredHeroes = heroStats.filter(h =>
           !search || h.hero.toLowerCase().includes(search.toLowerCase())
         );
-        const [rainbowFilter, setRainbowFilter] = React.useState("all"); // all | complete | partial | missing
+        // rainbowFilter / setRainbowFilter from component state
 
         const visibleHeroes = filteredHeroes.filter(h => {
           if(rainbowFilter === "complete") return h.complete;
