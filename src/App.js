@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "firebase/firestore";
@@ -2311,7 +2311,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [recapSaving, setRecapSaving] = useState(false);
   const [recapSaved,  setRecapSaved]  = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
-  const csvJustLoaded = React.useRef(false);
+  const csvJustLoaded = useRef(false);
   const [csvMsg,       setCsvMsg]       = useState(null); // { type: 'success'|'error', text }
 
   // Check existing product usage for this breaker+date
