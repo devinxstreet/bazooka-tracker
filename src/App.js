@@ -1029,12 +1029,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
       const cardName = r.name === "__new__" ? (r._newName||"").trim() : r.name;
       if (!cardName) return;
       const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
-      if (POOL_TYPES.includes(r.cardType)) {
-        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, qty, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
-      } else {
-        for (let i=0; i<qty; i++) {
-          cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
-        }
+      for (let i=0; i<qty; i++) {
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       }
     });
     onAccept(cards, seller, user, custNote);
@@ -5775,55 +5771,16 @@ export default function App() {
     const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
     const cardStatus  = hasTracking && lotTracking[lotKey]?.status === "Delivered" ? "available" : "in_transit";
 
-    // Split cards into pool types vs individual types
-    const poolCards  = cards.filter(c => POOL_TYPES.includes(c.cardType));
-    const indivCards = cards.filter(c => !POOL_TYPES.includes(c.cardType));
-
-    // Route individual cards to inventory as before
-    for (const card of indivCards) {
+    // Write all cards to inventory regardless of type
+    for (const card of cards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
-    }
-
-    // Route pool cards — group by cardName+cardType and upsert pools
-    const poolGroups = {};
-    for (const card of poolCards) {
-      const key = `${card.cardType}__${card.cardName}`;
-      if (!poolGroups[key]) poolGroups[key] = { cardName:card.cardName, cardType:card.cardType, qty:0, costPerCard:card.costPerCard, marketValue:card.marketValue };
-      poolGroups[key].qty++;
-    }
-    for (const group of Object.values(poolGroups)) {
-      // Find existing pool with same name+type
-      const existing = cardPools.find(p => p.cardName === group.cardName && p.cardType === group.cardType);
-      if (existing) {
-        // Add to existing pool
-        await setDoc(doc(db,"card_pools",existing.id), {
-          totalQty: (parseInt(existing.totalQty)||0) + group.qty,
-          costPerCard: group.costPerCard || existing.costPerCard,
-          marketValue: group.marketValue || existing.marketValue,
-          updatedAt: new Date().toISOString(),
-        }, { merge:true });
-      } else {
-        // Create new pool
-        const pid = uid();
-        await setDoc(doc(db,"card_pools",pid), {
-          id:pid, cardName:group.cardName, cardType:group.cardType,
-          totalQty:group.qty, usedQty:0,
-          costPerCard:group.costPerCard||0, marketValue:group.marketValue||0,
-          updatedAt:new Date().toISOString(),
-        });
-      }
     }
 
     if (custNote && custNote.trim()) {
       await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
     }
 
-    const poolCount = poolCards.length;
-    const indivCount = indivCards.length;
-    const parts = [];
-    if (indivCount > 0) parts.push(`${indivCount} individual card${indivCount!==1?"s":""}`);
-    if (poolCount > 0) parts.push(`${poolCount} card${poolCount!==1?"s":""} added to pools`);
-    showToast(`✅ ${parts.join(" · ")}${cardStatus==="in_transit"?" — In Transit":""}`);
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added — In Transit`);
     setTab("inventory");
   }
   async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
