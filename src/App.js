@@ -6466,10 +6466,6 @@ function BobaChecklist({ userRole }) {
       setScanProgress({ current:completed, total, status:`Scanning pages ${i}–${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
     }
 
-      // Save URL to Firestore
-      await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
-    }
-
     setScanProgress({ current:total, total, status:"✅ Scan complete!" });
     setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
   }
