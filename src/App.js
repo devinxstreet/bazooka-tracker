@@ -2809,12 +2809,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             const dmega  = parseInt(recap[`prod_Double Mega`])||0;
             const misc   = parseInt(recap[`prod_Miscellaneous`])||0;
             const streamExpenses = [
-              recap.whatnotPromo>0?`WN Promo: $${recap.whatnotPromo}`:"",
-              recap.coupons>0?`Coupons: $${recap.coupons}`:"",
-              recap.magpros>0?`MagPros: $${recap.magpros}`:"",
-              recap.packagingMaterial>0?`Packaging: $${recap.packagingMaterial}`:"",
-              recap.topLoaders>0?`Top Loaders: $${recap.topLoaders}`:"",
-              recap.chaserCards>0?`Chasers: $${recap.chaserCards}`:"",
+              parseFloat(recap.whatnotPromo)>0?`WN Promo: $${recap.whatnotPromo}`:"",
+              parseFloat(recap.coupons)>0?`Coupons: $${recap.coupons}`:"",
+              parseFloat(recap.magpros)>0?`MagPros: $${recap.magpros}`:"",
+              parseFloat(recap.packagingMaterial)>0?`Packaging: $${recap.packagingMaterial}`:"",
+              parseFloat(recap.topLoaders)>0?`Top Loaders: $${recap.topLoaders}`:"",
+              parseFloat(recap.chaserCards)>0?`Chasers: $${recap.chaserCards}`:"",
             ].filter(Boolean).join(", ") || "None";
             const formDate = date ? new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : "";
             const params = new URLSearchParams({
@@ -2823,9 +2823,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               [`entry.1397101824`]: hobby||"0",
               [`entry.473640875`]:  jumbo||"0",
               [`entry.2005003030`]: dmega||"0",
-              [`entry.1594275904`]: misc>0?`Miscellaneous: ${misc} box${misc!==1?"es":""}. `+"":"",
-              [`entry.1550026312`]: parseFloat(recap.grossRevenue||0).toFixed(2),
-              [`entry.1898010524`]: parseFloat(recap.whatnotFees||0).toFixed(2),
+              [`entry.1594275904`]: misc>0?`Miscellaneous: ${misc} box${misc!==1?"es":""}. `:"",
+              [`entry.1550026312`]: (parseFloat(recap.grossRevenue)||0).toFixed(2),
+              [`entry.1898010524`]: (parseFloat(recap.whatnotFees)||0).toFixed(2),
               [`entry.2063681927`]: streamExpenses,
               [`entry.1117405477`]: breaker,
             });
