@@ -2004,6 +2004,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
   const [sortInv,  setSortInv]  = useState("date");
+  const [logOutCard, setLogOutCard] = useState(null);
+  const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState("cards");
   const [editCostId,  setEditCostId]  = useState(null);
@@ -2453,8 +2455,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [chaserSearch, setChaserSearch] = useState("");
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
   const [streamLogBreaker, setStreamLogBreaker] = useState("");
-  const [logOutCard, setLogOutCard] = useState(null); // card being logged out
-  const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{} };
