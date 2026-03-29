@@ -7022,8 +7022,9 @@ function BobaChecklist({ userRole, user }) {
         });
         const weaponEntries = Object.entries(weaponBreak).sort((a,b)=>b[1]-a[1]);
 
-        // Card pool: all cards or owned only
-        const cardPool = deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards;
+        // Card pool: all cards or owned only — exclude plays (PL/BPL)
+        const cardPool = (deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards)
+          .filter(c => { const n = String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL") && !n.startsWith("BPL"); });
 
         // Available cards to add (not already in deck, passes filters)
         const available = cardPool.filter(c => {
@@ -7243,9 +7244,13 @@ function BobaChecklist({ userRole, user }) {
         const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
         const playFull   = playCount >= PLAY_LIMIT;
 
-        // All Play-treatment cards
-        const allPlays = cards.filter(c => (c.treatment||"").toLowerCase().includes("play") || (c.playAbility||"").trim());
-        const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
+        // All Play cards: PL-xxx = regular plays, BPL-xxx = bonus plays
+        const allPlays = cards.filter(c => {
+          const num = String(c.cardNum||"").toUpperCase();
+          return num.startsWith("PL") || num.startsWith("BPL");
+        });
+        const isPlay  = c => String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL");
+        const isBonus = c => String(c.cardNum||"").toUpperCase().startsWith("BPL");        const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
           if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
@@ -7341,15 +7346,19 @@ function BobaChecklist({ userRole, user }) {
                             {c.playCost && <div style={{ fontSize:10, color:"#FBBF24", marginTop:2 }}>Cost: {c.playCost}</div>}
                           </div>
                           <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
-                            <button onClick={()=>{ if(!playFull) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
-                              disabled={playFull}
-                              style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:playFull?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:playFull?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                              + Play
-                            </button>
-                            <button onClick={()=>setPbCards(p=>[...p,{id:c.id,type:"bonus"}])}
-                              style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                              + BPL
-                            </button>
+                            {isPlay(c) && (
+                              <button onClick={()=>{ if(!playFull) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
+                                disabled={playFull}
+                                style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:playFull?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:playFull?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                + Play
+                              </button>
+                            )}
+                            {isBonus(c) && (
+                              <button onClick={()=>setPbCards(p=>[...p,{id:c.id,type:"bonus"}])}
+                                style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                + BPL
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
