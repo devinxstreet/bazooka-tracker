@@ -5773,7 +5773,7 @@ export default function App() {
     const firstCard  = cards[0];
     const lotKey     = `${firstCard?.seller||"Unknown"}__${firstCard?.date||"Unknown"}`;
     const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
-    const cardStatus  = hasTracking && lotTracking[lotKey]?.status !== "Delivered" ? "in_transit" : "available";
+    const cardStatus  = hasTracking && lotTracking[lotKey]?.status === "Delivered" ? "available" : "in_transit";
 
     // Split cards into pool types vs individual types
     const poolCards  = cards.filter(c => POOL_TYPES.includes(c.cardType));
