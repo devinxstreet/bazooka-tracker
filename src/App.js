@@ -6289,21 +6289,26 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
 
 
 function BobaChecklist({ userRole }) {
-  const [cards,       setCards]       = useState([]);
-  const [owned,       setOwned]       = useState({});
-  const [loading,     setLoading]     = useState(true);
-  const [importing,   setImporting]   = useState(false);
-  const [search,      setSearch]      = useState("");
-  const [filterTreat, setFilterTreat] = useState("");
-  const [filterWeapon,setFilterWeapon]= useState("");
-  const [filterNote,  setFilterNote]  = useState("");
-  const [filterOwned, setFilterOwned] = useState("all"); // all | owned | missing
-  const [page,        setPage]        = useState(1);
+  const [cards,        setCards]        = useState([]);
+  const [imports,      setImports]      = useState([]); // list of {id, setName, filename, importedAt, cardIds}
+  const [owned,        setOwned]        = useState({});
+  const [loading,      setLoading]      = useState(true);
+  const [importing,    setImporting]    = useState(false);
+  const [importProgress, setImportProgress] = useState("");
+  const [pendingFile,  setPendingFile]  = useState(null); // file waiting for set name
+  const [setNameInput, setSetNameInput] = useState("");
+  const [search,       setSearch]       = useState("");
+  const [filterTreat,  setFilterTreat]  = useState("");
+  const [filterWeapon, setFilterWeapon] = useState("");
+  const [filterNote,   setFilterNote]   = useState("");
+  const [filterSet,    setFilterSet]    = useState("");
+  const [filterOwned,  setFilterOwned]  = useState("all");
+  const [viewMode,     setViewMode]     = useState("cards"); // cards | rainbow
+  const [expandedHero, setExpandedHero] = useState(null);
+  const [page,         setPage]         = useState(1);
   const PAGE_SIZE = 100;
-
   const isAdmin = ["Admin"].includes(userRole?.role);
 
-  // Load cards + owned from Firestore
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"boba_checklist"), snap => {
       setCards(snap.docs.map(d=>d.data()).sort((a,b)=>{
@@ -6313,10 +6318,11 @@ function BobaChecklist({ userRole }) {
       }));
       setLoading(false);
     });
-    const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => {
-      if(snap.exists()) setOwned(snap.data());
+    const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); });
+    const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
+      setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
-    return ()=>{ u1(); u2(); };
+    return ()=>{ u1(); u2(); u3(); };
   }, []);
 
   async function toggleOwned(cardId) {
@@ -6326,16 +6332,24 @@ function BobaChecklist({ userRole }) {
     await setDoc(doc(db,"boba_owned","owned"), next);
   }
 
-  async function handleCSV(e) {
+  function handleFileSelect(e) {
     const file = e.target.files[0]; if(!file) return;
+    setPendingFile(file);
+    setSetNameInput("");
+    e.target.value = "";
+  }
+
+  async function handleImport() {
+    if(!pendingFile || !setNameInput.trim()) return;
     setImporting(true);
-    const text = await file.text();
+    setImportProgress("Reading file...");
+    const text = await pendingFile.text();
     const lines = [];
     let cur="", inQ=false;
     for(let ci=0;ci<text.length;ci++){
       const ch=text[ci];
       if(ch==='"') inQ=!inQ;
-      if((ch==='\n'||ch==='\r')&&!inQ){ if(cur.trim()) lines.push(cur.replace(/\r/,'')); cur=""; }
+      if((ch==="\n"||ch==="\r")&&!inQ){ if(cur.trim()) lines.push(cur.replace(/\r/,'')); cur=""; }
       else cur+=ch;
     }
     if(cur.trim()) lines.push(cur);
@@ -6345,6 +6359,9 @@ function BobaChecklist({ userRole }) {
           treatIdx=idx('treatment'), weaponIdx=idx('weapon'), noteIdx=idx('notation'),
           powerIdx=idx('power'), athIdx=idx('athlete inspiration'),
           costIdx=idx('play cost'), abilityIdx=idx('play ability');
+    const importId = uid();
+    const setName = setNameInput.trim();
+    const cardIds = [];
     const batch = [];
     for(let i=1;i<lines.length;i++){
       const cols=[];let c="",q=false;
@@ -6354,29 +6371,54 @@ function BobaChecklist({ userRole }) {
       cols.push(c.trim());
       const cardNum = cols[cardNumIdx]||"";
       if(!cardNum||cardNum==="undefined") continue;
+      const id = `${importId}_${cardNum.replace(/[^a-zA-Z0-9]/g,'_')}`;
+      cardIds.push(id);
       batch.push({
-        id: `card_${cardNum.replace(/[^a-zA-Z0-9]/g,'_')}`,
-        cardNum, hero:cols[heroIdx]||"", variation:cols[varIdx]||"",
+        id, cardNum, setName, importId,
+        hero:cols[heroIdx]||"", variation:cols[varIdx]||"",
         treatment:cols[treatIdx]||"", weapon:cols[weaponIdx]||"",
         notation:cols[noteIdx]||"", power:cols[powerIdx]||"",
         athlete:cols[athIdx]||"", playCost:cols[costIdx]||"",
         playAbility:cols[abilityIdx]||"",
       });
     }
-    // Write in chunks of 200
+    setImportProgress(`Writing ${batch.length} cards...`);
     for(let i=0;i<batch.length;i+=200){
       const chunk=batch.slice(i,i+200);
       await Promise.all(chunk.map(c=>setDoc(doc(db,"boba_checklist",c.id),c)));
+      setImportProgress(`Writing ${Math.min(i+200,batch.length)} / ${batch.length}...`);
     }
+    await setDoc(doc(db,"boba_imports",importId), {
+      id:importId, setName, filename:pendingFile.name,
+      importedAt:new Date().toISOString(), cardCount:batch.length, cardIds,
+    });
     setImporting(false);
+    setImportProgress("");
+    setPendingFile(null);
+    setSetNameInput("");
   }
 
-  // Unique filter options from loaded cards
-  const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
-  const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
-  const notations  = [...new Set(cards.map(c=>c.notation).filter(Boolean))].sort();
+  async function handleDeleteImport(imp) {
+    if(!window.confirm(`Delete set "${imp.setName}" (${imp.cardCount} cards)? This cannot be undone.`)) return;
+    // Delete all cards from this import
+    const chunkSize = 200;
+    for(let i=0;i<imp.cardIds.length;i+=chunkSize){
+      await Promise.all(imp.cardIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
+    }
+    // Remove owned entries for these cards
+    const nextOwned = {...owned};
+    imp.cardIds.forEach(id=>delete nextOwned[id]);
+    await setDoc(doc(db,"boba_owned","owned"), nextOwned);
+    await deleteDoc(doc(db,"boba_imports",imp.id));
+  }
+
+  const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const treatments = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.treatment).filter(Boolean))].sort();
+  const weapons    = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.weapon).filter(Boolean))].sort();
+  const notations  = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.notation).filter(Boolean))].sort();
 
   const filtered = cards.filter(c => {
+    if(filterSet && c.setName !== filterSet) return false;
     if(search && !`${c.cardNum} ${c.hero} ${c.variation} ${c.athlete}`.toLowerCase().includes(search.toLowerCase())) return false;
     if(filterTreat && c.treatment !== filterTreat) return false;
     if(filterWeapon && c.weapon !== filterWeapon) return false;
@@ -6392,37 +6434,86 @@ function BobaChecklist({ userRole }) {
   const totalPages = Math.ceil(filtered.length/PAGE_SIZE);
   const paginated = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
-  const WEAPON_COLORS = { Fire:"#E8317A", Ice:"#7B9CFF", Steel:"#AAAAAA", Brawl:"#C084FC",
-    Glow:"#4ade80", Hex:"#FBBF24", Gum:"#F472B6", Metallic:"#E5E7EB",
-    Alt:"#FB923C", Super:"#34D399", "":"#444" };
+  const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
+    Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB",
+    Alt:"#FFFFFF", Super:"#F59E0B", "":"#444" };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* Header + stats */}
+      {/* Header */}
       <div style={{ ...S.card, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div>
           <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>🃏 BoBA Checklist</div>
-          <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>{totalCards.toLocaleString()} cards in set · {totalOwned} owned · {pct}% complete</div>
+          <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>{totalCards.toLocaleString()} total cards · {totalOwned} owned · {pct}% complete</div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {/* Progress bar */}
-          <div style={{ width:200, height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+          <div style={{ width:180, height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
             <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:4 }}/>
           </div>
           <span style={{ fontSize:12, fontWeight:700, color:"#E8317A" }}>{pct}%</span>
+          <div style={{ display:"flex", gap:4 }}>
+            {[["cards","🃏 Cards"],["rainbow","🌈 Rainbow"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+            ))}
+          </div>
           {isAdmin && (
             <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              {importing ? "⏳ Importing..." : "📂 Import CSV"}
-              <input type="file" accept=".csv" onChange={handleCSV} style={{ display:"none" }} disabled={importing}/>
+              📂 Import CSV
+              <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
             </label>
           )}
         </div>
       </div>
 
+      {/* Import modal */}
+      {pendingFile && (
+        <div style={{ ...S.card, border:"1.5px solid #E8317A44", background:"#0a0005" }}>
+          <div style={{ fontWeight:700, color:"#F0F0F0", marginBottom:10 }}>📂 {pendingFile.name}</div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <input
+              value={setNameInput}
+              onChange={e=>setSetNameInput(e.target.value)}
+              placeholder="Name this set (e.g. BJBA Series 1)"
+              style={{ ...S.inp, flex:1 }}
+              onKeyDown={e=>e.key==="Enter"&&handleImport()}
+              autoFocus
+            />
+            <Btn onClick={handleImport} variant="green" disabled={!setNameInput.trim()||importing}>
+              {importing ? importProgress||"Importing..." : "✅ Import"}
+            </Btn>
+            <Btn onClick={()=>setPendingFile(null)} variant="ghost">Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Imported sets */}
+      {isAdmin && imports.length > 0 && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="Imported Sets" />
+          <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+            {imports.map(imp=>(
+              <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8 }}>
+                <div>
+                  <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
+                  <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.filename}</span>
+                </div>
+                <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div style={{ ...S.card, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
         <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search card #, hero, athlete..." style={{ ...S.inp, flex:1, minWidth:200 }}/>
+        {sets.length > 1 && (
+          <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setFilterTreat("");setFilterWeapon("");setFilterNote("");setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+            <option value="">All Sets</option>
+            {sets.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
         <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
           <option value="">All Treatments</option>
           {treatments.map(t=><option key={t} value={t}>{t}</option>)}
@@ -6443,13 +6534,146 @@ function BobaChecklist({ userRole }) {
         <span style={{ fontSize:11, color:"#555" }}>{filtered.length.toLocaleString()} cards</span>
       </div>
 
+      {/* Rainbow Tracker */}
+      {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
+        const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
+        const heroWeapons = {};
+        cards.forEach(c => {
+          if(!c.hero || !c.weapon) return;
+          if(!heroWeapons[c.hero]) heroWeapons[c.hero] = {};
+          if(!heroWeapons[c.hero][c.weapon]) heroWeapons[c.hero][c.weapon] = [];
+          heroWeapons[c.hero][c.weapon].push(c.id);
+        });
+        const allHeroes = Object.keys(heroWeapons).sort();
+        const heroStats = allHeroes.map(hero => {
+          const wm = heroWeapons[hero];
+          const available = WEAPONS.filter(w => wm[w]);
+          const ownedWeps = available.filter(w => wm[w].some(id => owned[id]));
+          return { hero, available, ownedWeps, complete: ownedWeps.length === available.length && available.length > 0 };
+        });
+        const completedRainbows = heroStats.filter(h => h.complete).length;
+        const partialRainbows   = heroStats.filter(h => h.ownedWeps.length > 0 && !h.complete).length;
+
+        const filteredHeroes = heroStats.filter(h =>
+          !search || h.hero.toLowerCase().includes(search.toLowerCase())
+        );
+        const [rainbowFilter, setRainbowFilter] = React.useState("all"); // all | complete | partial | missing
+
+        const visibleHeroes = filteredHeroes.filter(h => {
+          if(rainbowFilter === "complete") return h.complete;
+          if(rainbowFilter === "partial")  return h.ownedWeps.length > 0 && !h.complete;
+          if(rainbowFilter === "missing")  return h.ownedWeps.length === 0;
+          return true;
+        });
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Summary */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+              {[
+                { l:"🌈 Complete Rainbows", v:completedRainbows, c:"#4ade80" },
+                { l:"🔶 In Progress",       v:partialRainbows,   c:"#FBBF24" },
+                { l:"⬜ Not Started",        v:allHeroes.length-completedRainbows-partialRainbows, c:"#555" },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
+                  <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Filter */}
+            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+              {[["all","All Heroes"],["complete","🌈 Complete"],["partial","🔶 In Progress"],["missing","⬜ Not Started"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setRainbowFilter(v)} style={{ background:rainbowFilter===v?"#1A1A2E":"transparent", color:rainbowFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${rainbowFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+              ))}
+              <span style={{ fontSize:11, color:"#555", marginLeft:4 }}>{visibleHeroes.length} heroes</span>
+            </div>
+
+            {/* Hero grid */}
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {visibleHeroes.map(({ hero, available, ownedWeps, complete }) => {
+                const pct = available.length > 0 ? Math.round(ownedWeps.length/available.length*100) : 0;
+                const isExpanded = expandedHero === hero;
+                const heroCards = cards.filter(c => c.hero === hero).sort((a,b) => {
+                  const wa = WEAPONS.indexOf(a.weapon), wb = WEAPONS.indexOf(b.weapon);
+                  return wa - wb;
+                });
+                return (
+                  <div key={hero} style={{ background:"#111111", border:`1.5px solid ${complete?"#4ade8044":ownedWeps.length>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                    {/* Hero row — click to expand */}
+                    <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#4ade80":ownedWeps.length>0?"#F0F0F0":"#555" }}>
+                            {complete && "🌈 "}{hero}
+                          </span>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedWeps.length>0?"#FBBF24":"#555" }}>
+                              {ownedWeps.length}/{available.length} weapons
+                            </span>
+                            <span style={{ color:"#444", fontSize:12 }}>{isExpanded?"▲":"▼"}</span>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                          <div style={{ width:`${pct}%`, height:"100%", background:complete?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:2, transition:"width 0.3s" }}/>
+                        </div>
+                      </div>
+                      {/* Weapon dots */}
+                      <div style={{ display:"flex", gap:4 }}>
+                        {WEAPONS.filter(w => heroWeapons[hero][w]).map(w => {
+                          const isOwned = (heroWeapons[hero][w]||[]).some(id => owned[id]);
+                          const wc = WEAPON_COLORS[w] || "#444";
+                          return <div key={w} title={w} style={{ width:12, height:12, borderRadius:"50%", background:isOwned?wc:"#1a1a1a", border:`1.5px solid ${isOwned?wc:"#333"}` }}/>;
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Expanded — fan out all cards */}
+                    {isExpanded && (
+                      <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
+                          {heroCards.map(c => {
+                            const isOwned = !!owned[c.id];
+                            const wc = WEAPON_COLORS[c.weapon] || "#444";
+                            return (
+                              <div key={c.id} onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); }} style={{ background:isOwned?wc+"18":"#111111", border:`1.5px solid ${isOwned?wc+"55":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center" }}>
+                                <div style={{ fontSize:16, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:2 }}>
+                                    <span style={{ fontSize:10, color:"#555", flexShrink:0 }}>#{c.cardNum}</span>
+                                    {c.weapon && <span style={{ fontSize:11, fontWeight:700, color:wc }}>{c.weapon}</span>}
+                                    {c.notation && <span style={{ fontSize:9, color:"#FBBF24", fontWeight:700 }}>{c.notation}</span>}
+                                  </div>
+                                  <div style={{ fontSize:11, color:"#AAAAAA", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.treatment}</div>
+                                  {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
+                                </div>
+                                {c.power && <div style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Toggle all for hero */}
+                        <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Card grid */}
-      {loading ? (
+      {viewMode === "cards" && (loading ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
       ) : cards.length === 0 ? (
-        <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>
-          No cards loaded yet. Import a CSV to get started.
-        </div>
+        <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
       ) : (
         <>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:8 }}>
@@ -6457,7 +6681,7 @@ function BobaChecklist({ userRole }) {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
               return (
-                <div key={c.id} onClick={()=>toggleOwned(c.id)} style={{ background: isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", cursor:"pointer", transition:"all 0.15s", display:"flex", gap:10, alignItems:"center" }}>
+                <div key={c.id} onClick={()=>toggleOwned(c.id)} style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 14px", cursor:"pointer", display:"flex", gap:10, alignItems:"center" }}>
                   <div style={{ fontSize:18, flexShrink:0 }}>{isOwned?"✅":"⬜"}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
@@ -6470,13 +6694,13 @@ function BobaChecklist({ userRole }) {
                       {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
                     </div>
                     {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+                    {c.setName && sets.length > 1 && <div style={{ fontSize:9, color:"#333", marginTop:1 }}>{c.setName}</div>}
                   </div>
                   {c.power && <div style={{ fontSize:14, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</div>}
                 </div>
               );
             })}
           </div>
-          {/* Pagination */}
           {totalPages > 1 && (
             <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"8px 0" }}>
               <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{ background:"none", border:"1px solid #333", color:page===1?"#333":"#888", borderRadius:7, padding:"4px 12px", fontSize:11, cursor:page===1?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
@@ -6485,10 +6709,11 @@ function BobaChecklist({ userRole }) {
             </div>
           )}
         </>
-      )}
+      ))}
     </div>
   );
 }
+
 
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
