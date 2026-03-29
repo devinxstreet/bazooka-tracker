@@ -251,6 +251,8 @@ function GlobalStyles() {
       ::selection { background: rgba(232,49,122,0.3); color:#fff; }
       .boba-flip-card { transform-style: preserve-3d; }
       .boba-flip-card > div { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+      .boba-card-flip { transform-style: preserve-3d; transition: transform 0.5s ease; }
+      .boba-card-flip:hover { transform: rotateY(180deg); }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -6445,7 +6447,13 @@ function BobaChecklist({ userRole }) {
       console.log(`Page ${pageNum}: matched to card`, match.id, match.cardNum, match.hero);
 
       // Upload image to Firebase Storage
-      const imgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+      // Re-render at higher quality for storage
+      const hiCanvas = document.createElement("canvas");
+      const hiViewport = page.getViewport({ scale: 2.0 });
+      hiCanvas.width = hiViewport.width;
+      hiCanvas.height = hiViewport.height;
+      await page.render({ canvasContext: hiCanvas.getContext("2d"), viewport: hiViewport }).promise;
+      const imgBlob = await new Promise(res => hiCanvas.toBlob(res, "image/jpeg", 0.92));
       const storageRef = ref(storage, `boba_cards/${match.id}.jpg`);
       await uploadBytes(storageRef, imgBlob);
       const imageUrl = await getDownloadURL(storageRef);
@@ -7099,17 +7107,16 @@ function BobaChecklist({ userRole }) {
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
       ) : (
         <>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:8 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:8 }}>
             {paginated.map(c => {
               const isOwned = !!owned[c.id];
               const wc = WEAPON_COLORS[c.weapon] || "#444";
               const hasImg = !!c.imageUrl;
               if (hasImg) {
                 return (
-                  <div key={c.id} style={{ perspective:"600px", height:200 }}>
+                  <div key={c.id} style={{ perspective:"800px", aspectRatio:"3/4" }}>
                     <div className="boba-flip-card" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s", borderRadius:10, cursor:"pointer" }}
-                      onMouseEnter={e=>e.currentTarget.style.transform="rotateY(180deg)"}
-                      onMouseLeave={e=>e.currentTarget.style.transform="rotateY(0deg)"}
+                      className="boba-card-flip"
                     >
                       {/* Front — card image */}
                       <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
