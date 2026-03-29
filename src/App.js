@@ -5366,7 +5366,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
 
   const fmt = v => "$"+parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 
-  return (
+  const carouselEl = (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* Analytics Carousel */}
@@ -5508,6 +5508,8 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
           <button onClick={()=>setSlide(s=>Math.min(SLIDES.length-1,s+1))} disabled={slide===SLIDES.length-1} style={{ background:"none", border:"1px solid #2a2a2a", color:slide===SLIDES.length-1?"#333":"#888", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:slide===SLIDES.length-1?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
         </div>
       </div>
+    </div>
+  );
 
   // Compute period date bounds
   function getPeriodBounds() {
@@ -5651,6 +5653,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
   // ── BUYER LIST ────────────────────────────────────────────
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      {carouselEl}
 
       {/* Import History */}
       {canSeeFinancials && (
