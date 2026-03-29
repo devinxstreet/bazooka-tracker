@@ -11,11 +11,17 @@ module.exports = async function handler(req, res) {
     try { body = JSON.parse(body); } catch(e) {}
   }
 
-  const { imageBase64 } = body || {};
+  const { imageBase64, treatment, weapon } = body || {};
   if (!imageBase64) return res.status(400).json({ error: "No image provided" });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "No API key configured", identified: null });
+
+  const hint = treatment && weapon
+    ? `This card is from the "${treatment}" treatment set with "${weapon}" weapon type. `
+    : treatment ? `This card is from the "${treatment}" treatment set. `
+    : weapon ? `This card has "${weapon}" weapon type. `
+    : "";
 
   let anthropicResponse;
   try {
@@ -28,7 +34,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-opus-4-6",
-        max_tokens: 200,
+        max_tokens: 100,
         messages: [{
           role: "user",
           content: [
@@ -38,7 +44,7 @@ module.exports = async function handler(req, res) {
             },
             {
               type: "text",
-              text: "This is a Bo Jackson Battle Arena (BoBA) trading card. Extract ONLY these fields as JSON with no other text:\n{\"cardNum\":\"the card number (e.g. 1, 42, P-5)\",\"hero\":\"hero name\",\"weapon\":\"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)\",\"treatment\":\"card treatment/set name\"}\nIf you cannot read the card clearly, return {\"cardNum\":null}"
+              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}What is the hero name on this card? Return ONLY a JSON object with no other text: {"hero":"the hero name as it appears on the card"}\nIf you cannot read the hero name, return {"hero":null}`
             }
           ]
         }]
@@ -52,21 +58,20 @@ module.exports = async function handler(req, res) {
   try {
     data = await anthropicResponse.json();
   } catch(jsonErr) {
-    const raw = await anthropicResponse.text().catch(() => "unreadable");
-    return res.status(500).json({ error: "JSON parse failed", raw, identified: null });
+    return res.status(500).json({ error: "JSON parse failed", identified: null });
   }
 
   if (!anthropicResponse.ok) {
-    return res.status(500).json({ error: "Anthropic error", status: anthropicResponse.status, data, identified: null });
+    return res.status(500).json({ error: "Anthropic error", details: data, identified: null });
   }
 
   try {
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
-    const identified = JSON.parse(clean);
-    return res.status(200).json({ identified });
+    const parsed = JSON.parse(clean);
+    return res.status(200).json({ identified: { hero: parsed.hero, treatment, weapon } });
   } catch(parseErr) {
-    return res.status(200).json({ identified: { cardNum: null }, error: "parse failed" });
+    return res.status(200).json({ identified: { hero: null }, error: "parse failed" });
   }
 };
 
