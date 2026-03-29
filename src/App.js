@@ -6321,7 +6321,8 @@ function BobaChecklist({ userRole }) {
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
-  const [rainbowSetFilter, setRainbowSetFilter] = useState(""); // "" = all sets
+  const [rainbowSetFilter, setRainbowSetFilter] = useState("");
+  const [sortBy,           setSortBy]           = useState("cardNum");
   const [page,           setPage]           = useState(1);
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -6583,6 +6584,19 @@ function BobaChecklist({ userRole }) {
     if(filterOwned==="owned" && !owned[c.id]) return false;
     if(filterOwned==="missing" && owned[c.id]) return false;
     return true;
+  }).sort((a,b) => {
+    if(sortBy==="cardNum") {
+      const na = parseFloat(a.cardNum), nb = parseFloat(b.cardNum);
+      if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+      return String(a.cardNum).localeCompare(String(b.cardNum));
+    }
+    if(sortBy==="power_desc") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+    if(sortBy==="power_asc")  return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
+    if(sortBy==="hero")       return (a.hero||"").localeCompare(b.hero||"");
+    if(sortBy==="treatment")  return (a.treatment||"").localeCompare(b.treatment||"");
+    if(sortBy==="weapon")     return (a.weapon||"").localeCompare(b.weapon||"");
+    if(sortBy==="owned")      return (owned[b.id]?1:0)-(owned[a.id]?1:0);
+    return 0;
   });
 
   const totalOwned = Object.keys(owned).length;
@@ -6842,6 +6856,15 @@ function BobaChecklist({ userRole }) {
           <option value="">All Notations</option>
           {notations.map(n=><option key={n} value={n}>{n}</option>)}
         </select>
+        <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+          <option value="cardNum">Sort: Card #</option>
+          <option value="hero">Sort: Hero A→Z</option>
+          <option value="power_desc">Sort: Power High→Low</option>
+          <option value="power_asc">Sort: Power Low→High</option>
+          <option value="treatment">Sort: Treatment</option>
+          <option value="weapon">Sort: Weapon</option>
+          <option value="owned">Sort: Owned First</option>
+        </select>
         <div style={{ display:"flex", gap:4 }}>
           {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
             <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{ background:filterOwned===v?"#1A1A2E":"transparent", color:filterOwned===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${filterOwned===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
@@ -6927,7 +6950,7 @@ function BobaChecklist({ userRole }) {
 
             {/* Hero grid */}
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {visibleHeroes.map(({ hero, total, ownedCount, complete }) => {
+              {visibleHeroes.map(({ hero, total, ownedCount, complete, bySets }) => {
                 const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
                 const isExpanded = expandedHero === hero;
                 const heroCardList = cards.filter(c => c.hero === hero).sort((a,b) => {
