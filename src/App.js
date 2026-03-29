@@ -6479,6 +6479,11 @@ function BobaChecklist({ userRole }) {
               <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
             </label>
           )}
+          {totalOwned > 0 && (
+            <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned checkmarks? Your collection progress will be reset.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              ✕ Clear My Collection
+            </button>
+          )}
         </div>
       </div>
 
@@ -6513,10 +6518,26 @@ function BobaChecklist({ userRole }) {
             )}
           </div>
           {imports.length === 0 ? (
-            <div style={{ fontSize:12, color:"#555", padding:"8px 0" }}>
-              No import records found. Import a CSV above to get started.
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+              <div style={{ fontSize:12, color:"#555" }}>
+                No import records found.
+                {cards.length > 0 && (
+                  <span style={{ color:"#FBBF24", marginLeft:8 }}>{cards.length.toLocaleString()} cards in Firestore from a previous import — clear them and re-import below.</span>
+                )}
+              </div>
               {cards.length > 0 && (
-                <span style={{ color:"#FBBF24", marginLeft:8 }}>({cards.length.toLocaleString()} cards already in Firestore from a previous import)</span>
+                <button onClick={async () => {
+                  if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards and all owned data? This cannot be undone.`)) return;
+                  const chunkSize = 200;
+                  const allIds = cards.map(c=>c.id);
+                  for(let i=0;i<allIds.length;i+=chunkSize){
+                    await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
+                  }
+                  await setDoc(doc(db,"boba_owned","owned"), {});
+                  setOwned({});
+                }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  🗑 Clear All Cards
+                </button>
               )}
             </div>
           ) : (
@@ -6545,6 +6566,23 @@ function BobaChecklist({ userRole }) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {cards.length > 0 && (
+            <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #1a1a1a", display:"flex", justifyContent:"flex-end" }}>
+              <button onClick={async () => {
+                if(!window.confirm(`Delete ALL ${cards.length.toLocaleString()} cards, all import records, and all owned data? This cannot be undone.`)) return;
+                const chunkSize = 200;
+                const allIds = cards.map(c=>c.id);
+                for(let i=0;i<allIds.length;i+=chunkSize){
+                  await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
+                }
+                await Promise.all(imports.map(imp=>deleteDoc(doc(db,"boba_imports",imp.id))));
+                await setDoc(doc(db,"boba_owned","owned"), {});
+                setOwned({});
+              }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                🗑 Clear All & Restart
+              </button>
             </div>
           )}
         </div>
