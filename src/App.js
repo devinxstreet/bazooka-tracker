@@ -2487,7 +2487,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
     const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commAmt = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb };
+    const collabAmt = recap.collabPartner && recap.collabPartner !== "_" ? bazNet * (parseFloat(recap.collabPct||0)/100) : 0;
+    return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt, bazTrueNet: bazNet - repExp - commAmt + imcExpReimb - collabAmt };
   }
 
   async function handleSaveRecap() {
