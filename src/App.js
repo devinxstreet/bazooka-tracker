@@ -2951,7 +2951,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     </div>
                   );
                 })()}
-                </div>
                 {parseFloat(recap.zionRevenue||0) > 0 && (
                   <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <div>
