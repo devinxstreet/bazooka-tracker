@@ -6566,23 +6566,23 @@ function BobaChecklist({ userRole }) {
 
       {/* Rainbow Tracker */}
       {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
-        const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
-        const heroWeapons = {};
+        // Group all cards by hero
+        const heroCards = {};
         cards.forEach(c => {
-          if(!c.hero || !c.weapon) return;
-          if(!heroWeapons[c.hero]) heroWeapons[c.hero] = {};
-          if(!heroWeapons[c.hero][c.weapon]) heroWeapons[c.hero][c.weapon] = [];
-          heroWeapons[c.hero][c.weapon].push(c.id);
+          if(!c.hero) return;
+          if(!heroCards[c.hero]) heroCards[c.hero] = [];
+          heroCards[c.hero].push(c);
         });
-        const allHeroes = Object.keys(heroWeapons).sort();
+        const allHeroes = Object.keys(heroCards).sort();
         const heroStats = allHeroes.map(hero => {
-          const wm = heroWeapons[hero];
-          const available = WEAPONS.filter(w => wm[w]);
-          const ownedWeps = available.filter(w => wm[w].some(id => owned[id]));
-          return { hero, available, ownedWeps, complete: ownedWeps.length === available.length && available.length > 0 };
+          const hcards = heroCards[hero];
+          const total = hcards.length;
+          const ownedCount = hcards.filter(c => owned[c.id]).length;
+          const complete = total > 0 && ownedCount === total;
+          return { hero, total, ownedCount, complete };
         });
         const completedRainbows = heroStats.filter(h => h.complete).length;
-        const partialRainbows   = heroStats.filter(h => h.ownedWeps.length > 0 && !h.complete).length;
+        const partialRainbows   = heroStats.filter(h => h.ownedCount > 0 && !h.complete).length;
 
         const filteredHeroes = heroStats.filter(h =>
           !search || h.hero.toLowerCase().includes(search.toLowerCase())
@@ -6591,8 +6591,8 @@ function BobaChecklist({ userRole }) {
 
         const visibleHeroes = filteredHeroes.filter(h => {
           if(rainbowFilter === "complete") return h.complete;
-          if(rainbowFilter === "partial")  return h.ownedWeps.length > 0 && !h.complete;
-          if(rainbowFilter === "missing")  return h.ownedWeps.length === 0;
+          if(rainbowFilter === "partial")  return h.ownedCount > 0 && !h.complete;
+          if(rainbowFilter === "missing")  return h.ownedCount === 0;
           return true;
         });
 
@@ -6622,41 +6622,43 @@ function BobaChecklist({ userRole }) {
 
             {/* Hero grid */}
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {visibleHeroes.map(({ hero, available, ownedWeps, complete }) => {
-                const pct = available.length > 0 ? Math.round(ownedWeps.length/available.length*100) : 0;
+              {visibleHeroes.map(({ hero, total, ownedCount, complete }) => {
+                const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
                 const isExpanded = expandedHero === hero;
-                const heroCards = cards.filter(c => c.hero === hero).sort((a,b) => {
+                const heroCardList = cards.filter(c => c.hero === hero).sort((a,b) => {
+                  // Sort by weapon then treatment
+                  const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
                   const wa = WEAPONS.indexOf(a.weapon), wb = WEAPONS.indexOf(b.weapon);
-                  return wa - wb;
+                  if(wa !== wb) return wa - wb;
+                  return (a.treatment||"").localeCompare(b.treatment||"");
                 });
                 return (
-                  <div key={hero} style={{ background:"#111111", border:`1.5px solid ${complete?"#4ade8044":ownedWeps.length>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                  <div key={hero} style={{ background:"#111111", border:`1.5px solid ${complete?"#ffffff22":ownedCount>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
                     {/* Hero row — click to expand */}
                     <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#4ade80":ownedWeps.length>0?"#F0F0F0":"#555" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"#555" }}>
                             {complete && "🌈 "}{hero}
                           </span>
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedWeps.length>0?"#FBBF24":"#555" }}>
-                              {ownedWeps.length}/{available.length} weapons
+                            <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedCount>0?"#FBBF24":"#555" }}>
+                              {ownedCount}/{total} cards{complete ? " — RAINBOW! 🌈" : ""}
                             </span>
                             <span style={{ color:"#444", fontSize:12 }}>{isExpanded?"▲":"▼"}</span>
                           </div>
                         </div>
-                        {/* Progress bar */}
-                        <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
-                          <div style={{ width:`${pct}%`, height:"100%", background:complete?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)", borderRadius:2, transition:"width 0.3s" }}/>
+                        {/* Rainbow progress bar */}
+                        <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                          <div style={{
+                            width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
+                            background: complete
+                              ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                              : pct > 50
+                                ? "linear-gradient(90deg,#E8317A,#7B2FF7)"
+                                : "#E8317A"
+                          }}/>
                         </div>
-                      </div>
-                      {/* Weapon dots */}
-                      <div style={{ display:"flex", gap:4 }}>
-                        {WEAPONS.filter(w => heroWeapons[hero][w]).map(w => {
-                          const isOwned = (heroWeapons[hero][w]||[]).some(id => owned[id]);
-                          const wc = WEAPON_COLORS[w] || "#444";
-                          return <div key={w} title={w} style={{ width:12, height:12, borderRadius:"50%", background:isOwned?wc:"#1a1a1a", border:`1.5px solid ${isOwned?wc:"#333"}` }}/>;
-                        })}
                       </div>
                     </div>
 
@@ -6664,7 +6666,7 @@ function BobaChecklist({ userRole }) {
                     {isExpanded && (
                       <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6 }}>
-                          {heroCards.map(c => {
+                          {heroCardList.map(c => {
                             const isOwned = !!owned[c.id];
                             const wc = WEAPON_COLORS[c.weapon] || "#444";
                             return (
@@ -6686,8 +6688,8 @@ function BobaChecklist({ userRole }) {
                         </div>
                         {/* Toggle all for hero */}
                         <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
                         </div>
                       </div>
                     )}
