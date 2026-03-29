@@ -6429,7 +6429,7 @@ function BobaChecklist({ userRole }) {
     });
     // Owned + imports stay realtime
     const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
-    const u3 = onSnapshot(doc(db,"boba_owned","wants"), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
+    const uWants = onSnapshot(doc(db,"boba_owned","wants"), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
@@ -7595,7 +7595,7 @@ export default function App() {
     const u15 = onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u16 = onSnapshot(doc(db,"settings","imc_form"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); });
 
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); uWants(); };
   }, [user]);
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
