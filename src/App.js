@@ -6552,6 +6552,98 @@ function BobaChecklist({ userRole }) {
     await setOwnedQty(cardId, owned[cardId] ? 0 : 1);
   }
 
+  // Export collection to CSV
+  function exportCollection() {
+    const ownedCards = cards.filter(c => owned[c.id]);
+    if (!ownedCards.length) { alert("No cards owned yet!"); return; }
+    const rows = [["card_num","hero","treatment","weapon","notation","quantity"]];
+    ownedCards.forEach(c => {
+      rows.push([c.cardNum, c.hero, c.treatment, c.weapon, c.notation||"", owned[c.id]||1]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="boba-collection.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadTemplate() {
+    const csv = [
+      ["card_num","hero","treatment","weapon","notation","quantity"],
+      ["RAD-1","Bojax","80's Rad Battlefoil","Hex","",1],
+      ["1","Maverick","Base Set","Fire","",2],
+    ].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="boba-collection-template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Import collection from CSV
+  const [collectionImportResult, setCollectionImportResult] = useState(null);
+  async function importCollectionCsv(file) {
+    if (!file) return;
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
+    const idx = k => headers.indexOf(k);
+    const cardNumIdx = idx("card_num"), heroIdx = idx("hero"),
+          treatIdx = idx("treatment"), weaponIdx = idx("weapon"),
+          noteIdx = idx("notation"), qtyIdx = idx("quantity");
+
+    if (cardNumIdx === -1) { alert("CSV must have a 'card_num' column"); return; }
+
+    function normalize(s) { return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim(); }
+    function fuzzy(a,b) {
+      const na=normalize(a), nb=normalize(b);
+      if(na===nb) return true;
+      if(na.includes(nb)||nb.includes(na)) return true;
+      const wa=na.split(/\s+/), wb=nb.split(/\s+/);
+      const shared=wa.filter(w=>wb.includes(w)).length;
+      return shared>0 && shared/Math.max(wa.length,wb.length)>=0.5;
+    }
+
+    const next = { ...owned };
+    let matched=0, skipped=0, skippedRows=[];
+
+    for (let i=1; i<lines.length; i++) {
+      const cols = lines[i].split(",").map(c => c.replace(/^"|"$/g,"").trim());
+      const cardNum = cols[cardNumIdx]||"";
+      const hero = cols[heroIdx]||"";
+      const treatment = treatIdx>=0 ? cols[treatIdx]||"" : "";
+      const weapon = weaponIdx>=0 ? cols[weaponIdx]||"" : "";
+      const notation = noteIdx>=0 ? cols[noteIdx]||"" : "";
+      const qty = Math.max(1, parseInt(cols[qtyIdx])||1);
+
+      if (!cardNum) { skipped++; continue; }
+
+      // Match by card_num first, then narrow by hero/treatment/weapon
+      let match = cards.find(c =>
+        String(c.cardNum).toLowerCase() === String(cardNum).toLowerCase() &&
+        (!hero || fuzzy(c.hero, hero)) &&
+        (!treatment || c.treatment?.toLowerCase() === treatment.toLowerCase()) &&
+        (!weapon || c.weapon?.toLowerCase() === weapon.toLowerCase())
+      );
+
+      // Fallback: card_num only
+      if (!match) match = cards.find(c =>
+        String(c.cardNum).toLowerCase() === String(cardNum).toLowerCase()
+      );
+
+      if (match) {
+        next[match.id] = qty;
+        matched++;
+      } else {
+        skipped++;
+        skippedRows.push(`Row ${i+1}: card_num="${cardNum}" hero="${hero}"`);
+      }
+    }
+
+    setOwned(next);
+    await setDoc(doc(db,"boba_owned","owned"), next);
+    setCollectionImportResult({ matched, skipped, skippedRows });
+  }
+
   function handleFileSelect(e) {
     const file = e.target.files[0]; if(!file) return;
     setPendingFile(file);
@@ -6739,12 +6831,43 @@ function BobaChecklist({ userRole }) {
           )}
 
           {totalOwned > 0 && (
-            <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned checkmarks? Your collection progress will be reset.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              ✕ Clear My Collection
+            <button onClick={exportCollection} style={{ background:"#0a1a0a", border:"1.5px solid #4ade8044", color:"#4ade80", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              📤 Export Collection
+            </button>
+          )}
+          <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF44", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            📥 Import Collection
+            <input type="file" accept=".csv" onChange={e=>{ const f=e.target.files[0]; if(f) importCollectionCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
+          </label>
+          <button onClick={downloadTemplate} style={{ background:"transparent", border:"1px solid #333", color:"#7B9CFF", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            📋 Download Template
+          </button>
+          {totalOwned > 0 && (
+            <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards? This cannot be undone.`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              ✕ Clear Collection
             </button>
           )}
         </div>
       </div>
+
+      {/* Collection Import Result Modal */}
+      {collectionImportResult && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setCollectionImportResult(null)}>
+          <div style={{ background:"#111111", border:"1.5px solid #7B9CFF44", borderRadius:14, padding:"24px", width:420, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:12 }}>📥 Import Complete</div>
+            <div style={{ fontSize:13, color:"#4ade80", marginBottom:4 }}>✅ {collectionImportResult.matched} cards matched & imported</div>
+            {collectionImportResult.skipped > 0 && (
+              <div style={{ fontSize:13, color:"#E8317A", marginBottom:8 }}>⚠️ {collectionImportResult.skipped} rows skipped (no match found)</div>
+            )}
+            {collectionImportResult.skippedRows.length > 0 && (
+              <div style={{ maxHeight:120, overflowY:"auto", background:"#0a0a0a", borderRadius:6, padding:"8px 10px", fontSize:10, color:"#666", marginBottom:12 }}>
+                {collectionImportResult.skippedRows.map((r,i)=><div key={i}>{r}</div>)}
+              </div>
+            )}
+            <button onClick={()=>setCollectionImportResult(null)} style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
+          </div>
+        </div>
+      )}
 
       {/* Scan Config Modal */}
       {pendingScan && (
