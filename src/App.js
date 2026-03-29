@@ -5324,21 +5324,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   );
 }
 
-// ─── PUBLIC QUOTE PAGE (no auth required) ────────────────────
-// ─── BOBA SHOWCASE (public, no auth required) ────────────────
-const SHOWCASE_WEAPON_COLORS = { Fire:"#F97316",Ice:"#60A5FA",Steel:"#9CA3AF",Brawl:"#E8317A",Glow:"#4ade80",Hex:"#A855F7",Gum:"#FBBF24",Super:"#F472B6",Alt:"#AAAAAA",Metallic:"#E5E7EB" };
-const RARITY_TIERS = [
-  { label:"Legendary", minPower:200, color:"#FBBF24" },
-  { label:"Elite",     minPower:160, color:"#A855F7" },
-  { label:"Rare",      minPower:130, color:"#60A5FA" },
-  { label:"Common",    minPower:0,   color:"#9CA3AF" },
-];
-function getRarity(c) {
-  const p = parseFloat(c.power) || 0;
-  return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
-}
 
-function BobaShowcase() {
+// ─── BOBA SHOWCASE (public, no auth required) ────────────────────
+function BobaShowcase({ uid }) {
   const [cards,     setCards]     = useState([]);
   const [owned,     setOwned]     = useState({});
   const [loading,   setLoading]   = useState(true);
@@ -5347,16 +5335,17 @@ function BobaShowcase() {
   const [filterWeapon, setFilterWeapon] = useState("");
   const [sortBy,    setSortBy]    = useState("set");
   const [page,      setPage]      = useState(0);
-  const [pageDir,   setPageDir]   = useState(1); // 1=forward, -1=back for animation
+  const [pageDir,   setPageDir]   = useState(1);
   const [copied,    setCopied]    = useState(false);
   const CARDS_PER_PAGE = 9;
+  const ownedDocId = uid || "owned";
 
   useEffect(() => {
     async function load() {
       try {
         const [cardSnap, ownedSnap] = await Promise.all([
           getDocs(collection(db, "boba_checklist")),
-          getDoc(doc(db, "boba_owned", "owned")),
+          getDoc(doc(db, "boba_owned", ownedDocId)),
         ]);
         const allCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
         setCards(allCards);
@@ -5365,11 +5354,9 @@ function BobaShowcase() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [ownedDocId]);
 
   const ownedCards = cards.filter(c => owned[c.id]);
-
-  // Sort
   const sorted = [...ownedCards].sort((a, b) => {
     if (sortBy === "set") {
       const s = (a.setName||"").localeCompare(b.setName||"");
@@ -5380,33 +5367,24 @@ function BobaShowcase() {
     if (sortBy === "rarity") return getRarity(b).minPower - getRarity(a).minPower;
     return 0;
   });
-
   const sets    = [...new Set(ownedCards.map(c => c.setName).filter(Boolean))].sort();
   const weapons = [...new Set(ownedCards.map(c => c.weapon).filter(Boolean))].sort();
-
   let filtered = sorted;
   if (filterSet)    filtered = filtered.filter(c => c.setName === filterSet);
   if (filterWeapon) filtered = filtered.filter(c => c.weapon  === filterWeapon);
-
   const totalPages = Math.ceil(filtered.length / CARDS_PER_PAGE);
   const pageCards  = filtered.slice(page * CARDS_PER_PAGE, (page + 1) * CARDS_PER_PAGE);
-
-  // Stats
   const totalPower     = ownedCards.reduce((s, c) => s + (parseFloat(c.power)||0), 0);
   const heroCount      = [...new Set(ownedCards.map(c=>c.hero).filter(Boolean))].length;
   const legendaryCount = ownedCards.filter(c => getRarity(c).label === "Legendary").length;
 
   useEffect(() => { setPage(0); }, [filterSet, filterWeapon, sortBy]);
-
-  function goPage(next) {
-    setPageDir(next > page ? 1 : -1);
-    setPage(Math.max(0, Math.min(totalPages - 1, next)));
-  }
-
+  function goPage(next) { setPageDir(next > page ? 1 : -1); setPage(Math.max(0, Math.min(totalPages - 1, next))); }
   function copyLink() {
-    navigator.clipboard.writeText(`${window.location.origin}/showcase`).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2000);
-    });
+    const shareUrl = uid
+      ? `${window.location.origin}/showcase?uid=${uid}`
+      : `${window.location.origin}/showcase`;
+    navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
   if (loading) return (
@@ -5420,12 +5398,9 @@ function BobaShowcase() {
 
   return (
     <div style={{ minHeight:"100vh", background:"#050505", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0" }}>
-
-      {/* ── Header ── */}
       <div style={{ background:"linear-gradient(180deg,#0d0d0d 0%,#050505 100%)", borderBottom:"1px solid #1a1a1a", padding:"24px 32px" }}>
         <div style={{ maxWidth:1200, margin:"0 auto" }}>
           <div style={{ display:"flex", alignItems:"flex-start", gap:20, marginBottom:20, flexWrap:"wrap" }}>
-            {/* Brand */}
             <div style={{ flex:1 }}>
               <div style={{ fontSize:28, fontWeight:900, letterSpacing:-1, lineHeight:1 }}>
                 <span style={{ color:"#E8317A" }}>BAZOOKA</span>
@@ -5433,13 +5408,10 @@ function BobaShowcase() {
               </div>
               <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
             </div>
-            {/* Share button */}
             <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "#1a1a1a", border:`1px solid ${copied?"#4ade80":"#2a2a2a"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
               {copied ? "✅ Copied!" : "🔗 Share Link"}
             </button>
           </div>
-
-          {/* Stats row */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:12, marginBottom:20 }}>
             {[
               { label:"Cards Owned",  value:ownedCards.length.toLocaleString(), color:"#4ade80",  icon:"🃏" },
@@ -5454,20 +5426,15 @@ function BobaShowcase() {
               </div>
             ))}
           </div>
-
-          {/* Filters + sort */}
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            {/* Set filter */}
             <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);}} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               <option value="">All Sets</option>
               {sets.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            {/* Weapon filter */}
             <select value={filterWeapon} onChange={e=>setFilterWeapon(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               <option value="">All Weapons</option>
               {weapons.map(w => <option key={w} value={w} style={{ color: SHOWCASE_WEAPON_COLORS[w]||"#888" }}>{w}</option>)}
             </select>
-            {/* Sort */}
             <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               <option value="set">Sort: Set</option>
               <option value="power">Sort: Power ↓</option>
@@ -5480,7 +5447,6 @@ function BobaShowcase() {
         </div>
       </div>
 
-      {/* ── Binder ── */}
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"32px" }}>
         {ownedCards.length === 0 ? (
           <div style={{ textAlign:"center", padding:"100px 0", color:"#333" }}>
@@ -5490,19 +5456,17 @@ function BobaShowcase() {
           </div>
         ) : (
           <>
-            {/* Page nav top */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
               <button onClick={()=>goPage(page-1)} disabled={page===0}
-                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page===0?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page===0?"default":"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>
+                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page===0?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page===0?"default":"pointer", fontFamily:"inherit" }}>
                 ← Prev
               </button>
-              {/* Page pills */}
               <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                 {Array.from({ length: Math.min(totalPages, 9) }).map((_, i) => {
                   const pIdx = totalPages <= 9 ? i : Math.max(0, Math.min(totalPages - 9, page - 4)) + i;
                   return (
                     <button key={pIdx} onClick={()=>goPage(pIdx)}
-                      style={{ background:page===pIdx?"#E8317A":"transparent", color:page===pIdx?"#fff":"#444", border:`1px solid ${page===pIdx?"#E8317A":"#2a2a2a"}`, borderRadius:6, width:30, height:30, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>
+                      style={{ background:page===pIdx?"#E8317A":"transparent", color:page===pIdx?"#fff":"#444", border:`1px solid ${page===pIdx?"#E8317A":"#2a2a2a"}`, borderRadius:6, width:30, height:30, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                       {pIdx+1}
                     </button>
                   );
@@ -5515,9 +5479,7 @@ function BobaShowcase() {
               </button>
             </div>
 
-            {/* Binder page */}
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:16, padding:"28px", boxShadow:"0 24px 80px rgba(0,0,0,0.7)" }}>
-              {/* Set label for this page */}
               {pageCards[0] && (
                 <div style={{ fontSize:11, color:"#333", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:20 }}>
                   {pageCards[0].setName} — Page {page+1} of {totalPages}
@@ -5533,7 +5495,6 @@ function BobaShowcase() {
               </div>
             </div>
 
-            {/* Rarity legend */}
             <div style={{ display:"flex", gap:16, marginTop:16, justifyContent:"center", flexWrap:"wrap" }}>
               {RARITY_TIERS.map(r => (
                 <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#444" }}>
@@ -5547,47 +5508,36 @@ function BobaShowcase() {
         )}
       </div>
 
-      {/* ── Spotlight Modal ── */}
       {spotlight && (
         <div onClick={()=>setSpotlight(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.95)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:48, alignItems:"center", maxWidth:900, width:"100%", flexWrap:"wrap" }}>
-            {/* Big card */}
             <div style={{ width:280, flexShrink:0 }}>
               <ShowcaseCard c={spotlight} onClick={()=>{}} large />
             </div>
-            {/* Details */}
             <div style={{ flex:1, minWidth:260 }}>
               <div style={{ fontSize:11, color:"#444", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>
                 {spotlight.setName} · #{spotlight.cardNum}
               </div>
               <div style={{ fontSize:38, fontWeight:900, color:"#F0F0F0", lineHeight:1.1, marginBottom:12 }}>{spotlight.hero}</div>
-
-              {/* Rarity badge */}
               {(() => { const r = getRarity(spotlight); return (
                 <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:r.color+"22", border:`1px solid ${r.color}44`, borderRadius:20, padding:"4px 12px", marginBottom:14 }}>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:r.color }}/>
                   <span style={{ fontSize:11, color:r.color, fontWeight:700 }}>{r.label}</span>
                 </div>
               ); })()}
-
-              {/* Tags */}
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20 }}>
                 {spotlight.weapon    && <span style={{ fontSize:12, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888", background:(SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888")+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.weapon}</span>}
                 {spotlight.treatment && <span style={{ fontSize:12, color:"#AAAAAA", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{spotlight.treatment}</span>}
                 {spotlight.notation  && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.notation}</span>}
               </div>
-
-              {/* Power */}
               {spotlight.power && (
                 <div style={{ marginBottom:20 }}>
                   <div style={{ fontSize:10, color:"#444", marginBottom:4, letterSpacing:1 }}>POWER</div>
                   <div style={{ fontSize:56, fontWeight:900, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#E8317A", lineHeight:1 }}>{spotlight.power}</div>
                 </div>
               )}
-
               {spotlight.athlete && <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>🏅 Inspired by {spotlight.athlete}</div>}
               {spotlight.variation && <div style={{ fontSize:12, color:"#333", marginBottom:16 }}>{spotlight.variation}</div>}
-
               <div style={{ display:"flex", gap:10, marginTop:8 }}>
                 <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i>0) setSpotlight(filtered[i-1]); }} disabled={filtered.indexOf(spotlight)===0}
                   style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>← Prev</button>
@@ -5646,15 +5596,11 @@ function ShowcaseCard({ c, onClick, large }) {
       <div ref={cardRef} style={{ width:"100%", height:"100%", borderRadius:large?16:12, overflow:"hidden", position:"relative", willChange:"transform",
         boxShadow:`0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${rarity.color}22` }}>
         <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-        {/* Foil */}
         <div ref={foilRef} style={{ position:"absolute", inset:0,
           background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
           backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
-        {/* Glare */}
         <div ref={glareRef} style={{ position:"absolute", inset:0, mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
-        {/* Rarity glow border */}
         <div style={{ position:"absolute", inset:0, borderRadius:large?16:12, boxShadow:`inset 0 0 ${large?30:20}px ${rarity.color}18`, pointerEvents:"none" }}/>
-        {/* Bottom gradient + info */}
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent, rgba(0,0,0,0.9))", padding:large?"36px 18px 16px":"24px 12px 10px" }}>
           <div style={{ fontSize:large?15:12, fontWeight:900, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:3 }}>
@@ -5668,1165 +5614,23 @@ function ShowcaseCard({ c, onClick, large }) {
   );
 }
 
-function PublicQuote({ quoteId }) {
-  const [quote,       setQuote]       = useState(null);
-  const [loading,     setLoading]     = useState(true);
-  const [expired,     setExpired]     = useState(false);
-  const [notFound,    setNotFound]    = useState(false);
-  const [selPayment,  setSelPayment]  = useState("");
-  const [selHandle,   setSelHandle]   = useState("");
-  const [counterAmt,  setCounterAmt]  = useState("");
-  const [view,        setView]        = useState("quote"); // quote | accept | counter | done
-  const [submitting,  setSubmitting]  = useState(false);
-  const [submitError, setSubmitError] = useState("");
-
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, "quotes", quoteId), snap => {
-      if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
-      const data = snap.data();
-      const created = new Date(data.createdAt);
-      if ((new Date() - created) > 7 * 24 * 60 * 60 * 1000) { setExpired(true); setLoading(false); return; }
-      setQuote(data);
-      setLoading(false);
-    });
-    return unsub;
-  }, [quoteId]);
-
-  // Log view once when quote loads successfully
-  useEffect(() => {
-    if (!quote) return;
-    const isClosed = ["accepted","declined","closed"].includes(quote.status);
-    if (isClosed) return; // don't track views on closed quotes
-    const viewEntry = {
-      timestamp: new Date().toISOString(),
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
-      locale: navigator.language || "unknown",
-    };
-    setDoc(doc(db, "quotes", quoteId), {
-      viewCount: (quote.viewCount||0) + 1,
-      lastViewedAt: viewEntry.timestamp,
-      views: [...(quote.views||[]), viewEntry],
-    }, { merge:true }).catch(()=>{});
-  }, [!!quote]); // only fire once when quote first loads
-
-  const pageStyle = { minHeight:"100vh", background:"#000000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", padding:"40px 20px", display:"flex", justifyContent:"center" };
-  const cardStyle = { background:"#111111", border:"1px solid #2a2a2a", borderRadius:16, overflow:"hidden", maxWidth:680, width:"100%" };
-
-  if (loading) return <div style={{...pageStyle,alignItems:"center"}}><div style={{color:"#E8317A",fontSize:18,fontWeight:700}}>Loading your quote...</div></div>;
-  if (notFound) return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>🔍</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Not Found</div><div style={{color:"#888",fontSize:14}}>This link may be invalid or has been removed.</div></div></div>;
-  if (expired)  return <div style={{...pageStyle,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⏰</div><div style={{fontSize:22,fontWeight:800,color:"#E8317A",marginBottom:8}}>Quote Expired</div><div style={{color:"#888",fontSize:14}}>This offer was valid for 7 days and has expired.</div><div style={{color:"#888",fontSize:14,marginTop:8}}>Please contact Bazooka for a fresh quote.</div></div></div>;
-
-  const { seller, cards=[], dispOffer=0, custNote, payment:bzPayment, paymentHandle:bzHandle, createdAt, status="pending", history=[], currentOffer, allowCounter=false } = quote;
-  const activeOffer = currentOffer || dispOffer;
-  const totalCards = cards.reduce((s,c)=>s+(parseInt(c.qty)||1),0);
-  const totalMkt   = cards.reduce((s,c)=>s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1),0);
-  const expiresAt  = new Date(new Date(createdAt).getTime()+7*24*60*60*1000);
-  const daysLeft   = Math.max(0,Math.ceil((expiresAt-new Date())/86400000));
-  const isClosed   = ["accepted","declined","closed"].includes(status);
-
-  const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash App","Cash","Check","Other"];
-  const PCFG = {
-    Venmo:    { color:"#3D95CE", href:(h,a)=>`venmo://paycharge?txn=pay&recipients=${h.replace(/^@/,"")}&amount=${a}&note=${encodeURIComponent("Bazooka card purchase")}`, webHref:(h)=>`https://venmo.com/${h.replace(/^@/,"")}` },
-    PayPal:   { color:"#003087", href:(h,a)=>`https://www.paypal.com/paypalme/${h.replace(/^@/,"")}${a?"/"+a:""}` },
-    Zelle:    { color:"#6D1ED4", href:null },
-    "Cash App":{ color:"#00C244",href:(h,a)=>`https://cash.app/$${h.replace(/^@/,"")}${a?"/"+a:""}` },
-    Cash:     { color:"#166534", href:null },
-    Other:    { color:"#888888", href:null },
-  };
-
-  async function submitResponse(type) {
-    setSubmitting(true);
-    setSubmitError("");
-    try {
-      const now = new Date().toISOString();
-      const entry = { type, timestamp: now };
-      if (type === "accepted") {
-        if (!selPayment) { setSubmitError("Please select a payment method."); setSubmitting(false); return; }
-        entry.paymentMethod = selPayment;
-        entry.paymentHandle = selHandle;
-        await setDoc(doc(db,"quotes",quoteId), {
-          status:"accepted",
-          sellerPayment: selPayment,
-          sellerHandle:  selHandle,
-          acceptedAt:    now,
-          history:       [...history, entry],
-          notified:      false,
-        }, { merge:true });
-      } else if (type === "declined") {
-        await setDoc(doc(db,"quotes",quoteId), {
-          status:"declined", declinedAt:now,
-          history:[...history,entry], notified:false,
-        }, { merge:true });
-      } else if (type === "countered") {
-        const amt = parseFloat(counterAmt);
-        if (!amt || amt <= 0) { setSubmitError("Please enter a valid counter offer amount."); setSubmitting(false); return; }
-        entry.counterAmount = amt;
-        await setDoc(doc(db,"quotes",quoteId), {
-          status:"countered", currentOffer:amt,
-          sellerCounter:amt, counteredAt:now,
-          history:[...history,entry], notified:false,
-        }, { merge:true });
-      }
-      setView("done");
-    } catch(e) { setSubmitError("Something went wrong. Please try again."); }
-    setSubmitting(false);
-  }
-
-  // ── DONE STATE ──────────────────────────────────────────────
-  if (view === "done" || isClosed) {
-    const msgs = {
-      accepted: { icon:"🎉", title:"Offer Accepted!", color:"#4ade80", body:"Bazooka will reach out to confirm details. Ship your cards to the address below once confirmed." },
-      declined: { icon:"👋", title:"Offer Declined", color:"#E8317A", body:"No worries — feel free to reach out if you change your mind." },
-      countered:{ icon:"🤝", title:"Counter Offer Sent!", color:"#FBBF24", body:"Bazooka has been notified of your counter. They'll respond shortly on this same link — check back soon." },
-      closed:   { icon:"🔒", title:"Quote Closed", color:"#888", body:"This quote has been closed by Bazooka." },
-    };
-    const m = msgs[status] || msgs.countered;
-    return (
-      <div style={{...pageStyle,alignItems:"center"}}>
-        <div style={{...cardStyle,padding:"48px 40px",textAlign:"center"}}>
-          <div style={{fontSize:48,marginBottom:16}}>{m.icon}</div>
-          <div style={{fontSize:24,fontWeight:900,color:m.color,marginBottom:12}}>{m.title}</div>
-          <div style={{fontSize:14,color:"#888",lineHeight:1.7,marginBottom:24}}>{m.body}</div>
-          {status==="accepted" && (
-            <div style={{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10,padding:"16px",textAlign:"left"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>📦 Ship Cards To</div>
-              <div style={{fontSize:13,color:"#F0F0F0",fontWeight:700,lineHeight:2}}>
-                Devin — Bazooka<br/>425 Prosperity Dr<br/>Warsaw, IN 46582
-              </div>
-            </div>
-          )}
-          {status==="countered" && (
-            <div style={{background:"#1a1400",border:"1px solid #FBBF2433",borderRadius:10,padding:"14px 18px"}}>
-              <div style={{fontSize:12,color:"#888"}}>Your counter offer: <strong style={{color:"#FBBF24",fontSize:16}}>${parseFloat(quote.sellerCounter||0).toFixed(2)}</strong></div>
-              <div style={{fontSize:11,color:"#666",marginTop:6}}>Original offer: ${parseFloat(dispOffer).toFixed(2)}</div>
-            </div>
-          )}
-          <div style={{marginTop:20,fontSize:11,color:"#555"}}>
-            {status==="countered" ? "This page will update when Bazooka responds." : "Thank you for working with Bazooka!"}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── ACCEPT VIEW ─────────────────────────────────────────────
-  if (view === "accept") {
-    const pcfg = PCFG[selPayment];
-    const handle = selHandle.trim();
-    const cleanHandle = handle.replace(/^@/,"");
-    const amt = activeOffer > 0 ? activeOffer.toFixed(2) : "";
-    return (
-      <div style={pageStyle}>
-        <div style={{...cardStyle,padding:"32px"}}>
-          <button onClick={()=>setView("quote")} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:13,marginBottom:20,fontFamily:"inherit"}}>← Back to offer</button>
-          <div style={{fontSize:22,fontWeight:900,color:"#4ade80",marginBottom:6}}>✅ Accept Offer</div>
-          <div style={{fontSize:13,color:"#888",marginBottom:24}}>You're accepting Bazooka's offer of <strong style={{color:"#4ade80"}}>${parseFloat(activeOffer).toFixed(2)}</strong>. Choose how you'd like to be paid:</div>
-
-          <div style={{marginBottom:16}}>
-            <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>Payment Method</label>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {PAYMENT_METHODS.map(m=>(
-                <button key={m} onClick={()=>{setSelPayment(m);setSelHandle("");}} style={{background:selPayment===m?"#1a1a1a":"transparent",border:`1.5px solid ${selPayment===m?"#E8317A":"#333"}`,color:selPayment===m?"#E8317A":"#888",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{m}</button>
-              ))}
-            </div>
-          </div>
-
-          {selPayment && !["Cash","Check","Other"].includes(selPayment) && (
-            <div style={{marginBottom:16}}>
-              <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>
-                {selPayment==="Venmo"?"Your Venmo Handle (e.g. @username)":selPayment==="PayPal"?"Your PayPal Username or Email":selPayment==="Zelle"?"Your Zelle Email or Phone":selPayment==="Cash App"?"Your Cash App $tag":"Your Info"}
-              </label>
-              <input
-                value={selHandle}
-                onChange={e=>setSelHandle(e.target.value)}
-                placeholder={selPayment==="Venmo"?"@yourhandle":selPayment==="PayPal"?"email or username":selPayment==="Zelle"?"email or phone number":"$yourtag"}
-                style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:8,padding:"10px 14px",color:"#F0F0F0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
-              />
-            </div>
-          )}
-
-          {selPayment==="Cash" && <div style={{marginBottom:16,padding:"12px 16px",background:"#0a1a0a",border:"1px solid #4ade8033",borderRadius:8,fontSize:13,color:"#4ade80"}}>💵 Bazooka will pay you cash upon receiving the cards.</div>}
-          {selPayment==="Check" && <div style={{marginBottom:16,padding:"12px 16px",background:"#0a0f1a",border:"1px solid #7B9CFF33",borderRadius:8,fontSize:13,color:"#7B9CFF"}}>📬 Bazooka will mail you a check. Please include your mailing address in the notes.</div>}
-
-          {/* Live payment preview */}
-          {selPayment && pcfg && handle && !["Cash","Check","Other"].includes(selPayment) && (
-            <div style={{marginBottom:16,padding:"14px 16px",background:"#0d0d0d",border:`1.5px solid ${pcfg.color}44`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-              <div>
-                <div style={{fontSize:11,color:"#666",marginBottom:4}}>Bazooka will send payment to:</div>
-                <div style={{fontWeight:700,fontSize:15,color:pcfg.color}}>{handle}</div>
-                <div style={{fontSize:12,color:"#888",marginTop:2}}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>
-              </div>
-              {pcfg.href && (
-                <a href={pcfg.href(cleanHandle,amt)} style={{background:pcfg.color,color:"#fff",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,textDecoration:"none"}}>
-                  Open {selPayment} →
-                </a>
-              )}
-            </div>
-          )}
-
-          {submitError && <div style={{marginBottom:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:8,color:"#E8317A",fontSize:13}}>{submitError}</div>}
-
-          <button
-            onClick={()=>submitResponse("accepted")}
-            disabled={submitting||!selPayment}
-            style={{width:"100%",background:submitting||!selPayment?"#333":"#166534",color:submitting||!selPayment?"#666":"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:submitting||!selPayment?"not-allowed":"pointer",fontFamily:"inherit"}}
-          >{submitting?"Submitting...":"✅ Confirm & Accept Offer"}</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── COUNTER VIEW ────────────────────────────────────────────
-  if (view === "counter") {
-    return (
-      <div style={pageStyle}>
-        <div style={{...cardStyle,padding:"32px"}}>
-          <button onClick={()=>setView("quote")} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:13,marginBottom:20,fontFamily:"inherit"}}>← Back to offer</button>
-          <div style={{fontSize:22,fontWeight:900,color:"#FBBF24",marginBottom:6}}>🤝 Make a Counter Offer</div>
-          <div style={{fontSize:13,color:"#888",marginBottom:24}}>Bazooka offered <strong style={{color:"#E8317A"}}>${parseFloat(activeOffer).toFixed(2)}</strong>. What would you like to counter with?</div>
-
-          <div style={{marginBottom:20}}>
-            <label style={{fontSize:10,fontWeight:700,color:"#777",textTransform:"uppercase",letterSpacing:1.5,display:"block",marginBottom:8}}>Your Counter Offer ($)</label>
-            <input
-              type="number" step="0.01" min="0"
-              value={counterAmt}
-              onChange={e=>setCounterAmt(e.target.value)}
-              placeholder={`More than $${parseFloat(activeOffer).toFixed(2)}`}
-              style={{background:"#1a1a1a",border:"2px solid #FBBF2444",borderRadius:8,padding:"12px 16px",color:"#FBBF24",fontSize:20,fontWeight:900,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
-            />
-          </div>
-
-          {counterAmt && parseFloat(counterAmt) > 0 && (
-            <div style={{marginBottom:20,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-              {[
-                {l:"Bazooka Offer",v:`$${parseFloat(activeOffer).toFixed(2)}`,c:"#E8317A"},
-                {l:"Your Counter",v:`$${parseFloat(counterAmt).toFixed(2)}`,c:"#FBBF24"},
-                {l:"Difference",v:`$${Math.abs(parseFloat(counterAmt)-parseFloat(activeOffer)).toFixed(2)}`,c:"#888"},
-              ].map(({l,v,c})=>(
-                <div key={l} style={{textAlign:"center",background:"#0d0d0d",borderRadius:8,padding:"10px"}}>
-                  <div style={{fontSize:16,fontWeight:900,color:c}}>{v}</div>
-                  <div style={{fontSize:9,color:"#666",textTransform:"uppercase",letterSpacing:1,marginTop:3}}>{l}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {submitError && <div style={{marginBottom:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:8,color:"#E8317A",fontSize:13}}>{submitError}</div>}
-
-          <button
-            onClick={()=>submitResponse("countered")}
-            disabled={submitting||!counterAmt||parseFloat(counterAmt)<=0}
-            style={{width:"100%",background:submitting||!counterAmt?"#333":"#92400e",color:submitting||!counterAmt?"#666":"#FBBF24",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:submitting||!counterAmt?"not-allowed":"pointer",fontFamily:"inherit"}}
-          >{submitting?"Submitting...":"🤝 Send Counter Offer"}</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── MAIN QUOTE VIEW ─────────────────────────────────────────
-  const statusBanner = {
-    countered: { bg:"#1a1400", border:"#FBBF2433", color:"#FBBF24", icon:"🤝", text:`You countered at $${parseFloat(quote.sellerCounter||0).toFixed(2)}. Waiting for Bazooka's response...` },
-    accepted:  { bg:"#0a1a0a", border:"#4ade8033", color:"#4ade80", icon:"✅", text:"You've accepted this offer." },
-    declined:  { bg:"#1a0a0a", border:"#E8317A33", color:"#E8317A", icon:"❌", text:"You've declined this offer." },
-  }[status];
-
-  return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        {/* Header */}
-        <div style={{background:"linear-gradient(135deg,#0a0a0a,#1a0a0f)",padding:"32px",textAlign:"center",borderBottom:"1px solid #2a2a2a"}}>
-          <div style={{fontSize:36,fontWeight:900,color:"#E8317A",letterSpacing:4,marginBottom:6}}>BAZOOKA</div>
-          <div style={{fontSize:11,color:"#888",textTransform:"uppercase",letterSpacing:3}}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
-          <div style={{marginTop:14,display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-            <span style={{background:"#E8317A22",border:"1px solid #E8317A44",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#E8317A"}}>⏰ {daysLeft} day{daysLeft!==1?"s":""} remaining</span>
-            <span style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#888"}}>{cards.length} card{cards.length!==1?"s":""} · {totalCards} total qty</span>
-          </div>
-        </div>
-
-        {/* Status banner if already responded */}
-        {statusBanner && (
-          <div style={{padding:"12px 20px",background:statusBanner.bg,border:`1px solid ${statusBanner.border}`,display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:18}}>{statusBanner.icon}</span>
-            <span style={{fontSize:13,color:statusBanner.color,fontWeight:700}}>{statusBanner.text}</span>
-          </div>
-        )}
-
-        {/* Seller info */}
-        <div style={{padding:"14px 24px",borderBottom:"1px solid #222",display:"grid",gridTemplateColumns:"1fr 1fr",background:"#0d0d0d"}}>
-          <div><span style={{color:"#666",fontSize:11}}>Prepared for: </span><strong style={{color:"#F0F0F0"}}>{seller?.name||"—"}</strong></div>
-          <div style={{textAlign:"right"}}><span style={{color:"#666",fontSize:11}}>Date: </span><strong style={{color:"#F0F0F0"}}>{seller?.date||new Date(createdAt).toLocaleDateString()}</strong></div>
-        </div>
-
-        {/* Cards */}
-        <div style={{padding:"16px 24px 0"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>
-              {["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=><th key={h} style={{padding:"8px 10px",borderBottom:"2px solid #2a2a2a",color:"#E8317A",fontSize:10,fontWeight:700,textTransform:"uppercase",textAlign:"left"}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {cards.length===0
-                ? <tr><td colSpan={5} style={{padding:"24px",textAlign:"center",color:"#555"}}>No cards listed</td></tr>
-                : cards.map((c,i)=>{
-                    const mv=parseFloat(c.mktVal)||0;
-                    const offerPerCard=totalMkt>0?(mv/totalMkt)*activeOffer:0;
-                    return (
-                      <tr key={i} style={{borderBottom:"1px solid #1a1a1a"}}>
-                        <td style={{padding:"9px 10px",color:"#555",fontSize:11}}>{i+1}</td>
-                        <td style={{padding:"9px 10px",fontWeight:700,color:"#F0F0F0"}}>{c.name}</td>
-                        <td style={{padding:"9px 10px",color:"#888",textAlign:"center"}}>{parseInt(c.qty)||1}</td>
-                        <td style={{padding:"9px 10px",color:"#888"}}>${mv.toFixed(2)}</td>
-                        <td style={{padding:"9px 10px",color:"#4ade80",fontWeight:700}}>${offerPerCard.toFixed(2)}</td>
-                      </tr>
-                    );
-                  })
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{padding:"16px 24px 24px"}}>
-          {/* Notes */}
-          {custNote?.trim() && (
-            <div style={{marginBottom:16,padding:"12px 16px",background:"#0d0d0d",borderLeft:"3px solid #E8317A",borderRadius:8}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Notes from Bazooka</div>
-              <p style={{margin:0,fontSize:13,color:"#CCCCCC",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{custNote}</p>
-            </div>
-          )}
-
-          {/* Offer */}
-          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #222",marginBottom:8}}>
-            <span style={{color:"#888",fontSize:13}}>Total Cards</span>
-            <span style={{color:"#F0F0F0",fontWeight:700}}>{totalCards}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"12px 0 20px",padding:"18px 20px",background:"#0a1a0a",border:"2px solid #4ade8033",borderRadius:12}}>
-            <span style={{color:"#4ade80",fontWeight:800,fontSize:18}}>💰 Bazooka's Offer</span>
-            <span style={{color:"#4ade80",fontWeight:900,fontSize:28}}>${parseFloat(activeOffer).toFixed(2)}</span>
-          </div>
-
-          {/* Ship to */}
-          <div style={{marginBottom:16,padding:"14px 16px",background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>📦 Ship Cards To</div>
-            <div style={{fontSize:13,color:"#F0F0F0",fontWeight:700,lineHeight:2}}>
-              Devin — Bazooka<br/>425 Prosperity Dr<br/>Warsaw, IN 46582
-            </div>
-          </div>
-
-          {/* Negotiation history */}
-          {history.length > 0 && (
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>📋 Offer History</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {history.map((h,i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:"#0d0d0d",borderRadius:7,border:"1px solid #222"}}>
-                    <span style={{fontSize:12,color:h.type==="countered"?"#FBBF24":h.type==="accepted"?"#4ade80":h.type==="declined"?"#E8317A":"#888",fontWeight:700}}>
-                      {h.type==="countered"?`🤝 Counter: $${parseFloat(h.counterAmount).toFixed(2)}`:h.type==="accepted"?"✅ Accepted":h.type==="declined"?"❌ Declined":h.type==="bazooka_counter"?`🏢 Bazooka Counter: $${parseFloat(h.amount||0).toFixed(2)}`:"—"}
-                    </span>
-                    <span style={{fontSize:11,color:"#555"}}>{new Date(h.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons — only show if not already responded */}
-          {!isClosed && status !== "countered" && (
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <button onClick={()=>setView("accept")} style={{width:"100%",background:"#166534",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                ✅ Accept This Offer
-              </button>
-              {allowCounter && (
-                <button onClick={()=>setView("counter")} style={{background:"#1a1400",color:"#FBBF24",border:"1.5px solid #FBBF2444",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                  🤝 Make Counter Offer
-                </button>
-              )}
-              <button onClick={()=>submitResponse("declined")} disabled={submitting} style={{background:"#1a0a0a",color:"#E8317A",border:"1.5px solid #E8317A44",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                ❌ Decline
-              </button>
-            </div>
-          )}
-
-          {status==="countered" && !isClosed && (
-            <div style={{textAlign:"center",padding:"16px",background:"#1a1400",border:"1px solid #FBBF2433",borderRadius:10,color:"#FBBF24",fontSize:13,fontWeight:700}}>
-              🤝 Your counter of <strong>${parseFloat(quote.sellerCounter||0).toFixed(2)}</strong> is pending. Check back soon!
-            </div>
-          )}
-
-          <div style={{marginTop:16,textAlign:"center",color:"#555",fontSize:11,fontStyle:"italic"}}>
-            This offer expires {expiresAt.toLocaleDateString()}. Bazooka Breaks, LLC.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+// ─── PUBLIC QUOTE PAGE (no auth required) ────────────────────
+// ─── BOBA SHOWCASE (public, no auth required) ────────────────
+const SHOWCASE_WEAPON_COLORS = { Fire:"#F97316",Ice:"#60A5FA",Steel:"#9CA3AF",Brawl:"#E8317A",Glow:"#4ade80",Hex:"#A855F7",Gum:"#FBBF24",Super:"#F472B6",Alt:"#AAAAAA",Metallic:"#E5E7EB" };
+const RARITY_TIERS = [
+  { label:"Legendary", minPower:200, color:"#FBBF24" },
+  { label:"Elite",     minPower:160, color:"#A855F7" },
+  { label:"Rare",      minPower:130, color:"#60A5FA" },
+  { label:"Common",    minPower:0,   color:"#9CA3AF" },
+];
+function getRarity(c) {
+  const p = parseFloat(c.power) || 0;
+  return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
 }
 
-
-// ─── BUYERS CRM ──────────────────────────────────────────────
-function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams=[] }) {
-  const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const [search,      setSearch]      = useState("");
-  const [sortBy,      setSortBy]      = useState("spend");
-  const [selected,    setSelected]    = useState(null);
-  const [stateFilter, setStateFilter] = useState("");
-  const [showImports, setShowImports] = useState(false);
-  const [period,      setPeriod]      = useState("all");
-  const [rangeFrom,   setRangeFrom]   = useState("");
-  const [rangeTo,     setRangeTo]     = useState("");
-  const [slide,       setSlide]       = useState(0);
-  const [sessionFilter, setSessionFilter] = useState("all");
-  const [chartJsLoaded, setChartJsLoaded] = useState(false);
-
-
-  const SESSION_OPTS = [
-    { value:"all",     label:"All Sessions" },
-    { value:"day",     label:"☀️ Day (Mon-Thurs)" },
-    { value:"night",   label:"🌙 Night (Mon-Thurs)" },
-    { value:"weekend", label:"📅 Weekend (Fri-Sun)" },
-    { value:"event",   label:"🎉 Event" },
-  ];
-
-  // Get stream IDs matching session filter
-  const filteredStreamIds = sessionFilter === "all"
-    ? null
-    : new Set(streams.filter(s => s.sessionType === sessionFilter).map(s => `${s.breaker}_${s.date}`));
-
-  // Filter buyers by session type
-  const sessionBuyers = filteredStreamIds === null ? buyers : buyers.filter(b => {
-    if (!b.importIds) return false;
-    return b.importIds.some(id => {
-      const imp = csvImports.find(i => i.id === id);
-      return imp && imp.streamId && filteredStreamIds.has(imp.streamId);
-    });
-  });
-
-  // State breakdown
-  const stateCounts = {};
-  const stateSpend  = {};
-  sessionBuyers.forEach(b => {
-    if (!b.state) return;
-    stateCounts[b.state] = (stateCounts[b.state]||0) + 1;
-    stateSpend[b.state]  = (stateSpend[b.state]||0) + (b.totalSpend||0);
-  });
-  const topStates = Object.entries(stateCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const maxStateCount = topStates[0]?.[1] || 1;
-
-  // Timezone breakdown (inferred from state)
-  const TZ_MAP = {
-    ET:["ME","NH","VT","MA","RI","CT","NY","NJ","PA","DE","MD","VA","WV","NC","SC","GA","FL","OH","MI","IN","KY","TN"],
-    CT:["WI","IL","MN","IA","MO","AR","LA","MS","AL","OK","TX","KS","NE","SD","ND"],
-    MT:["MT","ID","WY","CO","UT","AZ","NM"],
-    PT:["WA","OR","CA","NV"],
-  };
-  const tzCounts = { ET:0, CT:0, MT:0, PT:0, Other:0 };
-  sessionBuyers.forEach(b => {
-    if (!b.state) { tzCounts.Other++; return; }
-    const tz = Object.entries(TZ_MAP).find(([,states])=>states.includes(b.state))?.[0]||"Other";
-    tzCounts[tz]++;
-  });
-  const totalTz = Object.values(tzCounts).reduce((a,b)=>a+b,0)||1;
-
-  // Session performance
-  const sessionStats = {};
-  streams.forEach(s => {
-    const key = s.sessionType||"untagged";
-    if (!sessionStats[key]) sessionStats[key] = { count:0, gross:0 };
-    sessionStats[key].count++;
-    sessionStats[key].gross += parseFloat(s.grossRevenue)||0;
-  });
-
-  // Load Chart.js once
-  useEffect(() => {
-    if (window.Chart) { setChartJsLoaded(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    s.onload = () => setChartJsLoaded(true);
-    document.head.appendChild(s);
-  }, []);
-
-  // Draw charts when slide or data changes
-  useEffect(() => {
-    if (!chartJsLoaded || !window.Chart) return;
-    if (slide === 0) {
-      const el = document.getElementById("stateChart");
-      if (!el) return;
-      if (window._stateChart) window._stateChart.destroy();
-      const labels = topStates.map(([s])=>s);
-      const counts = topStates.map(([,c])=>c);
-      const spends = topStates.map(([s])=>stateSpend[s]||0);
-      const grad = el.getContext("2d").createLinearGradient(0,0,0,260);
-      grad.addColorStop(0,"#E8317A"); grad.addColorStop(1,"#7B2FF7");
-      window._stateChart = new window.Chart(el, {
-        type:"bar",
-        data:{ labels, datasets:[{ data:counts, backgroundColor:grad, borderRadius:6, borderSkipped:false }]},
-        options:{ responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers"+(canSeeFinancials&&spends[c.dataIndex]>0?" · $"+spends[c.dataIndex].toFixed(2):"")}}},
-          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
-      });
-    }
-    if (slide === 1) {
-      const el = document.getElementById("tzChart");
-      if (!el) return;
-      if (window._tzChart) window._tzChart.destroy();
-      const tzLabels = ["ET","CT","MT","PT","Other"];
-      const tzData   = tzLabels.map(t=>tzCounts[t]||0);
-      const tzColors = ["#E8317A","#7B9CFF","#4ade80","#FBBF24","#555555"];
-      const grads = tzColors.map(c => {
-        const g = el.getContext("2d").createLinearGradient(0,0,0,240);
-        g.addColorStop(0,c); g.addColorStop(1,c+"44"); return g;
-      });
-      window._tzChart = new window.Chart(el, {
-        type:"bar",
-        data:{ labels:["Eastern","Central","Mountain","Pacific","Other"], datasets:[{ data:tzData, backgroundColor:grads, borderRadius:6, borderSkipped:false }]},
-        options:{ responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => c.parsed.y+" buyers ("+Math.round(c.parsed.y/(sessionBuyers.length||1)*100)+"%)"}}},
-          scales:{ x:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11}}}, y:{ grid:{color:"#1a1a1a"}, ticks:{color:"#888",font:{size:11},stepSize:1}, beginAtZero:true }}}
-      });
-    }
-  }, [slide, chartJsLoaded, topStates.length, sessionFilter]);
-
-  // Export mailing list
-  function exportMailingList() {
-    const rows = [["Full Name","City","State","Zip"]];
-    sessionBuyers.filter(b=>b.fullName||b.city||b.state||b.zip).forEach(b => {
-      rows.push([b.fullName||"", b.city||"", b.state||"", b.zip||""]);
-    });
-    const csv = rows.map(r=>r.map(v=>`"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type:"text/csv" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `bazooka-mailing-list-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  }
-
-  const SLIDES = [
-    { id:"states",   label:"📍 Top States" },
-    { id:"timezone", label:"🕐 Time Zones" },
-    { id:"sessions", label:"📊 Session Performance" },
-    { id:"export",   label:"📤 Mailing List" },
-  ];
-
-  const fmt = v => "$"+parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-
-  const carouselEl = (
-    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-      {/* Analytics Carousel */}
-      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ padding:"14px 20px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1a1a1a" }}>
-          <SectionLabel t="📊 CRM Analytics" />
-          <select value={sessionFilter} onChange={e=>setSessionFilter(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
-            {SESSION_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-
-        {/* Slide content */}
-        <div style={{ padding:"20px", minHeight:280 }}>
-
-          {/* Slide 0: Top States */}
-          {slide===0 && (() => {
-            const labels = topStates.map(([s])=>s);
-            const counts = topStates.map(([,c])=>c);
-            const spends = topStates.map(([s])=>stateSpend[s]||0);
-            const chartId = "stateChart";
-            return (
-              <div>
-                <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers · {topStates.length} states</div>
-                {topStates.length === 0
-                  ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No state data yet</div>
-                  : <div style={{ position:"relative", height:260 }}>
-                      <canvas id={chartId}></canvas>
-
-                    </div>
-                }
-              </div>
-            );
-          })()}
-
-          {/* Slide 1: Time Zones */}
-          {slide===1 && (() => {
-            const tzLabels = ["ET","CT","MT","PT","Other"];
-            const tzData   = tzLabels.map(t=>tzCounts[t]||0);
-            const tzColors = ["#E8317A","#7B9CFF","#4ade80","#FBBF24","#555555"];
-            return (
-              <div>
-                <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{sessionBuyers.length} buyers by time zone</div>
-                <div style={{ position:"relative", height:240 }}>
-                  <canvas id="tzChart"></canvas>
-
-                </div>
-                <div style={{ marginTop:12, fontSize:11, color:"#444" }}>ET=Eastern · CT=Central · MT=Mountain · PT=Pacific</div>
-              </div>
-            );
-          })()}
-
-          {/* Slide 2: Session Performance */}
-          {slide===2 && (
-            <div>
-              <div style={{ fontSize:12, color:"#666", marginBottom:14 }}>{streams.length} total streams tagged</div>
-              {Object.keys(sessionStats).length === 0
-                ? <div style={{ textAlign:"center", color:"#333", padding:"40px 0" }}>No streams tagged with session type yet</div>
-                : <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
-                    {[
-                      { key:"day",     label:"☀️ Day Break",     sub:"Mon-Thurs" },
-                      { key:"night",   label:"🌙 Night Break",   sub:"Mon-Thurs" },
-                      { key:"weekend", label:"📅 Weekend Break", sub:"Fri-Sun" },
-                      { key:"event",   label:"🎉 Event",         sub:"Special" },
-                    ].map(({ key, label, sub }) => {
-                      const s = sessionStats[key] || { count:0, gross:0 };
-                      const avg = s.count > 0 ? s.gross/s.count : 0;
-                      return (
-                        <div key={key} style={{ ...S.card, padding:"14px 16px" }}>
-                          <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0", marginBottom:2 }}>{label}</div>
-                          <div style={{ fontSize:10, color:"#555", marginBottom:10 }}>{sub}</div>
-                          <div style={{ display:"flex", justifyContent:"space-between" }}>
-                            <div style={{ textAlign:"center" }}>
-                              <div style={{ fontSize:22, fontWeight:900, color:"#7B9CFF" }}>{s.count}</div>
-                              <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Streams</div>
-                            </div>
-                            {canSeeFinancials && <>
-                              <div style={{ textAlign:"center" }}>
-                                <div style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>{fmt(s.gross)}</div>
-                                <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Total Gross</div>
-                              </div>
-                              <div style={{ textAlign:"center" }}>
-                                <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>{fmt(avg)}</div>
-                                <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>Avg/Stream</div>
-                              </div>
-                            </>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-              }
-            </div>
-          )}
-
-          {/* Slide 3: Mailing List Export */}
-          {slide===3 && (
-            <div>
-              <div style={{ fontSize:12, color:"#666", marginBottom:16 }}>
-                {sessionBuyers.filter(b=>b.fullName||b.city||b.state||b.zip).length} buyers with address data
-                {sessionFilter!=="all"?` · filtered to ${SESSION_OPTS.find(o=>o.value===sessionFilter)?.label}`:""}
-              </div>
-              <div style={{ ...S.card, padding:"20px", textAlign:"center", marginBottom:14 }}>
-                <div style={{ fontSize:32, marginBottom:12 }}>📬</div>
-                <div style={{ fontSize:15, fontWeight:800, color:"#F0F0F0", marginBottom:6 }}>Export Mailing List</div>
-                <div style={{ fontSize:12, color:"#666", marginBottom:16 }}>Downloads a CSV with Full Name, City, State, Zip</div>
-                <button onClick={exportMailingList} style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:9, padding:"10px 28px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                  ⬇️ Download CSV
-                </button>
-              </div>
-              <div style={{ fontSize:11, color:"#444" }}>
-                Use the session filter above to export buyers from specific break types only, or leave on "All Sessions" for the full list.
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Dots navigation */}
-        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"12px 20px", borderTop:"1px solid #1a1a1a" }}>
-          {SLIDES.map((s,i) => (
-            <button key={s.id} onClick={()=>setSlide(i)} style={{ background:"none", border:"none", cursor:"pointer", padding:"4px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-              <div style={{ width:i===slide?24:8, height:8, borderRadius:4, background:i===slide?"#E8317A":"#2a2a2a", transition:"all 0.2s" }}/>
-              {i===slide && <span style={{ fontSize:10, color:"#E8317A", fontWeight:700, whiteSpace:"nowrap" }}>{s.label}</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Prev/Next arrows */}
-        <div style={{ display:"flex", justifyContent:"space-between", padding:"0 20px 14px" }}>
-          <button onClick={()=>setSlide(s=>Math.max(0,s-1))} disabled={slide===0} style={{ background:"none", border:"1px solid #2a2a2a", color:slide===0?"#333":"#888", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:slide===0?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
-          <button onClick={()=>setSlide(s=>Math.min(SLIDES.length-1,s+1))} disabled={slide===SLIDES.length-1} style={{ background:"none", border:"1px solid #2a2a2a", color:slide===SLIDES.length-1?"#333":"#888", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:slide===SLIDES.length-1?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Compute period date bounds
-  function getPeriodBounds() {
-    const now = new Date();
-    if (period === "month") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end   = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
-      return { start, end };
-    }
-    if (period === "quarter") {
-      const q = Math.floor(now.getMonth()/3);
-      const start = new Date(now.getFullYear(), q*3, 1);
-      const end   = new Date(now.getFullYear(), q*3+3, 0, 23, 59, 59);
-      return { start, end };
-    }
-    if (period === "year") {
-      const start = new Date(now.getFullYear(), 0, 1);
-      const end   = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-      return { start, end };
-    }
-    if (period === "range" && rangeFrom && rangeTo) {
-      const start = new Date(rangeFrom); start.setHours(0,0,0,0);
-      const end   = new Date(rangeTo);   end.setHours(23,59,59,999);
-      return { start, end };
-    }
-    return null; // all time
-  }
-
-  const bounds = getPeriodBounds();
-
-  // Filter buyers by period — a buyer is "active" in a period if their lastSeen falls within it
-  const periodBuyers = bounds
-    ? buyers.filter(b => {
-        const d = new Date(b.lastSeen||b.firstSeen||0);
-        return d >= bounds.start && d <= bounds.end;
-      })
-    : buyers;
-
-  const US_STATES = [...new Set(periodBuyers.map(b=>b.state).filter(Boolean))].sort();
-
-  const filtered = periodBuyers
-    .filter(b => {
-      const q = search.toLowerCase();
-      const matchSearch = !q || b.username?.toLowerCase().includes(q) || b.fullName?.toLowerCase().includes(q) || b.city?.toLowerCase().includes(q) || b.state?.toLowerCase().includes(q);
-      const matchState = !stateFilter || b.state === stateFilter;
-      return matchSearch && matchState;
-    })
-    .sort((a,b) => {
-      if (sortBy==="orders")  return (b.orderCount||0)-(a.orderCount||0);
-      if (sortBy==="recent")  return new Date(b.lastSeen||0)-new Date(a.lastSeen||0);
-      if (sortBy==="new")     return new Date(b.firstSeen||0)-new Date(a.firstSeen||0);
-      if (sortBy==="streams") return (b.streams?.length||0)-(a.streams?.length||0);
-      return (b.totalSpend||0)-(a.totalSpend||0);
-    });
-
-  // Stats
-  const totalBuyers  = periodBuyers.length;
-  const totalSpend   = periodBuyers.reduce((s,b)=>s+(b.totalSpend||0),0);
-  const totalOrders  = periodBuyers.reduce((s,b)=>s+(b.orderCount||0),0);
-  const newThisMonth = periodBuyers.filter(b=>{ const d=new Date(b.firstSeen||0); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear(); }).length;
-  const stateGroups  = periodBuyers.reduce((acc,b)=>{ if(b.state){acc[b.state]=(acc[b.state]||0)+1;} return acc; },{});
-  const topStatesList = Object.entries(stateGroups).sort((a,b)=>b[1]-a[1]).slice(0,5);
-
-  // ── BUYER DETAIL ──────────────────────────────────────────
-  if (selected) {
-    const b = buyers.find(x=>x.id===selected);
-    if (!b) { setSelected(null); return null; }
-    return (
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={()=>setSelected(null)} style={{ background:"#1a1a1a", border:"1.5px solid #2a2a2a", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#888" }}>← Back</button>
-          <div>
-            <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{b.fullName||b.username}</div>
-            <div style={{ fontSize:12, color:"#888", marginTop:2, display:"flex", gap:10, alignItems:"center" }}>
-              <span>@{b.username}</span>
-              {b.city && b.state && <span>📍 {b.city}, {b.state} {b.zip}</span>}
-              {b.isNew && <span style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8033", borderRadius:20, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🌱 New Buyer</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* KPIs */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-          {[
-            { l:"Total Spend",   v:fmt(b.totalSpend||0),          c:"#E8317A" },
-            { l:"Total Orders",  v:b.orderCount||0,               c:"#F0F0F0" },
-            { l:"Streams",       v:(b.streams?.length||0),        c:"#7B9CFF" },
-            { l:"Coupon Uses",   v:b.couponCount||0,              c:"#FBBF24" },
-          ].map(({l,v,c})=>(
-            <div key={l} style={{ ...S.card, textAlign:"center" }}>
-              <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-              <div style={{ fontSize:10, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={S.card}>
-          <SectionLabel t="Buyer Details" />
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Whatnot Handle</div>
-              <div style={{ fontSize:14, fontWeight:700, color:"#E8317A" }}>@{b.username}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Full Name</div>
-              <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0" }}>{b.fullName||"—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Location</div>
-              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.city&&b.state?`${b.city}, ${b.state} ${b.zip}`:"—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>First Seen</div>
-              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.firstSeen ? new Date(b.firstSeen).toLocaleDateString() : "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Last Purchase</div>
-              <div style={{ fontSize:14, color:"#F0F0F0" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#666", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Avg Order Value</div>
-              <div style={{ fontSize:14, fontWeight:700, color:"#E8317A" }}>{b.orderCount>0?fmt((b.totalSpend||0)/b.orderCount):"—"}</div>
-            </div>
-          </div>
-        </div>
-
-        {b.streams?.length > 0 && (
-          <div style={S.card}>
-            <SectionLabel t={`Streams (${b.streams.length})`} />
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {b.streams.map(s=>(
-                <span key={s} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, padding:"4px 12px", fontSize:12, color:"#888" }}>{s}</span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── BUYER LIST ────────────────────────────────────────────
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {carouselEl}
-
-      {/* Import History */}
-      {canSeeFinancials && (
-        <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <SectionLabel t={`📂 CSV Import History (${csvImports.length})`} />
-            <div style={{ display:"flex", gap:8 }}>
-              {buyers.length > 0 && <button onClick={async()=>{ if(window.confirm(`Delete all ${buyers.length} buyers and ${csvImports.length} imports? This cannot be undone.`)) { for(const b of buyers) await deleteDoc(doc(db,"buyers",b.id)); for(const i of csvImports) await deleteDoc(doc(db,"csv_imports",i.id)); }}} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Clear All Buyers</button>}
-              <button onClick={()=>setShowImports(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {showImports?"▲ Hide":"▼ Show"}
-              </button>
-            </div>
-          </div>
-          {showImports && (
-            csvImports.length === 0
-              ? <div style={{ color:"#555", fontSize:13, padding:"12px 0" }}>No imports yet — upload a Whatnot CSV in Stream Recap.</div>
-              : <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:10 }}>
-                  {csvImports.map(imp => (
-                    <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:"#0d0d0d", border:"1px solid #222", borderRadius:8, gap:12, flexWrap:"wrap" }}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0", marginBottom:3 }}>{imp.filename||"Unknown file"}</div>
-                        <div style={{ fontSize:11, color:"#666", display:"flex", gap:12, flexWrap:"wrap" }}>
-                          <span>📅 {new Date(imp.importedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-                          <span>🎯 Stream: {imp.streamId||"—"}</span>
-                          <span>👥 {imp.rowCount||0} buyers</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={()=>{ if(window.confirm(`Delete import "${imp.filename}"?\n\nThis will recalculate or remove all ${imp.rowCount||0} buyers from this import.`)) onDeleteImport(imp.id); }}
-                        style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}
-                      >🗑 Delete Import</button>
-                    </div>
-                  ))}
-                </div>
-          )}
-        </div>
-      )}
-
-      {/* Period picker */}
-      <div style={{ ...S.card, padding:"12px 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          <span style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginRight:4 }}>Period:</span>
-          {[["all","All Time"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["range","Custom"]].map(([val,label])=>(
-            <button key={val} onClick={()=>setPeriod(val)} style={{ background:period===val?"#1A1A2E":"transparent", color:period===val?"#E8317A":"#888", border:`1.5px solid ${period===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:period===val?700:400, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
-          ))}
-          {period==="range" && (
-            <>
-              <input type="date" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)} style={{ ...S.inp, width:140, padding:"5px 10px", fontSize:12 }}/>
-              <span style={{ color:"#555", fontSize:12 }}>→</span>
-              <input type="date" value={rangeTo} onChange={e=>setRangeTo(e.target.value)} style={{ ...S.inp, width:140, padding:"5px 10px", fontSize:12 }}/>
-            </>
-          )}
-          {bounds && <span style={{ fontSize:11, color:"#666", marginLeft:4 }}>{periodBuyers.length} buyer{periodBuyers.length!==1?"s":""} in period</span>}
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-        {[
-          { l:"Total Buyers",    v:totalBuyers,         c:"#F0F0F0" },
-          { l:"🌱 New This Month", v:newThisMonth,      c:"#4ade80" },
-          { l:"Total Orders",    v:totalOrders,         c:"#7B9CFF" },
-          { l:"Total Spend",     v:fmt(totalSpend),     c:"#E8317A" },
-        ].map(({l,v,c})=>(
-          <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
-            <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
-            <div style={{ fontSize:10, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Top states */}
-      {topStatesList.length > 0 && (
-        <div style={S.card}>
-          <SectionLabel t="📍 Top States" />
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {topStates.map(([state,count])=>(
-              <button key={state} onClick={()=>setStateFilter(stateFilter===state?"":state)} style={{ background:stateFilter===state?"#E8317A":"#1a1a1a", color:stateFilter===state?"#fff":"#F0F0F0", border:`1px solid ${stateFilter===state?"#E8317A":"#2a2a2a"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {state} <span style={{ opacity:0.7 }}>({count})</span>
-              </button>
-            ))}
-            {stateFilter && <button onClick={()=>setStateFilter("")} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>✕ Clear</button>}
-          </div>
-        </div>
-      )}
-
-      {/* Search + sort */}
-      <div style={S.card}>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, username, city..." style={{ ...S.inp, flex:1, minWidth:200 }}/>
-          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-            {[["spend","💰 Top Spend"],["orders","📦 Most Orders"],["streams","🎯 Most Streams"],["recent","🕐 Recent"],["new","🌱 Newest"]].map(([val,label])=>(
-              <button key={val} onClick={()=>setSortBy(val)} style={{ background:sortBy===val?"#1A1A2E":"transparent", color:sortBy===val?"#E8317A":"#888", border:`1.5px solid ${sortBy===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
-            ))}
-          </div>
-          <span style={{ fontSize:12, color:"#666" }}>{filtered.length} buyers</span>
-        </div>
-      </div>
-
-      {/* Buyer list */}
-      {filtered.length === 0
-        ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#555" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
-            <div>{buyers.length===0?"No buyers yet — upload a Whatnot CSV in Stream Recap to populate":"No buyers match your search"}</div>
-          </div>
-        : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {filtered.map((b,i)=>(
-              <div key={b.id} onClick={()=>setSelected(b.id)} className="inv-row" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"36px 1fr auto", gap:16, alignItems:"center", padding:"14px 20px" }}>
-                {/* Rank */}
-                <div style={{ width:32, height:32, borderRadius:"50%", background:i<3?"#1A1A2E":"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:i<3?"#E8317A":"#555", flexShrink:0 }}>{i+1}</div>
-
-                {/* Info */}
-                <div style={{ minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
-                    <span style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{b.fullName||b.username}</span>
-                    <span style={{ fontSize:11, color:"#555" }}>@{b.username}</span>
-                    {b.isNew && <span style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8033", borderRadius:20, padding:"1px 7px", fontSize:10, fontWeight:700 }}>🌱 New</span>}
-                  </div>
-                  <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-                    {b.city && b.state && <span style={{ fontSize:11, color:"#666" }}>📍 {b.city}, {b.state}</span>}
-                    <span style={{ fontSize:11, color:"#666" }}>Last: {b.lastSeen?new Date(b.lastSeen).toLocaleDateString():"—"}</span>
-                    {(b.streams?.length||0) > 0 && <span style={{ fontSize:11, color:"#7B9CFF" }}>🎯 {b.streams.length} stream{b.streams.length!==1?"s":""}</span>}
-                    {(b.couponCount||0) > 0 && <span style={{ fontSize:11, color:"#FBBF24" }}>🎟 {b.couponCount} coupon{b.couponCount!==1?"s":""}</span>}
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div style={{ display:"flex", gap:20, alignItems:"center", flexShrink:0 }}>
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:16, fontWeight:900, color:"#F0F0F0" }}>{b.orderCount||0}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Orders</div>
-                  </div>
-                  {canSeeFinancials && (
-                    <div style={{ textAlign:"center" }}>
-                      <div style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>{fmt(b.totalSpend||0)}</div>
-                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
-                    </div>
-                  )}
-                  <span style={{ color:"#333", fontSize:18 }}>›</span>
-                </div>
-              </div>
-            ))}
-          </div>
-      }
-    </div>
-  );
-}
-
-
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
-  const wc = WEAPON_COLORS[c.weapon] || "#444";
-  const isFlipped = flippedCard === c.id;
-  const qty = ownedQty || 0;
-  const isWanted = !!(wantList && wantList[c.id]);
-  const cardRef = useRef(null);
-  const foilRef = useRef(null);
-  const glareRef = useRef(null);
-  const animRef = useRef(null);
-  const currentTilt = useRef({ x:0, y:0 });
-  const targetTilt  = useRef({ x:0, y:0 });
-  const isHovering  = useRef(false);
-  const mousePos    = useRef({ x:0.5, y:0.5 });
-
-  function startAnimation() {
-    if (animRef.current) return;
-    animRef.current = requestAnimationFrame(animate);
-  }
-
-  function onMouseMove(e) {
-    if (isFlipped) return;
-    const rect = cardRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top)  / rect.height;
-    mousePos.current = { x, y };
-    targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
-    if (foilRef.current) {
-      foilRef.current.style.backgroundPosition = `${x * 100}% ${y * 100}%`;
-      foilRef.current.style.opacity = "1";
-    }
-    if (glareRef.current) {
-      glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`;
-      glareRef.current.style.opacity = "1";
-    }
-    startAnimation();
-  }
-
-  function onMouseLeave() {
-    isHovering.current = false;
-    targetTilt.current = { x:0, y:0 };
-    if (foilRef.current) foilRef.current.style.opacity = "0";
-    if (glareRef.current) glareRef.current.style.opacity = "0";
-    startAnimation();
-  }
-
-  function onMouseEnter() {
-    isHovering.current = true;
-    startAnimation();
-  }
-
-  function animate() {
-    const cur = currentTilt.current;
-    const tgt = targetTilt.current;
-    cur.x += (tgt.x - cur.x) * 0.1;
-    cur.y += (tgt.y - cur.y) * 0.1;
-    if (cardRef.current && !isFlipped) {
-      cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`;
-    }
-    const stillMoving = Math.abs(tgt.x - cur.x) > 0.05 || Math.abs(tgt.y - cur.y) > 0.05;
-    if (stillMoving || isHovering.current) {
-      animRef.current = requestAnimationFrame(animate);
-    } else {
-      animRef.current = null;
-      cur.x = 0; cur.y = 0;
-      if (cardRef.current && !isFlipped) cardRef.current.style.transform = "";
-    }
-  }
-
-  function handleClick() {
-    // Cancel tilt animation
-    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-    currentTilt.current = { x:0, y:0 };
-    targetTilt.current  = { x:0, y:0 };
-    if (foilRef.current)  foilRef.current.style.opacity = "0";
-    if (glareRef.current) glareRef.current.style.opacity = "0";
-    if (cardRef.current)  cardRef.current.style.transform = "";
-    const nextFlipped = !isFlipped;
-    setFlippedCard(nextFlipped ? c.id : null);
-    // After flip back, re-enable tilt on next mousemove automatically
-    // by resetting isHovering so the next onMouseMove triggers startAnimation
-    isHovering.current = false;
-  }
-
-  const QtyControls = () => (
-    <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
-      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
-      <span style={{ fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#555", minWidth:16, textAlign:"center" }}>{qty}</span>
-      <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
-    </div>
-  );
-
-  if (c.imageUrl) {
-    return (
-      <div style={{ aspectRatio:"3/4" }}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
-        onMouseEnter={onMouseEnter}
-      >
-        <div ref={cardRef} style={{
-          position:"relative", width:"100%", height:"100%",
-          transformStyle:"preserve-3d",
-          transition: isFlipped ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "box-shadow 0.2s ease",
-          transform: isFlipped ? "perspective(600px) rotateY(180deg)" : undefined,
-          borderRadius:10, cursor:"pointer",
-          willChange:"transform",
-        }}
-          onClick={handleClick}
-        >
-          {/* Front — card image */}
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-
-            {/* Foil shine overlay */}
-            <div ref={foilRef} style={{
-              position:"absolute", inset:0, borderRadius:10,
-              background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
-              backgroundSize:"200% 200%",
-              mixBlendMode:"screen",
-              opacity:0,
-              transition:"opacity 0.2s ease",
-              pointerEvents:"none",
-            }}/>
-
-            {/* Specular glare */}
-            <div ref={glareRef} style={{
-              position:"absolute", inset:0, borderRadius:10,
-              background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 60%)",
-              mixBlendMode:"overlay",
-              opacity:0,
-              transition:"opacity 0.2s ease",
-              pointerEvents:"none",
-            }}/>
-
-            <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
-            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
-          </div>
-
-          {/* Back — card details */}
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
-            <div>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
-                <QtyControls/>
-              </div>
-              <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
-                {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-                {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-                {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
-              </div>
-              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
-              {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
-              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯 Wanted":"+ Want"}</button>}
-                <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
-      {/* Hero name — large and readable */}
-      <div style={{ fontSize:14, fontWeight:900, color:isOwned?"#4ade80":"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
-      {/* Card # + weapon + treatment row */}
-      <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
-        <span style={{ fontSize:10, color:"#555", fontWeight:700 }}>#{c.cardNum}</span>
-        {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-        {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-        {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
-      </div>
-      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 {c.athlete}</div>}
-      {/* Bottom row: power + qty controls + want */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
-        {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"🎯":"+ Want"}</button>}
-          <QtyControls/>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BobaChecklist({ userRole }) {
+function BobaChecklist({ userRole, user }) {
+  const ownedDocId = user?.uid || "owned";
+  const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
   const [cards,        setCards]        = useState([]);
   const [imports,      setImports]      = useState([]); // list of {id, setName, filename, importedAt, cardIds}
   const [owned,        setOwned]        = useState({});
@@ -6887,8 +5691,8 @@ function BobaChecklist({ userRole }) {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards:sorted, ts:Date.now() })); } catch(e) {}
     });
     // Owned + imports stay realtime
-    const u2 = onSnapshot(doc(db,"boba_owned","owned"), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
-    const uWants = onSnapshot(doc(db,"boba_owned","wants"), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
+    const u2 = onSnapshot(doc(db,"boba_owned",ownedDocId), snap => { if(snap.exists()) setOwned(snap.data()); else setOwned({}); });
+    const uWants = onSnapshot(doc(db,"boba_owned",wantsDocId), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
@@ -7040,7 +5844,7 @@ function BobaChecklist({ userRole }) {
     if (next[cardId]) delete next[cardId];
     else next[cardId] = true;
     setWantList(next);
-    await setDoc(doc(db,"boba_owned","wants"), next);
+    await setDoc(doc(db,"boba_owned",wantsDocId), next);
   }
 
   function exportWantList() {
@@ -7072,7 +5876,7 @@ function BobaChecklist({ userRole }) {
     if (qty <= 0) delete next[cardId];
     else next[cardId] = qty;
     setOwned(next);
-    await setDoc(doc(db,"boba_owned","owned"), next);
+    await setDoc(doc(db,"boba_owned",ownedDocId), next);
   }
 
   // Keep toggleOwned as convenience (0→1, 1→0)
@@ -7169,7 +5973,7 @@ function BobaChecklist({ userRole }) {
     }
 
     setOwned(next);
-    await setDoc(doc(db,"boba_owned","owned"), next);
+    await setDoc(doc(db,"boba_owned",ownedDocId), next);
     setCollectionImportResult({ matched, skipped, skippedRows });
   }
 
@@ -7247,7 +6051,7 @@ function BobaChecklist({ userRole }) {
     }
     const nextOwned = {...owned};
     imp.cardIds.forEach(id=>delete nextOwned[id]);
-    await setDoc(doc(db,"boba_owned","owned"), nextOwned);
+    await setDoc(doc(db,"boba_owned",ownedDocId), nextOwned);
     await deleteDoc(doc(db,"boba_imports",imp.id));
   }
 
@@ -7320,7 +6124,7 @@ function BobaChecklist({ userRole }) {
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3 }}>
-            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["showcase","✨ Showcase"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -7341,7 +6145,7 @@ function BobaChecklist({ userRole }) {
               <button onClick={exportCollection} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤</button>
             )}
             {totalOwned > 0 && (
-              <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards?`)) return; await setDoc(doc(db,"boba_owned","owned"),{}); setOwned({}); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards?`)) return; await setDoc(doc(db,"boba_owned",ownedDocId),{}); setOwned({}); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
             )}
           </div>
         </div>
@@ -7654,8 +6458,8 @@ function BobaChecklist({ userRole }) {
                         </div>
                         {/* Toggle all for hero */}
                         <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
                         </div>
                       </div>
                     )}
@@ -7733,8 +6537,8 @@ function BobaChecklist({ userRole }) {
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
-                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned","owned"),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
                       </div>
                     </div>
                   )}
@@ -7937,6 +6741,178 @@ function BobaChecklist({ userRole }) {
         );
       })()}
 
+      {viewMode === "showcase" && (() => {
+        const ownedShowcase = cards.filter(c => c.imageUrl && owned[c.id]);
+        const [scPage,        setScPage]        = useState(0);
+        const [scFilterSet,   setScFilterSet]   = useState("");
+        const [scFilterWpn,   setScFilterWpn]   = useState("");
+        const [scSort,        setScSort]        = useState("set");
+        const [scSpotlight,   setScSpotlight]   = useState(null);
+        const [scCopied,      setScCopied]      = useState(false);
+        const SC_PER_PAGE = 9;
+
+        const scSets    = [...new Set(ownedShowcase.map(c=>c.setName).filter(Boolean))].sort();
+        const scWeapons = [...new Set(ownedShowcase.map(c=>c.weapon).filter(Boolean))].sort();
+
+        const scSorted = [...ownedShowcase].sort((a,b) => {
+          if (scSort==="power")  return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+          if (scSort==="hero")   return (a.hero||"").localeCompare(b.hero||"");
+          if (scSort==="rarity") return getRarity(b).minPower - getRarity(a).minPower;
+          const s = (a.setName||"").localeCompare(b.setName||"");
+          return s!==0 ? s : String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true});
+        });
+
+        const scFiltered = scSorted
+          .filter(c => !scFilterSet || c.setName===scFilterSet)
+          .filter(c => !scFilterWpn || c.weapon===scFilterWpn);
+
+        const scTotalPages = Math.ceil(scFiltered.length / SC_PER_PAGE);
+        const scPageCards  = scFiltered.slice(scPage*SC_PER_PAGE, (scPage+1)*SC_PER_PAGE);
+
+        const scTotalPower    = ownedShowcase.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
+        const scHeroCount     = [...new Set(ownedShowcase.map(c=>c.hero).filter(Boolean))].length;
+        const scLegendary     = ownedShowcase.filter(c=>getRarity(c).label==="Legendary").length;
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {/* Stats */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:8 }}>
+              {[
+                { label:"Cards in Showcase", value:ownedShowcase.length, color:"#4ade80" },
+                { label:"Heroes",            value:scHeroCount,           color:"#7B9CFF" },
+                { label:"Sets",              value:scSets.length,         color:"#FBBF24" },
+                { label:"Legendaries",       value:scLegendary,           color:"#FBBF24" },
+                { label:"Power Score",       value:Math.round(scTotalPower).toLocaleString(), color:"#E8317A" },
+              ].map(({label,value,color})=>(
+                <div key={label} style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"10px 14px" }}>
+                  <div style={{ fontSize:10, color:"#555", marginBottom:3 }}>{label}</div>
+                  <div style={{ fontSize:20, fontWeight:900, color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters + share */}
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+              <select value={scFilterSet} onChange={e=>{setScFilterSet(e.target.value);setScPage(0);}} style={{ ...S.inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer" }}>
+                <option value="">All Sets</option>
+                {scSets.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              <select value={scFilterWpn} onChange={e=>{setScFilterWpn(e.target.value);setScPage(0);}} style={{ ...S.inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer" }}>
+                <option value="">All Weapons</option>
+                {scWeapons.map(w=><option key={w} value={w}>{w}</option>)}
+              </select>
+              <select value={scSort} onChange={e=>{setScSort(e.target.value);setScPage(0);}} style={{ ...S.inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer" }}>
+                <option value="set">Sort: Set</option>
+                <option value="power">Sort: Power ↓</option>
+                <option value="rarity">Sort: Rarity</option>
+                <option value="hero">Sort: Hero A→Z</option>
+              </select>
+              <div style={{ flex:1 }}/>
+              <span style={{ fontSize:11, color:"#333" }}>{scFiltered.length} cards · {scTotalPages} pages</span>
+              <button onClick={()=>{ navigator.clipboard.writeText(`${window.location.origin}/showcase`).then(()=>{ setScCopied(true); setTimeout(()=>setScCopied(false),2000); }); }}
+                style={{ background:scCopied?"#0a1a0a":"transparent", border:`1px solid ${scCopied?"#4ade80":"#2a2a2a"}`, color:scCopied?"#4ade80":"#555", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {scCopied?"✅ Copied!":"🔗 Share"}
+              </button>
+            </div>
+
+            {ownedShowcase.length === 0 ? (
+              <div style={{ ...S.card, textAlign:"center", color:"#555", padding:60 }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>🃏</div>
+                <div style={{ fontWeight:700 }}>No cards with images yet</div>
+                <div style={{ fontSize:12, marginTop:8 }}>Scan PDFs in the Imported Sets section to add card images.</div>
+              </div>
+            ) : (
+              <>
+                {/* Pagination top */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <button onClick={()=>setScPage(p=>Math.max(0,p-1))} disabled={scPage===0}
+                    style={{ background:"transparent", border:"1px solid #2a2a2a", color:scPage===0?"#222":"#888", borderRadius:7, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:scPage===0?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
+                  <div style={{ display:"flex", gap:4 }}>
+                    {Array.from({length:Math.min(scTotalPages,9)}).map((_,i)=>{
+                      const pIdx = scTotalPages<=9 ? i : Math.max(0,Math.min(scTotalPages-9,scPage-4))+i;
+                      return <button key={pIdx} onClick={()=>setScPage(pIdx)}
+                        style={{ background:scPage===pIdx?"#E8317A":"transparent", color:scPage===pIdx?"#fff":"#444", border:`1px solid ${scPage===pIdx?"#E8317A":"#2a2a2a"}`, borderRadius:6, width:28, height:28, fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{pIdx+1}</button>;
+                    })}
+                  </div>
+                  <button onClick={()=>setScPage(p=>Math.min(scTotalPages-1,p+1))} disabled={scPage>=scTotalPages-1}
+                    style={{ background:"transparent", border:"1px solid #2a2a2a", color:scPage>=scTotalPages-1?"#222":"#888", borderRadius:7, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:scPage>=scTotalPages-1?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
+                </div>
+
+                {/* Binder page */}
+                <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:14, padding:"20px", boxShadow:"0 12px 48px rgba(0,0,0,0.5)" }}>
+                  {scPageCards[0] && (
+                    <div style={{ fontSize:10, color:"#333", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:14 }}>
+                      {scPageCards[0].setName} — Page {scPage+1} of {scTotalPages}
+                    </div>
+                  )}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+                    {scPageCards.map(c=>(
+                      <ShowcaseCard key={c.id} c={c} onClick={()=>setScSpotlight(c)}/>
+                    ))}
+                    {Array.from({length:SC_PER_PAGE-scPageCards.length}).map((_,i)=>(
+                      <div key={`e-${i}`} style={{ aspectRatio:"3/4", border:"1px dashed #111", borderRadius:10, background:"#080808" }}/>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rarity legend */}
+                <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
+                  {RARITY_TIERS.map(r=>(
+                    <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#444" }}>
+                      <div style={{ width:7, height:7, borderRadius:"50%", background:r.color }}/>
+                      <span style={{ color:r.color, fontWeight:700 }}>{r.label}</span>
+                      <span>({r.minPower===0?"<130":`${r.minPower}+`} power)</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Spotlight modal */}
+            {scSpotlight && (
+              <div onClick={()=>setScSpotlight(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.95)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+                <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:40, alignItems:"center", maxWidth:820, width:"100%", flexWrap:"wrap" }}>
+                  <div style={{ width:260, flexShrink:0 }}>
+                    <ShowcaseCard c={scSpotlight} onClick={()=>{}} large/>
+                  </div>
+                  <div style={{ flex:1, minWidth:240 }}>
+                    <div style={{ fontSize:10, color:"#444", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>{scSpotlight.setName} · #{scSpotlight.cardNum}</div>
+                    <div style={{ fontSize:34, fontWeight:900, color:"#F0F0F0", lineHeight:1.1, marginBottom:10 }}>{scSpotlight.hero}</div>
+                    {(() => { const r=getRarity(scSpotlight); return (
+                      <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:r.color+"22", border:`1px solid ${r.color}44`, borderRadius:20, padding:"4px 12px", marginBottom:14 }}>
+                        <div style={{ width:7, height:7, borderRadius:"50%", background:r.color }}/>
+                        <span style={{ fontSize:11, color:r.color, fontWeight:700 }}>{r.label}</span>
+                      </div>
+                    ); })()}
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+                      {scSpotlight.weapon    && <span style={{ fontSize:12, color:WEAPON_COLORS[scSpotlight.weapon]||"#888", background:(WEAPON_COLORS[scSpotlight.weapon]||"#888")+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{scSpotlight.weapon}</span>}
+                      {scSpotlight.treatment && <span style={{ fontSize:12, color:"#AAAAAA", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{scSpotlight.treatment}</span>}
+                      {scSpotlight.notation  && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{scSpotlight.notation}</span>}
+                    </div>
+                    {scSpotlight.power && (
+                      <div style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:10, color:"#444", marginBottom:4, letterSpacing:1 }}>POWER</div>
+                        <div style={{ fontSize:52, fontWeight:900, color:WEAPON_COLORS[scSpotlight.weapon]||"#E8317A", lineHeight:1 }}>{scSpotlight.power}</div>
+                      </div>
+                    )}
+                    {scSpotlight.athlete && <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>🏅 Inspired by {scSpotlight.athlete}</div>}
+                    {scSpotlight.variation && <div style={{ fontSize:12, color:"#333", marginBottom:16 }}>{scSpotlight.variation}</div>}
+                    <div style={{ display:"flex", gap:8, marginTop:12 }}>
+                      <button onClick={()=>{ const i=scFiltered.indexOf(scSpotlight); if(i>0) setScSpotlight(scFiltered[i-1]); }} disabled={scFiltered.indexOf(scSpotlight)===0}
+                        style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 14px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>← Prev</button>
+                      <button onClick={()=>{ const i=scFiltered.indexOf(scSpotlight); if(i<scFiltered.length-1) setScSpotlight(scFiltered[i+1]); }} disabled={scFiltered.indexOf(scSpotlight)===scFiltered.length-1}
+                        style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 14px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Next →</button>
+                      <button onClick={()=>setScSpotlight(null)}
+                        style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"7px 14px", fontSize:11, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>✕ Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {viewMode === "cards" && (loading ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
       ) : cards.length === 0 ? (
@@ -7984,7 +6960,7 @@ function BobaChecklist({ userRole }) {
                   for(let i=0;i<allIds.length;i+=chunkSize){
                     await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
                   }
-                  await setDoc(doc(db,"boba_owned","owned"), {});
+                  await setDoc(doc(db,"boba_owned",ownedDocId), {});
                   setOwned({});
                   try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
                 }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -8036,7 +7012,7 @@ function BobaChecklist({ userRole }) {
                   await Promise.all(allIds.slice(i,i+chunkSize).map(id=>deleteDoc(doc(db,"boba_checklist",id))));
                 }
                 await Promise.all(imports.map(imp=>deleteDoc(doc(db,"boba_imports",imp.id))));
-                await setDoc(doc(db,"boba_owned","owned"), {});
+                await setDoc(doc(db,"boba_owned",ownedDocId), {});
                 setOwned({});
               }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 🗑 Clear All & Restart
@@ -8483,7 +7459,11 @@ export default function App() {
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
 
-  if (window.location.pathname === "/showcase") return <BobaShowcase />;
+  if (window.location.pathname === "/showcase") {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get("uid");
+    return <BobaShowcase uid={uid} />;
+  }
 
   if (!user) return <LoginScreen />;
 
@@ -8646,8 +7626,8 @@ export default function App() {
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
-        {tab==="checklist"   && <BobaChecklist userRole={userRole}/>}
-        {tab==="showcase"    && <BobaShowcase />}
+        {tab==="checklist"   && <BobaChecklist userRole={userRole} user={effectiveUser}/>}
+        {tab==="showcase"    && <BobaShowcase uid={effectiveUser?.uid} />}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
