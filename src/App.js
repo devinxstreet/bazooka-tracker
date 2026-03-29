@@ -2457,7 +2457,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{} };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -2483,7 +2483,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, ...prodFields });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -2512,7 +2512,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const gross = parseFloat(k === "grossRevenue" ? v : updated.grossRevenue) || 0;
           const totalMktVal = PRODUCT_TYPES.reduce((sum, pt) => {
             const qty   = parseInt(k === `prod_${pt}` ? v : updated[`prod_${pt}`]) || 0;
-            const price = parseFloat(skuPrices[pt]) || 0;
+            const price = parseFloat(updated.streamSkuPrices?.[pt] ?? skuPrices[pt]) || 0;
             return sum + (qty * price);
           }, 0);
           if (gross > 0 && totalMktVal > 0) {
@@ -2781,6 +2781,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div>
             <label style={S.lbl}>Market Multiple</label>
             <input type="number" step="0.01" value={recap.marketMultiple} onChange={e=>rf("marketMultiple")(e.target.value)} placeholder="Auto-calculated" style={{ ...S.inp, color: recap.marketMultiple?"#1B4F8A":"#9CA3AF" }} disabled={recap.binOnly}/>
+            {recap.marketMultiple && !recap.binOnly && (() => {
+              const mm = parseFloat(recap.marketMultiple);
+              const pct = Math.round(mm * 100);
+              const color = mm>=1.8?"#4ade80":mm>=1.5?"#FBBF24":"#E8317A";
+              return <div style={{ fontSize:11, color, fontWeight:700, marginTop:3 }}>{pct}% to market</div>;
+            })()}
           </div>
           <div>
             <label style={{ ...S.lbl, color:"#E8317A" }}>🌱 New Buyers</label>
@@ -2973,18 +2979,53 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ marginBottom:14 }}>
           <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>📦 Product Used This Stream</label>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-            {PRODUCT_TYPES.map(pt => (
-              <div key={pt}>
-                <label style={{ ...S.lbl, color:"#E8317A" }}>{pt}</label>
-                <input
-                  type="number" min="0" step="1"
-                  value={recap[`prod_${pt}`]||""}
-                  onChange={e=>rf(`prod_${pt}`)(e.target.value)}
-                  placeholder="0"
-                  style={{ ...S.inp, color:"#E8317A" }}
-                />
-              </div>
-            ))}
+            {PRODUCT_TYPES.map(pt => {
+              const globalPrice = parseFloat(skuPrices[pt]) || 0;
+              const streamPrice = recap.streamSkuPrices?.[pt];
+              const effectivePrice = parseFloat(streamPrice ?? globalPrice) || 0;
+              const qty = parseInt(recap[`prod_${pt}`]) || 0;
+              const mktVal = qty * effectivePrice;
+              return (
+                <div key={pt}>
+                  <label style={{ ...S.lbl, color:"#E8317A" }}>{pt}</label>
+                  <input
+                    type="number" min="0" step="1"
+                    value={recap[`prod_${pt}`]||""}
+                    onChange={e=>rf(`prod_${pt}`)(e.target.value)}
+                    placeholder="0 boxes"
+                    style={{ ...S.inp, color:"#E8317A" }}
+                  />
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4 }}>
+                    <span style={{ fontSize:10, color:"#555" }}>$</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={streamPrice ?? globalPrice}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setRecap(p => {
+                          const newSku = { ...p.streamSkuPrices, [pt]: val };
+                          const gross = parseFloat(p.grossRevenue) || 0;
+                          const totalMktVal = PRODUCT_TYPES.reduce((sum, t) => {
+                            const q = parseInt(p[`prod_${t}`]) || 0;
+                            const pr = parseFloat(t === pt ? val : (newSku[t] ?? skuPrices[t])) || 0;
+                            return sum + q * pr;
+                          }, 0);
+                          const mm = gross > 0 && totalMktVal > 0 ? (gross / totalMktVal).toFixed(2) : p.marketMultiple;
+                          return { ...p, streamSkuPrices: newSku, marketMultiple: mm };
+                        });
+                        setRecapSaved(false);
+                      }}
+                      style={{ ...S.inp, fontSize:11, padding:"3px 6px", color: streamPrice !== undefined && streamPrice !== String(globalPrice) ? "#FBBF24" : "#555" }}
+                    />
+                    <span style={{ fontSize:10, color:"#555" }}>/box</span>
+                  </div>
+                  {qty > 0 && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>MV: ${mktVal.toFixed(0)}</div>}
+                  {streamPrice !== undefined && streamPrice !== String(globalPrice) && (
+                    <div style={{ fontSize:9, color:"#FBBF24", marginTop:1 }}>⚠ overriding global ${globalPrice}</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -3142,7 +3183,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   </select>
                 )}
                 {streamBulkSel.size > 0 && (
-                  <button onClick={()=>{\n                    if(window.confirm(`Delete ${streamBulkSel.size} stream${streamBulkSel.size!==1?"s":""}? Chaser cards will be restored.`)) {\n                      [...streamBulkSel].forEach(id => { if(onDeleteStream) onDeleteStream(id); });\n                      setStreamBulkSel(new Set());\n                    }\n                  }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>\n                    🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}\n                  </button>\n                )}\n              </div>\n            </div>
+                  <button onClick={()=>{
+                    if(window.confirm(`Delete ${streamBulkSel.size} stream${streamBulkSel.size!==1?"s":""}? Chaser cards will be restored.`)) {
+                      [...streamBulkSel].forEach(id => { if(onDeleteStream) onDeleteStream(id); });
+                      setStreamBulkSel(new Set());
+                    }
+                  }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
+                  </button>
+                )}
+              </div>
+            </div>
             {myStreams.length === 0
               ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet — save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
@@ -4073,8 +4124,62 @@ function Sellers({ inventory, breaks, userRole }) {
             })}
           </div>
       }
+
+      {/* SKU Market Price History */}
+      {isAdmin && (() => {
+        const snapStreams = [...streams].filter(s => s.date && s.marketSnapshot).sort((a,b) => new Date(a.date)-new Date(b.date));
+        if (snapStreams.length < 2) return null;
+        return (
+          <div style={{ ...S.card, marginTop:14 }}>
+            <SectionLabel t="📈 SKU Market Price History" />
+            <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Price per box at time of each stream — frozen at save</div>
+            <div style={{ position:"relative", height:260 }}>
+              <canvas id="skuPriceChart" style={{ width:"100%", height:"100%" }}/>
+            </div>
+            <SkuPriceChart streams={snapStreams}/>
+          </div>
+        );
+      })()}
     </div>
   );
+}
+
+function SkuPriceChart({ streams }) {
+  const [loaded, setLoaded] = React.useState(!!window.Chart);
+  React.useEffect(() => {
+    if (window.Chart) { setLoaded(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    s.onload = () => setLoaded(true);
+    document.head.appendChild(s);
+  }, []);
+  React.useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById("skuPriceChart");
+    if (!el) return;
+    if (window._skuChart) window._skuChart.destroy();
+    const PT_COLORS = { "Double Mega":"#C2410C", "Hobby":"#7B9CFF", "Jumbo":"#4ade80", "Miscellaneous":"#FBBF24" };
+    const labels = streams.map(s => s.date);
+    const datasets = ["Double Mega","Hobby","Jumbo","Miscellaneous"].map(pt => ({
+      label: pt,
+      data: streams.map(s => parseFloat(s.marketSnapshot[pt])||null),
+      borderColor: PT_COLORS[pt],
+      backgroundColor: PT_COLORS[pt]+"33",
+      tension: 0.3, pointRadius: 4, pointHoverRadius: 6, spanGaps: true,
+    }));
+    window._skuChart = new window.Chart(el, {
+      type:"line", data:{ labels, datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ color:"#888", font:{ size:11 }}}, tooltip:{ callbacks:{ label: c => c.dataset.label+": $"+(c.parsed.y?.toFixed(2)||"—") }}},
+        scales:{
+          x:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"#888", font:{ size:10 }, maxTicksLimit:12 }},
+          y:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"#888", font:{ size:11 }, callback: v => "$"+v }, beginAtZero:false }
+        }
+      }
+    });
+  }, [loaded, streams.length]);
+  return null;
 }
 
 // ─── STREAMS (wrapper: recap + cards + commission) ───────────────
@@ -6236,7 +6341,9 @@ export default function App() {
   }
   async function handleSaveStream(stream) {
     const id = stream.id || uid();
-    await setDoc(doc(db,"streams",id), { ...stream, id, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
+    // Snapshot current SKU prices so historical calcs stay frozen at time of stream
+    const marketSnapshot = { ...skuPrices, snapshotDate: new Date().toISOString() };
+    await setDoc(doc(db,"streams",id), { ...stream, id, marketSnapshot, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
     showToast(stream.id ? "💾 Stream updated" : "✅ Stream saved");
   }
   async function handleDeleteStream(id) {
