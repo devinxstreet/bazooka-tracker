@@ -5817,7 +5817,8 @@ function BobaChecklist({ userRole, user }) {
   const [deckLoadId,     setDeckLoadId]     = useState(null);
   const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
   const [deckSlotSort,   setDeckSlotSort]   = useState("added");
-  const [deckType,       setDeckType]       = useState("none"); // none | spec | apex
+  const [deckType,       setDeckType]       = useState("none");
+  const [deckFilterPower, setDeckFilterPower] = useState(""); // none | spec | apex
   // Playbook state
   const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
   const [pbName,         setPbName]         = useState("My Playbook");
@@ -5898,14 +5899,14 @@ function BobaChecklist({ userRole, user }) {
     setDeckName(deck.name);
     setDeckCards(deck.cardIds||[]);
     setDeckType(deck.deckType||"none");
-    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
+    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero(""); setDeckFilterPower("");
   }
 
   function newDeck() {
     setDeckLoadId(null);
     setDeckName("My Deck");
     setDeckCards([]);
-    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero("");
+    setDeckSearch(""); setDeckFilterWeap(""); setDeckFilterHero(""); setDeckFilterPower("");
   }
 
   async function savePlaybook() {
@@ -7059,9 +7060,12 @@ function BobaChecklist({ userRole, user }) {
           if (deckSet.has(c.id)) return false;
           if (deckFilterWeap && c.weapon !== deckFilterWeap) return false;
           if (deckFilterHero && c.hero !== deckFilterHero) return false;
+          if (deckFilterPower && String(c.power||"") !== deckFilterPower) return false;
           if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
           return true;
         }).sort((a,b) => (parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+
+        const deckPowers = [...new Set(cardPool.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
 
         const deckHeroes  = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
         const deckWeapons = [...new Set(cardPool.map(c=>c.weapon).filter(Boolean))].sort();
@@ -7132,6 +7136,10 @@ function BobaChecklist({ userRole, user }) {
                   <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="">All Weapons</option>
                     {deckWeapons.map(w=><option key={w} value={w}>{w}</option>)}
+                  </select>
+                  <select value={deckFilterPower} onChange={e=>setDeckFilterPower(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterPower?(isSpec&&parseFloat(deckFilterPower)>160?"#E8317A":"#FBBF24"):"#888" }}>
+                    <option value="">All Powers</option>
+                    {deckPowers.map(p=><option key={p} value={p} style={{ color: isSpec&&parseFloat(p)>160?"#E8317A":"inherit" }}>{p}{isSpec&&parseFloat(p)>160?" ⚠":"" }</option>)}
                   </select>
                   <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="">All Heroes</option>
