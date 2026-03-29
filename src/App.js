@@ -2844,7 +2844,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#AAAAAA" }}>⚠ Unsaved changes</span>}
         </div>
         {/* IMC Form URL setting — Admin only */}
-        {isAdmin && (
+        {userRole?.role === "Admin" && (
           <div style={{ marginTop:12, display:"flex", gap:8, alignItems:"center" }}>
             <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>IMC Form URL:</span>
             <input
