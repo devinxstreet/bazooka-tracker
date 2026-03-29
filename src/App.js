@@ -6384,14 +6384,17 @@ function BobaChecklist({ userRole }) {
       }
       setScanProgress({ current:pageNum, total, status:`Scanning page ${pageNum} of ${total}...` });
 
-      // Render page to canvas
+      // Render page to canvas — cap at 800px wide to keep payload small
       const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.5 });
+      const rawViewport = page.getViewport({ scale: 1 });
+      const scale = Math.min(0.8, 800 / rawViewport.width);
+      const viewport = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-      const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      const base64 = canvas.toDataURL("image/jpeg", 0.5).split(",")[1];
+      console.log(`Page ${pageNum} image size: ~${Math.round(base64.length/1024)}KB`);
 
       // Send to Claude Vision via proxy
       let identified = null;
