@@ -9813,6 +9813,7 @@ function PublicCardDatabase() {
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
   const [offerNote,     setOfferNote]     = useState("");
+  const [marketNotifs,  setMarketNotifs]  = useState([]);
   const [wantNotifs,    setWantNotifs]    = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
