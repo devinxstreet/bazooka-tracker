@@ -9968,6 +9968,7 @@ function PublicCardDatabase() {
   const [marketNotifs,  setMarketNotifs]  = useState([]);
   const [counterModal,  setCounterModal]  = useState(null); // offer being countered
   const [counterAmt,    setCounterAmt]    = useState("");
+  const [counterSent,   setCounterSent]   = useState(false);
   const [wantNotifs,    setWantNotifs]    = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
@@ -10736,51 +10737,72 @@ function PublicCardDatabase() {
       )}
 
       {/* Counter offer modal */}
+      {/* Counter offer modal */}
       {counterModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setCounterModal(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+          onClick={()=>{if(counterSent){setCounterModal(null);setCounterAmt("");setCounterSent(false);}}}>
           <div style={{background:"#0E0E14",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
-
-            <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20}}>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Negotiation history</div>
-              <div style={{fontSize:13,color:"#FBBF24",fontWeight:700}}>
-                {counterModal.buyerName||"Buyer"} offered ${(counterModal.offerAmount||0).toFixed(2)}
-              </div>
-              {counterModal.isCounter&&(
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
-                  (counter offer - see Messages for full thread)
+            {counterSent?(
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Counter Sent!</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
+                  Your counter of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(counterAmt||0).toFixed(2)}</strong> on
                 </div>
-              )}
-            </div>
-
-            <div style={{marginBottom:20}}>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:8,fontWeight:700}}>Your counter amount</div>
-              <div style={{display:"flex",alignItems:"center",gap:0}}>
-                <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:"8px 0 0 8px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
-                <input
-                  value={counterAmt}
-                  onChange={e=>setCounterAmt(e.target.value.replace(/[^0-9.]/g,""))}
-                  placeholder="0.00"
-                  style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}
-                  autoFocus
-                />
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>{counterModal.cardName}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
+                  has been sent. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
+                  {"You'll be notified when they respond."}
+                </div>
+                <button
+                  onClick={()=>{setCounterModal(null);setCounterAmt("");setCounterSent(false);}}
+                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Done
+                </button>
               </div>
-            </div>
-
-            <div style={{display:"flex",gap:10}}>
-              <button
-                onClick={()=>counterOffer(counterModal,counterAmt)}
-                disabled={!counterAmt||isNaN(parseFloat(counterAmt))}
-                style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.8),rgba(245,158,11,0.8))",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:counterAmt&&!isNaN(parseFloat(counterAmt))?1:0.4}}>
-                Send Counter
-              </button>
-              <button
-                onClick={()=>setCounterModal(null)}
-                style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-                Cancel
-              </button>
-            </div>
+            ):(
+              <>
+                <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
+                <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Negotiation history</div>
+                  <div style={{fontSize:13,color:"#FBBF24",fontWeight:700}}>
+                    {counterModal.buyerName||"Buyer"} offered {"$"}{(counterModal.offerAmount||0).toFixed(2)}
+                  </div>
+                  {counterModal.isCounter&&(
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
+                      (counter offer - see Messages for full thread)
+                    </div>
+                  )}
+                </div>
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:8,fontWeight:700}}>Your counter amount</div>
+                  <div style={{display:"flex",alignItems:"center",gap:0}}>
+                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:"8px 0 0 8px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
+                    <input
+                      value={counterAmt}
+                      onChange={e=>setCounterAmt(e.target.value.replace(/[^0-9.]/g,""))}
+                      placeholder="0.00"
+                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button
+                    onClick={()=>counterOffer(counterModal,counterAmt)}
+                    disabled={!counterAmt||isNaN(parseFloat(counterAmt))}
+                    style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.8),rgba(245,158,11,0.8))",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:counterAmt&&!isNaN(parseFloat(counterAmt))?1:0.4}}>
+                    Send Counter
+                  </button>
+                  <button
+                    onClick={()=>setCounterModal(null)}
+                    style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
