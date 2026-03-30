@@ -1,115 +1,111 @@
-module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
-  if (req.method === "OPTIONS") return res.status(200).end();
+export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  let body = req.body;
-  if (typeof body === "string") {
-    try { body = JSON.parse(body); } catch(e) {}
-  }
-
-  const { imageBase64, mediaType, treatment, weapon, setName } = body || {};
-  if (!imageBase64) return res.status(400).json({ error: "No image provided" });
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "No API key configured" });
-
-  // Validate base64 size — Anthropic allows up to ~5MB decoded (~6.7MB base64)
-  // If too large, return a soft error rather than crashing
-  const estimatedBytes = Math.round(imageBase64.length * 0.75);
-  if (estimatedBytes > 6_000_000) {
-    return res.status(200).json({
-      cardNum: null, hero: null, weapon: null, power: null, treatment: null, visualHints: null,
-      identified: { cardNum: null },
-      error: "Image too large — resize before sending",
-    });
-  }
-
-  // Normalize media type — Anthropic supports jpeg, png, gif, webp
-  const rawType = (mediaType || "image/jpeg").toLowerCase();
-  const imageMediaType =
-    rawType.includes("webp")  ? "image/webp"  :
-    rawType.includes("png")   ? "image/png"   :
-    rawType.includes("gif")   ? "image/gif"   :
-                                "image/jpeg";
-
-  const hint = [
-    setName    ? `This card is from the "${setName}" set.` : "",
-    treatment  ? `Treatment: "${treatment}".` : "",
-    weapon     ? `Weapon type: "${weapon}".` : "",
-  ].filter(Boolean).join(" ");
-
-  let anthropicResponse;
   try {
-    anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+    const { imageBase64, mediaType, setName, treatment, weapon } = req.body;
+
+    if (!imageBase64) return res.status(400).json({ error: "No image data provided" });
+
+    // Claude Vision only supports these media types — convert anything else to jpeg label
+    const SUPPORTED = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    let finalMediaType = (mediaType || "image/jpeg").toLowerCase();
+
+    // Strip any parameters (e.g. "image/jpeg;base64" -> "image/jpeg")
+    finalMediaType = finalMediaType.split(";")[0].trim();
+
+    // If unsupported type, default to jpeg (the base64 data is what matters)
+    if (!SUPPORTED.includes(finalMediaType)) {
+      finalMediaType = "image/jpeg";
+    }
+
+    const systemPrompt = `You are a Bo Jackson Battle Arena (BoBA) trading card identifier. 
+Your job is to read card details from images and return structured JSON.
+
+Always return valid JSON with these fields:
+- cardNum: the card number (e.g. "1", "ALT-4", "PL-59", "RAD-1") — look for # symbol or number in corner
+- hero: the hero name printed on the card (e.g. "Maverick", "Showtime", "Gaveler")
+- weapon: the weapon type (Fire, Ice, Steel, Brawl, Glow, Hex, Gum, Metallic, Alt, Super)
+- treatment: the card treatment/variant (e.g. "Base Set", "80's Rad Battlefoil", "Prizm")
+- power: the power number (e.g. "135", "130", "160")
+- visualHints: 6-10 descriptive keywords about the card's visual appearance, colors, patterns, foil type, background art
+
+Return ONLY valid JSON, no markdown, no explanation.
+Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set","power":"135","visualHints":"blue ice border, dark background, snowflake pattern, holographic sheen, portrait pose"}`;
+
+    const userContent = [
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: finalMediaType,
+          data: imageBase64,
+        },
+      },
+    ];
+
+    // Add context hints if provided
+    const contextParts = [];
+    if (setName)   contextParts.push(`Set: ${setName}`);
+    if (treatment) contextParts.push(`Treatment: ${treatment}`);
+    if (weapon)    contextParts.push(`Weapon: ${weapon}`);
+    if (contextParts.length > 0) {
+      userContent.push({ type: "text", text: `Context: ${contextParts.join(", ")}. Identify the card and return JSON.` });
+    } else {
+      userContent.push({ type: "text", text: "Identify this BoBA card and return JSON with cardNum, hero, weapon, treatment, power, and visualHints." });
+    }
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: imageMediaType, data: imageBase64 }
-            },
-            {
-              type: "text",
-              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}
-Look carefully at the BOTTOM of the card for the card number (e.g. BFA-61, PL-12, HTD-40, A-5 — always includes a prefix).
-Look at the TOP LEFT for the hero/character name exactly as printed.
-Look at the TOP RIGHT for the power number.
-Look at the weapon symbol or label for the weapon type.
-Look for the treatment name (e.g. "Inspired Ink", "Base Set", "Great Grandma's Lino", "Alpha Battlefoil").
-Also describe the card's VISUAL APPEARANCE in 6-10 keywords: background texture, dominant colors, border style, art style, pattern (e.g. "linoleum cracked floor pink purple retro vintage", "holographic foil rainbow metallic shimmer", "watercolor brushstroke blue green", "comic dots halftone yellow orange").
-
-Return ONLY a JSON object, no markdown, no explanation:
-{"cardNum":"exact card number as printed at bottom (e.g. BFA-61)","hero":"exact hero name from top left","weapon":"Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic","power":"number only","treatment":"treatment name if visible","visualHints":"6-10 keywords describing visual appearance"}
-If card is not readable return {"cardNum":null}`
-            }
-          ]
-        }]
-      })
+        max_tokens: 256,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userContent }],
+      }),
     });
-  } catch(fetchErr) {
-    return res.status(500).json({ error: "Fetch failed: " + fetchErr.message });
-  }
 
-  let data;
-  try { data = await anthropicResponse.json(); } catch(e) {
-    return res.status(500).json({ error: "JSON parse failed" });
-  }
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Claude API error:", response.status, errText);
+      return res.status(500).json({ error: `Claude API ${response.status}`, details: errText });
+    }
 
-  if (!anthropicResponse.ok) {
-    return res.status(500).json({ error: "Anthropic error", details: data });
-  }
+    const data = await response.json();
+    const rawText = data.content?.[0]?.text || "{}";
 
-  try {
-    const text = data.content?.[0]?.text || "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
-    const result = {
-      cardNum:     parsed.cardNum     || null,
-      hero:        parsed.hero        || null,
-      weapon:      parsed.weapon      || weapon  || null,
-      power:       parsed.power       || null,
-      treatment:   parsed.treatment   || treatment || null,
-      visualHints: parsed.visualHints || null,
-    };
-    return res.status(200).json({ ...result, identified: result });
-  } catch(parseErr) {
-    return res.status(200).json({ cardNum: null, identified: { cardNum: null }, error: "parse failed" });
-  }
-};
+    // Parse JSON — strip any accidental markdown fences
+    let parsed = {};
+    try {
+      const clean = rawText.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      console.error("JSON parse error:", e, "Raw:", rawText);
+      // Try to extract what we can
+      const numMatch  = rawText.match(/"cardNum"\s*:\s*"([^"]+)"/);
+      const heroMatch = rawText.match(/"hero"\s*:\s*"([^"]+)"/);
+      if (numMatch)  parsed.cardNum = numMatch[1];
+      if (heroMatch) parsed.hero    = heroMatch[1];
+    }
 
-module.exports.config = {
-  api: { bodyParser: { sizeLimit: "20mb" } },
-};
+    return res.status(200).json({
+      cardNum:      parsed.cardNum     || null,
+      hero:         parsed.hero        || null,
+      weapon:       parsed.weapon      || null,
+      treatment:    parsed.treatment   || null,
+      power:        parsed.power       || null,
+      visualHints:  parsed.visualHints || null,
+      identified:   parsed,
+    });
+
+  } catch (err) {
+    console.error("scan-card handler error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+}
