@@ -6915,6 +6915,64 @@ function BobaChecklist({ userRole, user }) {
     try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
   }
 
+  const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
+
+  async function scanCardPhoto(file) {
+    setPhotoScan({ status:"scanning", card:null });
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result.split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      const resp = await fetch("/api/scan-card", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType: file.type||"image/jpeg" }),
+      });
+      const data = await resp.json();
+      if (!data.cardNum && !data.hero) {
+        setPhotoScan({ status:"nomatch", card:null });
+        setTimeout(() => setPhotoScan(null), 4000);
+        return;
+      }
+
+      // Match against checklist
+      const identifiedNum = (data.cardNum||"").replace(/[\s\-]/g,"").toLowerCase();
+      const heroName  = (data.hero||"").toLowerCase();
+      const weapon    = (data.weapon||"").toLowerCase();
+      const treatment = (data.treatment||"").toLowerCase();
+
+      function fuzzyMatch(a, b) { if (!a||!b) return false; return a.toLowerCase().includes(b)||b.includes(a.toLowerCase()); }
+      function normNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
+
+      let match =
+        (identifiedNum && cards.find(c => normNum(c.cardNum)===identifiedNum)) ||
+        (heroName && cards.find(c => fuzzyMatch(c.hero,heroName) && (!treatment||c.treatment?.toLowerCase()===treatment) && (!weapon||c.weapon?.toLowerCase()===weapon))) ||
+        (heroName && cards.find(c => fuzzyMatch(c.hero,heroName) && (!weapon||c.weapon?.toLowerCase()===weapon)));
+
+      if (!match) {
+        setPhotoScan({ status:"nomatch", card:null, identified: data });
+        setTimeout(() => setPhotoScan(null), 5000);
+        return;
+      }
+
+      // Mark owned
+      const next = { ...owned, [match.id]: (owned[match.id]||0) + 1 };
+      setOwned(next);
+      await setDoc(doc(db,"boba_owned",ownedDocId), next);
+      setPhotoScan({ status:"matched", card:match });
+      setTimeout(() => setPhotoScan(null), 4000);
+
+    } catch(e) {
+      console.error(e);
+      setPhotoScan({ status:"error", card:null });
+      setTimeout(() => setPhotoScan(null), 4000);
+    }
+  }
+
   async function toggleWant(cardId) {
     const next = { ...wantList };
     if (next[cardId]) delete next[cardId];
@@ -7365,6 +7423,14 @@ function BobaChecklist({ userRole, user }) {
                   }} style={{ display:"none" }}/>
               </label>
             )}
+            {/* Camera scan — opens camera on mobile, file picker on desktop */}
+            <label title="Take a photo of a card to add it to your collection"
+              style={{ background: photoScan?"#0a1a0a":"#1a0a1a", color: photoScan?"#4ade80":"#E8317A", border:`1px solid ${photoScan?"#4ade8044":"#E8317A44"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:photoScan?"default":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {photoScan?.status==="scanning" ? "🔍 Scanning..." : photoScan?.status==="matched" ? `✅ ${photoScan.card?.hero}` : photoScan?.status==="nomatch" ? "❌ No match" : "📷 Scan Card"}
+              <input type="file" accept="image/*" capture="environment" disabled={!!photoScan}
+                onChange={e=>{ const f=e.target.files[0]; if(f) scanCardPhoto(f); e.target.value=""; }}
+                style={{ display:"none" }}/>
+            </label>
             {isAdmin && (
               <label title="Import DBS salary values (CSV: card_num, dbs)" style={{ background:"#1a0f1a", color:"#A855F7", border:"1px solid #A855F744", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1 }}>
                 {dbsImporting?"Importing...":"💰 Import DBS"}
@@ -7529,6 +7595,26 @@ function BobaChecklist({ userRole, user }) {
             <span style={{ color:"#888" }}>{scanProgress.status}</span>
             <span style={{ color:"#7B9CFF", fontWeight:700 }}>{scanProgress.current}/{scanProgress.total} pages</span>
           </div>
+        </div>
+      )}
+
+      {photoScan && photoScan.status !== "scanning" && (
+        <div style={{ ...S.card, border:`1.5px solid ${photoScan.status==="matched"?"#4ade8044":"#E8317A44"}`, background:photoScan.status==="matched"?"#0a1a0a":"#1a0a0a", display:"flex", alignItems:"center", gap:12 }}>
+          {photoScan.status==="matched" && <>
+            <span style={{ fontSize:28 }}>✅</span>
+            <div>
+              <div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div>
+              <div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} · #{photoScan.card?.cardNum} · {photoScan.card?.weapon} · {photoScan.card?.power}</div>
+            </div>
+          </>}
+          {photoScan.status==="nomatch" && <>
+            <span style={{ fontSize:28 }}>❌</span>
+            <div>
+              <div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found in checklist</div>
+              {photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"} — make sure the card is imported first</div>}
+            </div>
+          </>}
+          {photoScan.status==="error" && <><span style={{ fontSize:28 }}>⚠️</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed — try again</div></>}
         </div>
       )}
 
