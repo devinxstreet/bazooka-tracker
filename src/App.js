@@ -1322,80 +1322,6 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
         </div>
       )}
 
-        </div>{/* end left column */}
-
-        {/* Seller Intelligence Panel */}
-        {seller.name && (() => {
-          const sellerComps = comps.filter(c => (c.seller||"").toLowerCase() === seller.name.toLowerCase());
-          if (sellerComps.length === 0) return (
-            <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, minHeight:200, color:"#333" }}>
-              <div style={{ fontSize:24 }}>🆕</div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#555" }}>New seller</div>
-              <div style={{ fontSize:11, color:"#333", textAlign:"center" }}>No previous history with {seller.name}</div>
-            </div>
-          );
-          const totalPaid   = sellerComps.reduce((s,c)=>s+(parseFloat(c.offer)||0),0);
-          const totalMktVal = sellerComps.reduce((s,c)=>s+(parseFloat(c.totalMarket)||0),0);
-          const avgPct      = totalMktVal > 0 ? totalPaid/totalMktVal : 0;
-          const accepted    = sellerComps.filter(c=>c.status==="accepted").length;
-          const declined    = sellerComps.filter(c=>c.status==="declined").length;
-          const pending     = sellerComps.filter(c=>c.status==="pending").length;
-          const counterCount= sellerComps.filter(c=>c.status==="countered").length;
-          const avgLotSize  = sellerComps.reduce((s,c)=>s+(c.totalCards||0),0)/sellerComps.length;
-          const sorted      = [...sellerComps].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-          const statColor   = p => p > 0.65 ? "#E8317A" : p > 0.55 ? "#FBBF24" : "#4ade80";
-          return (
-            <div style={{ display:"flex", flexDirection:"column", gap:10, position:"sticky", top:80 }}>
-              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
-                <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", marginBottom:2 }}>{seller.name}</div>
-                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"—"}</div>
-                {seller.contact && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:4 }}>{seller.contact}</div>}
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {[
-                  { l:"Total Paid",   v:`$${Math.round(totalPaid).toLocaleString()}`,   c:"#4ade80" },
-                  { l:"Avg % of Mkt", v:`${Math.round(avgPct*100)}%`,                   c:statColor(avgPct) },
-                  { l:"Avg Lot Size", v:`${Math.round(avgLotSize)} cards`,               c:"#7B9CFF" },
-                  { l:"Accept Rate",  v:`${Math.round(accepted/sellerComps.length*100)}%`, c:"#4ade80" },
-                ].map(({l,v,c})=>(
-                  <div key={l} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
-                    <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Outcomes</div>
-                {[{l:"✅ Accepted",v:accepted,c:"#4ade80"},{l:"❌ Declined",v:declined,c:"#E8317A"},{l:"🤝 Countered",v:counterCount,c:"#FBBF24"},{l:"⏳ Pending",v:pending,c:"#555"}].filter(x=>x.v>0).map(({l,v,c})=>(
-                  <div key={l} style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:"#888" }}>{l}</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:c }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
-                <div style={{ padding:"10px 14px 6px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Deal History</div>
-                <div style={{ maxHeight:280, overflowY:"auto" }}>
-                  {sorted.map((c,i)=>{ const p=c.totalMarket>0?c.offer/c.totalMarket:0; const sc={accepted:"#4ade80",declined:"#E8317A",countered:"#FBBF24",pending:"#555"}; return (
-                    <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid #1a1a1a", background:i%2===0?"#0d0d0d":"#111" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                        <span style={{ fontSize:11, color:"#555" }}>{c.date||"—"}</span>
-                        <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"—"}</span>
-                      </div>
-                      <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
-                        <span style={{ fontSize:12, fontWeight:700, color:statColor(p) }}>${Math.round(c.offer||0).toLocaleString()} ({Math.round(p*100)}%)</span>
-                      </div>
-                    </div>
-                  );})}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        </div>{/* end grid */}
-      </>}
 
       {compMode==="history" && (() => {
         const activeQuotes = quotes.filter(q => !["closed"].includes(q.status));
@@ -1973,6 +1899,78 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             )}
           </div>
         </div>
+
+        {/* Seller Intelligence Panel — right column */}
+        {seller.name && (() => {
+          const sellerComps = comps.filter(c => (c.seller||"").toLowerCase() === seller.name.toLowerCase());
+          if (sellerComps.length === 0) return (
+            <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"20px 16px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, minHeight:160, color:"#333", position:"sticky", top:80 }}>
+              <div style={{ fontSize:24 }}>🆕</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#555" }}>New seller</div>
+              <div style={{ fontSize:11, color:"#333", textAlign:"center" }}>No previous history with {seller.name}</div>
+            </div>
+          );
+          const totalPaid    = sellerComps.reduce((s,c)=>s+(parseFloat(c.offer)||0),0);
+          const totalMktVal  = sellerComps.reduce((s,c)=>s+(parseFloat(c.totalMarket)||0),0);
+          const avgPct       = totalMktVal > 0 ? totalPaid/totalMktVal : 0;
+          const accepted     = sellerComps.filter(c=>c.status==="accepted").length;
+          const declined     = sellerComps.filter(c=>c.status==="declined").length;
+          const pending      = sellerComps.filter(c=>c.status==="pending").length;
+          const counterCount = sellerComps.filter(c=>c.status==="countered").length;
+          const avgLotSize   = sellerComps.reduce((s,c)=>s+(c.totalCards||0),0)/sellerComps.length;
+          const sorted       = [...sellerComps].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+          const statColor    = p => p > 0.65 ? "#E8317A" : p > 0.55 ? "#FBBF24" : "#4ade80";
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:10, position:"sticky", top:80 }}>
+              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
+                <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", marginBottom:2 }}>{seller.name}</div>
+                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"—"}</div>
+                {seller.contact && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:4 }}>{seller.contact}</div>}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[
+                  { l:"Total Paid",   v:`$${Math.round(totalPaid).toLocaleString()}`,      c:"#4ade80" },
+                  { l:"Avg % of Mkt", v:`${Math.round(avgPct*100)}%`,                      c:statColor(avgPct) },
+                  { l:"Avg Lot Size", v:`${Math.round(avgLotSize)} cards`,                 c:"#7B9CFF" },
+                  { l:"Accept Rate",  v:sellerComps.length>0?`${Math.round(accepted/sellerComps.length*100)}%`:"—", c:"#4ade80" },
+                ].map(({l,v,c})=>(
+                  <div key={l} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Outcomes</div>
+                {[{l:"✅ Accepted",v:accepted,c:"#4ade80"},{l:"❌ Declined",v:declined,c:"#E8317A"},{l:"🤝 Countered",v:counterCount,c:"#FBBF24"},{l:"⏳ Pending",v:pending,c:"#555"}].filter(x=>x.v>0).map(({l,v,c})=>(
+                  <div key={l} style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ fontSize:12, color:"#888" }}>{l}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:c }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+                <div style={{ padding:"10px 14px 6px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Deal History</div>
+                <div style={{ maxHeight:300, overflowY:"auto" }}>
+                  {sorted.map((c,i)=>{ const p=c.totalMarket>0?c.offer/c.totalMarket:0; const sc={accepted:"#4ade80",declined:"#E8317A",countered:"#FBBF24",pending:"#555"}; return (
+                    <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid #1a1a1a", background:i%2===0?"#0d0d0d":"#111" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+                        <span style={{ fontSize:11, color:"#555" }}>{c.date||"—"}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"—"}</span>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:statColor(p) }}>${Math.round(c.offer||0).toLocaleString()} ({Math.round(p*100)}%)</span>
+                      </div>
+                    </div>
+                  );})}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        </div>{/* end grid */}
       </>}
     </div>
   );
@@ -6441,7 +6439,7 @@ function ShowcaseCard({ c, onClick, large }) {
     const x = (e.clientX-rect.left)/rect.width, y = (e.clientY-rect.top)/rect.height;
     targetTilt.current = { x:(y-0.5)*28, y:(x-0.5)*-28 };
     if (foilRef.current) { foilRef.current.style.backgroundPosition=`${x*100}% ${y*100}%`; foilRef.current.style.opacity="1"; }
-    if (glareRef.current) { glareRef.current.style.background=`radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`; glareRef.current.style.opacity="1"; }
+    if (glareRef.current) { glareRef.current.style.background=`radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity="1"; }
     startAnimation();
   }
   function onMouseLeave() {
@@ -6466,7 +6464,7 @@ function ShowcaseCard({ c, onClick, large }) {
         boxShadow:`0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${rarity.color}22` }}>
         <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
         <div ref={foilRef} style={{ position:"absolute", inset:0,
-          background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)",
+          background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)",
           backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
         <div ref={glareRef} style={{ position:"absolute", inset:0, mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
         <div style={{ position:"absolute", inset:0, borderRadius:large?16:12, boxShadow:`inset 0 0 ${large?30:20}px ${rarity.color}18`, pointerEvents:"none" }}/>
@@ -6519,7 +6517,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const y = (e.clientY - rect.top)  / rect.height;
     targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
     if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
-    if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+    if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
     startAnimation();
   }
   function onMouseLeave() {
@@ -6560,8 +6558,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:isFlipped?"transform 0.45s cubic-bezier(0.4,0,0.2,1)":"box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":undefined, borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.08) 30%, rgba(255,220,100,0.12) 40%, rgba(100,200,255,0.14) 50%, rgba(200,100,255,0.12) 60%, rgba(255,100,150,0.10) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
-            <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
           </div>
