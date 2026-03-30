@@ -197,6 +197,7 @@ function GlobalStyles() {
       input::placeholder { color: #555555 !important; }
       select option { background: #111111; color: #F0F0F0; }
       @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
       .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       @keyframes toastIn { from { opacity:0; transform:translateY(24px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
       .card-hover { transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease !important; }
@@ -6493,7 +6494,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   );
 }
 
-function BobaChecklist({ userRole, user }) {
+function BobaChecklist({ userRole, user, onScanUpdate }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
   const [cards,        setCards]        = useState([]);
@@ -6515,7 +6516,9 @@ function BobaChecklist({ userRole, user }) {
   const [renameVal,    setRenameVal]    = useState("");
   const [scanPdf,      setScanPdf]      = useState(null);
   const [scanProgress, setScanProgress] = useState(null);
-  const [imgScanProgress, setImgScanProgress] = useState(null); // {current, total, status}
+  const _setScanProgress = (v) => { setScanProgress(v); if(onScanUpdate) onScanUpdate(v ? { type:"pdf", ...v } : null); };
+  const [imgScanProgress, setImgScanProgress] = useState(null);
+  const _setImgScanProgress = (v) => { setImgScanProgress(v); if(onScanUpdate) onScanUpdate(v ? { type:"images", ...v } : null); };
   const [scanConfig,   setScanConfig]   = useState(null); // { file, setName, treatment, weapon }
   const [pendingScan,  setPendingScan]  = useState(null); // file waiting for config
   const [scanPaused,   setScanPaused]   = useState(false);
@@ -6676,7 +6679,7 @@ function BobaChecklist({ userRole, user }) {
 
   async function scanPdfForCards(file, setName, treatment, weapon) {
     setScanPdf(file.name);
-    setScanProgress({ current:0, total:0, status:"Loading PDF..." });
+    _setScanProgress({ current:0, total:0, status:"Loading PDF..." });
     scanPausedRef.current = false;
     setScanPaused(false);
 
@@ -6695,7 +6698,7 @@ function BobaChecklist({ userRole, user }) {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const total = pdf.numPages;
-    setScanProgress({ current:0, total, status:"Starting scan..." });
+    _setScanProgress({ current:0, total, status:"Starting scan..." });
 
     const BATCH_SIZE = 5; // process 5 pages at a time
     let completed = 0;
@@ -6811,23 +6814,23 @@ function BobaChecklist({ userRole, user }) {
       }
       await Promise.all(batch);
       completed = Math.min(i + BATCH_SIZE - 1, total);
-      setScanProgress({ current:completed, total, status:`Scanning pages ${i}–${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
+      _setScanProgress({ current:completed, total, status:`Scanning pages ${i}–${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
     }
 
-    setScanProgress({ current:total, total, status:"✅ Scan complete!" });
-    setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
+    __setScanProgress({ current:total, total, status:"✅ Scan complete!" });
+    setTimeout(() => { setScanPdf(null); _setScanProgress(null); }, 3000);
   }
 
   async function scanImagesForCards(files, setName) {
     const fileList = Array.from(files);
     if (fileList.length === 0) return;
-    setImgScanProgress({ current:0, total:fileList.length, status:"Starting image scan..." });
+    _setImgScanProgress({ current:0, total:fileList.length, status:"Starting image scan..." });
 
     let matched = 0, skipped = 0;
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
+      _setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
 
       try {
         // Resize image to max 1200px before sending — keeps quality but avoids 15MB limit
@@ -6921,8 +6924,8 @@ function BobaChecklist({ userRole, user }) {
       }
     }
 
-    setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
-    setTimeout(() => setImgScanProgress(null), 5000);
+    _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
+    setTimeout(() => _setImgScanProgress(null), 5000);
     // Bust cache
     try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
   }
@@ -8913,6 +8916,7 @@ export default function App() {
   const [comps,     setComps]     = useState([]);
   const [bobaCards, setBobaCards] = useState([]);
   const [toast,        setToast]        = useState(null);
+  const [activeScan,   setActiveScan]   = useState(null); // {type, current, total, status}
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
   const [streams,      setStreams]       = useState([]);
@@ -9522,11 +9526,32 @@ export default function App() {
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams} onClearAll={async()=>{ if(!window.confirm(`Delete ALL ${buyers.length} buyers and ${csvImports.length} import records? This cannot be undone.`)) return; await Promise.all(buyers.map(b=>deleteDoc(doc(db,"buyers",b.id)))); await Promise.all(csvImports.map(i=>deleteDoc(doc(db,"csv_imports",i.id)))); showToast("🗑 All buyer data cleared"); }}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
-        {tab==="checklist"   && <BobaChecklist userRole={userRole} user={effectiveUser}/>}
+        {/* BobaChecklist stays mounted always so scans survive tab switching */}
+        <div style={{ display: tab==="checklist" ? "block" : "none" }}>
+          <BobaChecklist userRole={userRole} user={effectiveUser} onScanUpdate={setActiveScan}/>
+        </div>
         {tab==="showcase"    && <BobaShowcase uid={effectiveUser?.uid} />}
       </div>
 
       {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
+      {activeScan && tab !== "checklist" && (
+        <div onClick={()=>setTab("checklist")} style={{ position:"fixed", bottom:20, left:20, background:"#0a0f1a", border:"1.5px solid #7B9CFF44", borderRadius:12, padding:"10px 16px", zIndex:999, cursor:"pointer", boxShadow:"0 4px 24px rgba(0,0,0,0.6)", minWidth:260 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:"#7B9CFF", animation:"pulse 1s infinite" }}/>
+            <span style={{ fontSize:11, fontWeight:800, color:"#7B9CFF" }}>
+              {activeScan.type==="images" ? "🖼 Scanning Images" : "🔍 Scanning PDF"}
+            </span>
+            <span style={{ fontSize:10, color:"#555", marginLeft:"auto" }}>click to view</span>
+          </div>
+          <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden", marginBottom:4 }}>
+            <div style={{ width:`${activeScan.total>0?Math.round(activeScan.current/activeScan.total*100):0}%`, height:"100%", background:"linear-gradient(90deg,#7B9CFF,#C084FC)", borderRadius:2, transition:"width 0.3s" }}/>
+          </div>
+          <div style={{ fontSize:10, color:"#555", display:"flex", justifyContent:"space-between" }}>
+            <span>{activeScan.status}</span>
+            <span style={{ color:"#7B9CFF", fontWeight:700 }}>{activeScan.current}/{activeScan.total}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
