@@ -9801,8 +9801,9 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} {"\u00B7"} {"$"}{(t.agreedPrice||0).toFixed(2)}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"} <span style={{color:"rgba(232,49,122,0.5)",fontWeight:700}}>{"\u2192 Tap to chat"}</span></div>
                 </div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",flexShrink:0,textAlign:"right"}}>
-                  {t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}</div>
+                  <button onClick={e=>{e.stopPropagation();setActiveThread(t);}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat</button>
                 </div>
               </div>
             );
@@ -9983,6 +9984,16 @@ function PublicCardDatabase() {
 
   // Animate header in
   useEffect(() => { setTimeout(()=>setHeaderLoaded(true), 100); }, []);
+
+  // Auto-open latest active thread when switching to messages tab
+  useEffect(() => {
+    if (activeTab === "messages" && !activeThread && threads.length > 0) {
+      // Find the most recently active thread
+      const latest = threads.slice().sort((a,b) => (b.lastMessageAt||"") > (a.lastMessageAt||"") ? 1 : -1)[0];
+      if (latest) setActiveThread(latest);
+    }
+  }, [activeTab, threads.length]);
+
 
   // Load negotiation history when counter modal opens
   useEffect(() => {
@@ -11823,8 +11834,8 @@ function PublicCardDatabase() {
         )}
 
         {/* MESSAGES TAB */}
-        {activeTab==="messages"&&(
-          <div style={{maxWidth:800,margin:"0 auto"}}>
+        {/* MESSAGES TAB - always mounted so thread listener stays active */}
+        <div style={{maxWidth:800,margin:"0 auto",display:activeTab==="messages"?"block":"none"}}>
             <MessagesTab
               user={user}
               activeThread={activeThread}
@@ -11841,7 +11852,7 @@ function PublicCardDatabase() {
               setSigningIn={setSigningIn}
             />
           </div>
-        )}
+
 
         {/* FRIENDS TAB */}
         {activeTab==="friends"&&(
