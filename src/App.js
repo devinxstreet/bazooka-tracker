@@ -44,7 +44,7 @@ const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"]
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 const fmt = n => isNaN(n) || n === "" || n === null ? "—" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
-// ── useCountUp hook — animates numbers from 0 to target ──────────
+// -- useCountUp hook — animates numbers from 0 to target ----------
 function useCountUp(target, duration=600) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -259,7 +259,7 @@ function GlobalStyles() {
       .boba-card-flip { transform-style: preserve-3d; transition: transform 0.5s ease; }
       .boba-card-flip:hover { transform: rotateY(180deg); }
 
-      /* ── MOBILE RESPONSIVE ── */
+      /* -- MOBILE RESPONSIVE -- */
       @media (max-width: 768px) {
         .mobile-hide { display: none !important; }
         .mobile-show { display: inline !important; }
@@ -382,7 +382,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* ── QUOTE NOTIFICATIONS (Admin) ── */}
+      {/* -- QUOTE NOTIFICATIONS (Admin) -- */}
       {quoteNotifs.map(q => {
         const cfg = {
           accepted: { icon:"🎉", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
@@ -412,7 +412,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })}
 
-      {/* ── PAY STUB NOTIFICATIONS ── */}
+      {/* -- PAY STUB NOTIFICATIONS -- */}
       {myStubs.length > 0 && myStubs.map(stub => (
         <div key={stub.id} style={{ background:"linear-gradient(135deg,#0a1a0a,#111)", border:"2px solid #4ade80", borderRadius:14, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -468,7 +468,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         </div>
       ))}
 
-      {/* ── FINANCIAL OVERVIEW (Admin only) ── */}
+      {/* -- FINANCIAL OVERVIEW (Admin only) -- */}
       {canSeeFinancials && (() => {
         // Period filter
         const now   = new Date();
@@ -1353,7 +1353,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
         return (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-          {/* ── ACTIVE QUOTES ── */}
+          {/* -- ACTIVE QUOTES -- */}
           {activeQuotes.length > 0 && (
             <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
               <SectionLabel t="🔗 Active Quote Links" />
@@ -1473,7 +1473,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             </div>
           )}
 
-          {/* ── SAVED COMPS ── */}
+          {/* -- SAVED COMPS -- */}
           {(!comps||comps.length===0)
             ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>No comps saved yet.</div>
             : comps.map(c => {
@@ -2000,10 +2000,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
 }
 
 
-// ─── CARD POOL GLOBALS ───────────────────────────────────────
+// --─ CARD POOL GLOBALS --------------------------------------─
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
 
-// ─── CARD POOLS ──────────────────────────────────────────────
+// --─ CARD POOLS ----------------------------------------------
 function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
@@ -2864,7 +2864,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* ── STREAM RECAP ── */}
+      {/* -- STREAM RECAP -- */}
       {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
@@ -3433,7 +3433,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         )}
       </div>}
 
-      {/* ── STREAM LOG ── */}
+      {/* -- STREAM LOG -- */}
       {!cardsOnly && (() => {
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -3537,7 +3537,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         );
       })()}
 
-      {/* ── LOG CARDS ── */}
+      {/* -- LOG CARDS -- */}
       {!recapOnly && <>
       <div style={S.card}>
         <SectionLabel t="Log Card Out" />
@@ -4239,7 +4239,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
   );
 }
 
-// ─── PRODUCT INVENTORY ───────────────────────────────────────────
+// --─ PRODUCT INVENTORY ------------------------------------------─
 function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[], skuPriceHistory=[] }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
@@ -4593,7 +4593,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
   );
 }
 
-// ─── CUSTOMERS CRM ──────────────────────────────────────────────
+// --─ CUSTOMERS CRM ----------------------------------------------
 function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
@@ -4647,7 +4647,7 @@ function Sellers({ inventory, breaks, userRole }) {
 
   const SOURCE_COLORS = { Discord:"#5865F2", Facebook:"#1877F2", Other:"#6B7280" };
 
-  // ── SELLER DETAIL ──────────────────────────────────────────────
+  // -- SELLER DETAIL ----------------------------------------------
   if (selectedSeller) {
     const s = sellers.find(x => x.name === selectedSeller);
     if (!s) { setSelectedSeller(null); return null; }
@@ -4741,7 +4741,7 @@ function Sellers({ inventory, breaks, userRole }) {
     );
   }
 
-  // ── SELLER LIST ────────────────────────────────────────────────
+  // -- SELLER LIST ------------------------------------------------
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
@@ -4870,8 +4870,8 @@ function SkuPriceChart({ streams }) {
   return null;
 }
 
-// ─── STREAMS (wrapper: recap + cards + commission) ───────────────
-// ─── BREAK PLANNER ───────────────────────────────────────────
+// --─ STREAMS (wrapper: recap + cards + commission) --------------─
+// --─ BREAK PLANNER ------------------------------------------─
 function BreakPlanner({ skuPrices={}, userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_PRODUCT = { type:"", qty:"1" };
@@ -5114,7 +5114,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
   );
 }
 
-// ─── COMMISSION ──────────────────────────────────────────────────
+// --─ COMMISSION --------------------------------------------------
 function StubRow({ stub, S, onDeletePayStub }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -5323,7 +5323,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     e.target.value = "";
   }
 
-  // ── DETAIL VIEW ──────────────────────────────────────────────
+  // -- DETAIL VIEW ----------------------------------------------
   if (viewStream) {
     const s = streams.find(x=>x.id===viewStream);
     if (!s) { setViewStream(null); return null; }
@@ -5395,7 +5395,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     );
   }
 
-  // ── FORM ─────────────────────────────────────────────────────
+  // -- FORM ----------------------------------------------------─
   if (editing) {
     const preview = calcStream(form);
     return (
@@ -5498,11 +5498,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     );
   }
 
-  // ── LIST VIEW ────────────────────────────────────────────────
+  // -- LIST VIEW ------------------------------------------------
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-      {/* ── PAY STUB GENERATOR ── */}
+      {/* -- PAY STUB GENERATOR -- */}
       {isAdmin && (
         <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStub?14:0 }}>
@@ -5775,7 +5775,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         </div>
       )}
 
-      {/* ── PAY STUB HISTORY ── */}
+      {/* -- PAY STUB HISTORY -- */}
       {isAdmin && payStubs.length > 0 && (
         <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStubHist ? 14 : 0 }}>
@@ -5908,7 +5908,7 @@ const PUBLIC_DECK_SIZE = 60;
 const PUBLIC_PLAY_LIMIT = 30;
 const PUBLIC_DBS_CAP = 1000;
 
-// ─── PUBLIC DECK BUILDER (no auth required) ────────────────────
+// --─ PUBLIC DECK BUILDER (no auth required) --------------------
 function PublicDeckBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6133,7 +6133,7 @@ function PublicDeckBuilder() {
   );
 }
 
-// ─── PUBLIC PLAYBOOK BUILDER (no auth required) ────────────────────
+// --─ PUBLIC PLAYBOOK BUILDER (no auth required) --------------------
 function PublicPlaybookBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6289,7 +6289,7 @@ function PublicPlaybookBuilder() {
 }
 
 
-// ─── BOBA SHOWCASE (public, no auth required) ────────────────────
+// --─ BOBA SHOWCASE (public, no auth required) --------------------
 function BobaShowcase({ uid }) {
   const [cards,     setCards]     = useState([]);
   const [owned,     setOwned]     = useState({});
@@ -6605,8 +6605,8 @@ function ShowcaseCard({ c, onClick, large }) {
   );
 }
 
-// ─── PUBLIC QUOTE PAGE (no auth required) ────────────────────
-// ─── BOBA SHOWCASE (public, no auth required) ────────────────
+// --─ PUBLIC QUOTE PAGE (no auth required) --------------------
+// --─ BOBA SHOWCASE (public, no auth required) ----------------
 const SHOWCASE_WEAPON_COLORS = { Fire:"#F97316",Ice:"#60A5FA",Steel:"#9CA3AF",Brawl:"#E8317A",Glow:"#4ade80",Hex:"#A855F7",Gum:"#FBBF24",Super:"#F472B6",Alt:"#AAAAAA",Metallic:"#E5E7EB" };
 const RARITY_TIERS = [
   { label:"Legendary", minPower:200, color:"#FBBF24" },
@@ -7148,7 +7148,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     let matched = 0, skipped = 0;
 
-    // ── Matching helpers ──────────────────────────────────────
+    // -- Matching helpers --------------------------------------
     function normNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
 
     // Strict hero match: first word must agree, full strings must be close
@@ -7191,10 +7191,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       _setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
 
       try {
-        // ── Step 1: Try filename matching first (free, instant, reliable) ──
+        // -- Step 1: Try filename matching first (free, instant, reliable) --
         let match = matchByFilename(file.name, setName);
 
-        // ── Step 2: Vision API if filename didn't work ──
+        // -- Step 2: Vision API if filename didn't work --
         if (!match) {
           const base64 = await new Promise((res, rej) => {
             const img = new Image();
@@ -8194,7 +8194,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
       )}
 
-      {/* ── SCAN MODAL ── */}
+      {/* -- SCAN MODAL -- */}
       {scanModal && (
         <div style={{ position:"fixed", inset:0, background:"#000", zIndex:2000, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
@@ -8903,7 +8903,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const inDeck   = cards.filter(c => deckSet.has(c.id));
         const empty    = DECK_SIZE - inDeck.length;
 
-        // ── Deck rules ──
+        // -- Deck rules --
         const isSpec        = deckType === "spec";
         const isApex        = deckType === "apex";
         const isApexMadness = deckType === "apexmadness";
@@ -9738,9 +9738,9 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
 
 
-// ─── PUBLIC CARD DATABASE (full community app) ───────────────
+// --─ PUBLIC CARD DATABASE (full community app) --------------─
 function PublicCardDatabase() {
-  // ── Core state ──
+  // -- Core state --
   const [cards,         setCards]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [user,          setUser]          = useState(null);
@@ -9751,7 +9751,7 @@ function PublicCardDatabase() {
   const [activeTab,     setActiveTab]     = useState("cards");
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
 
-  // ── Cards/filter state ──
+  // -- Cards/filter state --
   const [search,        setSearch]        = useState("");
   const [filterSet,     setFilterSet]     = useState("");
   const [filterWeapon,  setFilterWeapon]  = useState("");
@@ -9762,21 +9762,21 @@ function PublicCardDatabase() {
   const [flippedCard,   setFlippedCard]   = useState(null);
   const PAGE_SIZE = 100;
 
-  // ── Wants ──
+  // -- Wants --
   const [wantList,      setWantList]      = useState({});
 
-  // ── Playbook ──
+  // -- Playbook --
   const [pbCards,       setPbCards]       = useState([]);
   const [pbSearch,      setPbSearch]      = useState("");
   const [pbSort,        setPbSort]        = useState("name");
 
-  // ── Scan ──
+  // -- Scan --
   const [scanModal,     setScanModal]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
 
-  // ── Friends ──
+  // -- Friends --
   const [friends,       setFriends]       = useState([]);
   const [friendReqs,    setFriendReqs]    = useState([]);
   const [sentReqs,      setSentReqs]      = useState([]);
@@ -9785,7 +9785,7 @@ function PublicCardDatabase() {
   const [friendOwned,   setFriendOwned]   = useState({});
   const [viewingFriend, setViewingFriend] = useState(null);
 
-  // ── Teams ──
+  // -- Teams --
   const [teams,         setTeams]         = useState([]);
   const [activeTeam,    setActiveTeam]    = useState(null);
   const [newTeamName,   setNewTeamName]   = useState("");
@@ -9793,7 +9793,7 @@ function PublicCardDatabase() {
   const [inviteStatus,  setInviteStatus]  = useState(null);
   const [teamInvites,   setTeamInvites]   = useState([]);
 
-  // ── Deck builder ──
+  // -- Deck builder --
   const [deckCards,     setDeckCards]     = useState([]);
   const [deckName,      setDeckName]      = useState("My Deck");
   const [deckType,      setDeckType]      = useState("none");
@@ -9803,19 +9803,19 @@ function PublicCardDatabase() {
   const [deckFilterS,   setDeckFilterS]   = useState("");
   const [deckFilterT,   setDeckFilterT]   = useState("");
 
-  // ── Marketplace ──
+  // -- Marketplace --
   const [listings,      setListings]      = useState([]);
   const [myListings,    setMyListings]    = useState([]);
   const [listModal,     setListModal]     = useState(null); // card being listed
-  // ── Messages ──
+  // -- Messages --
   const [threads,       setThreads]       = useState([]);
   const [activeThread,  setActiveThread]  = useState(null);
   const [threadMsgs,    setThreadMsgs]    = useState([]);
   const [newMsg,        setNewMsg]        = useState("");
   const [unreadThreads, setUnreadThreads] = useState(0);
-  // ── Market sales ──
+  // -- Market sales --
   const [marketSales,   setMarketSales]   = useState([]);
-  // ── Comp modal ──
+  // -- Comp modal --
   const [compCard,      setCompCard]      = useState(null); // card being comped
   const [privacyAnim,   setPrivacyAnim]   = useState(null); // cardId showing lock animation
   const [listPrice,     setListPrice]     = useState("");
@@ -9838,7 +9838,7 @@ function PublicCardDatabase() {
   // Animate header in
   useEffect(() => { setTimeout(()=>setHeaderLoaded(true), 100); }, []);
 
-  // ── Load cards ──
+  // -- Load cards --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v2";
     try {
@@ -9852,7 +9852,7 @@ function PublicCardDatabase() {
     });
   }, []);
 
-  // ── Auth + owned + wants + private ──
+  // -- Auth + owned + wants + private --
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
@@ -9872,7 +9872,7 @@ function PublicCardDatabase() {
     });
   }, []);
 
-  // ── Friends/teams listeners ──
+  // -- Friends/teams listeners --
   useEffect(() => {
     if (!user) return;
     const uid2 = user.uid;
@@ -9946,7 +9946,7 @@ function PublicCardDatabase() {
     return ()=>window.removeEventListener("scroll",onScroll);
   }, []);
 
-  // ── Helpers ──
+  // -- Helpers --
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -9998,7 +9998,7 @@ function PublicCardDatabase() {
     }).catch(console.error);
   }, []);
 
-  // ── Scan ──
+  // -- Scan --
   async function scanCardPhoto(file) {
     setPhotoScan({status:"scanning"});
     try {
@@ -10032,7 +10032,7 @@ function PublicCardDatabase() {
     setPhotoScan(null); setScanQty(1);
   }
 
-  // ── Friends ──
+  // -- Friends --
   async function sendFriendRequest() {
     if(!user||!addEmail.trim())return;
     setAddStatus(null);
@@ -10054,7 +10054,7 @@ function PublicCardDatabase() {
     if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
   }
 
-  // ── Teams ──
+  // -- Teams --
   async function createTeam() {
     if(!user||!newTeamName.trim())return;
     const id=uid();
@@ -10122,7 +10122,7 @@ function PublicCardDatabase() {
     }
   }
 
-  // ── Marketplace ──
+  // -- Marketplace --
   async function createListing() {
     if(!user||!listModal||!listPrice)return;
     const id=uid();
@@ -10200,7 +10200,7 @@ function PublicCardDatabase() {
     }
   }
 
-  // ── Thread messaging ──
+  // -- Thread messaging --
   useEffect(() => {
     if (!activeThread) { setThreadMsgs([]); return; }
     const unsub = onSnapshot(
@@ -10231,7 +10231,7 @@ function PublicCardDatabase() {
     setActiveThread(null);
   }
 
-  // ── Computed ──
+  // -- Computed --
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -10252,7 +10252,7 @@ function PublicCardDatabase() {
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
   const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
 
-  // ── Deck logic ──
+  // -- Deck logic --
   const deckSet=new Set(deckCards);
   const inDeck=cards.filter(c=>deckSet.has(c.id));
   const isSpec=deckType==="spec",isAM=deckType==="apexmadness";
@@ -10300,7 +10300,7 @@ function PublicCardDatabase() {
     </div>
   </div>;
 
-  // ── Render helpers ──
+  // -- Render helpers --
   const tabBtn=(id,label,badge)=>(
     <button key={id} onClick={()=>setActiveTab(id)} style={{
       background:activeTab===id?"rgba(232,49,122,0.15)":"transparent",
@@ -10336,7 +10336,7 @@ function PublicCardDatabase() {
         .filter-bar select:focus,.filter-bar input:focus{border-color:#E8317A!important;box-shadow:0 0 0 3px rgba(232,49,122,0.15)!important}
       `}</style>
 
-      {/* ── Comp Modal ── */}
+      {/* Comp Modal */}
       {compCard&&(()=>{
         const c = compCard;
         const wc = WEAPON_COLORS[c.weapon]||"#444";
@@ -10463,7 +10463,7 @@ function PublicCardDatabase() {
         );
       })()}
 
-      {/* ── Sign-in modal ── */}
+      {/* Sign-in modal */}
       {signingIn&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setSigningIn(false)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a0a12)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:24,padding:40,textAlign:"center",maxWidth:380,boxShadow:"0 40px 120px rgba(232,49,122,0.2)",animation:"floatUp 0.4s ease"}} onClick={e=>e.stopPropagation()}>
@@ -10479,7 +10479,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── Listing modal ── */}
+      {/* Listing modal */}
       {listModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
@@ -10500,7 +10500,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── Offer modal ── */}
+      {/* Offer modal */}
       {offerModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setOfferModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(251,191,36,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
@@ -10517,7 +10517,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── Scan modal ── */}
+      {/* Scan modal */}
       {scanModal&&(
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
@@ -10605,7 +10605,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── HERO HEADER ── */}
+      {/* HERO HEADER */}
       <div style={{
         position:"relative", overflow:"hidden",
         background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",
@@ -10674,7 +10674,7 @@ function PublicCardDatabase() {
         </div>
       </div>
 
-      {/* ── Market notifications bar ── */}
+      {/* Market notifications bar */}
       {marketNotifs.length>0&&(
         <div style={{background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(245,158,11,0.05))",borderBottom:"1px solid rgba(251,191,36,0.2)",padding:"10px 24px"}}>
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap"}}>
@@ -10690,7 +10690,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── Want notifications bar ── */}
+      {/* Want notifications bar */}
       {wantNotifs.length>0&&(
         <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.05))",borderBottom:"1px solid rgba(232,49,122,0.15)",padding:"10px 24px"}}>
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -10708,7 +10708,7 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* ── TAB CONTENT ── */}
+      {/* TAB CONTENT */}
       <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
 
         {/* CARDS TAB */}
@@ -11109,7 +11109,7 @@ function PublicCardDatabase() {
                 <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to view messages</button>
               </div>
             ):activeThread?(
-              // ── Thread view ──
+              // -- Thread view --
               <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
                 {/* Header */}
                 <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.3)"}}>
@@ -11157,7 +11157,7 @@ function PublicCardDatabase() {
                 )}
               </div>
             ):(
-              // ── Thread list ──
+              // -- Thread list --
               <div>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>💬 Deal Messages</div>
                 {threads.length===0?(
@@ -11196,7 +11196,7 @@ function PublicCardDatabase() {
                 )}
               </div>
 
-              {/* ── Recent Sales / Price History ── */}
+              {/* Recent Sales / Price History */}
               {marketSales.length>0&&(
                 <div style={{marginTop:32}}>
                   <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>📈 Recent Sales</div>
@@ -11600,7 +11600,7 @@ function parseLocalDate(dateStr) {
 }
 
 
-// ─── PUBLIC QUOTE PAGE ──────────────────────────────────────
+// --─ PUBLIC QUOTE PAGE --------------------------------------
 function PublicQuote({ quoteId }) {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11726,7 +11726,7 @@ function PublicQuote({ quoteId }) {
           <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
         </div>
 
-        {/* ── RESPONSE AREA — right after the offer, impossible to miss ── */}
+        {/* -- RESPONSE AREA — right after the offer, impossible to miss -- */}
         {!isExpired && !isClosed && !submitted && (quote.status === "pending" || !quote.status) && (
           <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
@@ -11902,7 +11902,7 @@ export default function App() {
   const effectiveRole = viewAs ? ROLES[viewAs] || userRole : userRole;
   const effectiveUser = viewAs ? { displayName: viewAs, email: viewAs + "@bazooka.com", uid: viewAs } : user;
 
-  // ── HANDLERS ────────────────────────────────────────────────
+  // -- HANDLERS ------------------------------------------------
 
   async function handleAccept(cards, seller, u, custNote) {
     for (const card of cards) {
@@ -12108,7 +12108,7 @@ export default function App() {
     });
   }
 
-  // ── NAV TABS ─────────────────────────────────────────────────
+  // -- NAV TABS ------------------------------------------------─
   const ALL_TABS = [
     { id:"dashboard",  label:"Dashboard",   icon:"📊", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"comp",       label:"Lot Comp",     icon:"🧮", roles:["Admin","Procurement","Streamer","Shipping","Viewer"] },
@@ -12120,7 +12120,7 @@ export default function App() {
     { id:"showcase",   label:"Showcase",     icon:"✨", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
-  // ── PUBLIC ROUTES — no auth required, check FIRST ──
+  // -- PUBLIC ROUTES — no auth required, check FIRST --
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
 
