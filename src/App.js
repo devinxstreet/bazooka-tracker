@@ -10287,7 +10287,7 @@ function PublicCardDatabase() {
   if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
     <div style={{textAlign:"center"}}>
       <div style={{fontSize:48,marginBottom:16,animation:"spin 2s linear infinite"}}>⚡</div>
-      <div>Loading Collector's Database...</div>
+      <div>Loading Bazooka Vault...</div>
     </div>
   </div>;
 
@@ -10611,9 +10611,9 @@ function PublicCardDatabase() {
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginBottom:8}}>Bazooka Breaks</div>
               <h1 style={{margin:0,fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1,textTransform:"uppercase",letterSpacing:"-1px"}}>
-                <span style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200%",animation:"gradientShift 4s ease infinite"}}>Collector's</span>
+                <span style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200%",animation:"gradientShift 4s ease infinite"}}>Bazooka</span>
                 <br/>
-                <span style={{color:"#F0F0F0"}}>Database</span>
+                <span style={{color:"#F0F0F0"}}>Vault</span>
               </h1>
               <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
                 {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"}].map(({v,l})=>(
