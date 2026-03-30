@@ -10396,27 +10396,66 @@ function PublicCardDatabase() {
     if (!window.confirm("Buy "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+"?")) return;
     const now = new Date().toISOString();
     const offId = uid();
-    // Create a pre-accepted offer doc
-    const offerDoc = {
-      id: offId, listingId: listing.id,
-      cardId: listing.cardId||"", cardName: listing.cardName,
-      cardImage: listing.cardImage||null, cardTreatment: listing.cardTreatment||"",
-      cardWeapon: listing.cardWeapon||"", setName: listing.setName||"",
-      sellerUid: listing.sellerUid, sellerName: listing.sellerName,
-      buyerUid: user.uid, buyerName: user.displayName||user.email,
-      offerAmount: listing.askingPrice, paymentInfo: listing.paymentInfo||"", status:"accepted",
-      notified:true, createdAt:now, respondedAt:now, isBuyNow:true,
-    };
-    await setDoc(doc(db,"market_offers",offId), offerDoc);
-    // Run the full accept flow
-    await respondOffer(offerDoc, "accepted");
-    // Show payment info if seller provided it
-    if (listing.paymentInfo) {
-      setPaymentPopup({cardName:listing.cardName, price:listing.askingPrice, paymentInfo:listing.paymentInfo, sellerName:listing.sellerName});
+    try {
+      // 1. Close the listing
+      await setDoc(doc(db,"marketplace",listing.id),{status:"sold",soldAt:now,soldTo:user.uid,soldFor:listing.askingPrice},{merge:true});
+      // 2. Decrement seller qty
+      try {
+        const sellerSnap=await getDoc(doc(db,"boba_owned",listing.sellerUid));
+        if(sellerSnap.exists()&&listing.cardId){
+          const so=sellerSnap.data(); const newQty=(so[listing.cardId]||1)-1;
+          const next={...so}; if(newQty<=0) delete next[listing.cardId]; else next[listing.cardId]=newQty;
+          await setDoc(doc(db,"boba_owned",listing.sellerUid),next);
+        }
+      } catch(e){ console.warn("Seller qty:",e); }
+      // 3. Add to buyer collection
+      try {
+        const buyerSnap=await getDoc(doc(db,"boba_owned",user.uid));
+        const bo=buyerSnap.exists()?buyerSnap.data():{};
+        if(listing.cardId){
+          const next={...bo,[listing.cardId]:(bo[listing.cardId]||0)+1};
+          await setDoc(doc(db,"boba_owned",user.uid),next);
+          setOwned(next);
+        }
+      } catch(e){ console.warn("Buyer collection:",e); }
+      // 4. Create deal thread with messages array
+      const threadId=uid();
+      const sysMsg={id:uid(),text:"\u2705 Purchase complete! "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+(listing.paymentInfo?" | Payment info: "+listing.paymentInfo:""),senderUid:"system",senderName:"System",sentAt:now};
+      await setDoc(doc(db,"deal_threads",threadId),{
+        id:threadId, memberUids:[listing.sellerUid,user.uid],
+        sellerUid:listing.sellerUid, sellerName:listing.sellerName||"Seller",
+        buyerUid:user.uid, buyerName:user.displayName||user.email||"Buyer",
+        cardName:listing.cardName, cardImage:listing.cardImage||null, cardId:listing.cardId||"",
+        agreedPrice:listing.askingPrice, status:"active",
+        messages:[sysMsg],
+        lastMessage:sysMsg.text, lastMessageAt:now, lastSenderUid:"system",
+        lastReadBy:{[listing.sellerUid]:now}, createdAt:now,
+      });
+      // 5. Log sale
+      await setDoc(doc(db,"market_sales",uid()),{
+        id:uid(), listingId:listing.id,
+        cardId:listing.cardId||"", cardName:listing.cardName,
+        cardTreatment:listing.cardTreatment||"", cardWeapon:listing.cardWeapon||"",
+        cardImage:listing.cardImage||null, setName:listing.setName||"",
+        price:listing.askingPrice, soldAt:now, soldDate:now.split("T")[0],
+        sellerUid:listing.sellerUid, sellerName:listing.sellerName||"",
+        buyerUid:user.uid, buyerName:user.displayName||user.email||"",
+      });
+      // 6. Open thread + show payment popup
+      setActiveTab("messages");
+      setActiveThread({id:threadId,memberUids:[listing.sellerUid,user.uid],sellerUid:listing.sellerUid,sellerName:listing.sellerName||"Seller",buyerUid:user.uid,buyerName:user.displayName||"Buyer",cardName:listing.cardName,cardImage:listing.cardImage||null,agreedPrice:listing.askingPrice,status:"active",messages:[sysMsg],lastMessageAt:now,lastSenderUid:"system",lastReadBy:{[listing.sellerUid]:now},createdAt:now});
+      showToast("Purchase complete! Check Messages for payment info.");
+      if(listing.paymentInfo){
+        setPaymentPopup({cardName:listing.cardName,price:listing.askingPrice,paymentInfo:listing.paymentInfo,sellerName:listing.sellerName});
+      }
+    } catch(e){
+      console.error("buyNow error:",e);
+      showToast("Something went wrong. Please try again.");
     }
   }
 
   }
+
   async function logNegotiationHistory(offer, action, amount) {
     try {
       await setDoc(doc(db,"negotiation_history",uid()), {
