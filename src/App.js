@@ -6496,7 +6496,7 @@ function getRarity(c) {
   return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
 }
 
-const ATHLETE_SPORT = {
+let ATHLETE_SPORT = {
   // Baseball
   "Aaron Judge":"MLB","Adrian Beltré":"MLB","Adrián Beltré":"MLB","Brent Rooker":"MLB",
   "Cal Raleigh":"MLB","Carlton Fisk":"MLB","Craig Biggio":"MLB","David Ortiz":"MLB",
@@ -6552,7 +6552,7 @@ const ATHLETE_SPORT = {
 
 function athleteSport(name) {
   if (!name) return null;
-  return ATHLETE_SPORT[name] || ATHLETE_SPORT[name.trim()] || null;
+  return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
 function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
@@ -7122,6 +7122,10 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
   }
 
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
+  const [scanModal,    setScanModal]    = useState(false); // full-screen scan modal open
+  const [scanSession,  setScanSession]  = useState([]);    // [{card, qty, addedAt}]
+  const [scanQty,      setScanQty]      = useState(1);     // qty selector for pending match
+  const scanInputRef = useRef(null);
 
   async function scanCardPhoto(file) {
     setPhotoScan({ status:"scanning", card:null });
@@ -7172,22 +7176,42 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
 
       if (!match) {
         setPhotoScan({ status:"nomatch", card:null, identified: data });
-        setTimeout(() => setPhotoScan(null), 5000);
+        if (!scanModal) setTimeout(() => setPhotoScan(null), 5000);
         return;
       }
 
-      // Mark owned
-      const next = { ...owned, [match.id]: (owned[match.id]||0) + 1 };
-      setOwned(next);
-      await setDoc(doc(db,"boba_owned",ownedDocId), next);
-      setPhotoScan({ status:"matched", card:match });
-      setTimeout(() => setPhotoScan(null), 4000);
+      // In modal mode — show match for user to confirm qty before adding
+      // In header mode — auto-add 1 and show toast
+      if (scanModal) {
+        setScanQty(1);
+        setPhotoScan({ status:"matched", card:match });
+      } else {
+        const next = { ...owned, [match.id]: (owned[match.id]||0) + 1 };
+        setOwned(next);
+        await setDoc(doc(db,"boba_owned",ownedDocId), next);
+        setPhotoScan({ status:"matched", card:match });
+        setTimeout(() => setPhotoScan(null), 4000);
+      }
 
     } catch(e) {
       console.error(e);
       setPhotoScan({ status:"error", card:null });
-      setTimeout(() => setPhotoScan(null), 4000);
+      if (!scanModal) setTimeout(() => setPhotoScan(null), 4000);
     }
+  }
+
+  async function confirmScanAdd(qty) {
+    if (!photoScan?.card) return;
+    const match = photoScan.card;
+    const q = parseInt(qty) || 1;
+    const next = { ...owned, [match.id]: (owned[match.id]||0) + q };
+    setOwned(next);
+    await setDoc(doc(db,"boba_owned",ownedDocId), next);
+    setScanSession(prev => [{ card:match, qty:q, addedAt:new Date().toISOString() }, ...prev]);
+    setPhotoScan(null);
+    setScanQty(1);
+    // Re-open camera for next scan
+    setTimeout(() => { if (scanInputRef.current) scanInputRef.current.click(); }, 300);
   }
 
   async function toggleWant(cardId) {
@@ -7640,14 +7664,12 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
                   }} style={{ display:"none" }}/>
               </label>
             )}
-            {/* Camera scan — opens camera on mobile, file picker on desktop */}
-            <label title="Take a photo of a card to add it to your collection"
-              style={{ background: photoScan?"#0a1a0a":"#1a0a1a", color: photoScan?"#4ade80":"#E8317A", border:`1px solid ${photoScan?"#4ade8044":"#E8317A44"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:photoScan?"default":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              {photoScan?.status==="scanning" ? "🔍 Scanning..." : photoScan?.status==="matched" ? `✅ ${photoScan.card?.hero}` : photoScan?.status==="nomatch" ? "❌ No match" : "📷 Scan Card"}
-              <input type="file" accept="image/*" capture="environment" disabled={!!photoScan}
-                onChange={e=>{ const f=e.target.files[0]; if(f) scanCardPhoto(f); e.target.value=""; }}
-                style={{ display:"none" }}/>
-            </label>
+            {/* Camera scan — opens modal on click */}
+            <button title="Scan cards into your collection"
+              onClick={()=>{ setScanModal(true); setScanSession([]); setPhotoScan(null); }}
+              style={{ background:"#1a0a1a", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              📷 Scan Card
+            </button>
             {isAdmin && (
               <label title="Import DBS salary values (CSV: card_num, dbs)" style={{ background:"#1a0f1a", color:"#A855F7", border:"1px solid #A855F744", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1 }}>
                 {dbsImporting?"Importing...":"💰 Import DBS"}
@@ -7815,22 +7837,162 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
         </div>
       )}
 
-      {photoScan && photoScan.status !== "scanning" && (
+      )}
+
+      {/* ── SCAN MODAL ── */}
+      {scanModal && (
+        <div style={{ position:"fixed", inset:0, background:"#000", zIndex:2000, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+          {/* Header bar */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>📷 Scan Mode</span>
+              {scanSession.length > 0 && (
+                <span style={{ fontSize:12, background:"#E8317A22", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>
+                  {scanSession.length} added
+                </span>
+              )}
+            </div>
+            <button onClick={()=>{ setScanModal(false); setPhotoScan(null); setScanQty(1); }}
+              style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              Done
+            </button>
+          </div>
+
+          <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+
+            {/* Scan result / camera trigger area */}
+            <div style={{ padding:"16px", flexShrink:0 }}>
+              {!photoScan && (
+                <label style={{ display:"block", width:"100%", cursor:"pointer" }}>
+                  <div style={{ background:"#0a0a0a", border:"2px dashed #E8317A44", borderRadius:16, padding:"32px 16px", textAlign:"center" }}>
+                    <div style={{ fontSize:48, marginBottom:8 }}>📷</div>
+                    <div style={{ fontSize:16, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Tap to scan a card</div>
+                    <div style={{ fontSize:12, color:"#555" }}>Point camera at a BoBA card</div>
+                  </div>
+                  <input ref={scanInputRef} type="file" accept="image/*" capture="environment"
+                    onChange={e=>{ const f=e.target.files[0]; if(f) scanCardPhoto(f); e.target.value=""; }}
+                    style={{ display:"none" }}/>
+                </label>
+              )}
+
+              {photoScan?.status === "scanning" && (
+                <div style={{ background:"#0a0f1a", border:"1.5px solid #7B9CFF44", borderRadius:16, padding:"32px 16px", textAlign:"center" }}>
+                  <div style={{ width:40, height:40, border:"3px solid #1a1a2e", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 16px" }}/>
+                  <div style={{ fontSize:15, fontWeight:700, color:"#7B9CFF" }}>Reading card...</div>
+                </div>
+              )}
+
+              {photoScan?.status === "matched" && photoScan.card && (() => {
+                const c = photoScan.card;
+                const wc = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444", Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" }[c.weapon] || "#888";
+                return (
+                  <div style={{ background:"#0a1a0a", border:"1.5px solid #4ade8044", borderRadius:16, overflow:"hidden" }}>
+                    <div style={{ display:"flex", gap:12, padding:"14px" }}>
+                      {c.imageUrl
+                        ? <img src={c.imageUrl} alt={c.hero} style={{ width:72, height:96, objectFit:"cover", borderRadius:10, flexShrink:0, boxShadow:"0 4px 16px rgba(0,0,0,0.6)" }}/>
+                        : <div style={{ width:72, height:96, background:"#1a1a1a", borderRadius:10, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#555", textAlign:"center" }}>{c.hero?.split(" ")[0]}</div>
+                      }
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+                          {c.weapon && <span style={{ fontSize:11, fontWeight:700, color:wc }}>{c.weapon}</span>}
+                          {c.treatment && <span style={{ fontSize:11, color:"#888" }}>{c.treatment}</span>}
+                          {c.setName && <span style={{ fontSize:11, color:"#555", fontStyle:"italic" }}>{c.setName}</span>}
+                        </div>
+                        {c.power && <div style={{ fontSize:28, fontWeight:900, color:wc, lineHeight:1 }}>{c.power}</div>}
+                        {c.athlete && <div style={{ fontSize:11, color:"#555", marginTop:4 }}>Inspired by {c.athlete}</div>}
+                      </div>
+                    </div>
+                    {/* Qty + confirm */}
+                    <div style={{ padding:"12px 14px", borderTop:"1px solid #1a2a1a", display:"flex", alignItems:"center", gap:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:0, background:"#111", borderRadius:8, border:"1px solid #2a2a2a", overflow:"hidden" }}>
+                        <button onClick={()=>setScanQty(q=>Math.max(1,q-1))}
+                          style={{ background:"none", border:"none", color:"#888", fontSize:18, fontWeight:700, width:40, height:40, cursor:"pointer", fontFamily:"inherit" }}>−</button>
+                        <span style={{ fontSize:16, fontWeight:900, color:"#F0F0F0", minWidth:32, textAlign:"center" }}>{scanQty}</span>
+                        <button onClick={()=>setScanQty(q=>q+1)}
+                          style={{ background:"none", border:"none", color:"#888", fontSize:18, fontWeight:700, width:40, height:40, cursor:"pointer", fontFamily:"inherit" }}>+</button>
+                      </div>
+                      <button onClick={()=>confirmScanAdd(scanQty)}
+                        style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"10px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
+                        ✓ Add {scanQty > 1 ? `${scanQty}×` : ""} to Collection
+                      </button>
+                      <button onClick={()=>{ setPhotoScan(null); setScanQty(1); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
+                        style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        Retake
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {photoScan?.status === "nomatch" && (
+                <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>❌</div>
+                  <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Card not recognized</div>
+                  {photoScan.identified?.hero && <div style={{ fontSize:12, color:"#555", marginBottom:12 }}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
+                  <button onClick={()=>{ setPhotoScan(null); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
+                    style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {photoScan?.status === "error" && (
+                <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>⚠️</div>
+                  <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:12 }}>Scan failed</div>
+                  <button onClick={()=>{ setPhotoScan(null); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
+                    style={{ background:"#1a1a1a", color:"#888", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    Try Again
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Session log */}
+            {scanSession.length > 0 && (
+              <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column", borderTop:"1px solid #1a1a1a" }}>
+                <div style={{ padding:"10px 16px 6px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, flexShrink:0 }}>
+                  This Session — {scanSession.reduce((s,e)=>s+e.qty,0)} cards added
+                </div>
+                <div style={{ flex:1, overflowY:"auto", padding:"0 16px 16px" }}>
+                  {scanSession.map((entry, i) => {
+                    const c = entry.card;
+                    const wc = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444", Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" }[c.weapon] || "#888";
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #111" }}>
+                        {c.imageUrl
+                          ? <img src={c.imageUrl} alt={c.hero} style={{ width:32, height:42, objectFit:"cover", borderRadius:5, flexShrink:0 }}/>
+                          : <div style={{ width:32, height:42, background:"#1a1a1a", borderRadius:5, flexShrink:0 }}/>
+                        }
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
+                          <div style={{ fontSize:11, color:wc }}>{c.weapon} · {c.power}</div>
+                        </div>
+                        <div style={{ fontSize:13, fontWeight:900, color:"#4ade80", flexShrink:0 }}>+{entry.qty}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* First scan prompt if nothing yet */}
+            {!photoScan && scanSession.length === 0 && (
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#222", fontSize:12, padding:16 }}>
+                Session log will appear here after your first scan
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Non-modal photoScan toast (used when not in modal) */}
+      {!scanModal && photoScan && photoScan.status !== "scanning" && (
         <div style={{ ...S.card, border:`1.5px solid ${photoScan.status==="matched"?"#4ade8044":"#E8317A44"}`, background:photoScan.status==="matched"?"#0a1a0a":"#1a0a0a", display:"flex", alignItems:"center", gap:12 }}>
-          {photoScan.status==="matched" && <>
-            <span style={{ fontSize:28 }}>✅</span>
-            <div>
-              <div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div>
-              <div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} · #{photoScan.card?.cardNum} · {photoScan.card?.weapon} · {photoScan.card?.power}</div>
-            </div>
-          </>}
-          {photoScan.status==="nomatch" && <>
-            <span style={{ fontSize:28 }}>❌</span>
-            <div>
-              <div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found in checklist</div>
-              {photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"} — make sure the card is imported first</div>}
-            </div>
-          </>}
+          {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>✅</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} · #{photoScan.card?.cardNum}</div></div></>}
+          {photoScan.status==="nomatch" && <><span style={{ fontSize:28 }}>❌</span><div><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found</div>{photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"}</div>}</div></>}
           {photoScan.status==="error" && <><span style={{ fontSize:28 }}>⚠️</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed — try again</div></>}
         </div>
       )}
