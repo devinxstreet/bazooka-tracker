@@ -6502,6 +6502,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
   const [sortBy,           setSortBy]           = useState("cardNum");
   const [weaponSetFilter,  setWeaponSetFilter]  = useState("");
   const [page,           setPage]           = useState(1);
+  const sentinelRef = useRef(null);
   // Deck builder state
   const [deckCards,      setDeckCards]      = useState([]); // array of card ids in current deck
   const [deckName,       setDeckName]       = useState("My Deck");
@@ -6576,6 +6577,17 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
     });
     return ()=>{ u2(); u3(); u4(); u5(); uWants(); };
   }, []);
+
+  // Infinite scroll — stable observer that only triggers when sentinel is visible
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setPage(p => p + 1);
+    }, { rootMargin:"300px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [sentinelRef.current]);
 
   async function saveDeck() {
     if (!deckName.trim() || deckCards.length === 0) return;
@@ -8776,14 +8788,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
               })}
             </div>
             {hasMore && (
-              <div style={{ textAlign:"center", padding:"16px 0", color:"#555", fontSize:12 }}
-                ref={el => {
-                  if (!el) return;
-                  const obs = new IntersectionObserver(([entry]) => {
-                    if (entry.isIntersecting) { setPage(p => p + 1); obs.disconnect(); }
-                  }, { rootMargin:"200px" });
-                  obs.observe(el);
-                }}>
+              <div ref={sentinelRef} style={{ textAlign:"center", padding:"16px 0", color:"#555", fontSize:12 }}>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:8 }}>
                   <div style={{ width:16, height:16, border:"2px solid #333", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
                   Loading more... ({visibleCards.length} of {filtered.length.toLocaleString()})
