@@ -7201,20 +7201,39 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
       }
 
       let match = null;
-      // 1. Card number + weapon
-      if (identifiedNum) match = cards.find(c => normNum(c.cardNum)===identifiedNum && (!weapon||c.weapon?.toLowerCase()===weapon));
-      // 2. Card number alone
-      if (!match && identifiedNum) match = cards.find(c => normNum(c.cardNum)===identifiedNum);
-      // 3. Hero + treatment + weapon (all three)
-      if (!match && heroName && treatment && weapon) match = cards.find(c => heroMatch(c.hero,heroName) && c.treatment?.toLowerCase()===treatment && c.weapon?.toLowerCase()===weapon);
-      // 4. Hero + weapon — prefer exact hero name
-      if (!match && heroName && weapon) {
-        const cands = cards.filter(c => heroMatch(c.hero,heroName) && c.weapon?.toLowerCase()===weapon);
-        match = cands.find(c => c.hero.toLowerCase()===heroName) || cands[0];
+      // 1. Card number + hero + weapon (all three agree — most reliable)
+      if (identifiedNum && heroName) {
+        match = cards.find(c =>
+          normNum(c.cardNum)===identifiedNum &&
+          heroMatch(c.hero, heroName) &&
+          (!weapon || c.weapon?.toLowerCase()===weapon)
+        );
       }
-      // 5. Hero only — only if unique
+      // 2. Card number + hero (no weapon requirement)
+      if (!match && identifiedNum && heroName) {
+        match = cards.find(c => normNum(c.cardNum)===identifiedNum && heroMatch(c.hero, heroName));
+      }
+      // 3. Hero + treatment + weapon (all three agree)
+      if (!match && heroName && treatment && weapon) {
+        match = cards.find(c =>
+          heroMatch(c.hero, heroName) &&
+          c.treatment?.toLowerCase()===treatment &&
+          c.weapon?.toLowerCase()===weapon
+        );
+      }
+      // 4. Hero + weapon — prefer exact hero name match
+      if (!match && heroName && weapon) {
+        const cands = cards.filter(c => heroMatch(c.hero, heroName) && c.weapon?.toLowerCase()===weapon);
+        match = cands.find(c => c.hero.toLowerCase()===heroName) || (cands.length===1 ? cands[0] : null);
+      }
+      // 5. Card number alone — only if hero also matches loosely (prevent wrong-number matches)
+      if (!match && identifiedNum) {
+        const byNum = cards.find(c => normNum(c.cardNum)===identifiedNum);
+        if (byNum && (!heroName || heroMatch(byNum.hero, heroName))) match = byNum;
+      }
+      // 6. Hero only — only if exactly one card matches
       if (!match && heroName) {
-        const cands = cards.filter(c => heroMatch(c.hero,heroName));
+        const cands = cards.filter(c => heroMatch(c.hero, heroName));
         if (cands.length === 1) match = cands[0];
       }
 
