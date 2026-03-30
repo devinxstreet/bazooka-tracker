@@ -10018,6 +10018,19 @@ function PublicCardDatabase() {
   }, [counterModal?.id]);
 
 
+
+  // -- Public marketplace (loads without login) --
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db,"marketplace"), where("status","==","active")),
+      snap => {
+        const all = snap.docs.map(d=>({...d.data(),id:d.id}));
+        setListings(all);
+      }
+    );
+    return ()=>unsub();
+  }, []);
+
   // -- Load cards --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v2";
@@ -10075,9 +10088,9 @@ function PublicCardDatabase() {
       onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid2), where("status","==","pending")),
         snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
-      // Marketplace: all active listings
-      onSnapshot(query(collection(db,"marketplace"), where("status","==","active")),
-        snap => { const all=snap.docs.map(d=>({...d.data(),id:d.id})); setListings(all.filter(l=>l.sellerUid!==uid2)); setMyListings(all.filter(l=>l.sellerUid===uid2)); }
+      // Marketplace: my listings only (logged-in user)
+      onSnapshot(query(collection(db,"marketplace"), where("status","==","active"), where("sellerUid","==",uid2)),
+        snap => setMyListings(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       // Marketplace notifications for me (offers on my listings)
       onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
@@ -10392,35 +10405,14 @@ function PublicCardDatabase() {
 
   async function buyNow(listing) {
     if (!user) { setSigningIn(true); return; }
-    if (!listing.askingPrice) return;
-    if (!window.confirm("Buy "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+"?")) return;
+    if (!listing.askingPrice) { alert("No asking price set on this listing."); return; }
     const now = new Date().toISOString();
-    const offId = uid();
+    const threadId = uid();
+    const saleId = uid();
+    const sysText = "\u2705 Purchase complete! "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+(listing.paymentInfo?" | Payment: "+listing.paymentInfo:"");
+    const sysMsg = {id:uid(),text:sysText,senderUid:"system",senderName:"System",sentAt:now};
     try {
-      // 1. Close the listing
-      await setDoc(doc(db,"marketplace",listing.id),{status:"sold",soldAt:now,soldTo:user.uid,soldFor:listing.askingPrice},{merge:true});
-      // 2. Decrement seller qty
-      try {
-        const sellerSnap=await getDoc(doc(db,"boba_owned",listing.sellerUid));
-        if(sellerSnap.exists()&&listing.cardId){
-          const so=sellerSnap.data(); const newQty=(so[listing.cardId]||1)-1;
-          const next={...so}; if(newQty<=0) delete next[listing.cardId]; else next[listing.cardId]=newQty;
-          await setDoc(doc(db,"boba_owned",listing.sellerUid),next);
-        }
-      } catch(e){ console.warn("Seller qty:",e); }
-      // 3. Add to buyer collection
-      try {
-        const buyerSnap=await getDoc(doc(db,"boba_owned",user.uid));
-        const bo=buyerSnap.exists()?buyerSnap.data():{};
-        if(listing.cardId){
-          const next={...bo,[listing.cardId]:(bo[listing.cardId]||0)+1};
-          await setDoc(doc(db,"boba_owned",user.uid),next);
-          setOwned(next);
-        }
-      } catch(e){ console.warn("Buyer collection:",e); }
-      // 4. Create deal thread with messages array
-      const threadId=uid();
-      const sysMsg={id:uid(),text:"\u2705 Purchase complete! "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+(listing.paymentInfo?" | Payment info: "+listing.paymentInfo:""),senderUid:"system",senderName:"System",sentAt:now};
+      // Write deal thread (buyer creates - needs auth write permission on deal_threads)
       await setDoc(doc(db,"deal_threads",threadId),{
         id:threadId, memberUids:[listing.sellerUid,user.uid],
         sellerUid:listing.sellerUid, sellerName:listing.sellerName||"Seller",
@@ -10428,12 +10420,14 @@ function PublicCardDatabase() {
         cardName:listing.cardName, cardImage:listing.cardImage||null, cardId:listing.cardId||"",
         agreedPrice:listing.askingPrice, status:"active",
         messages:[sysMsg],
-        lastMessage:sysMsg.text, lastMessageAt:now, lastSenderUid:"system",
-        lastReadBy:{[listing.sellerUid]:now}, createdAt:now,
+        lastMessage:sysText, lastMessageAt:now, lastSenderUid:"system",
+        lastReadBy:{[user.uid]:now}, createdAt:now,
       });
-      // 5. Log sale
-      await setDoc(doc(db,"market_sales",uid()),{
-        id:uid(), listingId:listing.id,
+    } catch(e) { alert("Could not create deal thread: "+e.message); return; }
+    try {
+      // Log sale
+      await setDoc(doc(db,"market_sales",saleId),{
+        id:saleId, listingId:listing.id,
         cardId:listing.cardId||"", cardName:listing.cardName,
         cardTreatment:listing.cardTreatment||"", cardWeapon:listing.cardWeapon||"",
         cardImage:listing.cardImage||null, setName:listing.setName||"",
@@ -10441,13 +10435,29 @@ function PublicCardDatabase() {
         sellerUid:listing.sellerUid, sellerName:listing.sellerName||"",
         buyerUid:user.uid, buyerName:user.displayName||user.email||"",
       });
-      // 6. Open thread + show payment popup
-      setActiveTab("messages");
-      setActiveThread({id:threadId,memberUids:[listing.sellerUid,user.uid],sellerUid:listing.sellerUid,sellerName:listing.sellerName||"Seller",buyerUid:user.uid,buyerName:user.displayName||"Buyer",cardName:listing.cardName,cardImage:listing.cardImage||null,agreedPrice:listing.askingPrice,status:"active",messages:[sysMsg],lastMessageAt:now,lastSenderUid:"system",lastReadBy:{[listing.sellerUid]:now},createdAt:now});
-      showToast("Purchase complete! Check Messages for payment info.");
-      if(listing.paymentInfo){
-        setPaymentPopup({cardName:listing.cardName,price:listing.askingPrice,paymentInfo:listing.paymentInfo,sellerName:listing.sellerName});
+    } catch(e) { alert("Could not log sale: "+e.message); return; }
+    try {
+      // Add card to buyer's own collection (buyer writing to their own doc = always allowed)
+      if(listing.cardId){
+        const buyerSnap=await getDoc(doc(db,"boba_owned",user.uid));
+        const bo=buyerSnap.exists()?buyerSnap.data():{};
+        const next={...bo,[listing.cardId]:(bo[listing.cardId]||0)+1};
+        await setDoc(doc(db,"boba_owned",user.uid),next);
+        setOwned(next);
       }
+    } catch(e) { alert("Could not update your collection: "+e.message); return; }
+    try {
+      // Mark listing sold (buyer writing to marketplace doc - may need permissive rules)
+      await setDoc(doc(db,"marketplace",listing.id),{status:"sold",soldAt:now,soldTo:user.uid,soldFor:listing.askingPrice},{merge:true});
+    } catch(e) { alert("Could not close listing (check Firestore rules for marketplace): "+e.message); }
+    // Navigate to thread
+    setActiveTab("messages");
+    setActiveThread({id:threadId,memberUids:[listing.sellerUid,user.uid],sellerUid:listing.sellerUid,sellerName:listing.sellerName||"Seller",buyerUid:user.uid,buyerName:user.displayName||"Buyer",cardName:listing.cardName,cardImage:listing.cardImage||null,agreedPrice:listing.askingPrice,status:"active",messages:[sysMsg],lastMessageAt:now,lastSenderUid:"system",lastReadBy:{[user.uid]:now},createdAt:now});
+    showToast("Purchase complete!");
+    if(listing.paymentInfo){
+      setPaymentPopup({cardName:listing.cardName,price:listing.askingPrice,paymentInfo:listing.paymentInfo,sellerName:listing.sellerName});
+    }
+  }
     } catch(e){
       console.error("buyNow error:",e);
       showToast("Something went wrong. Please try again.");
@@ -11914,7 +11924,7 @@ function PublicCardDatabase() {
                 </div>
               ):(
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-                  {listings.map(l=>{
+                  {listings.filter(l=>l.sellerUid!==user?.uid).map(l=>{
                     const wc=WEAPON_COLORS[l.cardWeapon]||"#444";
                     return (
                       <div key={l.id} className="market-card" style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",cursor:"pointer"}} onClick={()=>{if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");}}>
