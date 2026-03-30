@@ -9737,6 +9737,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
 
 
+
 // ─── PUBLIC CARD DATABASE (full community app) ───────────────
 function PublicCardDatabase() {
   // ── Core state ──
@@ -9744,14 +9745,11 @@ function PublicCardDatabase() {
   const [loading,       setLoading]       = useState(true);
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
+  const [privateCards,  setPrivateCards]  = useState({});
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
-  const [activeTab,     setActiveTab]     = useState("cards"); // cards|wants|deck|playbook|friends|team
-
-  // ── Playbook state ──
-  const [pbCards,       setPbCards]       = useState([]);
-  const [pbSearch,      setPbSearch]      = useState("");
-  const [pbSort,        setPbSort]        = useState("name");
+  const [activeTab,     setActiveTab]     = useState("cards");
+  const [headerLoaded,  setHeaderLoaded]  = useState(false);
 
   // ── Cards/filter state ──
   const [search,        setSearch]        = useState("");
@@ -9767,6 +9765,11 @@ function PublicCardDatabase() {
   // ── Wants ──
   const [wantList,      setWantList]      = useState({});
 
+  // ── Playbook ──
+  const [pbCards,       setPbCards]       = useState([]);
+  const [pbSearch,      setPbSearch]      = useState("");
+  const [pbSort,        setPbSort]        = useState("name");
+
   // ── Scan ──
   const [scanModal,     setScanModal]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
@@ -9774,22 +9777,21 @@ function PublicCardDatabase() {
   const [scanQty,       setScanQty]       = useState(1);
 
   // ── Friends ──
-  const [friends,       setFriends]       = useState([]);       // accepted friends
-  const [friendReqs,    setFriendReqs]    = useState([]);       // incoming pending
-  const [sentReqs,      setSentReqs]      = useState([]);       // outgoing pending
+  const [friends,       setFriends]       = useState([]);
+  const [friendReqs,    setFriendReqs]    = useState([]);
+  const [sentReqs,      setSentReqs]      = useState([]);
   const [addEmail,      setAddEmail]      = useState("");
-  const [addStatus,     setAddStatus]     = useState(null);     // {ok, msg}
-  const [friendOwned,   setFriendOwned]   = useState({});       // uid → owned map
-  const [viewingFriend, setViewingFriend] = useState(null);     // friend uid
+  const [addStatus,     setAddStatus]     = useState(null);
+  const [friendOwned,   setFriendOwned]   = useState({});
+  const [viewingFriend, setViewingFriend] = useState(null);
 
   // ── Teams ──
   const [teams,         setTeams]         = useState([]);
   const [activeTeam,    setActiveTeam]    = useState(null);
-  const [teamTab,       setTeamTab]       = useState("overview"); // overview|deck
   const [newTeamName,   setNewTeamName]   = useState("");
   const [inviteEmail,   setInviteEmail]   = useState("");
   const [inviteStatus,  setInviteStatus]  = useState(null);
-  const [teamInvites,   setTeamInvites]   = useState([]);       // pending team invites
+  const [teamInvites,   setTeamInvites]   = useState([]);
 
   // ── Deck builder ──
   const [deckCards,     setDeckCards]     = useState([]);
@@ -9800,13 +9802,29 @@ function PublicCardDatabase() {
   const [deckFilterP,   setDeckFilterP]   = useState(new Set());
   const [deckFilterS,   setDeckFilterS]   = useState("");
   const [deckFilterT,   setDeckFilterT]   = useState("");
-  const [savedDecks,    setSavedDecks]    = useState([]);
+
+  // ── Marketplace ──
+  const [listings,      setListings]      = useState([]);
+  const [myListings,    setMyListings]    = useState([]);
+  const [listModal,     setListModal]     = useState(null); // card being listed
+  const [listPrice,     setListPrice]     = useState("");
+  const [listType,      setListType]      = useState("sale"); // sale|trade|either
+  const [listNotes,     setListNotes]     = useState("");
+  const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
+  const [offerAmt,      setOfferAmt]      = useState("");
+  const [offerNote,     setOfferNote]     = useState("");
+  const [marketNotifs,  setMarketNotifs]  = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
   const DECK_SIZE = 60;
-  const inp = { background:"#111", border:"1px solid #1a1a1a", borderRadius:8, color:"#F0F0F0",
-    padding:"8px 12px", fontSize:12, fontFamily:"'Trebuchet MS',sans-serif", outline:"none" };
+
+  const inp = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10,
+    color:"#F0F0F0", padding:"9px 14px", fontSize:13, fontFamily:"'Trebuchet MS',sans-serif", outline:"none",
+    backdropFilter:"blur(10px)" };
+
+  // Animate header in
+  useEffect(() => { setTimeout(()=>setHeaderLoaded(true), 100); }, []);
 
   // ── Load cards ──
   useEffect(() => {
@@ -9822,64 +9840,62 @@ function PublicCardDatabase() {
     });
   }, []);
 
-  // ── Auth + owned + wants ──
+  // ── Auth + owned + wants + private ──
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
-        const snap = await getDoc(doc(db,"boba_owned",u.uid));
-        setOwned(snap.exists() ? snap.data() : {});
+        const [ownSnap, wSnap, prvSnap] = await Promise.all([
+          getDoc(doc(db,"boba_owned",u.uid)),
+          getDoc(doc(db,"boba_wants",u.uid)),
+          getDoc(doc(db,"boba_private",u.uid)),
+        ]);
+        setOwned(ownSnap.exists() ? ownSnap.data() : {});
         setOwnedDocId(u.uid);
-        const wsnap = await getDoc(doc(db,"boba_wants",u.uid));
-        setWantList(wsnap.exists() ? wsnap.data() : {});
+        setWantList(wSnap.exists() ? wSnap.data() : {});
+        setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({});
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({});
       }
     });
   }, []);
 
-  // ── Friends listeners ──
+  // ── Friends/teams listeners ──
   useEffect(() => {
     if (!user) return;
-    const uid = user.uid;
+    const uid2 = user.uid;
     const unsubs = [
-      // Accepted friends where I am "from"
-      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid), where("status","==","accepted")),
-        snap => setFriends(prev => {
-          const fromFriends = snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail}));
-          const toFriends = prev.filter(f=>f.friendUid!==uid && !fromFriends.find(ff=>ff.friendUid===f.friendUid));
-          return [...fromFriends, ...toFriends.filter(f=>f._dir==="to")];
-        })
+      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid2), where("status","==","accepted")),
+        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
       ),
-      // Accepted friends where I am "to"
-      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid), where("status","==","accepted")),
-        snap => setFriends(prev => {
-          const toFriends = snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to"}));
-          const fromFriends = prev.filter(f=>f._dir!=="to");
-          return [...fromFriends, ...toFriends];
-        })
+      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","accepted")),
+        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to"})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
       ),
-      // Incoming pending requests
-      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid), where("status","==","pending")),
+      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","pending")),
         snap => setFriendReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
-      // Outgoing pending requests
-      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid), where("status","==","pending")),
+      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid2), where("status","==","pending")),
         snap => setSentReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
-      // Teams I am a member of
-      onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid)),
-        snap => { const t = snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam && t.length>0) setActiveTeam(t[0]); }
+      onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid2)),
+        snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam&&t.length>0) setActiveTeam(t[0]); }
       ),
-      // Team invites pending for me
-      onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid), where("status","==","pending")),
+      onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid2), where("status","==","pending")),
         snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Marketplace: all active listings
+      onSnapshot(query(collection(db,"marketplace"), where("status","==","active")),
+        snap => { const all=snap.docs.map(d=>({...d.data(),id:d.id})); setListings(all.filter(l=>l.sellerUid!==uid2)); setMyListings(all.filter(l=>l.sellerUid===uid2)); }
+      ),
+      // Marketplace notifications for me (offers on my listings)
+      onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
+        snap => setMarketNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
     ];
     return () => unsubs.forEach(u=>u());
   }, [user]);
 
-  // ── Load friend owned maps ──
+  // Load friend owned maps
   useEffect(() => {
     if (!friends.length) return;
     friends.forEach(async f => {
@@ -9889,14 +9905,20 @@ function PublicCardDatabase() {
     });
   }, [friends]);
 
-  // ── Infinite scroll ──
+  // Upsert profile on login
   useEffect(() => {
-    function onScroll() { if (document.documentElement.scrollHeight - window.scrollY - window.innerHeight < 400) setPage(p=>p+1); }
-    window.addEventListener("scroll", onScroll, {passive:true});
-    return () => window.removeEventListener("scroll", onScroll);
+    if (!user) return;
+    setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
+  }, [user]);
+
+  // Infinite scroll
+  useEffect(() => {
+    function onScroll() { if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<400) setPage(p=>p+1); }
+    window.addEventListener("scroll",onScroll,{passive:true});
+    return ()=>window.removeEventListener("scroll",onScroll);
   }, []);
 
-  // ── Owned/want helpers ──
+  // ── Helpers ──
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -9918,143 +9940,121 @@ function PublicCardDatabase() {
     setWantList(next);
     await setDoc(doc(db,"boba_wants",user.uid), next);
   }
-
+  async function togglePrivate(cardId) {
+    if (!user) return;
+    const next = {...privateCards};
+    if (next[cardId]) delete next[cardId]; else next[cardId]=true;
+    setPrivateCards(next);
+    await setDoc(doc(db,"boba_private",user.uid), next);
+  }
   async function signInGoogle() {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); setSigningIn(false); }
     catch(e) { console.error(e); }
   }
 
-  // ── Scan card photo ──
+  // ── Scan ──
   async function scanCardPhoto(file) {
     setPhotoScan({status:"scanning"});
     try {
       const base64 = await new Promise((res,rej) => {
-        const img = new Image(), url = URL.createObjectURL(file);
-        img.onload = () => {
-          URL.revokeObjectURL(url);
-          const MAX=1200, scale=Math.min(1,MAX/Math.max(img.width,img.height));
-          const canvas=document.createElement("canvas");
-          canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale);
-          canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-          res(canvas.toDataURL("image/jpeg",0.92).split(",")[1]);
-        };
+        const img=new Image(), url=URL.createObjectURL(file);
+        img.onload=()=>{ URL.revokeObjectURL(url); const MAX=1200,scale=Math.min(1,MAX/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); res(canvas.toDataURL("image/jpeg",0.92).split(",")[1]); };
         img.onerror=rej; img.src=url;
       });
-      const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg"})});
-      if (!resp.ok) { const e=await resp.json().catch(()=>({})); setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`}); return; }
-      const data = await resp.json();
-      if (!data.cardNum && !data.hero) { setPhotoScan({status:"nomatch"}); setTimeout(()=>setPhotoScan(null),3000); return; }
-      // Match
-      const normNum = n => String(n||"").replace(/[\s\-]/g,"").toLowerCase();
-      const heroMatch = (a,b) => { if(!a||!b) return false; const al=a.toLowerCase(),bl=b.toLowerCase(); if(al===bl) return true; if(al.split(" ")[0]!==bl.split(" ")[0]) return false; return al.includes(bl)||bl.includes(al); };
-      const iNum=normNum(data.cardNum), iHero=(data.hero||"").toLowerCase(), iWeap=(data.weapon||"").toLowerCase();
-      let match = null;
-      if (iNum&&iHero) match=cards.find(c=>normNum(c.cardNum)===iNum&&heroMatch(c.hero,iHero));
-      if (!match&&iNum) match=cards.find(c=>normNum(c.cardNum)===iNum);
-      if (!match&&iHero&&iWeap) { const cands=cards.filter(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap); if(cands.length===1) match=cands[0]; }
-      if (!match&&iHero) { const cands=cards.filter(c=>heroMatch(c.hero,iHero)); if(cands.length===1) match=cands[0]; }
-      if (!match) { setPhotoScan({status:"nomatch",identified:data}); return; }
-      setPhotoScan({status:"matched",card:match,detected:data});
-      setScanQty(1);
-    } catch(e) { setPhotoScan({status:"error",message:e.message}); }
+      const resp=await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg"})});
+      if(!resp.ok){const e=await resp.json().catch(()=>({}));setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`});return;}
+      const data=await resp.json();
+      if(!data.cardNum&&!data.hero){setPhotoScan({status:"nomatch"});setTimeout(()=>setPhotoScan(null),3000);return;}
+      const normNum=n=>String(n||"").replace(/[\s\-]/g,"").toLowerCase();
+      const heroMatch=(a,b)=>{if(!a||!b)return false;const al=a.toLowerCase(),bl=b.toLowerCase();if(al===bl)return true;if(al.split(" ")[0]!==bl.split(" ")[0])return false;return al.includes(bl)||bl.includes(al);};
+      const iNum=normNum(data.cardNum),iHero=(data.hero||"").toLowerCase(),iWeap=(data.weapon||"").toLowerCase();
+      let match=null;
+      if(iNum&&iHero) match=cards.find(c=>normNum(c.cardNum)===iNum&&heroMatch(c.hero,iHero));
+      if(!match&&iNum) match=cards.find(c=>normNum(c.cardNum)===iNum);
+      if(!match&&iHero&&iWeap){const cands=cards.filter(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
+      if(!match&&iHero){const cands=cards.filter(c=>heroMatch(c.hero,iHero));if(cands.length===1)match=cands[0];}
+      if(!match){setPhotoScan({status:"nomatch",identified:data});return;}
+      setPhotoScan({status:"matched",card:match,detected:data}); setScanQty(1);
+    } catch(e){setPhotoScan({status:"error",message:e.message});}
   }
-
-  async function confirmScan(card, qty) {
-    if (!user) { setSigningIn(true); return; }
-    const next = {...owned, [card.id]:(owned[card.id]||0)+qty};
+  async function confirmScan(card,qty) {
+    if(!user){setSigningIn(true);return;}
+    const next={...owned,[card.id]:(owned[card.id]||0)+qty};
     setOwned(next);
-    await setDoc(doc(db,"boba_owned",user.uid), next);
+    await setDoc(doc(db,"boba_owned",user.uid),next);
     setScanSession(prev=>[{card,qty,addedAt:new Date().toISOString()},...prev]);
     setPhotoScan(null); setScanQty(1);
   }
 
-  // ── Friend request ──
+  // ── Friends ──
   async function sendFriendRequest() {
-    if (!user || !addEmail.trim()) return;
+    if(!user||!addEmail.trim())return;
     setAddStatus(null);
-    const email = addEmail.trim().toLowerCase();
-    if (email === user.email?.toLowerCase()) { setAddStatus({ok:false,msg:"That's you!"}); return; }
-    // Check already friends
-    if (friends.find(f=>f.friendName?.toLowerCase()===email||f.toEmail?.toLowerCase()===email||f.fromEmail?.toLowerCase()===email)) {
-      setAddStatus({ok:false,msg:"Already friends"}); return;
-    }
-    // Look up user by email in boba_profiles
-    const profSnap = await getDocs(query(collection(db,"boba_profiles"), where("email","==",email)));
-    if (profSnap.empty) { setAddStatus({ok:false,msg:"No account found with that email"}); return; }
-    const toProfile = profSnap.docs[0].data();
-    const toUid = profSnap.docs[0].id;
-    // Check for existing pending request
-    const existSnap = await getDocs(query(collection(db,"friend_requests"), where("from","==",user.uid), where("to","==",toUid)));
-    if (!existSnap.empty) { setAddStatus({ok:false,msg:"Request already sent"}); return; }
-    const id = uid();
-    await setDoc(doc(db,"friend_requests",id), {
-      id, from:user.uid, fromEmail:user.email, fromName:user.displayName||user.email,
-      to:toUid, toEmail:email, toName:toProfile.displayName||email,
-      status:"pending", createdAt:new Date().toISOString()
-    });
-    // Save requester profile too
-    await setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
+    const email=addEmail.trim().toLowerCase();
+    if(email===user.email?.toLowerCase()){setAddStatus({ok:false,msg:"That's you!"});return;}
+    if(friends.find(f=>f.toEmail?.toLowerCase()===email||f.fromEmail?.toLowerCase()===email)){setAddStatus({ok:false,msg:"Already friends"});return;}
+    const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",email)));
+    if(profSnap.empty){setAddStatus({ok:false,msg:"No account found with that email — they need to sign in at /cards first"});return;}
+    const toProfile=profSnap.docs[0].data(), toUid=profSnap.docs[0].id;
+    const existSnap=await getDocs(query(collection(db,"friend_requests"),where("from","==",user.uid),where("to","==",toUid)));
+    if(!existSnap.empty){setAddStatus({ok:false,msg:"Request already sent"});return;}
+    const id=uid();
+    await setDoc(doc(db,"friend_requests",id),{id,from:user.uid,fromEmail:user.email,fromName:user.displayName||user.email,to:toUid,toEmail:email,toName:toProfile.displayName||email,status:"pending",createdAt:new Date().toISOString()});
+    await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
     setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile.displayName||email}!`});
   }
-
-  async function respondFriendReq(req, accept) {
-    await setDoc(doc(db,"friend_requests",req.id), {status:accept?"accepted":"declined"},{merge:true});
-    if (accept) {
-      // Save both profiles
-      await setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
-    }
+  async function respondFriendReq(req,accept) {
+    await setDoc(doc(db,"friend_requests",req.id),{status:accept?"accepted":"declined"},{merge:true});
+    if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
   }
 
-  // Upsert profile on login
-  useEffect(() => {
-    if (!user) return;
-    setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
-  }, [user]);
-
-  // ── Team helpers ──
+  // ── Teams ──
   async function createTeam() {
-    if (!user||!newTeamName.trim()) return;
-    const id = uid();
-    await setDoc(doc(db,"teams",id), {
-      id, name:newTeamName.trim(),
-      members:[{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],
-      memberUids:[user.uid], createdBy:user.uid, createdAt:new Date().toISOString()
-    });
+    if(!user||!newTeamName.trim())return;
+    const id=uid();
+    await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),members:[{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
     setNewTeamName("");
   }
-
   async function inviteToTeam(team) {
-    if (!inviteEmail.trim()) return;
-    const email = inviteEmail.trim().toLowerCase();
-    const profSnap = await getDocs(query(collection(db,"boba_profiles"), where("email","==",email)));
-    if (profSnap.empty) { setInviteStatus({ok:false,msg:"No account found"}); return; }
-    const toUid = profSnap.docs[0].id;
-    const toProfile = profSnap.docs[0].data();
-    if (team.memberUids?.includes(toUid)) { setInviteStatus({ok:false,msg:"Already on team"}); return; }
-    if (team.members?.length>=4) { setInviteStatus({ok:false,msg:"Team is full (4 max)"}); return; }
-    const invId = uid();
-    await setDoc(doc(db,"team_invites",invId), {
-      id:invId, teamId:team.id, teamName:team.name,
-      fromUid:user.uid, fromName:user.displayName||user.email,
-      toUid, toEmail:email, toName:toProfile.displayName||email,
-      status:"pending", createdAt:new Date().toISOString()
-    });
+    if(!inviteEmail.trim())return;
+    const email=inviteEmail.trim().toLowerCase();
+    const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",email)));
+    if(profSnap.empty){setInviteStatus({ok:false,msg:"No account found"});return;}
+    const toUid=profSnap.docs[0].id, toProfile=profSnap.docs[0].data();
+    if(team.memberUids?.includes(toUid)){setInviteStatus({ok:false,msg:"Already on team"});return;}
+    if(team.members?.length>=4){setInviteStatus({ok:false,msg:"Team is full (4 max)"});return;}
+    const invId=uid();
+    await setDoc(doc(db,"team_invites",invId),{id:invId,teamId:team.id,teamName:team.name,fromUid:user.uid,fromName:user.displayName||user.email,toUid,toEmail:email,toName:toProfile.displayName||email,status:"pending",createdAt:new Date().toISOString()});
     setInviteEmail(""); setInviteStatus({ok:true,msg:`Invite sent to ${toProfile.displayName||email}`});
   }
-
-  async function respondTeamInvite(invite, accept) {
+  async function respondTeamInvite(invite,accept) {
     await setDoc(doc(db,"team_invites",invite.id),{status:accept?"accepted":"declined"},{merge:true});
-    if (accept) {
-      const teamRef = doc(db,"teams",invite.teamId);
-      const tsnap = await getDoc(teamRef);
-      if (tsnap.exists()) {
-        const t = tsnap.data();
-        await setDoc(teamRef, {
-          members:[...(t.members||[]),{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],
-          memberUids:[...(t.memberUids||[]),user.uid]
-        },{merge:true});
-      }
-    }
+    if(accept){const tsnap=await getDoc(doc(db,"teams",invite.teamId));if(tsnap.exists()){const t=tsnap.data();await setDoc(doc(db,"teams",invite.teamId),{members:[...(t.members||[]),{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],memberUids:[...(t.memberUids||[]),user.uid]},{merge:true});}}
+  }
+
+  // ── Marketplace ──
+  async function createListing() {
+    if(!user||!listModal||!listPrice)return;
+    const id=uid();
+    const card=listModal;
+    await setDoc(doc(db,"marketplace",id),{id,cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,status:"active",createdAt:new Date().toISOString(),offerCount:0});
+    setListModal(null); setListPrice(""); setListNotes(""); setListType("sale");
+  }
+  async function removeListing(id) {
+    if(!window.confirm("Remove this listing?"))return;
+    await setDoc(doc(db,"marketplace",id),{status:"removed"},{merge:true});
+  }
+  async function submitOffer() {
+    if(!user||!offerModal||!offerAmt)return;
+    const offId=uid();
+    await setDoc(doc(db,"market_offers",offId),{id:offId,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,sellerUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
+    // Increment offer count
+    await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
+    setOfferModal(null); setOfferAmt(""); setOfferNote("");
+  }
+  async function respondOffer(offer,action) {
+    await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:new Date().toISOString()},{merge:true});
+    if(action==="accepted") await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold"},{merge:true});
   }
 
   // ── Computed ──
@@ -10062,168 +10062,230 @@ function PublicCardDatabase() {
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
 
-  const filtered = cards.filter(c => {
-    if (filterSet    && c.setName   !== filterSet)    return false;
-    if (filterWeapon && c.weapon    !== filterWeapon)  return false;
-    if (filterTreat  && c.treatment !== filterTreat)   return false;
-    if (filterOwned==="owned"   && !owned[c.id])       return false;
-    if (filterOwned==="missing" &&  owned[c.id])       return false;
-    if (search) { const t=search.toLowerCase(); return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t); }
+  const filtered = cards.filter(c=>{
+    if(filterSet    && c.setName!==filterSet)    return false;
+    if(filterWeapon && c.weapon!==filterWeapon)  return false;
+    if(filterTreat  && c.treatment!==filterTreat) return false;
+    if(filterOwned==="owned"   && !owned[c.id])  return false;
+    if(filterOwned==="missing" &&  owned[c.id])  return false;
+    if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
     return true;
   }).sort((a,b)=>{
-    if (sortBy==="power")   return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
-    if (sortBy==="cardNum") { const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0"); return na-nb; }
+    if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+    if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
-  const visibleCards = filtered.slice(0, page*PAGE_SIZE);
-  const totalOwned = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+  const visibleCards=filtered.slice(0,page*PAGE_SIZE);
+  const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
 
-  // ── Deck builder logic ──
-  const deckSet = new Set(deckCards);
-  const inDeck  = cards.filter(c=>deckSet.has(c.id));
-  const isSpec  = deckType==="spec", isApex=deckType==="apex", isAM=deckType==="apexmadness";
-  const dupKey  = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
-  const inDeckDupKeys = new Set(inDeck.map(dupKey));
-  const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
+  // ── Deck logic ──
+  const deckSet=new Set(deckCards);
+  const inDeck=cards.filter(c=>deckSet.has(c.id));
+  const isSpec=deckType==="spec",isAM=deckType==="apexmadness";
+  const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+  const inDeckDupKeys=new Set(inDeck.map(dupKey));
+  const powerCount={};inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={},treatApex={};
-  if (isAM) { inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;}); }
-
-  // Team apex conflicts — collect all apex cards in all teammates' decks
-  const teamApexConflicts = new Set(); // dupKeys of apex cards claimed by teammates
-  const teamApexOwners = {}; // dupKey → teammate displayName
-  if (isAM && activeTeam) {
-    // We'd need to load team decks — for now use a real-time approach
-    // This is populated when team deck data is loaded
+  if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  function canAddToDeck(c){
+    if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
+    if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
+    if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
+    if((powerCount[c.power||"0"]||0)>=6)return{ok:false,reason:`Already 6 at power ${c.power}`};
+    const p=parseFloat(c.power||0);
+    if(isSpec&&p>160)return{ok:false,reason:`Power ${c.power} exceeds 160`};
+    if(isAM&&p>160){const t=(c.treatment||"").toLowerCase();if((treatCore[t]||0)<10)return{ok:false,reason:`Need 10 core ${c.treatment} first (${treatCore[t]||0}/10)`};if((treatApex[t]||0)>=1)return{ok:false,reason:`Already have 1 ${c.treatment} apex card`};}
+    return{ok:true};
   }
-
-  function canAddToDeck(c) {
-    if (deckSet.has(c.id)) return {ok:false,reason:"Already in deck"};
-    if (inDeck.length>=DECK_SIZE) return {ok:false,reason:"Deck full"};
-    if ((isSpec||isAM) && parseFloat(c.power||0)>160) {
-      if (isAM) {
-        const t=(c.treatment||"").toLowerCase();
-        if ((treatCore[t]||0)<10) return {ok:false,reason:`Need 10 core ${c.treatment} cards first (have ${treatCore[t]||0}/10)`};
-        if ((treatApex[t]||0)>=1) return {ok:false,reason:`Already have 1 ${c.treatment} apex card`};
-        // Team conflict check
-        const dk = dupKey(c);
-        if (teamApexConflicts.has(dk)) return {ok:false,reason:`${teamApexOwners[dk]||"Teammate"} already has this apex card`};
-      } else {
-        return {ok:false,reason:`Power ${c.power} exceeds 160`};
-      }
-    }
-    if (inDeckDupKeys.has(dupKey(c))) return {ok:false,reason:"Duplicate card"};
-    if ((powerCount[c.power||"0"]||0)>=6) return {ok:false,reason:`Already 6 cards at power ${c.power}`};
-    return {ok:true};
-  }
-
-  const deckAvailable = cards.filter(c=>{
-    if (deckSet.has(c.id)) return false;
-    if (deckFilterW && c.weapon!==deckFilterW) return false;
-    if (deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
-    if (deckFilterS && c.setName!==deckFilterS) return false;
-    if (deckFilterT && c.treatment!==deckFilterT) return false;
-    if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
+  const deckAvail=cards.filter(c=>{
+    if(deckSet.has(c.id))return false;
+    if(deckFilterW&&c.weapon!==deckFilterW)return false;
+    if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
+    if(deckFilterS&&c.setName!==deckFilterS)return false;
+    if(deckFilterT&&c.treatment!==deckFilterT)return false;
+    if(deckSearch&&!`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase()))return false;
     const t=(c.treatment||"").toLowerCase();
-    if (t==="plays"||t==="bonus plays"||t==="home team discount") return false;
+    if(t==="plays"||t==="bonus plays"||t==="home team discount")return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
+  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length;
+
+  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
+    <div style={{textAlign:"center"}}>
+      <div style={{fontSize:48,marginBottom:16,animation:"spin 2s linear infinite"}}>⚡</div>
+      <div>Loading Collector's Database...</div>
+    </div>
+  </div>;
+
   // ── Render helpers ──
-  const tabBtn = (id,label,badge) => (
-    <button key={id} onClick={()=>setActiveTab(id)}
-      style={{background:activeTab===id?"#1A1A2E":"transparent",color:activeTab===id?"#E8317A":"#888",border:`1.5px solid ${activeTab===id?"#E8317A":"#2a2a2a"}`,borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",position:"relative"}}>
-      {label}{badge>0&&<span style={{position:"absolute",top:-6,right:-6,background:"#E8317A",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{badge}</span>}
+  const tabBtn=(id,label,badge)=>(
+    <button key={id} onClick={()=>setActiveTab(id)} style={{
+      background:activeTab===id?"rgba(232,49,122,0.15)":"transparent",
+      color:activeTab===id?"#E8317A":"rgba(255,255,255,0.5)",
+      border:`1.5px solid ${activeTab===id?"#E8317A":"rgba(255,255,255,0.1)"}`,
+      borderRadius:20, padding:"7px 18px", fontSize:12, fontWeight:700,
+      cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", position:"relative",
+      backdropFilter:"blur(10px)",
+      transition:"all 0.2s ease",
+      boxShadow:activeTab===id?"0 0 20px rgba(232,49,122,0.3)":"none"
+    }}>
+      {label}
+      {badge>0&&<span style={{position:"absolute",top:-7,right:-7,background:"#E8317A",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 10px rgba(232,49,122,0.8)"}}>{badge}</span>}
     </button>
   );
 
-  if (loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700}}>Loading...</div>;
-
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
-      <GlobalStyles/>
+      <style>{`
+        @keyframes gradientShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        @keyframes floatUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes glowPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+        @keyframes cardEntrance { from{opacity:0;transform:translateY(20px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)} }
+        .pub-tab:hover{background:rgba(232,49,122,0.1)!important;color:rgba(255,255,255,0.8)!important;transform:translateY(-1px)}
+        .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
+        .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
+        .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
+        .pub-card-grid > *:nth-child(4n){animation-delay:0.15s}
+        .market-card:hover{transform:translateY(-4px)!important;box-shadow:0 20px 60px rgba(232,49,122,0.3)!important}
+        .filter-bar select,.filter-bar input{transition:border-color 0.2s ease,box-shadow 0.2s ease}
+        .filter-bar select:focus,.filter-bar input:focus{border-color:#E8317A!important;box-shadow:0 0 0 3px rgba(232,49,122,0.15)!important}
+      `}</style>
 
-      {/* Sign-in modal */}
+      {/* ── Sign-in modal ── */}
       {signingIn&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setSigningIn(false)}>
-          <div style={{background:"#111",border:"1.5px solid #E8317A44",borderRadius:16,padding:32,textAlign:"center",maxWidth:340}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:32,marginBottom:12}}>🃏</div>
-            <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:8}}>Sign in to continue</div>
-            <div style={{fontSize:13,color:"#555",marginBottom:24}}>Track your collection, scan cards, build decks, and connect with the BoBA community.</div>
-            <button onClick={signInGoogle} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Sign in with Google</button>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setSigningIn(false)}>
+          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a0a12)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:24,padding:40,textAlign:"center",maxWidth:380,boxShadow:"0 40px 120px rgba(232,49,122,0.2)",animation:"floatUp 0.4s ease"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:48,marginBottom:16}}>🃏</div>
+            <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0",marginBottom:8}}>Join the Community</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",marginBottom:28,lineHeight:1.6}}>Track your collection, scan cards, build decks, and connect with BoBA collectors worldwide.</div>
+            <button onClick={signInGoogle} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"14px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",width:"100%",boxShadow:"0 8px 32px rgba(232,49,122,0.4)",transition:"transform 0.2s,box-shadow 0.2s"}}
+              onMouseEnter={e=>{e.target.style.transform="translateY(-2px)";e.target.style.boxShadow="0 16px 48px rgba(232,49,122,0.5)";}}
+              onMouseLeave={e=>{e.target.style.transform="";e.target.style.boxShadow="0 8px 32px rgba(232,49,122,0.4)";}}>
+              Sign in with Google
+            </button>
           </div>
         </div>
       )}
 
-      {/* Scan modal */}
-      {scanModal&&(
-        <div style={{position:"fixed",inset:0,background:"#000",zIndex:2000,display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:"#0a0a0a",borderBottom:"1px solid #1a1a1a"}}>
-            <span style={{fontSize:16,fontWeight:900,color:"#E8317A"}}>📷 Scan Mode</span>
-            <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#888",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+      {/* ── Listing modal ── */}
+      {listModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
+          <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>💰 List for Sale/Trade</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}⚡</div>
+            <div style={{display:"flex",gap:6,marginBottom:16}}>
+              {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setListType(v)} style={{flex:1,background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:`1.5px solid ${listType===v?"#4ade80":"rgba(255,255,255,0.1)"}`,color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+              ))}
+            </div>
+            <input value={listPrice} onChange={e=>setListPrice(e.target.value)} placeholder="Asking price ($)" type="number" step="0.01" style={{...inp,width:"100%",marginBottom:10}}/>
+            <textarea value={listNotes} onChange={e=>setListNotes(e.target.value)} placeholder="Notes (condition, trades wanted, etc.)" rows={3} style={{...inp,width:"100%",marginBottom:16,resize:"none"}}/>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={createListing} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(74,222,128,0.3)"}}>List Card</button>
+              <button onClick={()=>setListModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
           </div>
-          <div style={{flex:1,padding:16,overflowY:"auto"}}>
+        </div>
+      )}
+
+      {/* ── Offer modal ── */}
+      {offerModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setOfferModal(null)}>
+          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(251,191,36,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>🤝 Make an Offer</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{offerModal.cardName} · listed by {offerModal.sellerName}</div>
+            <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:20}}>Asking: ${(offerModal.askingPrice||0).toFixed(2)}</div>
+            <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="Your offer ($)" type="number" step="0.01" style={{...inp,width:"100%",marginBottom:10,borderColor:"rgba(251,191,36,0.3)"}}/>
+            <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message (optional)" rows={2} style={{...inp,width:"100%",marginBottom:16,resize:"none"}}/>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={submitOffer} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(251,191,36,0.3)"}}>Send Offer</button>
+              <button onClick={()=>setOfferModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scan modal ── */}
+      {scanModal&&(
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>📷 Scan Mode</span>
+              {scanSession.length>0&&<span style={{fontSize:12,background:"rgba(232,49,122,0.15)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.3)",borderRadius:20,padding:"3px 12px",fontWeight:700}}>{scanSession.length} added</span>}
+            </div>
+            <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>Done</button>
+          </div>
+          <div style={{flex:1,padding:20,overflowY:"auto"}}>
             {!photoScan&&(
               <label style={{display:"block",cursor:"pointer"}}>
-                <div style={{background:"#0a0a0a",border:"2px dashed #E8317A44",borderRadius:16,padding:"40px 16px",textAlign:"center"}}>
-                  <div style={{fontSize:48,marginBottom:8}}>📷</div>
-                  <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:4}}>Tap to scan a card</div>
-                  <div style={{fontSize:12,color:"#555"}}>Opens your camera</div>
+                <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.05),rgba(123,47,247,0.05))",border:"2px dashed rgba(232,49,122,0.3)",borderRadius:20,padding:"50px 20px",textAlign:"center",transition:"all 0.2s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.6)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.3)"}>
+                  <div style={{fontSize:56,marginBottom:12}}>📷</div>
+                  <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera — identify any BoBA card instantly</div>
                 </div>
                 <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
             )}
-            {photoScan?.status==="scanning"&&<div style={{textAlign:"center",padding:40,color:"#7B9CFF",fontWeight:700}}>Reading card...</div>}
+            {photoScan?.status==="scanning"&&(
+              <div style={{textAlign:"center",padding:50}}>
+                <div style={{width:48,height:48,border:"3px solid rgba(123,156,255,0.2)",borderTopColor:"#7B9CFF",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/>
+                <div style={{fontSize:15,fontWeight:700,color:"#7B9CFF"}}>Reading card...</div>
+              </div>
+            )}
             {photoScan?.status==="matched"&&photoScan.card&&(()=>{
               const c=photoScan.card,wc=WEAPON_COLORS[c.weapon]||"#888";
               return (
-                <div style={{background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:16,padding:16}}>
-                  <div style={{display:"flex",gap:12,marginBottom:12}}>
-                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:72,height:96,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:72,height:96,background:"#1a1a1a",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555"}}>{c.hero}</div>}
+                <div style={{background:`linear-gradient(135deg,rgba(10,26,10,0.8),rgba(0,0,0,0.8))`,border:`1.5px solid rgba(74,222,128,0.3)`,borderRadius:20,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
+                  <div style={{display:"flex",gap:14,marginBottom:16}}>
+                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:80,height:107,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}/>:<div style={{width:80,height:107,background:"#1a1a1a",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555"}}>{c.hero}</div>}
                     <div>
-                      <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{c.hero}</div>
-                      <div style={{fontSize:12,color:wc,fontWeight:700}}>{c.weapon}</div>
-                      <div style={{fontSize:11,color:"#555"}}>{c.treatment} · #{c.cardNum} · {c.power}⚡</div>
+                      <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
+                      <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} · {c.setName}</div>
+                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}⚡</div>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
-                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:6,width:32,height:32,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>−</button>
-                    <span style={{fontSize:18,fontWeight:900,color:"#F0F0F0",minWidth:32,textAlign:"center"}}>{scanQty}</span>
-                    <button onClick={()=>setScanQty(q=>q+1)} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:6,width:32,height:32,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>+</button>
-                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"#4ade80",color:"#000",border:"none",borderRadius:8,padding:"8px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>✅ Add {scanQty}</button>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>−</button>
+                    <span style={{fontSize:20,fontWeight:900,minWidth:40,textAlign:"center"}}>{scanQty}</span>
+                    <button onClick={()=>setScanQty(q=>q+1)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>✅ Add {scanQty}</button>
                   </div>
-                  <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid #2a2a2a",color:"#555",borderRadius:8,padding:"6px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
+                  <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
                 </div>
               );
             })()}
             {photoScan?.status==="nomatch"&&(
-              <div style={{background:"#1a0a0a",border:"1.5px solid #E8317A44",borderRadius:16,padding:"20px 16px",textAlign:"center"}}>
-                <div style={{fontSize:32,marginBottom:8}}>❌</div>
-                <div style={{fontSize:15,fontWeight:800,color:"#E8317A",marginBottom:4}}>Card not recognized</div>
-                {photoScan.identified?.hero&&<div style={{fontSize:12,color:"#555",marginBottom:12}}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
-                <label style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
+                <div style={{fontSize:36,marginBottom:10}}>❌</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:12}}>Card not recognized</div>
+                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
                   Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
             {photoScan?.status==="error"&&(
-              <div style={{background:"#1a0a0a",border:"1.5px solid #E8317A44",borderRadius:16,padding:"20px 16px",textAlign:"center"}}>
-                <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
-                <div style={{fontSize:15,fontWeight:800,color:"#E8317A",marginBottom:8}}>Scan failed</div>
-                {photoScan.message&&<div style={{fontSize:11,color:"#555",marginBottom:12,fontFamily:"monospace"}}>{photoScan.message}</div>}
-                <label style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
+                <div style={{fontSize:36,marginBottom:10}}>⚠️</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
+                {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
+                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
                   Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
-            {/* Recent scans */}
             {scanSession.length>0&&(
-              <div style={{marginTop:16}}>
-                <div style={{fontSize:11,color:"#555",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Added this session</div>
+              <div style={{marginTop:20}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Added this session</div>
                 {scanSession.slice(0,5).map((s,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #111"}}>
-                    <span style={{fontSize:18}}>✅</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"#555"}}>{s.card.treatment} · {s.card.power}⚡</div></div>
-                    <span style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>+{s.qty}</span>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                    <span style={{fontSize:20}}>✅</span>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} · {s.card.power}⚡</div></div>
+                    <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
                   </div>
                 ))}
               </div>
@@ -10232,113 +10294,179 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* Header */}
-      <div style={{background:"linear-gradient(180deg,#0a0a0a,#000)",borderBottom:"1px solid #1a1a1a",padding:"24px 20px 16px"}}>
-        <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-          <div>
-            <div style={{fontSize:10,color:"#E8317A",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Bazooka Breaks</div>
-            <div style={{fontSize:"clamp(20px,4vw,36px)",fontWeight:900,color:"#F0F0F0",textTransform:"uppercase",letterSpacing:2}}>BoBA Community</div>
-            <div style={{fontSize:11,color:"#444",marginTop:2}}>{cards.length.toLocaleString()} cards · {sets.length} sets</div>
+      {/* ── HERO HEADER ── */}
+      <div style={{
+        position:"relative", overflow:"hidden",
+        background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",
+        backgroundSize:"400% 400%", animation:"gradientShift 12s ease infinite",
+        borderBottom:"1px solid rgba(232,49,122,0.15)", paddingBottom:0
+      }}>
+        {/* Glow orbs */}
+        <div style={{position:"absolute",top:-100,left:"20%",width:400,height:400,background:"radial-gradient(circle,rgba(232,49,122,0.12),transparent 70%)",pointerEvents:"none",animation:"glowPulse 4s ease infinite"}}/>
+        <div style={{position:"absolute",top:-80,right:"15%",width:300,height:300,background:"radial-gradient(circle,rgba(123,47,247,0.1),transparent 70%)",pointerEvents:"none",animation:"glowPulse 6s ease infinite 2s"}}/>
+        <div style={{position:"absolute",bottom:0,left:"40%",width:500,height:200,background:"radial-gradient(ellipse,rgba(123,156,255,0.06),transparent 70%)",pointerEvents:"none"}}/>
+
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"40px 24px 0",position:"relative"}}>
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:16,marginBottom:32}}>
+            <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginBottom:8}}>Bazooka Breaks</div>
+              <h1 style={{margin:0,fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1,textTransform:"uppercase",letterSpacing:"-1px"}}>
+                <span style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200%",animation:"gradientShift 4s ease infinite"}}>Collector's</span>
+                <br/>
+                <span style={{color:"#F0F0F0"}}>Database</span>
+              </h1>
+              <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
+                {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"}].map(({v,l})=>(
+                  <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"6px 14px",backdropFilter:"blur(10px)"}}>
+                    <span style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{v}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginLeft:6}}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s"}}>
+              {user?(
+                <>
+                  {user.photoURL&&<img src={user.photoURL} alt="" style={{width:40,height:40,borderRadius:"50%",border:"2px solid #E8317A",boxShadow:"0 0 16px rgba(232,49,122,0.4)"}}/>}
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
+                    <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
+                  </div>
+                  <button onClick={()=>setScanModal(true)} style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
+                    📷 Scan
+                  </button>
+                  <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
+                </>
+              ):(
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)",transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 16px 48px rgba(232,49,122,0.5)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 8px 32px rgba(232,49,122,0.4)";}}>
+                  Sign in
+                </button>
+              )}
+            </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {user?(
-              <>
-                {user.photoURL&&<img src={user.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",border:"2px solid #E8317A"}}/>}
-                <div>
-                  <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
-                  <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
-                </div>
-                <button onClick={()=>setScanModal(true)} style={{background:"#1a0a1a",color:"#E8317A",border:"1px solid #E8317A44",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📷 Scan</button>
-                <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
-              </>
-            ):(
-              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in</button>
-            )}
+
+          {/* Tab bar */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:20}}>
+            {tabBtn("cards","🃏 Cards",0)}
+            {tabBtn("wants","🎯 Wants",Object.keys(wantList).length)}
+            {tabBtn("deck","⚔️ Deck Builder",0)}
+            {tabBtn("playbook","📖 Playbook",0)}
+            {tabBtn("market","💰 Market",0)}
+            {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
+            {user&&tabBtn("team","🏆 Team",0)}
           </div>
-        </div>
-        {/* Tab bar */}
-        <div style={{maxWidth:1400,margin:"12px auto 0",display:"flex",gap:6,flexWrap:"wrap"}}>
-          {tabBtn("cards","🃏 Cards",0)}
-          {tabBtn("wants","🎯 Wants",Object.keys(wantList).length)}
-          {tabBtn("deck","⚔️ Deck Builder",0)}
-          {tabBtn("playbook","📖 Playbook",0)}
-          {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
-          {user&&tabBtn("team","🏆 Team",0)}
         </div>
       </div>
 
-      {/* ── CARDS TAB ── */}
-      {activeTab==="cards"&&(
-        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
-          {/* Filters */}
-          <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:12,padding:"12px 16px",marginBottom:12,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete..." style={{...inp,flex:2,minWidth:180}}/>
-            <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
-              <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
-              <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-            <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:120,cursor:"pointer"}}>
-              <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
-            </select>
-            <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
-              <option value="cardNum">Sort: Card #</option>
-              <option value="hero">Sort: Hero</option>
-              <option value="power">Sort: Power</option>
-              <option value="setName">Sort: Set</option>
-            </select>
-            {user&&(
-              <div style={{display:"flex",gap:4}}>
-                {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"#1A1A2E":"transparent",color:filterOwned===v?"#E8317A":"#555",border:`1.5px solid ${filterOwned===v?"#E8317A":"#333"}`,borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+      {/* ── Market notifications bar ── */}
+      {marketNotifs.length>0&&(
+        <div style={{background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(245,158,11,0.05))",borderBottom:"1px solid rgba(251,191,36,0.2)",padding:"10px 24px"}}>
+          <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap"}}>
+            {marketNotifs.map(n=>(
+              <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:12,padding:"8px 14px"}}>
+                <span style={{fontSize:14}}>🤝</span>
+                <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} offered <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
+                <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
+                <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB CONTENT ── */}
+      <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
+
+        {/* CARDS TAB */}
+        {activeTab==="cards"&&(
+          <>
+            <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+              <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
+              <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
+                <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
+                <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+                <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
+              </select>
+              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+                <option value="cardNum">Card #</option>
+                <option value="hero">Hero A→Z</option>
+                <option value="power">Power ↓</option>
+                <option value="setName">Set</option>
+              </select>
+              {user&&(
+                <div style={{display:"flex",gap:4}}>
+                  {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
+                  ))}
+                </div>
+              )}
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
+            </div>
+            <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+              {visibleCards.map(c=>(
+                <div key={c.id} style={{position:"relative"}}>
+                  <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                    flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                    toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
+                    setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+                  {/* Private toggle + list button on owned cards */}
+                  {owned[c.id]&&(
+                    <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
+                      <button onClick={e=>{e.stopPropagation();togglePrivate(c.id);}} title={privateCards[c.id]?"Card is private (friends can't see)":"Card is visible to friends"}
+                        style={{background:privateCards[c.id]?"rgba(232,49,122,0.8)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700}}>
+                        {privateCards[c.id]?"🔒":"👁"}
+                      </button>
+                      <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
+                        style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
+                        💰
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
+          </>
+        )}
+
+        {/* WANTS TAB */}
+        {activeTab==="wants"&&(
+          <div>
+            {Object.keys(wantList).length===0?(
+              <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
+                <div style={{fontSize:48,marginBottom:16}}>🎯</div>
+                <div style={{fontSize:16,fontWeight:700}}>No cards on your want list</div>
+                <div style={{fontSize:13,marginTop:8}}>Flip a card in the Cards tab and tap + Want</div>
+              </div>
+            ):(
+              <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+                {cards.filter(c=>wantList[c.id]).map(c=>(
+                  <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                    flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                    toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
                 ))}
               </div>
             )}
-            <span style={{fontSize:11,color:"#333"}}>{filtered.length.toLocaleString()} cards</span>
           </div>
-          {/* Grid */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-            {visibleCards.map(c=>(
-              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                flippedCard={flippedCard} setFlippedCard={setFlippedCard}
-                toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
-                setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
-            ))}
-          </div>
-          {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:24,color:"#333",fontSize:12}}>Scroll for more...</div>}
-        </div>
-      )}
+        )}
 
-      {/* ── WANTS TAB ── */}
-      {activeTab==="wants"&&(
-        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
-          {Object.keys(wantList).length===0?(
-            <div style={{textAlign:"center",padding:60,color:"#333"}}>No cards on your want list yet.<br/>Mark cards with 🎯 from the Cards tab.</div>
-          ):(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-              {cards.filter(c=>wantList[c.id]).map(c=>(
-                <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                  flippedCard={flippedCard} setFlippedCard={setFlippedCard}
-                  toggleOwned={()=>toggleOwned(c.id)}
-                  setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                  toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── DECK BUILDER TAB ── */}
-      {activeTab==="deck"&&(
-        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:14,alignItems:"start"}}>
-            {/* Left: filters + card list */}
+        {/* DECK BUILDER TAB */}
+        {activeTab==="deck"&&(
+          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+              <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"#888"}}>
+                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
                   <option value="none">No Restrictions</option>
                   <option value="spec">Spec Deck (≤160)</option>
                   <option value="apex">Apex Deck</option>
@@ -10347,497 +10475,505 @@ function PublicCardDatabase() {
                 <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
                   <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
                 </select>
-                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"#888"}}>
+                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"rgba(255,255,255,0.4)"}}>
                   <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
-                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"#888"}}>
+                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"rgba(255,255,255,0.4)"}}>
                   <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
-                <span style={{fontSize:11,color:"#555"}}>{deckAvailable.length} cards</span>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
-              {/* Power chips */}
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                 {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
                   const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
                   return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
-                    style={{background:sel?(over?"#E8317A":"#FBBF2433"):"#111",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`,color:sel?(over?"#fff":"#FBBF24"):"#555",borderRadius:6,padding:"3px 9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{p}{over?" ⚠":""}</button>;
+                    style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" ⚠":""}</button>;
                 })}
-                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear</button>}
+                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>}
               </div>
-              <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:10,overflow:"hidden",maxHeight:"calc(100vh - 320px)",overflowY:"auto"}}>
-                {deckAvailable.length===0?<div style={{padding:32,textAlign:"center",color:"#333"}}>No cards match filters</div>:
-                  deckAvailable.map((c,i)=>{
+              <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
+                {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
+                  deckAvail.map((c,i)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
                     return (
                       <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}}
-                        style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderBottom:"1px solid #0d0d0d",background:i%2===0?"#0a0a0a":"#0d0d0d",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4}} title={!ok?reason:""}>
-                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:42,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.35,transition:"background 0.12s"}}
+                        title={!ok?reason:""}
+                        onMouseEnter={e=>{if(ok)e.currentTarget.style.background="rgba(232,49,122,0.05)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.01)";}}>
+                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                          <div style={{fontSize:10,color:"#555",marginTop:1}}>{c.treatment} · #{c.cardNum}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} · #{c.cardNum}</div>
                           {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
                         </div>
-                        <div style={{fontSize:15,fontWeight:900,color:ok?wc:"#555",flexShrink:0}}>{c.power}</div>
-                        {ok&&<div style={{fontSize:16,color:"#4ade80"}}>+</div>}
+                        <div style={{fontSize:16,fontWeight:900,color:ok?wc:"rgba(255,255,255,0.2)",flexShrink:0}}>{c.power}</div>
+                        {ok&&<div style={{fontSize:18,color:"#4ade80",flexShrink:0}}>+</div>}
                       </div>
                     );
                   })
                 }
               </div>
             </div>
-            {/* Right: deck panel */}
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
-                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>
-                  ⚔️ {deckName} <span style={{fontSize:10,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",fontWeight:700}}>{inDeck.length}/{DECK_SIZE}</span>
-                </div>
-                {/* Apex Madness unlock tracker */}
-                {isAM&&inDeck.length>0&&(
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Treatment Unlocks</div>
-                    {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
-                      const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
-                      return (
-                        <div key={t} style={{marginBottom:6}}>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                            <span style={{fontSize:11,color:unlocked?"#A855F7":"#888",fontWeight:unlocked?700:400}}>{unlocked?"🔓":"🔒"} {t}</span>
-                            <span style={{fontSize:11,color:unlocked?"#A855F7":"#555"}}>{core}/10{unlocked?` · ${apex}/1 apex`:""}</span>
-                          </div>
-                          <div style={{height:3,background:"#1a1a1a",borderRadius:2}}><div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"#A855F7":"#333",borderRadius:2}}/></div>
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>⚔️ {deckName}</div>
+                <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
+              </div>
+              {isAM&&inDeck.length>0&&(
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Treatment Unlocks</div>
+                  {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
+                    const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
+                    return (
+                      <div key={t} style={{marginBottom:7}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.4)",fontWeight:unlocked?700:400}}>{unlocked?"🔓":"🔒"} {t}</span>
+                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.3)"}}>{core}/10{unlocked?` · ${apex}/1`:""}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {/* Deck slots */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:10}}>
-                  {Array.from({length:DECK_SIZE}).map((_,i)=>{
-                    const c=inDeck[i];
-                    if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{aspectRatio:"3/4",borderRadius:3,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}44`,background:"#1a1a1a"}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}</div>);}
-                    return(<div key={i} style={{aspectRatio:"3/4",borderRadius:3,border:"1px dashed #1a1a1a",background:"#080808",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"#222",fontWeight:700}}>{i+1}</span></div>);
+                        <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                          <div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"linear-gradient(90deg,#A855F7,#7B2FF7)":"rgba(255,255,255,0.15)",borderRadius:2,transition:"width 0.3s"}}/>
+                        </div>
+                      </div>
+                    );
                   })}
                 </div>
-                {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid #E8317A22",color:"#E8317A",borderRadius:7,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear deck</button>}
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:12}}>
+                {Array.from({length:DECK_SIZE}).map((_,i)=>{
+                  const c=inDeck[i];
+                  if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"#111"}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}</div>);}
+                  return <div key={i} style={{aspectRatio:"3/4",borderRadius:4,border:"1px dashed rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.01)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"rgba(255,255,255,0.1)",fontWeight:700}}>{i+1}</span></div>;
+                })}
               </div>
+              {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.5)",borderRadius:10,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.15)";e.currentTarget.style.color="rgba(232,49,122,0.5)";}}>
+                ✕ Clear deck
+              </button>}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── PLAYBOOK TAB ── */}
-      {activeTab==="playbook"&&(()=>{
-        const playCards = cards.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
-        const pbEntryIds = new Set(pbCards.map(e=>e.id));
-        const playCount  = pbCards.filter(e=>e.type==="play").length;
-        const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
-        const playFull   = playCount >= PUBLIC_PLAY_LIMIT;
-        const pbResolved = pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
-        const totalDbs   = pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
-        const dbsLeft    = PUBLIC_DBS_CAP - totalDbs;
-        const dbsPct     = Math.min(totalDbs/PUBLIC_DBS_CAP*100,100);
-        const dbsOver    = totalDbs > PUBLIC_DBS_CAP;
-        const isPlay  = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="home team discount"; };
-        const isBonus = c => (c.treatment||"").toLowerCase()==="bonus plays";
-        const pbAvailable = playCards.filter(c=>{
-          if (pbEntryIds.has(c.id)) return false;
-          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
-          return true;
-        }).sort((a,b)=>{
-          if (pbSort==="dbs_desc") return (parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);
-          if (pbSort==="dbs_asc")  return (parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);
-          return (a.hero||"").localeCompare(b.hero||"");
-        });
-        return (
-          <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
-            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:14,alignItems:"start"}}>
-              {/* Left: play picker */}
+        {/* PLAYBOOK TAB */}
+        {activeTab==="playbook"&&(()=>{
+          const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
+          const pbEntryIds=new Set(pbCards.map(e=>e.id));
+          const playCount=pbCards.filter(e=>e.type==="play").length;
+          const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
+          const playFull=playCount>=PUBLIC_PLAY_LIMIT;
+          const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
+          const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+          const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
+          const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
+          const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
+          const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+          return (
+            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play name or ability..." style={{...inp,flex:1}}/>
+                <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
+                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
-                    <option value="name">Sort: Name</option>
-                    <option value="dbs_desc">DBS: High → Low</option>
-                    <option value="dbs_asc">DBS: Low → High</option>
+                    <option value="name">Name A→Z</option>
+                    <option value="dbs_desc">DBS High→Low</option>
+                    <option value="dbs_asc">DBS Low→High</option>
                   </select>
-                  <span style={{fontSize:11,color:"#555",alignSelf:"center"}}>{pbAvailable.length} plays</span>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
-                <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:10,overflow:"hidden",maxHeight:"calc(100vh - 280px)",overflowY:"auto"}}>
-                  {pbAvailable.length===0?<div style={{padding:32,textAlign:"center",color:"#333"}}>No plays found</div>:
-                    pbAvailable.map((c,i)=>{
-                      const wc=WEAPON_COLORS[c.weapon]||"#444";
-                      const wouldExceed = totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
-                      return (
-                        <div key={c.id} style={{borderBottom:"1px solid #111",background:i%2===0?"#0a0a0a":"#0d0d0d"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px"}}>
-                            {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
-                                <span style={{color:"#555"}}>#{c.cardNum}</span>
-                                {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
-                                {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
-                                {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
-                                {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
-                              </div>
-                              {c.playAbility&&<div style={{fontSize:10,color:"#888",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
+                <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
+                  {pbAvail.map((c,i)=>{
+                    const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                    return (
+                      <div key={c.id} style={{borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px"}}>
+                          {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
+                              <span style={{color:"rgba(255,255,255,0.3)"}}>#{c.cardNum}</span>
+                              {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
+                              {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
                             </div>
-                            <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-                              {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:"#1a1a2e",border:"1px solid #E8317A44",color:(playFull||wouldExceed)?"#333":"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:(playFull||wouldExceed)?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
-                              {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:"#0a0f1a",border:"1px solid #7B9CFF44",color:wouldExceed?"#333":"#7B9CFF",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
-                            </div>
+                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
+                          </div>
+                          <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                            {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:playFull||wouldExceed?"rgba(255,255,255,0.03)":"rgba(232,49,122,0.15)",border:`1px solid ${playFull||wouldExceed?"rgba(255,255,255,0.08)":"rgba(232,49,122,0.4)"}`,color:playFull||wouldExceed?"rgba(255,255,255,0.2)":"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:playFull||wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
+                            {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:wouldExceed?"rgba(255,255,255,0.03)":"rgba(123,156,255,0.15)",border:`1px solid ${wouldExceed?"rgba(255,255,255,0.08)":"rgba(123,156,255,0.4)"}`,color:wouldExceed?"rgba(255,255,255,0.2)":"#7B9CFF",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
                           </div>
                         </div>
-                      );
-                    })
-                  }
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              {/* Right: playbook panel */}
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
-                  <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>📖 Playbook</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                    {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus Plays",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
-                      <div key={l} style={{background:"#0a0a0a",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
-                        <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
-                        <div style={{fontSize:10,color:"#555",marginTop:2}}>{l}</div>
-                      </div>
-                    ))}
+              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>📖 Playbook</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                  {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
+                    <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
+                      <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginBottom:12}}>
+                  <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden",marginBottom:4}}>
+                    <div style={{width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`,height:"100%",background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:2,transition:"width 0.3s"}}/>
                   </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{height:5,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:4}}>
-                      <div style={{width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`,height:"100%",borderRadius:3,background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)",transition:"width 0.3s"}}/>
-                    </div>
-                    <div style={{fontSize:10,color:"#555"}}>{PUBLIC_PLAY_LIMIT-playCount} play slots remaining</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{PUBLIC_PLAY_LIMIT-playCount} play slots left</div>
+                </div>
+                <div style={{background:dbsOver?"rgba(232,49,122,0.05)":"rgba(0,0,0,0.3)",border:`1px solid ${dbsOver?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.05)"}`,borderRadius:10,padding:"12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>💰 DBS Budget</span>
+                    <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
                   </div>
-                  <div style={{background:dbsOver?"#1a0a0a":"#0a0a0a",border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`,borderRadius:8,padding:"10px 12px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                      <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>💰 DBS</span>
-                      <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
-                    </div>
-                    <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden",marginBottom:6}}>
-                      <div style={{width:`${dbsPct}%`,height:"100%",borderRadius:4,background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)",transition:"width 0.3s"}}/>
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
-                      <span style={{color:"#555"}}>Used: {Math.round(totalDbs)}</span>
-                      <span style={{color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"#4ade80",fontWeight:700}}>{dbsOver?`⚠️ Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</span>
-                    </div>
+                  <div style={{height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                    <div style={{width:`${dbsPct}%`,height:"100%",background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
                   </div>
+                  <div style={{fontSize:10,color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"rgba(255,255,255,0.3)",fontWeight:dbsOver?700:400}}>{dbsOver?`⚠️ Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</div>
                 </div>
                 {pbResolved.length>0&&(
-                  <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,overflow:"hidden"}}>
-                    {pbResolved.filter(e=>e.type==="play").length>0&&(
-                      <div>
-                        <div style={{padding:"10px 14px 6px",fontSize:10,fontWeight:700,color:"#E8317A",textTransform:"uppercase",letterSpacing:1}}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>
-                        {pbResolved.filter(e=>e.type==="play").map((e,i)=>{
-                          const c=e.card;
-                          return (
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",borderTop:"1px solid #111",background:i%2===0?"#0d0d0d":"#0a0a0a"}}>
-                              <div style={{fontSize:12,color:"#333",width:18,textAlign:"center",flexShrink:0}}>{i+1}</div>
-                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:28,height:37,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:12,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                                <div style={{display:"flex",gap:6,fontSize:10,marginTop:1}}>
-                                  {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24"}}>Cost: {c.playCost}</span>}
-                                  {c.dbs!==undefined&&<span style={{color:"#A855F7"}}>DBS: {c.dbs}</span>}
-                                </div>
-                              </div>
-                              <button onClick={()=>{const playArr=pbCards.filter(x=>x.type==="play");const target=playArr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {pbResolved.filter(e=>e.type==="bonus").length>0&&(
-                      <div>
-                        <div style={{padding:"10px 14px 6px",fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,borderTop:"1px solid #1a1a1a"}}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>
-                        {pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{
-                          const c=e.card;
-                          return (
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",borderTop:"1px solid #111",background:i%2===0?"#0d0d0d":"#0a0a0a"}}>
-                              <div style={{fontSize:12,color:"#333",width:18,flexShrink:0}}>B{i+1}</div>
-                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:28,height:37,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:12,fontWeight:800,color:"#7B9CFF"}}>{c.hero}</div>
-                                <div style={{display:"flex",gap:6,fontSize:10,marginTop:1}}>
-                                  {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24"}}>Cost: {c.playCost}</span>}
-                                  {c.dbs!==undefined&&<span style={{color:"#A855F7"}}>DBS: {c.dbs}</span>}
-                                </div>
-                              </div>
-                              <button onClick={()=>{const bonusArr=pbCards.filter(x=>x.type==="bonus");const target=bonusArr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div style={{padding:"10px 14px"}}>
-                      <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{background:"transparent",border:"1px solid #E8317A22",color:"#E8317A",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>✕ Clear</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── FRIENDS TAB ── */}
-      {activeTab==="friends"&&(
-        <div style={{maxWidth:700,margin:"0 auto",padding:16}}>
-          {!user?(
-            <div style={{textAlign:"center",padding:60,color:"#555"}}>
-              <div style={{fontSize:32,marginBottom:12}}>👥</div>
-              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to add friends</button>
-            </div>
-          ):(
-            <>
-              {/* Add friend */}
-              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
-                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>➕ Add Friend</div>
-                <div style={{display:"flex",gap:8}}>
-                  <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
-                  <button onClick={sendFriendRequest} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Send</button>
-                </div>
-                {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:8}}>{addStatus.ok?"✅":"❌"} {addStatus.msg}</div>}
-              </div>
-
-              {/* Incoming requests */}
-              {friendReqs.length>0&&(
-                <div style={{background:"#111",border:"1px solid #FBBF2444",borderRadius:12,padding:16,marginBottom:12}}>
-                  <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:10}}>📬 Friend Requests ({friendReqs.length})</div>
-                  {friendReqs.map(r=>(
-                    <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{r.fromName}</div><div style={{fontSize:11,color:"#555"}}>{r.fromEmail}</div></div>
-                      <button onClick={()=>respondFriendReq(r,true)} style={{background:"#0a1a0a",border:"1px solid #4ade8044",color:"#4ade80",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Accept</button>
-                      <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Team invites */}
-              {teamInvites.length>0&&(
-                <div style={{background:"#111",border:"1px solid #A855F744",borderRadius:12,padding:16,marginBottom:12}}>
-                  <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:10}}>🏆 Team Invites ({teamInvites.length})</div>
-                  {teamInvites.map(inv=>(
-                    <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{inv.teamName}</div><div style={{fontSize:11,color:"#555"}}>from {inv.fromName}</div></div>
-                      <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"#0a0a1a",border:"1px solid #A855F744",color:"#A855F7",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Join</button>
-                      <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Sent requests */}
-              {sentReqs.length>0&&(
-                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#555",marginBottom:8}}>Pending sent requests</div>
-                  {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"#555",marginBottom:4}}>⏳ {r.toEmail}</div>)}
-                </div>
-              )}
-
-              {/* Friends list */}
-              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
-                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>Friends ({friends.length})</div>
-                {friends.length===0?<div style={{fontSize:12,color:"#555"}}>No friends yet — add someone above!</div>:
-                  friends.map(f=>(
-                    <div key={f.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1a1a1a"}}>
-                      <div style={{width:36,height:36,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
-                        {f.fromPhoto||f.toPhoto?<img src={f.friendUid===f.to?f.fromPhoto:f.toPhoto} alt="" style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>:"👤"}
-                      </div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{f.friendName}</div>
-                        <div style={{fontSize:11,color:"#555"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
-                      </div>
-                      <button onClick={()=>{setViewingFriend(f.friendUid);setActiveTab("cards");setFilterOwned("all");}}
-                        style={{background:"#0a0a1a",border:"1px solid #7B9CFF44",color:"#7B9CFF",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                        👁 View Collection
-                      </button>
-                    </div>
-                  ))
-                }
-              </div>
-
-              {/* Viewing friend's collection */}
-              {viewingFriend&&(()=>{
-                const f=friends.find(fr=>fr.friendUid===viewingFriend);
-                const fo=friendOwned[viewingFriend]||{};
-                const friendCards=cards.filter(c=>fo[c.id]);
-                return (
-                  <div style={{marginTop:12,background:"#111",border:"1px solid #7B9CFF44",borderRadius:12,padding:16}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                      <div style={{fontSize:13,fontWeight:800,color:"#7B9CFF"}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
-                      <button onClick={()=>setViewingFriend(null)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6,maxHeight:400,overflowY:"auto"}}>
-                      {friendCards.map(c=>{
-                        const wc=WEAPON_COLORS[c.weapon]||"#444";
-                        return (
-                          <div key={c.id} style={{background:"#0a0a0a",border:`1px solid ${wc}22`,borderRadius:8,padding:8}}>
-                            {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:5,marginBottom:4}}/>}
-                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
-                            <div style={{fontSize:10,color:wc}}>{c.weapon}</div>
-                            <div style={{fontSize:10,color:"#555"}}>{c.treatment}</div>
-                            <div style={{fontSize:11,fontWeight:700,color:wc}}>{c.power}⚡</div>
-                            {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24"}}>×{fo[c.id]}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ── TEAM TAB ── */}
-      {activeTab==="team"&&(
-        <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
-          {!user?(
-            <div style={{textAlign:"center",padding:60,color:"#555"}}>
-              <div style={{fontSize:32,marginBottom:12}}>🏆</div>
-              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
-            </div>
-          ):(
-            <>
-              {/* Create team */}
-              {teams.length===0&&(
-                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
-                  <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>🏆 Create a Team</div>
-                  <div style={{display:"flex",gap:8}}>
-                    <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
-                    <button onClick={createTeam} style={{background:"#A855F7",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Create</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Team selector if multiple */}
-              {teams.length>1&&(
-                <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-                  {teams.map(t=>(
-                    <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"#1a0a1a":"#111",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"#2a2a2a"}`,color:activeTeam?.id===t.id?"#A855F7":"#888",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                      {t.name} ({t.members?.length||1}/4)
-                    </button>
-                  ))}
-                  <button onClick={()=>setNewTeamName("new")} style={{background:"transparent",border:"1px dashed #333",color:"#555",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New Team</button>
-                </div>
-              )}
-
-              {activeTeam&&(()=>{
-                const team = activeTeam;
-                const members = team.members||[];
-                const isOwner = team.createdBy===user.uid;
-
-                // Collect all apex cards across team decks (placeholder — would load from team_decks collection)
-                const allTeamApex = [];
-
-                return (
-                  <div>
-                    <div style={{background:"#111",border:"1px solid #A855F744",borderRadius:12,padding:16,marginBottom:12}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                        <div>
-                          <div style={{fontSize:18,fontWeight:900,color:"#A855F7"}}>{team.name}</div>
-                          <div style={{fontSize:11,color:"#555"}}>{members.length}/4 members · Apex Madness team</div>
-                        </div>
-                        {members.length<4&&isOwner&&(
-                          <div style={{display:"flex",gap:8}}>
-                            <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Friend's email..." style={{...inp,width:200}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
-                            <button onClick={()=>inviteToTeam(team)} style={{background:"#A855F7",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
-                          </div>
-                        )}
-                      </div>
-                      {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:8}}>{inviteStatus.ok?"✅":"❌"} {inviteStatus.msg}</div>}
-
-                      {/* Members */}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
-                        {members.map(m=>{
-                          const mOwned = m.uid===user.uid ? owned : (friendOwned[m.uid]||{});
-                          const totalCards = Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
-                          const apexCards = cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
-                          return (
-                            <div key={m.uid} style={{background:"#0a0a0a",border:`1px solid ${m.uid===user.uid?"#A855F7":"#1a1a1a"}`,borderRadius:10,padding:12}}>
-                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                                {m.photoURL?<img src={m.photoURL} alt="" style={{width:32,height:32,borderRadius:"50%",flexShrink:0}}/>:<div style={{width:32,height:32,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>👤</div>}
-                                <div>
-                                  <div style={{fontSize:13,fontWeight:700,color:m.uid===user.uid?"#A855F7":"#F0F0F0"}}>{m.displayName}{m.uid===user.uid?" (you)":""}</div>
-                                  <div style={{fontSize:11,color:"#555"}}>{totalCards} cards owned</div>
-                                </div>
-                              </div>
-                              {apexCards.length>0&&(
-                                <div>
-                                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex cards ({apexCards.length})</div>
-                                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                                    {apexCards.slice(0,6).map(c=>{
-                                      const wc=WEAPON_COLORS[c.weapon]||"#444";
-                                      return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:"#1a1a1a",border:`1px solid ${wc}44`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;
-                                    })}
-                                    {apexCards.length>6&&<div style={{fontSize:9,color:"#555"}}>+{apexCards.length-6}</div>}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {/* Empty slots */}
-                        {Array.from({length:4-members.length}).map((_,i)=>(
-                          <div key={i} style={{background:"#080808",border:"1px dashed #1a1a1a",borderRadius:10,padding:12,display:"flex",alignItems:"center",justifyContent:"center",minHeight:80}}>
-                            <span style={{fontSize:11,color:"#333"}}>Empty slot</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Team apex conflict overview */}
-                    {members.length>1&&(()=>{
-                      // Find duplicate apex cards across members
-                      const apexMap = {}; // dupKey → [memberName, ...]
-                      members.forEach(m=>{
-                        const mOwned = m.uid===user.uid ? owned : (friendOwned[m.uid]||{});
-                        cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
-                          const dk=dupKey(c);
-                          if(!apexMap[dk]) apexMap[dk]={card:c,members:[]};
-                          apexMap[dk].members.push(m.displayName);
-                        });
-                      });
-                      const conflicts = Object.values(apexMap).filter(x=>x.members.length>1);
-                      if (conflicts.length===0) return (
-                        <div style={{background:"#0a1a0a",border:"1px solid #4ade8044",borderRadius:12,padding:16,textAlign:"center"}}>
-                          <div style={{fontSize:20,marginBottom:4}}>✅</div>
-                          <div style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
-                          <div style={{fontSize:11,color:"#555",marginTop:4}}>All team members have unique apex cards</div>
-                        </div>
-                      );
+                  <div style={{marginTop:12}}>
+                    {[{type:"play",label:"⚔️ Plays",color:"#E8317A"},{type:"bonus",label:"⭐ Bonus",color:"#7B9CFF"}].map(({type,label,color})=>{
+                      const entries=pbResolved.filter(e=>e.type===type);
+                      if(!entries.length)return null;
                       return (
-                        <div style={{background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:12,padding:16}}>
-                          <div style={{fontSize:13,fontWeight:800,color:"#E8317A",marginBottom:10}}>⚠️ {conflicts.length} Apex Card Conflict{conflicts.length!==1?"s":""}</div>
-                          {conflicts.map(({card,members:mems},i)=>{
-                            const wc=WEAPON_COLORS[card.weapon]||"#444";
+                        <div key={type} style={{marginBottom:8}}>
+                          <div style={{fontSize:10,color:color,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} ({entries.length})</div>
+                          {entries.map((e,i)=>{
+                            const c=e.card;
                             return (
-                              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,paddingBottom:8,borderBottom:"1px solid #2a0a0a"}}>
-                                <div style={{width:28,height:36,borderRadius:4,overflow:"hidden",flexShrink:0,background:"#1a1a1a"}}>
-                                  {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc}}>{card.hero?.split(" ")[0]}</div>}
+                              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",width:16,textAlign:"center"}}>{type==="play"?i+1:`B${i+1}`}</span>
+                                {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:11,fontWeight:700,color:color}}>{c.hero}</div>
+                                  {c.dbs&&<div style={{fontSize:10,color:"#A855F7"}}>DBS: {c.dbs}</div>}
                                 </div>
-                                <div style={{flex:1}}>
-                                  <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}⚡ · {card.treatment}</div>
-                                  <div style={{fontSize:11,color:"#E8317A"}}>Owned by: {mems.join(", ")}</div>
-                                </div>
+                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
                               </div>
                             );
                           })}
                         </div>
                       );
-                    })()}
+                    })}
+                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>✕ Clear</button>
                   </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
-      )}
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
+        {/* MARKET TAB */}
+        {activeTab==="market"&&(
+          <div>
+            {/* My listings */}
+            {user&&myListings.length>0&&(
+              <div style={{marginBottom:24}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#4ade80",marginBottom:12}}>Your Listings ({myListings.length})</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+                  {myListings.map(l=>(
+                    <div key={l.id} className="market-card" style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",position:"relative"}}>
+                      <div style={{display:"flex",gap:12,marginBottom:10}}>
+                        {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} · {l.cardPower}⚡</div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
+                        </div>
+                      </div>
+                      {l.offerCount>0&&<div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:8}}>🤝 {l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
+                      <button onClick={()=>removeListing(l.id)} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.5)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Remove Listing</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Community listings */}
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
+                {listings.length===0?"No active listings right now":"Community Listings"} {listings.length>0&&<span style={{fontSize:12,color:"rgba(255,255,255,0.3)",fontWeight:400}}>({listings.length})</span>}
+              </div>
+              {listings.length===0?(
+                <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
+                  <div style={{fontSize:48,marginBottom:16}}>💰</div>
+                  <div style={{fontSize:16,fontWeight:700}}>No cards listed yet</div>
+                  <div style={{fontSize:13,marginTop:8}}>List your owned cards from the Cards tab using the 💰 button</div>
+                </div>
+              ):(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+                  {listings.map(l=>{
+                    const wc=WEAPON_COLORS[l.cardWeapon]||"#444";
+                    return (
+                      <div key={l.id} className="market-card" style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",cursor:"pointer"}} onClick={()=>{if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");}}>
+                        <div style={{display:"flex",gap:12,marginBottom:10}}>
+                          {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:54,height:72,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 4px 16px ${wc}33`}}/>:<div style={{width:54,height:72,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
+                            <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}⚡ · {l.setName}</div>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                          <div>
+                            <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>${(l.askingPrice||0).toFixed(2)}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
+                          </div>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by {l.sellerName}</div>
+                            {l.offerCount>0&&<div style={{fontSize:10,color:"#FBBF24"}}>{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
+                          </div>
+                        </div>
+                        {l.notes&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic",marginBottom:10,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:8}}>{l.notes}</div>}
+                        <button style={{width:"100%",background:`linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))`,border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.25),rgba(245,158,11,0.2))";e.currentTarget.style.boxShadow="0 4px 16px rgba(251,191,36,0.2)";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))";e.currentTarget.style.boxShadow="";}}>
+                          🤝 Make Offer
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* FRIENDS TAB */}
+        {activeTab==="friends"&&(
+          <div style={{maxWidth:700,margin:"0 auto"}}>
+            {!user?(
+              <div style={{textAlign:"center",padding:80}}>
+                <div style={{fontSize:48,marginBottom:16}}>👥</div>
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)"}}>Sign in to add friends</button>
+              </div>
+            ):(
+              <>
+                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>➕ Add Friend</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google sign-in email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
+                    <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
+                  </div>
+                  {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:10,fontWeight:600}}>{addStatus.ok?"✅":"❌"} {addStatus.msg}</div>}
+                </div>
+
+                {friendReqs.length>0&&(
+                  <div style={{background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>📬 Requests ({friendReqs.length})</div>
+                    {friendReqs.map(r=>(
+                      <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{r.fromEmail}</div></div>
+                        <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Accept</button>
+                        <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {teamInvites.length>0&&(
+                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Team Invites ({teamInvites.length})</div>
+                    {teamInvites.map(inv=>(
+                      <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{inv.teamName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {inv.fromName}</div></div>
+                        <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.3)",color:"#A855F7",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Join</button>
+                        <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {sentReqs.length>0&&(
+                  <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:12}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Pending sent</div>
+                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>⏳ {r.toEmail}</div>)}
+                  </div>
+                )}
+
+                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Friends ({friends.length})</div>
+                  {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet — add someone above!</div>:
+                    friends.map(f=>(
+                      <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>👤</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
+                        </div>
+                        <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
+                          style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                          {viewingFriend===f.friendUid?"Hide":"👁 View"}
+                        </button>
+                      </div>
+                    ))
+                  }
+                </div>
+
+                {viewingFriend&&(()=>{
+                  const f=friends.find(fr=>fr.friendUid===viewingFriend);
+                  const fo=friendOwned[viewingFriend]||{};
+                  const friendCards=cards.filter(c=>fo[c.id]);
+                  return (
+                    <div style={{marginTop:12,background:"rgba(123,156,255,0.03)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:16,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:12}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,maxHeight:500,overflowY:"auto"}}>
+                        {friendCards.map(c=>{
+                          const wc=WEAPON_COLORS[c.weapon]||"#444";
+                          return (
+                            <div key={c.id} style={{background:"rgba(0,0,0,0.4)",border:`1px solid ${wc}22`,borderRadius:12,padding:10,backdropFilter:"blur(4px)"}}>
+                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,marginBottom:6}}/>}
+                              <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
+                              <div style={{fontSize:10,color:wc,fontWeight:700}}>{c.weapon}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{c.treatment}</div>
+                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}⚡</div>
+                              {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>×{fo[c.id]}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TEAM TAB */}
+        {activeTab==="team"&&(
+          <div style={{maxWidth:900,margin:"0 auto"}}>
+            {!user?(
+              <div style={{textAlign:"center",padding:80}}>
+                <div style={{fontSize:48,marginBottom:16}}>🏆</div>
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
+              </div>
+            ):(
+              <>
+                {teams.length===0&&(
+                  <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Create Your Team</div>
+                    <div style={{display:"flex",gap:8}}>
+                      <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
+                      <button onClick={createTeam} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(168,85,247,0.3)"}}>Create</button>
+                    </div>
+                  </div>
+                )}
+
+                {teams.length>1&&(
+                  <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+                    {teams.map(t=>(
+                      <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"rgba(168,85,247,0.15)":"rgba(255,255,255,0.02)",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.08)"}`,color:activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.4)",borderRadius:10,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
+                        {t.name} ({t.members?.length||1}/4)
+                      </button>
+                    ))}
+                    <button onClick={()=>setNewTeamName(" ")} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+                  </div>
+                )}
+
+                {activeTeam&&(()=>{
+                  const team=activeTeam, members=team.members||[], isOwner=team.createdBy===user.uid;
+                  const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+                  const apexMap={};
+                  members.forEach(m=>{
+                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
+                    cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
+                      const dk=dupKey2(c);
+                      if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
+                      apexMap[dk].members.push(m.displayName);
+                    });
+                  });
+                  const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
+                  return (
+                    <>
+                      <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+                          <div>
+                            <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{members.length}/4 members · Apex Madness</div>
+                          </div>
+                          {members.length<4&&isOwner&&(
+                            <div style={{display:"flex",gap:8}}>
+                              <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Friend's email..." style={{...inp,width:200}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
+                              <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
+                            </div>
+                          )}
+                        </div>
+                        {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:12,fontWeight:600}}>{inviteStatus.ok?"✅":"❌"} {inviteStatus.msg}</div>}
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
+                          {members.map(m=>{
+                            const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
+                            const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
+                            const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
+                            return (
+                              <div key={m.uid} style={{background:m.uid===user.uid?"rgba(168,85,247,0.08)":"rgba(255,255,255,0.02)",border:`1px solid ${m.uid===user.uid?"rgba(168,85,247,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14}}>
+                                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                                  {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${m.uid===user.uid?"#A855F7":"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>👤</div>}
+                                  <div>
+                                    <div style={{fontSize:13,fontWeight:700,color:m.uid===user.uid?"#A855F7":"#F0F0F0"}}>{m.displayName}{m.uid===user.uid?" (you)":""}</div>
+                                    <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
+                                  </div>
+                                </div>
+                                {apexCards.length>0&&(
+                                  <div>
+                                    <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:5}}>Apex ({apexCards.length})</div>
+                                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                                      {apexCards.slice(0,6).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:6,padding:"2px 7px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                                      {apexCards.length>6&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-6}</span>}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {Array.from({length:4-members.length}).map((_,i)=>(
+                            <div key={i} style={{background:"rgba(255,255,255,0.01)",border:"1px dashed rgba(255,255,255,0.05)",borderRadius:14,padding:14,display:"flex",alignItems:"center",justifyContent:"center",minHeight:90}}>
+                              <span style={{fontSize:12,color:"rgba(255,255,255,0.15)"}}>Empty slot</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {members.length>1&&(
+                        conflicts.length===0?(
+                          <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:24,marginBottom:8}}>✅</div>
+                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
+                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
+                          </div>
+                        ):(
+                          <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>⚠️ {conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
+                            {conflicts.map(({card,members:mems},i)=>{
+                              const wc=WEAPON_COLORS[card.weapon]||"#444";
+                              return (
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                  <div style={{width:32,height:43,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
+                                    {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc}}>{card.hero?.split(" ")[0]}</div>}
+                                  </div>
+                                  <div style={{flex:1}}>
+                                    <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}⚡ · {card.treatment}</div>
+                                    <div style={{fontSize:11,color:"#E8317A"}}>Conflict: {mems.join(", ")}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
+                    </>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
