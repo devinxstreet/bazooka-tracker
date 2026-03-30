@@ -10286,8 +10286,16 @@ function PublicCardDatabase() {
 
   if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
     <div style={{textAlign:"center"}}>
-      <div style={{fontSize:48,marginBottom:16,animation:"spin 2s linear infinite"}}>⚡</div>
-      <div>Loading Bazooka Vault...</div>
+      <div style={{position:"relative",width:80,height:80,marginBottom:16}}>
+        {/* Vault outer ring */}
+        <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"3px solid rgba(232,49,122,0.15)",borderTopColor:"#E8317A",borderRightColor:"#7B2FF7",animation:"spin 1.2s linear infinite"}}/>
+        {/* Vault inner ring */}
+        <div style={{position:"absolute",inset:8,borderRadius:"50%",border:"2px solid rgba(123,156,255,0.1)",borderBottomColor:"#7B9CFF",animation:"spin 2s linear infinite reverse"}}/>
+        {/* Vault center */}
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>🔐</div>
+      </div>
+      <div style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:4}}>Bazooka Vault</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Loading...</div>
     </div>
   </div>;
 
