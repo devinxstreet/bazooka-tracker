@@ -9817,6 +9817,7 @@ function PublicCardDatabase() {
   const [marketSales,   setMarketSales]   = useState([]);
   // ── Comp modal ──
   const [compCard,      setCompCard]      = useState(null); // card being comped
+  const [privacyAnim,   setPrivacyAnim]   = useState(null); // cardId showing lock animation
   const [listPrice,     setListPrice]     = useState("");
   const [listType,      setListType]      = useState("sale"); // sale|trade|either
   const [listNotes,     setListNotes]     = useState("");
@@ -10319,7 +10320,9 @@ function PublicCardDatabase() {
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
       <style>{`
-        @keyframes gradientShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        @keyframes lockPulse { 0%{transform:scale(0.5);opacity:0} 40%{transform:scale(1.3);opacity:1} 70%{transform:scale(0.95);opacity:1} 100%{transform:scale(1);opacity:1} }
+        @keyframes lockFadeOut { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+        @keyframes cardDim { 0%{opacity:1} 30%{opacity:0.35} 100%{opacity:1} }
         @keyframes floatUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
         @keyframes glowPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
         @keyframes cardEntrance { from{opacity:0;transform:translateY(20px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)} }
@@ -10384,9 +10387,9 @@ function PublicCardDatabase() {
                   {exact?(
                     <>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
-                        {[{l:"Avg Sale",v:`$${exact.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${exact.high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${exact.low.toFixed(2)}`,c:"#FBBF24"},{l:"# Sales",v:exact.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c2=c})=>(
+                        {[{l:"Avg Sale",v:`$${exact.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${exact.high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${exact.low.toFixed(2)}`,c:"#FBBF24"},{l:"# Sales",v:exact.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
                           <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:900,color:c2}}>{v}</div>
+                            <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
                             <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
                           </div>
                         ))}
@@ -10419,9 +10422,9 @@ function PublicCardDatabase() {
                   {near?(
                     <>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
-                        {[{l:"Avg",v:`$${near.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${near.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:near.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c2=c})=>(
+                        {[{l:"Avg",v:`$${near.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${near.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:near.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
                           <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:900,color:c2}}>{v}</div>
+                            <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
                             <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
                           </div>
                         ))}
@@ -10750,11 +10753,33 @@ function PublicCardDatabase() {
                     style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.75)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:6,padding:"3px 7px",fontSize:10,cursor:"pointer",backdropFilter:"blur(6px)",color:"#7B9CFF",fontWeight:700,zIndex:10}}>
                     📊 Comp
                   </button>
+                  {/* Lock animation overlay */}
+                  {privacyAnim===c.id&&(
+                    <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
+                      <div style={{fontSize:48,animation:"lockPulse 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards",lineHeight:1,marginBottom:6}}>
+                        {privateCards[c.id]?"🔒":"👁"}
+                      </div>
+                      <div style={{fontSize:11,fontWeight:800,color:"#fff",textAlign:"center",textShadow:"0 2px 8px rgba(0,0,0,0.8)",letterSpacing:0.5}}>
+                        {privateCards[c.id]?"Hidden from friends":"Visible to friends"}
+                      </div>
+                    </div>
+                  )}
+                  {/* Card dim when private */}
+                  {privateCards[c.id]&&privacyAnim!==c.id&&(
+                    <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.4)",pointerEvents:"none",zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"flex-end",padding:6}}>
+                      <span style={{fontSize:14,filter:"drop-shadow(0 1px 3px rgba(0,0,0,0.8))"}}>🔒</span>
+                    </div>
+                  )}
                   {/* Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
                     <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
-                      <button onClick={e=>{e.stopPropagation();togglePrivate(c.id);}} title={privateCards[c.id]?"Card is private (friends can't see)":"Card is visible to friends"}
-                        style={{background:privateCards[c.id]?"rgba(232,49,122,0.8)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700}}>
+                      <button onClick={e=>{
+                        e.stopPropagation();
+                        togglePrivate(c.id);
+                        setPrivacyAnim(c.id);
+                        setTimeout(()=>setPrivacyAnim(null), 1300);
+                      }} title={privateCards[c.id]?"Card is private (friends can't see)":"Card is visible to friends"}
+                        style={{background:privateCards[c.id]?"rgba(232,49,122,0.85)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700,transition:"background 0.2s"}}>
                         {privateCards[c.id]?"🔒":"👁"}
                       </button>
                       <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
@@ -11206,9 +11231,9 @@ function PublicCardDatabase() {
                                 </div>
                               </div>
                               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
-                                {[{l:"Avg",v:`$${avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${low.toFixed(2)}`,c:"#FBBF24"}].map(({l,v,c})=>(
+                                {[{l:"Avg",v:`$${avg.toFixed(2)}`,col:"#7B9CFF"},{l:"High",v:`$${high.toFixed(2)}`,col:"#4ade80"},{l:"Low",v:`$${low.toFixed(2)}`,col:"#FBBF24"}].map(({l,v,col})=>(
                                   <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"6px 8px",textAlign:"center"}}>
-                                    <div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div>
+                                    <div style={{fontSize:13,fontWeight:800,color:col}}>{v}</div>
                                     <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:1}}>{l}</div>
                                   </div>
                                 ))}
