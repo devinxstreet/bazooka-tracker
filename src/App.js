@@ -1899,6 +1899,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             )}
           </div>
         </div>
+        </div>{/* end left column */}
 
         {/* Seller Intelligence Panel — right column */}
         {seller.name && (() => {
