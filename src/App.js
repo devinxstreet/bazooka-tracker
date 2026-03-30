@@ -6151,6 +6151,7 @@ function BobaChecklist({ userRole, user }) {
   const [importProgress, setImportProgress] = useState("");
   const [pendingFile,  setPendingFile]  = useState(null); // file waiting for set name
   const [setNameInput, setSetNameInput] = useState("");
+  const [newSetMode,   setNewSetMode]   = useState(false);
   const [search,       setSearch]       = useState("");
   const [filterTreat,  setFilterTreat]  = useState("");
   const [filterWeapon, setFilterWeapon] = useState("");
@@ -6638,27 +6639,36 @@ function BobaChecklist({ userRole, user }) {
       const find = keys => keys.reduce((f,k) => f >= 0 ? f : headers.indexOf(k), -1);
       const cnIdx   = find(["card number","card_num","card#","cardnum","card num"]);
       const dbsIdx  = find(["dbs score","dbs_score","dbs","salary"]);
-      const nameIdx = find(["play name","card name","name","play"]);
-      const costIdx = find(["cost","play cost","hot dog cost","hd cost"]);
-      const textIdx = find(["text","ability","description","card text"]);
+      const setIdx  = find(["set name","set","edition"]);
+      const costIdx = find(["hot dog cost","hd cost","play cost","cost"]);
 
       if (cnIdx < 0 || dbsIdx < 0) {
         setDbsStatus({ msg:`❌ Couldn't find required columns. Found: ${headers.join(", ")}`, ok:false });
         setDbsImporting(false); return;
       }
 
-      function normalizeNum(s) {
-        // Strip single-letter rarity prefix ONLY: "A - PL-59" → "PL-59", "G - BPL-3" → "BPL-3"
-        // But leave "PL-59" alone (PL is not a rarity prefix, it's part of the card number)
-        return String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim().replace(/[^a-z0-9]/gi,"").toLowerCase();
+      // Rarity prefix → set name mapping
+      const PREFIX_TO_SET = {
+        "a": "2024 Alpha Edition",
+        "u": "2025 Alpha Update",
+        "g": '2026 Edition "The Griffey Set"',
+        "htd": "2025 Alpha Blast",
+      };
+
+      function stripPrefix(s) {
+        // Strip single-letter rarity prefix: "A - PL-59" → "PL-59", "G - BPL-3" → "BPL-3"
+        return String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
+      }
+      function normStr(s) {
+        return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
       }
 
-      // Build exact lookup map from checklist
+      // Build lookup map: normalized cardNum → [cards]
       const exactMap = {};
       cards.forEach(c => {
-        const norm = normalizeNum(c.cardNum);
-        if (!exactMap[norm]) exactMap[norm] = [];
-        exactMap[norm].push(c);
+        const k = normStr(c.cardNum);
+        if (!exactMap[k]) exactMap[k] = [];
+        exactMap[k].push(c);
       });
 
       let updated = 0, skipped = 0;
@@ -6671,21 +6681,21 @@ function BobaChecklist({ userRole, user }) {
         const dbs     = parseFloat(rawDbs);
         if (!rawNum || isNaN(dbs)) { skipped++; continue; }
 
-        const norm       = normalizeNum(rawNum);
-        const allMatches = exactMap[norm] || [];
-        if (allMatches.length === 0) { skipped++; continue; }
-
-        const playName = nameIdx >= 0 ? (cols[nameIdx]||"").replace(/^"|"$/g,"").trim() : "";
+        const baseNum  = stripPrefix(rawNum);
+        const normNum  = normStr(baseNum);
+        const csvSet   = setIdx >= 0 ? (cols[setIdx]||"").replace(/^"|"$/g,"").trim() : "";
         const playCost = costIdx >= 0 ? (cols[costIdx]||"").replace(/^"|"$/g,"").trim() : "";
 
-        // If multiple cards share the same card number, narrow by play name (hero field in checklist)
+        const allMatches = exactMap[normNum] || [];
+        if (allMatches.length === 0) { skipped++; continue; }
+
+        // Narrow by set name when available — primary tiebreaker
         let matches = allMatches;
-        if (allMatches.length > 1 && playName) {
-          const nameNorm = playName.toLowerCase().replace(/[^a-z0-9]/g,"");
-          const byName = allMatches.filter(c =>
-            (c.hero||"").toLowerCase().replace(/[^a-z0-9]/g,"") === nameNorm
+        if (allMatches.length > 1 && csvSet) {
+          const bySet = allMatches.filter(c =>
+            normStr(c.setName||"") === normStr(csvSet)
           );
-          if (byName.length > 0) matches = byName;
+          if (bySet.length > 0) matches = bySet;
         }
 
         for (const match of matches) {
@@ -6748,7 +6758,9 @@ function BobaChecklist({ userRole, user }) {
           treatIdx=idx('treatment'), weaponIdx=idx('weapon'), noteIdx=idx('notation'),
           powerIdx=idx('power'), athIdx=idx('athlete inspiration'),
           costIdx=idx('play cost'), abilityIdx=idx('play ability');
-    const importId = uid();
+    // If adding to existing set, reuse its importId so card IDs are consistent
+    const existingImport = imports.find(i => i.setName === setNameInput.trim());
+    const importId = existingImport ? existingImport.id : uid();
     const setName = setNameInput.trim();
     const cardIds = [];
     const batch = [];
@@ -6785,6 +6797,7 @@ function BobaChecklist({ userRole, user }) {
     setImportProgress("");
     setPendingFile(null);
     setSetNameInput("");
+    setNewSetMode(false);
   }
 
   async function handleDeleteImport(imp) {
@@ -7048,25 +7061,56 @@ function BobaChecklist({ userRole, user }) {
       )}
 
       {/* Import modal */}
-      {pendingFile && (
-        <div style={{ ...S.card, border:"1.5px solid #E8317A44", background:"#0a0005" }}>
-          <div style={{ fontWeight:700, color:"#F0F0F0", marginBottom:10 }}>📂 {pendingFile.name}</div>
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <input
-              value={setNameInput}
-              onChange={e=>setSetNameInput(e.target.value)}
-              placeholder="Name this set (e.g. BJBA Series 1)"
-              style={{ ...S.inp, flex:1 }}
-              onKeyDown={e=>e.key==="Enter"&&handleImport()}
-              autoFocus
-            />
-            <Btn onClick={handleImport} variant="green" disabled={!setNameInput.trim()||importing}>
-              {importing ? importProgress||"Importing..." : "✅ Import"}
-            </Btn>
-            <Btn onClick={()=>setPendingFile(null)} variant="ghost">Cancel</Btn>
+      {pendingFile && (() => {
+        const existingSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+        return (
+          <div style={{ ...S.card, border:"1.5px solid #E8317A44", background:"#0a0005" }}>
+            <div style={{ fontWeight:700, color:"#F0F0F0", marginBottom:10 }}>📂 {pendingFile.name}</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+              {!newSetMode && existingSets.length > 0 ? (
+                <>
+                  <select
+                    value={setNameInput}
+                    onChange={e => { if(e.target.value === "__new__") { setNewSetMode(true); setSetNameInput(""); } else setSetNameInput(e.target.value); }}
+                    style={{ ...S.inp, flex:1, cursor:"pointer", color:setNameInput?"#F0F0F0":"#555" }}
+                    autoFocus
+                  >
+                    <option value="">— Select existing set —</option>
+                    {existingSets.map(s=><option key={s} value={s}>{s}</option>)}
+                    <option value="__new__">+ Create new set...</option>
+                  </select>
+                </>
+              ) : (
+                <div style={{ display:"flex", gap:8, flex:1, alignItems:"center" }}>
+                  {existingSets.length > 0 && (
+                    <button onClick={()=>{ setNewSetMode(false); setSetNameInput(""); }}
+                      style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"6px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                      ← Existing
+                    </button>
+                  )}
+                  <input
+                    value={setNameInput}
+                    onChange={e=>setSetNameInput(e.target.value)}
+                    placeholder="New set name (e.g. 2025 Alpha Blast)"
+                    style={{ ...S.inp, flex:1 }}
+                    onKeyDown={e=>e.key==="Enter"&&handleImport()}
+                    autoFocus
+                  />
+                </div>
+              )}
+              <Btn onClick={handleImport} variant="green" disabled={!setNameInput.trim()||importing}>
+                {importing ? importProgress||"Importing..." : "✅ Import"}
+              </Btn>
+              <Btn onClick={()=>{ setPendingFile(null); setNewSetMode(false); setSetNameInput(""); }} variant="ghost">Cancel</Btn>
+            </div>
+            {setNameInput && !newSetMode && (
+              <div style={{ fontSize:11, color:"#555", marginTop:6 }}>
+                Adding cards to existing set: <span style={{ color:"#7B9CFF", fontWeight:700 }}>{setNameInput}</span>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Filters */}
       <div style={{ ...S.card, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
