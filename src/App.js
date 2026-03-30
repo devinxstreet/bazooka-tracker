@@ -9966,6 +9966,7 @@ function PublicCardDatabase() {
   const [offerNote,     setOfferNote]     = useState("");
   const [offerSent,     setOfferSent]     = useState(false);
   const [marketNotifs,  setMarketNotifs]  = useState([]);
+  const [allMyOffers,   setAllMyOffers]   = useState([]);
   const [counterModal,  setCounterModal]  = useState(null); // offer being countered
   const [counterAmt,    setCounterAmt]    = useState("");
   const [counterSent,   setCounterSent]   = useState(false);
@@ -10068,6 +10069,9 @@ function PublicCardDatabase() {
       // Marketplace notifications for me (offers on my listings)
       onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
         snap => setMarketNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("status","==","pending")),
+        snap => setAllMyOffers(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(b.offerAmount||0)-(a.offerAmount||0)))
       ),
       // Want notifications -- someone listed a card I want
       onSnapshot(query(collection(db,"market_notifs"), where("toUid","==",uid2), where("read","==",false)),
@@ -10290,10 +10294,11 @@ function PublicCardDatabase() {
 
   // -- Marketplace --
   async function createListing() {
-    if(!user||!listModal||!listPrice)return;
+    if(!user||!listModal)return;
+    if(listType!=="offer"&&!listPrice)return;
     const id=uid();
     const card=listModal;
-    await setDoc(doc(db,"marketplace",id),{id,cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,status:"active",createdAt:new Date().toISOString(),offerCount:0});
+    await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,status:"active",createdAt:new Date().toISOString(),offerCount:0});
     // Notify users who have this card on their want list
     try {
       const wantSnaps = await getDocs(collection(db,"boba_wants"));
@@ -10347,43 +10352,65 @@ function PublicCardDatabase() {
   }
 
   async function respondOffer(offer, action) {
-    await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:new Date().toISOString()},{merge:true});
+    const now = new Date().toISOString();
+    await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:now},{merge:true});
     logNegotiationHistory(offer, action, offer.offerAmount||0);
     if (action==="accepted") {
-      // Close the listing
-      await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold"},{merge:true});
-      // Create a deal thread for buyer + seller to coordinate payment
-      const threadId = uid();
-      const now = new Date().toISOString();
+      // 1. Close the listing
+      await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold",soldAt:now,soldTo:offer.buyerUid,soldFor:offer.offerAmount||0},{merge:true});
+      // 2. Auto-decline all OTHER pending offers on this listing
+      try {
+        const othersSnap = await getDocs(query(collection(db,"market_offers"),where("listingId","==",offer.listingId),where("status","==","pending")));
+        await Promise.all(othersSnap.docs.filter(d=>d.id!==offer.id).map(d=>setDoc(doc(db,"market_offers",d.id),{status:"declined",notified:true,respondedAt:now},{merge:true})));
+      } catch(e){ console.warn("Auto-decline failed:",e); }
+      // 3. Decrement seller owned qty by 1
+      try {
+        const sellerSnap = await getDoc(doc(db,"boba_owned",offer.sellerUid));
+        if (sellerSnap.exists()&&offer.cardId) {
+          const so=sellerSnap.data(); const newQty=(so[offer.cardId]||1)-1;
+          const next={...so}; if(newQty<=0) delete next[offer.cardId]; else next[offer.cardId]=newQty;
+          await setDoc(doc(db,"boba_owned",offer.sellerUid),next);
+          if(user?.uid===offer.sellerUid) setOwned(next);
+        }
+      } catch(e){ console.warn("Seller qty failed:",e); }
+      // 4. Add to buyer collection
+      try {
+        const buyerSnap = await getDoc(doc(db,"boba_owned",offer.buyerUid));
+        const bo=buyerSnap.exists()?buyerSnap.data():{};
+        if(offer.cardId) {
+          const next={...bo,[offer.cardId]:(bo[offer.cardId]||0)+1};
+          await setDoc(doc(db,"boba_owned",offer.buyerUid),next);
+          if(user?.uid===offer.buyerUid) setOwned(next);
+        }
+      } catch(e){ console.warn("Buyer collection failed:",e); }
+      // 5. Create deal thread
+      const threadId=uid();
       await setDoc(doc(db,"deal_threads",threadId),{
-        id: threadId,
-        memberUids: [offer.sellerUid, offer.buyerUid],
-        sellerUid: offer.sellerUid, sellerName: offer.sellerName||"Seller",
-        buyerUid: offer.buyerUid, buyerName: offer.buyerName||"Buyer",
-        cardName: offer.cardName, cardImage: offer.cardImage||null,
-        agreedPrice: offer.offerAmount||0,
-        status: "active",
-        lastMessage: "Deal accepted! Coordinate payment details here.",
-        lastMessageAt: now, lastSenderUid: "system",
-        lastReadBy: { [offer.sellerUid]: now },
-        createdAt: now,
+        id:threadId, memberUids:[offer.sellerUid,offer.buyerUid],
+        sellerUid:offer.sellerUid, sellerName:offer.sellerName||"Seller",
+        buyerUid:offer.buyerUid, buyerName:offer.buyerName||"Buyer",
+        cardName:offer.cardName, cardImage:offer.cardImage||null, cardId:offer.cardId||"",
+        agreedPrice:offer.offerAmount||0, status:"active",
+        lastMessage:"Deal accepted! Coordinate payment details here.",
+        lastMessageAt:now, lastSenderUid:"system",
+        lastReadBy:{[offer.sellerUid]:now}, createdAt:now,
       });
-      // Opening system message
       await setDoc(doc(db,"deal_threads",threadId,"messages",uid()),{
-        text:`\u2705 Deal agreed! ${offer.cardName} for $${(offer.offerAmount||0).toFixed(2)}. Use this chat to share payment details.`,
+        text:"\u2705 Deal agreed! "+offer.cardName+" for $"+(offer.offerAmount||0).toFixed(2)+". The card has been added to the buyer's collection automatically.",
         senderUid:"system", senderName:"System", sentAt:now,
       });
-      // Log market sale
+      // 6. Log sale
       await setDoc(doc(db,"market_sales",uid()),{
-        cardId: offer.cardId||"", cardName: offer.cardName,
-        cardTreatment: offer.cardTreatment||"", cardWeapon: offer.cardWeapon||"",
-        cardPower: offer.cardPower||"", cardImage: offer.cardImage||null,
-        setName: offer.setName||"",
-        price: offer.offerAmount||0,
-        soldAt: now, soldDate: now.split("T")[0],
-        sellerUid: offer.sellerUid, buyerUid: offer.buyerUid,
+        cardId:offer.cardId||"", cardName:offer.cardName,
+        cardTreatment:offer.cardTreatment||"", cardWeapon:offer.cardWeapon||"",
+        cardPower:offer.cardPower||"", cardImage:offer.cardImage||null,
+        setName:offer.setName||"", price:offer.offerAmount||0,
+        soldAt:now, soldDate:now.split("T")[0],
+        sellerUid:offer.sellerUid, sellerName:offer.sellerName||"",
+        buyerUid:offer.buyerUid, buyerName:offer.buyerName||"",
       });
     }
+  }
   }
 
   async function counterOffer(offer, counterAmount) {
@@ -10730,12 +10757,25 @@ function PublicCardDatabase() {
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCB0 List for Sale/Trade"}</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} &middot; {listModal.treatment} &middot; {listModal.power}\u26A1</div>
-            <div style={{display:"flex",gap:6,marginBottom:16}}>
-              {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setListType(v)} style={{flex:1,background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:`1.5px solid ${listType===v?"#4ade80":"rgba(255,255,255,0.1)"}`,color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+            <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+              {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"],["offer","Best Offer"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setListType(v)} style={{flex:1,minWidth:"45%",background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:"1.5px solid "+(listType===v?"#4ade80":"rgba(255,255,255,0.1)"),color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
               ))}
             </div>
-            <input value={listPrice} onChange={e=>setListPrice(e.target.value)} placeholder="Asking price ($)" type="number" step="0.01" style={{...inp,width:"100%",marginBottom:10}}/>
+
+            {listType==="offer"?(
+              <div style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCE8 Accepting offers only"}</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>No asking price set. Buyers can submit any amount and you negotiate from there.</div>
+              </div>
+            ):(
+              <div style={{position:"relative",marginBottom:10}}>
+                <input value={listPrice} onChange={e=>setListPrice(e.target.value)} placeholder="Asking price ($)" type="number" step="0.01" style={{...inp,width:"100%",paddingRight:90,boxSizing:"border-box"}}/>
+                {listPrice&&!isNaN(parseFloat(listPrice))&&(
+                  <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"rgba(255,255,255,0.3)"}}>or best offer</span>
+                )}
+              </div>
+            )}
             <textarea value={listNotes} onChange={e=>setListNotes(e.target.value)} placeholder="Notes (condition, trades wanted, etc.)" rows={3} style={{...inp,width:"100%",marginBottom:16,resize:"none"}}/>
             <div style={{display:"flex",gap:10}}>
               <button onClick={createListing} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(74,222,128,0.3)"}}>List Card</button>
@@ -10773,11 +10813,67 @@ function PublicCardDatabase() {
             ):(
               <>
                 <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"\uD83E\uDD1D Make an Offer"}</div>
-                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{offerModal.cardName} {"\u00B7"} {offerModal.sellerName}</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:20}}>Asking: {"$"}{(offerModal.askPrice||0).toFixed(2)}</div>
-                <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="Your offer ($)" type="number" min="0" step="0.01"
-                  style={{width:"100%",marginBottom:12,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
-                <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message (optional)" rows={2}
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:16}}>{offerModal.cardName} {"\u00B7"} {offerModal.sellerName}</div>
+
+                {!offerModal?.isOBO&&<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Asking price</span>
+                    <span style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{"$"}{(offerModal.askPrice||0).toFixed(2)}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:6}}>Quick offer</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {[100,95,90,85,80].map(pct=>{
+                      const qAmt=((offerModal.askPrice||0)*pct/100).toFixed(2);
+                      const active=offerAmt===qAmt;
+                      return (
+                        <button key={pct} onClick={()=>setOfferAmt(qAmt)}
+                          style={{flex:1,background:active?"rgba(251,191,36,0.25)":"rgba(255,255,255,0.05)",
+                            border:"1px solid "+(active?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.08)"),
+                            borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,
+                            color:active?"#FBBF24":"rgba(255,255,255,0.5)",
+                            cursor:"pointer",fontFamily:"inherit"}}>
+                          {pct}{"%"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>}
+
+                <div style={{marginBottom:12}}>
+                  <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRight:"none",borderRadius:"10px 0 0 10px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
+                    <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="0.00" type="number" min="0" step="0.01"
+                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",borderRight:"none",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
+                    <span style={{
+                      background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",
+                      borderRadius:"0 10px 10px 0",padding:"10px 12px",fontSize:13,fontWeight:800,minWidth:52,textAlign:"center",
+                      color:"rgba(255,255,255,0.3)"}}>
+                      {offerModal?.isOBO||!offerModal?.askPrice?"--":offerAmt&&!isNaN(parseFloat(offerAmt))?Math.round(parseFloat(offerAmt)/(offerModal.askPrice||1)*100)+"%":"--"}
+                    </span>
+                  </div>
+                  {offerAmt&&!isNaN(parseFloat(offerAmt))&&!offerModal?.isOBO&&offerModal?.askPrice>0&&(()=>{
+                    const oa=parseFloat(offerAmt);
+                    const ask=offerModal.askPrice||0;
+                    const pct=ask>0?oa/ask*100:0;
+                    const savings=ask-oa;
+                    const barColor=pct>=95?"#4ade80":pct>=85?"#FBBF24":pct>=75?"#F97316":"#f87171";
+                    const verdict=pct>=100?"Full ask":pct>=95?"Strong offer":pct>=85?"Fair offer":pct>=75?"Low offer":"Very low";
+                    return (
+                      <div>
+                        <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:4,marginBottom:6,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:Math.min(pct,100)+"%",background:barColor,borderRadius:4,transition:"width 0.2s"}}/>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontSize:11,color:barColor,fontWeight:700}}>{verdict}</span>
+                          {savings>0&&<span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{"$"}{savings.toFixed(2)} off ask</span>}
+                          {savings<0&&<span style={{fontSize:11,color:"#f87171"}}>{"$"}{Math.abs(savings).toFixed(2)} over ask</span>}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message to seller (optional)" rows={2}
                   style={{width:"100%",marginBottom:16,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#F0F0F0",fontFamily:"inherit",outline:"none",resize:"none"}}/>
                 <div style={{display:"flex",gap:10}}>
                   <button onClick={submitOffer} disabled={!offerAmt||isNaN(parseFloat(offerAmt))} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:offerAmt&&!isNaN(parseFloat(offerAmt))?1:0.4}}>Send Offer</button>
@@ -11038,9 +11134,8 @@ function PublicCardDatabase() {
                 <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} {n.isCounter?"countered":"offered"} <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
                 {n.isCounter?(
                   <>
-                    <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{"Counter: $"}{(n.counterAmount||0).toFixed(2)}</span>
-                    <button onClick={()=>respondOffer({...n,offerAmount:n.counterAmount},"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
-                    <button onClick={()=>{setCounterModal({...n,offerAmount:n.counterAmount});setCounterAmt("");}} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Counter</button>
+                    <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
+                    <button onClick={()=>{setCounterModal(n);setCounterAmt("");}} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Counter</button>
                     <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
                   </>
                 ):(
@@ -11412,6 +11507,110 @@ function PublicCardDatabase() {
               </div>
             )}
 
+
+            {/* Sold Listings */}
+            {user&&marketSales.filter(s=>s.sellerUid===user.uid).length>0&&(()=>{
+              const mySales=marketSales.filter(s=>s.sellerUid===user.uid);
+              const totalRevenue=mySales.reduce((acc,s)=>acc+(s.price||0),0);
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>{"\uD83D\uDCB8 Sold"}</div>
+                    <span style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#4ade80"}}>{mySales.length} card{mySales.length!==1?"s":""}</span>
+                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#4ade80"}}>{"$"}{totalRevenue.toFixed(2)} total</span>
+                  </div>
+                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:16,overflow:"hidden"}}>
+                    {mySales.map((s,i)=>(
+                      <div key={s.soldAt+i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<mySales.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} sold to {s.buyerName||"buyer"}</div>
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Offer Inbox -- all pending offers on my listings grouped by listing */}
+            {user&&allMyOffers.length>0&&(()=>{
+              // Group offers by listingId
+              const byListing={};
+              allMyOffers.forEach(o=>{
+                if(!byListing[o.listingId]) byListing[o.listingId]={listingId:o.listingId,cardName:o.cardName,cardImage:o.cardImage||null,offers:[]};
+                byListing[o.listingId].offers.push(o);
+              });
+              const groups=Object.values(byListing);
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#FBBF24"}}>{"\uD83D\uDCE5 Offer Inbox"}</div>
+                    <span style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#FBBF24"}}>{allMyOffers.length}</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                    {groups.map(g=>(
+                      <div key={g.listingId} style={{background:"rgba(251,191,36,0.03)",border:"1px solid rgba(251,191,36,0.12)",borderRadius:16,overflow:"hidden"}}>
+                        {/* Listing header */}
+                        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(251,191,36,0.08)",background:"rgba(251,191,36,0.04)"}}>
+                          {g.cardImage&&<img src={g.cardImage} alt={g.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{g.cardName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{g.offers.length} offer{g.offers.length!==1?"s":""} {"\u00B7"} Best: {"$"}{(g.offers[0]?.offerAmount||0).toFixed(2)}</div>
+                          </div>
+                        </div>
+                        {/* Offer rows sorted highest to lowest */}
+                        {g.offers.map((o,idx)=>{
+                          const isBest=idx===0;
+                          const pctOfBest=g.offers[0].offerAmount>0?Math.round(o.offerAmount/g.offers[0].offerAmount*100):100;
+                          return (
+                            <div key={o.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:idx<g.offers.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:isBest?"rgba(74,222,128,0.04)":"transparent"}}>
+                              {/* Rank */}
+                              <div style={{width:22,height:22,borderRadius:"50%",background:isBest?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isBest?"#4ade80":"rgba(255,255,255,0.3)",flexShrink:0}}>
+                                {idx+1}
+                              </div>
+                              {/* Buyer name */}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{o.buyerName}</div>
+                                {o.note&&<div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{o.note}</div>}
+                                <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",marginTop:1}}>{o.createdAt?new Date(o.createdAt).toLocaleDateString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                              </div>
+                              {/* Amount + bar */}
+                              <div style={{textAlign:"right",flexShrink:0}}>
+                                <div style={{fontSize:16,fontWeight:900,color:isBest?"#4ade80":"#F0F0F0"}}>{"$"}{(o.offerAmount||0).toFixed(2)}</div>
+                                {!isBest&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{pctOfBest}{"% of best"}</div>}
+                                {isBest&&<div style={{fontSize:10,color:"#4ade80",fontWeight:700}}>Best offer</div>}
+                              </div>
+                              {/* Action buttons */}
+                              <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                                <button onClick={()=>respondOffer(o,"accepted")}
+                                  style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Accept
+                                </button>
+                                <button onClick={()=>{setCounterModal(o);setCounterAmt("");}}
+                                  style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Counter
+                                </button>
+                                <button onClick={()=>respondOffer(o,"declined")}
+                                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Decline
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Community listings */}
             <div>
               <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
@@ -11440,8 +11639,12 @@ function PublicCardDatabase() {
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                           <div>
-                            <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>${(l.askingPrice||0).toFixed(2)}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
+                            {l.isOBO?(
+                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80",letterSpacing:-0.5}}>{"\uD83D\uDCE8 Best Offer"}</div>
+                            ):(
+                              <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>${(l.askingPrice||0).toFixed(2)}</div>
+                            )}
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.isOBO?"Offers only":l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
                           </div>
                           <div style={{textAlign:"right"}}>
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by {l.sellerName}</div>
