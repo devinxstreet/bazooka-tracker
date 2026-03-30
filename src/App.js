@@ -5405,13 +5405,13 @@ function PublicDeckBuilder() {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
           const { cards: cc, ts } = JSON.parse(raw);
-          if (Date.now() - ts < 30*60*1000 && cc?.length > 0) { setCards(cc.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL")&&!n.startsWith("BPL"); })); setLoading(false); return; }
+          if (Date.now() - ts < 30*60*1000 && cc?.length > 0) { setCards(cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; })); setLoading(false); return; }
         }
       } catch(e) {}
       const snap = await getDocs(collection(db, "boba_checklist"));
       const all = snap.docs.map(d=>({id:d.id,...d.data()}));
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
-      setCards(all.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL")&&!n.startsWith("BPL"); }));
+      setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; }));
       setLoading(false);
     }
     load();
@@ -5554,7 +5554,7 @@ function PublicPlaybookBuilder() {
         if (raw) {
           const { cards: cc, ts } = JSON.parse(raw);
           if (Date.now() - ts < 30*60*1000 && cc?.length > 0) {
-            const plays = cc.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return n.startsWith("PL")||n.startsWith("BPL"); });
+            const plays = cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
             setCards(plays); setLoading(false); return;
           }
         }
@@ -5562,7 +5562,7 @@ function PublicPlaybookBuilder() {
       const snap = await getDocs(collection(db, "boba_checklist"));
       const all = snap.docs.map(d=>({id:d.id,...d.data()}));
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
-      setCards(all.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return n.startsWith("PL")||n.startsWith("BPL"); }));
+      setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; }));
       setLoading(false);
     }
     load();
@@ -5578,8 +5578,8 @@ function PublicPlaybookBuilder() {
   const dbsPct     = Math.min(totalDbs/PUBLIC_DBS_CAP*100,100);
   const dbsOver    = totalDbs > PUBLIC_DBS_CAP;
 
-  const isPlay  = c => String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL");
-  const isBonus = c => String(c.cardNum||"").toUpperCase().startsWith("BPL");
+  const isPlay  = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="home team discount"; };
+  const isBonus = c => (c.treatment||"").toLowerCase()==="bonus plays";
 
   const available = cards.filter(c => {
     if (pbEntryIds.has(c.id)) return false;
@@ -6689,11 +6689,17 @@ function BobaChecklist({ userRole, user }) {
         const allMatches = exactMap[normNum] || [];
         if (allMatches.length === 0) { skipped++; continue; }
 
-        // Narrow by set name when available — primary tiebreaker
+        // Extract rarity prefix: "G - BPL-6" → "g", "HTD-40" → "htd"
+        const prefixMatch = rawNum.match(/^([A-Za-z]+)\s*-\s*/);
+        const prefix = prefixMatch ? prefixMatch[1].toLowerCase() : "";
+        const prefixSet = PREFIX_TO_SET[prefix] || "";
+
+        // Narrow by set — CSV Set column first, then prefix map as fallback
+        const resolvedSet = csvSet || prefixSet;
         let matches = allMatches;
-        if (allMatches.length > 1 && csvSet) {
+        if (allMatches.length > 1 && resolvedSet) {
           const bySet = allMatches.filter(c =>
-            normStr(c.setName||"") === normStr(csvSet)
+            normStr(c.setName||"") === normStr(resolvedSet)
           );
           if (bySet.length > 0) matches = bySet;
         }
@@ -6902,7 +6908,7 @@ function BobaChecklist({ userRole, user }) {
             {isAdmin && (
               <button onClick={async()=>{
                 if(!window.confirm("Wipe all DBS import data (dbs, playCost, playName) from all play cards so you can re-import clean. Continue?")) return;
-                const playcards = cards.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return n.startsWith("PL")||n.startsWith("BPL"); });
+                const playcards = cards.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
                 setDbsStatus({ msg:`Wiping DBS data from ${playcards.length} play cards...`, ok:null });
                 for(let i=0;i<playcards.length;i+=400){
                   await Promise.all(playcards.slice(i,i+400).map(c=>
@@ -7153,7 +7159,7 @@ function BobaChecklist({ userRole, user }) {
       {/* Rainbow Tracker */}
       {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
         const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
-          .filter(c => { const n = String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL") && !n.startsWith("BPL"); });
+          .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
         const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
 
         // Group filtered cards by hero
@@ -7629,7 +7635,7 @@ function BobaChecklist({ userRole, user }) {
 
         // Card pool: all cards or owned only — exclude plays (PL/BPL)
         const cardPool = (deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards)
-          .filter(c => { const n = String(c.cardNum||"").toUpperCase(); return !n.startsWith("PL") && !n.startsWith("BPL"); });
+          .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
 
         // Available cards to add
         const available = cardPool.filter(c => {
@@ -7927,12 +7933,9 @@ function BobaChecklist({ userRole, user }) {
         const dbsOver    = totalDbs > DBS_CAP;
 
         // All Play cards: PL-xxx = regular plays, BPL-xxx = bonus plays
-        const allPlays = cards.filter(c => {
-          const num = String(c.cardNum||"").toUpperCase();
-          return num.startsWith("PL") || num.startsWith("BPL");
-        });
-        const isPlay  = c => String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL");
-        const isBonus = c => String(c.cardNum||"").toUpperCase().startsWith("BPL");
+        const allPlays = cards.filter(c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
+        const isPlay  = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="home team discount"; };
+        const isBonus = c => (c.treatment||"").toLowerCase()==="bonus plays";
         const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
