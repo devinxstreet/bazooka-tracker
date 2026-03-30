@@ -9736,91 +9736,182 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 }
 
 
-// ─── PUBLIC CARD DATABASE ────────────────────────────────────
+
+// ─── PUBLIC CARD DATABASE (full community app) ───────────────
 function PublicCardDatabase() {
-  const [cards,        setCards]        = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState("");
-  const [filterSet,    setFilterSet]    = useState("");
-  const [filterWeapon, setFilterWeapon] = useState("");
-  const [filterTreat,  setFilterTreat]  = useState("");
-  const [filterOwned,  setFilterOwned]  = useState("all"); // all | owned | missing
-  const [sortBy,       setSortBy]       = useState("cardNum");
-  const [page,         setPage]         = useState(1);
-  const [flippedCard,  setFlippedCard]  = useState(null);
+  // ── Core state ──
+  const [cards,         setCards]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [user,          setUser]          = useState(null);
+  const [owned,         setOwned]         = useState({});
+  const [ownedDocId,    setOwnedDocId]    = useState(null);
+  const [signingIn,     setSigningIn]     = useState(false);
+  const [activeTab,     setActiveTab]     = useState("cards"); // cards|wants|deck|friends|team
 
-  // Auth + owned collection
-  const [user,         setUser]         = useState(null);
-  const [owned,        setOwned]        = useState({});
-  const [ownedDocId,   setOwnedDocId]   = useState(null);
-  const [signingIn,    setSigningIn]    = useState(false);
-
+  // ── Cards/filter state ──
+  const [search,        setSearch]        = useState("");
+  const [filterSet,     setFilterSet]     = useState("");
+  const [filterWeapon,  setFilterWeapon]  = useState("");
+  const [filterTreat,   setFilterTreat]   = useState("");
+  const [filterOwned,   setFilterOwned]   = useState("all");
+  const [sortBy,        setSortBy]        = useState("cardNum");
+  const [page,          setPage]          = useState(1);
+  const [flippedCard,   setFlippedCard]   = useState(null);
   const PAGE_SIZE = 100;
-  const sentinelRef = useRef(null);
 
-  const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#9CA3AF", Brawl:"#EF4444",
+  // ── Wants ──
+  const [wantList,      setWantList]      = useState({});
+
+  // ── Scan ──
+  const [scanModal,     setScanModal]     = useState(false);
+  const [photoScan,     setPhotoScan]     = useState(null);
+  const [scanSession,   setScanSession]   = useState([]);
+  const [scanQty,       setScanQty]       = useState(1);
+
+  // ── Friends ──
+  const [friends,       setFriends]       = useState([]);       // accepted friends
+  const [friendReqs,    setFriendReqs]    = useState([]);       // incoming pending
+  const [sentReqs,      setSentReqs]      = useState([]);       // outgoing pending
+  const [addEmail,      setAddEmail]      = useState("");
+  const [addStatus,     setAddStatus]     = useState(null);     // {ok, msg}
+  const [friendOwned,   setFriendOwned]   = useState({});       // uid → owned map
+  const [viewingFriend, setViewingFriend] = useState(null);     // friend uid
+
+  // ── Teams ──
+  const [teams,         setTeams]         = useState([]);
+  const [activeTeam,    setActiveTeam]    = useState(null);
+  const [teamTab,       setTeamTab]       = useState("overview"); // overview|deck
+  const [newTeamName,   setNewTeamName]   = useState("");
+  const [inviteEmail,   setInviteEmail]   = useState("");
+  const [inviteStatus,  setInviteStatus]  = useState(null);
+  const [teamInvites,   setTeamInvites]   = useState([]);       // pending team invites
+
+  // ── Deck builder ──
+  const [deckCards,     setDeckCards]     = useState([]);
+  const [deckName,      setDeckName]      = useState("My Deck");
+  const [deckType,      setDeckType]      = useState("none");
+  const [deckSearch,    setDeckSearch]    = useState("");
+  const [deckFilterW,   setDeckFilterW]   = useState("");
+  const [deckFilterP,   setDeckFilterP]   = useState(new Set());
+  const [deckFilterS,   setDeckFilterS]   = useState("");
+  const [deckFilterT,   setDeckFilterT]   = useState("");
+  const [savedDecks,    setSavedDecks]    = useState([]);
+
+  const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
+  const DECK_SIZE = 60;
+  const inp = { background:"#111", border:"1px solid #1a1a1a", borderRadius:8, color:"#F0F0F0",
+    padding:"8px 12px", fontSize:12, fontFamily:"'Trebuchet MS',sans-serif", outline:"none" };
 
-  // Load cards
+  // ── Load cards ──
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v2";
     try {
       const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const { cards: cc, ts } = JSON.parse(raw);
-        if (cc?.length > 0 && Date.now() - ts < 5*60*1000) { setCards(cc); setLoading(false); return; }
-      }
+      if (raw) { const { cards:cc, ts } = JSON.parse(raw); if (cc?.length>0 && Date.now()-ts<5*60*1000) { setCards(cc); setLoading(false); return; } }
     } catch(e) {}
     getDocs(collection(db,"boba_checklist")).then(snap => {
       const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-      setCards(all);
-      setLoading(false);
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+      setCards(all); setLoading(false);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all,ts:Date.now()})); } catch(e) {}
     });
   }, []);
 
-  // Auth listener
+  // ── Auth + owned + wants ──
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
-        const docId = u.uid;
-        setOwnedDocId(docId);
-        const snap = await getDoc(doc(db,"boba_owned",docId));
+        const snap = await getDoc(doc(db,"boba_owned",u.uid));
         setOwned(snap.exists() ? snap.data() : {});
+        setOwnedDocId(u.uid);
+        const wsnap = await getDoc(doc(db,"boba_wants",u.uid));
+        setWantList(wsnap.exists() ? wsnap.data() : {});
       } else {
-        setOwned({});
-        setOwnedDocId(null);
+        setOwned({}); setOwnedDocId(null); setWantList({});
       }
     });
   }, []);
 
-  // Infinite scroll
+  // ── Friends listeners ──
   useEffect(() => {
-    function onScroll() {
-      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-      if (scrollHeight - scrollTop - clientHeight < 400) setPage(p => p + 1);
-    }
-    window.addEventListener("scroll", onScroll, { passive:true });
+    if (!user) return;
+    const uid = user.uid;
+    const unsubs = [
+      // Accepted friends where I am "from"
+      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid), where("status","==","accepted")),
+        snap => setFriends(prev => {
+          const fromFriends = snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail}));
+          const toFriends = prev.filter(f=>f.friendUid!==uid && !fromFriends.find(ff=>ff.friendUid===f.friendUid));
+          return [...fromFriends, ...toFriends.filter(f=>f._dir==="to")];
+        })
+      ),
+      // Accepted friends where I am "to"
+      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid), where("status","==","accepted")),
+        snap => setFriends(prev => {
+          const toFriends = snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to"}));
+          const fromFriends = prev.filter(f=>f._dir!=="to");
+          return [...fromFriends, ...toFriends];
+        })
+      ),
+      // Incoming pending requests
+      onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid), where("status","==","pending")),
+        snap => setFriendReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Outgoing pending requests
+      onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid), where("status","==","pending")),
+        snap => setSentReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Teams I am a member of
+      onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid)),
+        snap => { const t = snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam && t.length>0) setActiveTeam(t[0]); }
+      ),
+      // Team invites pending for me
+      onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid), where("status","==","pending")),
+        snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+    ];
+    return () => unsubs.forEach(u=>u());
+  }, [user]);
+
+  // ── Load friend owned maps ──
+  useEffect(() => {
+    if (!friends.length) return;
+    friends.forEach(async f => {
+      if (friendOwned[f.friendUid]) return;
+      const snap = await getDoc(doc(db,"boba_owned",f.friendUid));
+      if (snap.exists()) setFriendOwned(prev=>({...prev,[f.friendUid]:snap.data()}));
+    });
+  }, [friends]);
+
+  // ── Infinite scroll ──
+  useEffect(() => {
+    function onScroll() { if (document.documentElement.scrollHeight - window.scrollY - window.innerHeight < 400) setPage(p=>p+1); }
+    window.addEventListener("scroll", onScroll, {passive:true});
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // ── Owned/want helpers ──
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
-    const next = { ...owned };
-    if (next[cardId]) delete next[cardId];
-    else next[cardId] = 1;
+    const next = {...owned};
+    if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setOwned(next);
-    await setDoc(doc(db,"boba_owned",ownedDocId), next);
+    await setDoc(doc(db,"boba_owned",user.uid), next);
   }
-
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
-    const next = { ...owned };
-    if (qty <= 0) delete next[cardId];
-    else next[cardId] = qty;
+    const next = {...owned};
+    if (qty<=0) delete next[cardId]; else next[cardId]=qty;
     setOwned(next);
-    await setDoc(doc(db,"boba_owned",ownedDocId), next);
+    await setDoc(doc(db,"boba_owned",user.uid), next);
+  }
+  async function toggleWant(cardId) {
+    if (!user) { setSigningIn(true); return; }
+    const next = {...wantList};
+    if (next[cardId]) delete next[cardId]; else next[cardId]=1;
+    setWantList(next);
+    await setDoc(doc(db,"boba_wants",user.uid), next);
   }
 
   async function signInGoogle() {
@@ -9828,183 +9919,767 @@ function PublicCardDatabase() {
     catch(e) { console.error(e); }
   }
 
+  // ── Scan card photo ──
+  async function scanCardPhoto(file) {
+    setPhotoScan({status:"scanning"});
+    try {
+      const base64 = await new Promise((res,rej) => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const MAX=1200, scale=Math.min(1,MAX/Math.max(img.width,img.height));
+          const canvas=document.createElement("canvas");
+          canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale);
+          canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+          res(canvas.toDataURL("image/jpeg",0.92).split(",")[1]);
+        };
+        img.onerror=rej; img.src=url;
+      });
+      const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg"})});
+      if (!resp.ok) { const e=await resp.json().catch(()=>({})); setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`}); return; }
+      const data = await resp.json();
+      if (!data.cardNum && !data.hero) { setPhotoScan({status:"nomatch"}); setTimeout(()=>setPhotoScan(null),3000); return; }
+      // Match
+      const normNum = n => String(n||"").replace(/[\s\-]/g,"").toLowerCase();
+      const heroMatch = (a,b) => { if(!a||!b) return false; const al=a.toLowerCase(),bl=b.toLowerCase(); if(al===bl) return true; if(al.split(" ")[0]!==bl.split(" ")[0]) return false; return al.includes(bl)||bl.includes(al); };
+      const iNum=normNum(data.cardNum), iHero=(data.hero||"").toLowerCase(), iWeap=(data.weapon||"").toLowerCase();
+      let match = null;
+      if (iNum&&iHero) match=cards.find(c=>normNum(c.cardNum)===iNum&&heroMatch(c.hero,iHero));
+      if (!match&&iNum) match=cards.find(c=>normNum(c.cardNum)===iNum);
+      if (!match&&iHero&&iWeap) { const cands=cards.filter(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap); if(cands.length===1) match=cands[0]; }
+      if (!match&&iHero) { const cands=cards.filter(c=>heroMatch(c.hero,iHero)); if(cands.length===1) match=cands[0]; }
+      if (!match) { setPhotoScan({status:"nomatch",identified:data}); return; }
+      setPhotoScan({status:"matched",card:match,detected:data});
+      setScanQty(1);
+    } catch(e) { setPhotoScan({status:"error",message:e.message}); }
+  }
+
+  async function confirmScan(card, qty) {
+    if (!user) { setSigningIn(true); return; }
+    const next = {...owned, [card.id]:(owned[card.id]||0)+qty};
+    setOwned(next);
+    await setDoc(doc(db,"boba_owned",user.uid), next);
+    setScanSession(prev=>[{card,qty,addedAt:new Date().toISOString()},...prev]);
+    setPhotoScan(null); setScanQty(1);
+  }
+
+  // ── Friend request ──
+  async function sendFriendRequest() {
+    if (!user || !addEmail.trim()) return;
+    setAddStatus(null);
+    const email = addEmail.trim().toLowerCase();
+    if (email === user.email?.toLowerCase()) { setAddStatus({ok:false,msg:"That's you!"}); return; }
+    // Check already friends
+    if (friends.find(f=>f.friendName?.toLowerCase()===email||f.toEmail?.toLowerCase()===email||f.fromEmail?.toLowerCase()===email)) {
+      setAddStatus({ok:false,msg:"Already friends"}); return;
+    }
+    // Look up user by email in boba_profiles
+    const profSnap = await getDocs(query(collection(db,"boba_profiles"), where("email","==",email)));
+    if (profSnap.empty) { setAddStatus({ok:false,msg:"No account found with that email"}); return; }
+    const toProfile = profSnap.docs[0].data();
+    const toUid = profSnap.docs[0].id;
+    // Check for existing pending request
+    const existSnap = await getDocs(query(collection(db,"friend_requests"), where("from","==",user.uid), where("to","==",toUid)));
+    if (!existSnap.empty) { setAddStatus({ok:false,msg:"Request already sent"}); return; }
+    const id = uid();
+    await setDoc(doc(db,"friend_requests",id), {
+      id, from:user.uid, fromEmail:user.email, fromName:user.displayName||user.email,
+      to:toUid, toEmail:email, toName:toProfile.displayName||email,
+      status:"pending", createdAt:new Date().toISOString()
+    });
+    // Save requester profile too
+    await setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
+    setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile.displayName||email}!`});
+  }
+
+  async function respondFriendReq(req, accept) {
+    await setDoc(doc(db,"friend_requests",req.id), {status:accept?"accepted":"declined"},{merge:true});
+    if (accept) {
+      // Save both profiles
+      await setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
+    }
+  }
+
+  // Upsert profile on login
+  useEffect(() => {
+    if (!user) return;
+    setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
+  }, [user]);
+
+  // ── Team helpers ──
+  async function createTeam() {
+    if (!user||!newTeamName.trim()) return;
+    const id = uid();
+    await setDoc(doc(db,"teams",id), {
+      id, name:newTeamName.trim(),
+      members:[{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],
+      memberUids:[user.uid], createdBy:user.uid, createdAt:new Date().toISOString()
+    });
+    setNewTeamName("");
+  }
+
+  async function inviteToTeam(team) {
+    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    const profSnap = await getDocs(query(collection(db,"boba_profiles"), where("email","==",email)));
+    if (profSnap.empty) { setInviteStatus({ok:false,msg:"No account found"}); return; }
+    const toUid = profSnap.docs[0].id;
+    const toProfile = profSnap.docs[0].data();
+    if (team.memberUids?.includes(toUid)) { setInviteStatus({ok:false,msg:"Already on team"}); return; }
+    if (team.members?.length>=4) { setInviteStatus({ok:false,msg:"Team is full (4 max)"}); return; }
+    const invId = uid();
+    await setDoc(doc(db,"team_invites",invId), {
+      id:invId, teamId:team.id, teamName:team.name,
+      fromUid:user.uid, fromName:user.displayName||user.email,
+      toUid, toEmail:email, toName:toProfile.displayName||email,
+      status:"pending", createdAt:new Date().toISOString()
+    });
+    setInviteEmail(""); setInviteStatus({ok:true,msg:`Invite sent to ${toProfile.displayName||email}`});
+  }
+
+  async function respondTeamInvite(invite, accept) {
+    await setDoc(doc(db,"team_invites",invite.id),{status:accept?"accepted":"declined"},{merge:true});
+    if (accept) {
+      const teamRef = doc(db,"teams",invite.teamId);
+      const tsnap = await getDoc(teamRef);
+      if (tsnap.exists()) {
+        const t = tsnap.data();
+        await setDoc(teamRef, {
+          members:[...(t.members||[]),{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],
+          memberUids:[...(t.memberUids||[]),user.uid]
+        },{merge:true});
+      }
+    }
+  }
+
+  // ── Computed ──
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
 
   const filtered = cards.filter(c => {
-    if (filterSet    && c.setName   !== filterSet)   return false;
-    if (filterWeapon && c.weapon    !== filterWeapon) return false;
-    if (filterTreat  && c.treatment !== filterTreat)  return false;
-    if (filterOwned === "owned"   && !owned[c.id])    return false;
-    if (filterOwned === "missing" &&  owned[c.id])    return false;
-    if (search) {
-      const terms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
-      const fields = [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.notation].join(" ").toLowerCase();
-      return terms.every(t => fields.includes(t));
-    }
+    if (filterSet    && c.setName   !== filterSet)    return false;
+    if (filterWeapon && c.weapon    !== filterWeapon)  return false;
+    if (filterTreat  && c.treatment !== filterTreat)   return false;
+    if (filterOwned==="owned"   && !owned[c.id])       return false;
+    if (filterOwned==="missing" &&  owned[c.id])       return false;
+    if (search) { const t=search.toLowerCase(); return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t); }
     return true;
-  }).sort((a,b) => {
+  }).sort((a,b)=>{
     if (sortBy==="power")   return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
-    if (sortBy==="cardNum") {
-      const na = String(a.cardNum||""), nb = String(b.cardNum||"");
-      const ia = parseInt(na.replace(/[^0-9]/g,"")||"0"), ib = parseInt(nb.replace(/[^0-9]/g,"")||"0");
-      return ia-ib||na.localeCompare(nb);
-    }
+    if (sortBy==="cardNum") { const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0"); return na-nb; }
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
+  const visibleCards = filtered.slice(0, page*PAGE_SIZE);
+  const totalOwned = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
 
-  const visibleCards = filtered.slice(0, page * PAGE_SIZE);
-  const hasMore = visibleCards.length < filtered.length;
+  // ── Deck builder logic ──
+  const deckSet = new Set(deckCards);
+  const inDeck  = cards.filter(c=>deckSet.has(c.id));
+  const isSpec  = deckType==="spec", isApex=deckType==="apex", isAM=deckType==="apexmadness";
+  const dupKey  = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+  const inDeckDupKeys = new Set(inDeck.map(dupKey));
+  const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
+  const treatCore={},treatApex={};
+  if (isAM) { inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;}); }
 
-  const totalOwned = Object.keys(owned).filter(id => cards.find(c=>c.id===id)).length;
+  // Team apex conflicts — collect all apex cards in all teammates' decks
+  const teamApexConflicts = new Set(); // dupKeys of apex cards claimed by teammates
+  const teamApexOwners = {}; // dupKey → teammate displayName
+  if (isAM && activeTeam) {
+    // We'd need to load team decks — for now use a real-time approach
+    // This is populated when team deck data is loaded
+  }
 
-  const inp = { background:"#111", border:"1px solid #1a1a1a", borderRadius:8, color:"#F0F0F0",
-    padding:"8px 12px", fontSize:12, fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", outline:"none" };
+  function canAddToDeck(c) {
+    if (deckSet.has(c.id)) return {ok:false,reason:"Already in deck"};
+    if (inDeck.length>=DECK_SIZE) return {ok:false,reason:"Deck full"};
+    if ((isSpec||isAM) && parseFloat(c.power||0)>160) {
+      if (isAM) {
+        const t=(c.treatment||"").toLowerCase();
+        if ((treatCore[t]||0)<10) return {ok:false,reason:`Need 10 core ${c.treatment} cards first (have ${treatCore[t]||0}/10)`};
+        if ((treatApex[t]||0)>=1) return {ok:false,reason:`Already have 1 ${c.treatment} apex card`};
+        // Team conflict check
+        const dk = dupKey(c);
+        if (teamApexConflicts.has(dk)) return {ok:false,reason:`${teamApexOwners[dk]||"Teammate"} already has this apex card`};
+      } else {
+        return {ok:false,reason:`Power ${c.power} exceeds 160`};
+      }
+    }
+    if (inDeckDupKeys.has(dupKey(c))) return {ok:false,reason:"Duplicate card"};
+    if ((powerCount[c.power||"0"]||0)>=6) return {ok:false,reason:`Already 6 cards at power ${c.power}`};
+    return {ok:true};
+  }
+
+  const deckAvailable = cards.filter(c=>{
+    if (deckSet.has(c.id)) return false;
+    if (deckFilterW && c.weapon!==deckFilterW) return false;
+    if (deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
+    if (deckFilterS && c.setName!==deckFilterS) return false;
+    if (deckFilterT && c.treatment!==deckFilterT) return false;
+    if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
+    const t=(c.treatment||"").toLowerCase();
+    if (t==="plays"||t==="bonus plays"||t==="home team discount") return false;
+    return true;
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+
+  // ── Render helpers ──
+  const tabBtn = (id,label,badge) => (
+    <button key={id} onClick={()=>setActiveTab(id)}
+      style={{background:activeTab===id?"#1A1A2E":"transparent",color:activeTab===id?"#E8317A":"#888",border:`1.5px solid ${activeTab===id?"#E8317A":"#2a2a2a"}`,borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",position:"relative"}}>
+      {label}{badge>0&&<span style={{position:"absolute",top:-6,right:-6,background:"#E8317A",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{badge}</span>}
+    </button>
+  );
+
+  if (loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700}}>Loading...</div>;
 
   return (
-    <div style={{ minHeight:"100vh", background:"#000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+    <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
       <GlobalStyles/>
 
-      {/* Sign-in prompt */}
-      {signingIn && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }}
-          onClick={()=>setSigningIn(false)}>
-          <div style={{ background:"#111", border:"1.5px solid #E8317A44", borderRadius:16, padding:32, textAlign:"center", maxWidth:340 }}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{ fontSize:32, marginBottom:12 }}>🃏</div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginBottom:8 }}>Track Your Collection</div>
-            <div style={{ fontSize:13, color:"#555", marginBottom:24 }}>Sign in with Google to mark cards as owned and track your collection progress.</div>
-            <button onClick={signInGoogle}
-              style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
-              Sign in with Google
-            </button>
+      {/* Sign-in modal */}
+      {signingIn&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setSigningIn(false)}>
+          <div style={{background:"#111",border:"1.5px solid #E8317A44",borderRadius:16,padding:32,textAlign:"center",maxWidth:340}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:32,marginBottom:12}}>🃏</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:8}}>Sign in to continue</div>
+            <div style={{fontSize:13,color:"#555",marginBottom:24}}>Track your collection, scan cards, build decks, and connect with the BoBA community.</div>
+            <button onClick={signInGoogle} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Sign in with Google</button>
+          </div>
+        </div>
+      )}
+
+      {/* Scan modal */}
+      {scanModal&&(
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:2000,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:"#0a0a0a",borderBottom:"1px solid #1a1a1a"}}>
+            <span style={{fontSize:16,fontWeight:900,color:"#E8317A"}}>📷 Scan Mode</span>
+            <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#888",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+          </div>
+          <div style={{flex:1,padding:16,overflowY:"auto"}}>
+            {!photoScan&&(
+              <label style={{display:"block",cursor:"pointer"}}>
+                <div style={{background:"#0a0a0a",border:"2px dashed #E8317A44",borderRadius:16,padding:"40px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:48,marginBottom:8}}>📷</div>
+                  <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:4}}>Tap to scan a card</div>
+                  <div style={{fontSize:12,color:"#555"}}>Opens your camera</div>
+                </div>
+                <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
+              </label>
+            )}
+            {photoScan?.status==="scanning"&&<div style={{textAlign:"center",padding:40,color:"#7B9CFF",fontWeight:700}}>Reading card...</div>}
+            {photoScan?.status==="matched"&&photoScan.card&&(()=>{
+              const c=photoScan.card,wc=WEAPON_COLORS[c.weapon]||"#888";
+              return (
+                <div style={{background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:16,padding:16}}>
+                  <div style={{display:"flex",gap:12,marginBottom:12}}>
+                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:72,height:96,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:72,height:96,background:"#1a1a1a",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555"}}>{c.hero}</div>}
+                    <div>
+                      <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{c.hero}</div>
+                      <div style={{fontSize:12,color:wc,fontWeight:700}}>{c.weapon}</div>
+                      <div style={{fontSize:11,color:"#555"}}>{c.treatment} · #{c.cardNum} · {c.power}⚡</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:6,width:32,height:32,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>−</button>
+                    <span style={{fontSize:18,fontWeight:900,color:"#F0F0F0",minWidth:32,textAlign:"center"}}>{scanQty}</span>
+                    <button onClick={()=>setScanQty(q=>q+1)} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:6,width:32,height:32,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"#4ade80",color:"#000",border:"none",borderRadius:8,padding:"8px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>✅ Add {scanQty}</button>
+                  </div>
+                  <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid #2a2a2a",color:"#555",borderRadius:8,padding:"6px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
+                </div>
+              );
+            })()}
+            {photoScan?.status==="nomatch"&&(
+              <div style={{background:"#1a0a0a",border:"1.5px solid #E8317A44",borderRadius:16,padding:"20px 16px",textAlign:"center"}}>
+                <div style={{fontSize:32,marginBottom:8}}>❌</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#E8317A",marginBottom:4}}>Card not recognized</div>
+                {photoScan.identified?.hero&&<div style={{fontSize:12,color:"#555",marginBottom:12}}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
+                <label style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                </label>
+              </div>
+            )}
+            {photoScan?.status==="error"&&(
+              <div style={{background:"#1a0a0a",border:"1.5px solid #E8317A44",borderRadius:16,padding:"20px 16px",textAlign:"center"}}>
+                <div style={{fontSize:32,marginBottom:8}}>⚠️</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#E8317A",marginBottom:8}}>Scan failed</div>
+                {photoScan.message&&<div style={{fontSize:11,color:"#555",marginBottom:12,fontFamily:"monospace"}}>{photoScan.message}</div>}
+                <label style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                </label>
+              </div>
+            )}
+            {/* Recent scans */}
+            {scanSession.length>0&&(
+              <div style={{marginTop:16}}>
+                <div style={{fontSize:11,color:"#555",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Added this session</div>
+                {scanSession.slice(0,5).map((s,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #111"}}>
+                    <span style={{fontSize:18}}>✅</span>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"#555"}}>{s.card.treatment} · {s.card.power}⚡</div></div>
+                    <span style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>+{s.qty}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ background:"linear-gradient(180deg,#0a0a0a 0%,#000 100%)", borderBottom:"1px solid #1a1a1a", padding:"32px 24px 24px" }}>
-        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"flex-end", justifyContent:"space-between", flexWrap:"wrap", gap:16 }}>
+      <div style={{background:"linear-gradient(180deg,#0a0a0a,#000)",borderBottom:"1px solid #1a1a1a",padding:"24px 20px 16px"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", letterSpacing:3, textTransform:"uppercase", marginBottom:6 }}>Bazooka Breaks</div>
-            <h1 style={{ fontSize:"clamp(22px,4vw,42px)", fontWeight:900, color:"#F0F0F0", margin:"0 0 4px", textTransform:"uppercase", letterSpacing:2, lineHeight:1.1 }}>
-              Bo Jackson Battle Arena
-            </h1>
-            <h2 style={{ fontSize:"clamp(12px,2vw,16px)", fontWeight:400, color:"#E8317A", margin:"0 0 10px", letterSpacing:4, textTransform:"uppercase" }}>
-              Collector's Database
-            </h2>
-            <p style={{ fontSize:12, color:"#444", margin:0 }}>
-              {loading ? "Loading..." : `${cards.length.toLocaleString()} cards · ${sets.length} sets`}
-            </p>
+            <div style={{fontSize:10,color:"#E8317A",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>Bazooka Breaks</div>
+            <div style={{fontSize:"clamp(20px,4vw,36px)",fontWeight:900,color:"#F0F0F0",textTransform:"uppercase",letterSpacing:2}}>BoBA Community</div>
+            <div style={{fontSize:11,color:"#444",marginTop:2}}>{cards.length.toLocaleString()} cards · {sets.length} sets</div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {user ? (
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {user?(
               <>
-                {user.photoURL && <img src={user.photoURL} alt="" style={{ width:32, height:32, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
+                {user.photoURL&&<img src={user.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",border:"2px solid #E8317A"}}/>}
                 <div>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{user.displayName?.split(" ")[0]}</div>
-                  <div style={{ fontSize:11, color:"#4ade80" }}>{totalOwned.toLocaleString()} owned</div>
+                  <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
+                  <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
                 </div>
-                <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:7, padding:"5px 12px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+                <button onClick={()=>setScanModal(true)} style={{background:"#1a0a1a",color:"#E8317A",border:"1px solid #E8317A44",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📷 Scan</button>
+                <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
               </>
-            ) : (
-              <button onClick={()=>setSigningIn(true)}
-                style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                Sign in to track collection
-              </button>
+            ):(
+              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in</button>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Sticky filter bar */}
-      <div style={{ background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", padding:"12px 24px", position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete..." style={{ ...inp, flex:2, minWidth:180 }}/>
-          <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:150, cursor:"pointer" }}>
-            <option value="">All Sets</option>
-            {sets.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:150, cursor:"pointer" }}>
-            <option value="">All Treatments</option>
-            {treatments.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{ ...inp, width:120, cursor:"pointer" }}>
-            <option value="">All Weapons</option>
-            {weapons.map(w=><option key={w} value={w}>{w}</option>)}
-          </select>
-          <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{ ...inp, width:130, cursor:"pointer" }}>
-            <option value="cardNum">Sort: Card #</option>
-            <option value="hero">Sort: Hero</option>
-            <option value="power">Sort: Power</option>
-            <option value="setName">Sort: Set</option>
-          </select>
-          {user && (
-            <div style={{ display:"flex", gap:4 }}>
-              {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
-                <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}}
-                  style={{ background:filterOwned===v?"#1A1A2E":"transparent", color:filterOwned===v?"#E8317A":"#555", border:`1.5px solid ${filterOwned===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          )}
-          {(search||filterSet||filterTreat||filterWeapon) && (
-            <button onClick={()=>{setSearch("");setFilterSet("");setFilterTreat("");setFilterWeapon("");setPage(1);}}
-              style={{ ...inp, width:"auto", cursor:"pointer", color:"#888", padding:"8px 14px" }}>Clear</button>
-          )}
-          <span style={{ fontSize:11, color:"#333", whiteSpace:"nowrap" }}>{filtered.length.toLocaleString()} cards</span>
+        {/* Tab bar */}
+        <div style={{maxWidth:1400,margin:"12px auto 0",display:"flex",gap:6,flexWrap:"wrap"}}>
+          {tabBtn("cards","🃏 Cards",0)}
+          {tabBtn("wants","🎯 Wants",Object.keys(wantList).length)}
+          {tabBtn("deck","⚔️ Deck Builder",0)}
+          {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
+          {user&&tabBtn("team","🏆 Team",0)}
         </div>
       </div>
 
-      {/* Card grid */}
-      <div style={{ maxWidth:1400, margin:"0 auto", padding:"16px 16px 40px" }}>
-        {loading ? (
-          <div style={{ textAlign:"center", padding:80, color:"#333", fontSize:14 }}>Loading cards...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign:"center", padding:80, color:"#333", fontSize:14 }}>No cards match your filters</div>
-        ) : (
-          <>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
-              {visibleCards.map(c => (
+      {/* ── CARDS TAB ── */}
+      {activeTab==="cards"&&(
+        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
+          {/* Filters */}
+          <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:12,padding:"12px 16px",marginBottom:12,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete..." style={{...inp,flex:2,minWidth:180}}/>
+            <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
+              <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
+              <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:120,cursor:"pointer"}}>
+              <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
+            </select>
+            <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+              <option value="cardNum">Sort: Card #</option>
+              <option value="hero">Sort: Hero</option>
+              <option value="power">Sort: Power</option>
+              <option value="setName">Sort: Set</option>
+            </select>
+            {user&&(
+              <div style={{display:"flex",gap:4}}>
+                {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"#1A1A2E":"transparent",color:filterOwned===v?"#E8317A":"#555",border:`1.5px solid ${filterOwned===v?"#E8317A":"#333"}`,borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                ))}
+              </div>
+            )}
+            <span style={{fontSize:11,color:"#333"}}>{filtered.length.toLocaleString()} cards</span>
+          </div>
+          {/* Grid */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+            {visibleCards.map(c=>(
+              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
+                setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
+                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+            ))}
+          </div>
+          {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:24,color:"#333",fontSize:12}}>Scroll for more...</div>}
+        </div>
+      )}
+
+      {/* ── WANTS TAB ── */}
+      {activeTab==="wants"&&(
+        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
+          {Object.keys(wantList).length===0?(
+            <div style={{textAlign:"center",padding:60,color:"#333"}}>No cards on your want list yet.<br/>Mark cards with 🎯 from the Cards tab.</div>
+          ):(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+              {cards.filter(c=>wantList[c.id]).map(c=>(
                 <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                   flippedCard={flippedCard} setFlippedCard={setFlippedCard}
-                  toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
+                  toggleOwned={()=>toggleOwned(c.id)}
                   setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                  toggleWant={()=>{}} wantList={{}} WEAPON_COLORS={WEAPON_COLORS}
-                />
+                  toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
               ))}
             </div>
-            {hasMore && (
-              <div style={{ textAlign:"center", padding:"24px 0", color:"#333", fontSize:12 }}>
-                <div style={{ display:"inline-flex", alignItems:"center", gap:8 }}>
-                  <div style={{ width:16, height:16, border:"2px solid #1a1a1a", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
-                  Loading more... ({visibleCards.length} of {filtered.length.toLocaleString()})
-                </div>
-              </div>
-            )}
-            {!hasMore && filtered.length > PAGE_SIZE && (
-              <div style={{ textAlign:"center", padding:"16px 0", color:"#222", fontSize:11 }}>
-                All {filtered.length.toLocaleString()} cards loaded
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* Footer */}
-      <div style={{ borderTop:"1px solid #111", padding:"20px 24px", textAlign:"center" }}>
-        <span style={{ fontSize:11, color:"#333" }}>
-          Powered by <a href="https://bazookadash.com" style={{ color:"#E8317A", textDecoration:"none", fontWeight:700 }}>Bazooka Breaks</a>
-          {" "}· Bo Jackson Battle Arena is a trademark of BJBA Inc.
-        </span>
-      </div>
+      {/* ── DECK BUILDER TAB ── */}
+      {activeTab==="deck"&&(
+        <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:14,alignItems:"start"}}>
+            {/* Left: filters + card list */}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
+                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"#888"}}>
+                  <option value="none">No Restrictions</option>
+                  <option value="spec">Spec Deck (≤160)</option>
+                  <option value="apex">Apex Deck</option>
+                  <option value="apexmadness">Apex Madness</option>
+                </select>
+                <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
+                  <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
+                </select>
+                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"#888"}}>
+                  <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"#888"}}>
+                  <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+                <span style={{fontSize:11,color:"#555"}}>{deckAvailable.length} cards</span>
+              </div>
+              {/* Power chips */}
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
+                  const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
+                  return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
+                    style={{background:sel?(over?"#E8317A":"#FBBF2433"):"#111",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`,color:sel?(over?"#fff":"#FBBF24"):"#555",borderRadius:6,padding:"3px 9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{p}{over?" ⚠":""}</button>;
+                })}
+                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear</button>}
+              </div>
+              <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:10,overflow:"hidden",maxHeight:"calc(100vh - 320px)",overflowY:"auto"}}>
+                {deckAvailable.length===0?<div style={{padding:32,textAlign:"center",color:"#333"}}>No cards match filters</div>:
+                  deckAvailable.map((c,i)=>{
+                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderBottom:"1px solid #0d0d0d",background:i%2===0?"#0a0a0a":"#0d0d0d",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4}} title={!ok?reason:""}>
+                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:42,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                          <div style={{fontSize:10,color:"#555",marginTop:1}}>{c.treatment} · #{c.cardNum}</div>
+                          {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
+                        </div>
+                        <div style={{fontSize:15,fontWeight:900,color:ok?wc:"#555",flexShrink:0}}>{c.power}</div>
+                        {ok&&<div style={{fontSize:16,color:"#4ade80"}}>+</div>}
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+            {/* Right: deck panel */}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>
+                  ⚔️ {deckName} <span style={{fontSize:10,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",fontWeight:700}}>{inDeck.length}/{DECK_SIZE}</span>
+                </div>
+                {/* Apex Madness unlock tracker */}
+                {isAM&&inDeck.length>0&&(
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Treatment Unlocks</div>
+                    {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
+                      const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
+                      return (
+                        <div key={t} style={{marginBottom:6}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                            <span style={{fontSize:11,color:unlocked?"#A855F7":"#888",fontWeight:unlocked?700:400}}>{unlocked?"🔓":"🔒"} {t}</span>
+                            <span style={{fontSize:11,color:unlocked?"#A855F7":"#555"}}>{core}/10{unlocked?` · ${apex}/1 apex`:""}</span>
+                          </div>
+                          <div style={{height:3,background:"#1a1a1a",borderRadius:2}}><div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"#A855F7":"#333",borderRadius:2}}/></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Deck slots */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:10}}>
+                  {Array.from({length:DECK_SIZE}).map((_,i)=>{
+                    const c=inDeck[i];
+                    if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{aspectRatio:"3/4",borderRadius:3,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}44`,background:"#1a1a1a"}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}</div>);}
+                    return(<div key={i} style={{aspectRatio:"3/4",borderRadius:3,border:"1px dashed #1a1a1a",background:"#080808",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"#222",fontWeight:700}}>{i+1}</span></div>);
+                  })}
+                </div>
+                {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid #E8317A22",color:"#E8317A",borderRadius:7,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear deck</button>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FRIENDS TAB ── */}
+      {activeTab==="friends"&&(
+        <div style={{maxWidth:700,margin:"0 auto",padding:16}}>
+          {!user?(
+            <div style={{textAlign:"center",padding:60,color:"#555"}}>
+              <div style={{fontSize:32,marginBottom:12}}>👥</div>
+              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to add friends</button>
+            </div>
+          ):(
+            <>
+              {/* Add friend */}
+              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>➕ Add Friend</div>
+                <div style={{display:"flex",gap:8}}>
+                  <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
+                  <button onClick={sendFriendRequest} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Send</button>
+                </div>
+                {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:8}}>{addStatus.ok?"✅":"❌"} {addStatus.msg}</div>}
+              </div>
+
+              {/* Incoming requests */}
+              {friendReqs.length>0&&(
+                <div style={{background:"#111",border:"1px solid #FBBF2444",borderRadius:12,padding:16,marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:10}}>📬 Friend Requests ({friendReqs.length})</div>
+                  {friendReqs.map(r=>(
+                    <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{r.fromName}</div><div style={{fontSize:11,color:"#555"}}>{r.fromEmail}</div></div>
+                      <button onClick={()=>respondFriendReq(r,true)} style={{background:"#0a1a0a",border:"1px solid #4ade8044",color:"#4ade80",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Accept</button>
+                      <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Team invites */}
+              {teamInvites.length>0&&(
+                <div style={{background:"#111",border:"1px solid #A855F744",borderRadius:12,padding:16,marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:10}}>🏆 Team Invites ({teamInvites.length})</div>
+                  {teamInvites.map(inv=>(
+                    <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{inv.teamName}</div><div style={{fontSize:11,color:"#555"}}>from {inv.fromName}</div></div>
+                      <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"#0a0a1a",border:"1px solid #A855F744",color:"#A855F7",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Join</button>
+                      <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Sent requests */}
+              {sentReqs.length>0&&(
+                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#555",marginBottom:8}}>Pending sent requests</div>
+                  {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"#555",marginBottom:4}}>⏳ {r.toEmail}</div>)}
+                </div>
+              )}
+
+              {/* Friends list */}
+              <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>Friends ({friends.length})</div>
+                {friends.length===0?<div style={{fontSize:12,color:"#555"}}>No friends yet — add someone above!</div>:
+                  friends.map(f=>(
+                    <div key={f.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1a1a1a"}}>
+                      <div style={{width:36,height:36,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+                        {f.fromPhoto||f.toPhoto?<img src={f.friendUid===f.to?f.fromPhoto:f.toPhoto} alt="" style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>:"👤"}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{f.friendName}</div>
+                        <div style={{fontSize:11,color:"#555"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
+                      </div>
+                      <button onClick={()=>{setViewingFriend(f.friendUid);setActiveTab("cards");setFilterOwned("all");}}
+                        style={{background:"#0a0a1a",border:"1px solid #7B9CFF44",color:"#7B9CFF",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                        👁 View Collection
+                      </button>
+                    </div>
+                  ))
+                }
+              </div>
+
+              {/* Viewing friend's collection */}
+              {viewingFriend&&(()=>{
+                const f=friends.find(fr=>fr.friendUid===viewingFriend);
+                const fo=friendOwned[viewingFriend]||{};
+                const friendCards=cards.filter(c=>fo[c.id]);
+                return (
+                  <div style={{marginTop:12,background:"#111",border:"1px solid #7B9CFF44",borderRadius:12,padding:16}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                      <div style={{fontSize:13,fontWeight:800,color:"#7B9CFF"}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
+                      <button onClick={()=>setViewingFriend(null)} style={{background:"transparent",border:"1px solid #333",color:"#555",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6,maxHeight:400,overflowY:"auto"}}>
+                      {friendCards.map(c=>{
+                        const wc=WEAPON_COLORS[c.weapon]||"#444";
+                        return (
+                          <div key={c.id} style={{background:"#0a0a0a",border:`1px solid ${wc}22`,borderRadius:8,padding:8}}>
+                            {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:5,marginBottom:4}}/>}
+                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
+                            <div style={{fontSize:10,color:wc}}>{c.weapon}</div>
+                            <div style={{fontSize:10,color:"#555"}}>{c.treatment}</div>
+                            <div style={{fontSize:11,fontWeight:700,color:wc}}>{c.power}⚡</div>
+                            {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24"}}>×{fo[c.id]}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── TEAM TAB ── */}
+      {activeTab==="team"&&(
+        <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
+          {!user?(
+            <div style={{textAlign:"center",padding:60,color:"#555"}}>
+              <div style={{fontSize:32,marginBottom:12}}>🏆</div>
+              <button onClick={()=>setSigningIn(true)} style={{background:"#E8317A",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
+            </div>
+          ):(
+            <>
+              {/* Create team */}
+              {teams.length===0&&(
+                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16,marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>🏆 Create a Team</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
+                    <button onClick={createTeam} style={{background:"#A855F7",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Create</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Team selector if multiple */}
+              {teams.length>1&&(
+                <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+                  {teams.map(t=>(
+                    <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"#1a0a1a":"#111",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"#2a2a2a"}`,color:activeTeam?.id===t.id?"#A855F7":"#888",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      {t.name} ({t.members?.length||1}/4)
+                    </button>
+                  ))}
+                  <button onClick={()=>setNewTeamName("new")} style={{background:"transparent",border:"1px dashed #333",color:"#555",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New Team</button>
+                </div>
+              )}
+
+              {activeTeam&&(()=>{
+                const team = activeTeam;
+                const members = team.members||[];
+                const isOwner = team.createdBy===user.uid;
+
+                // Collect all apex cards across team decks (placeholder — would load from team_decks collection)
+                const allTeamApex = [];
+
+                return (
+                  <div>
+                    <div style={{background:"#111",border:"1px solid #A855F744",borderRadius:12,padding:16,marginBottom:12}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                        <div>
+                          <div style={{fontSize:18,fontWeight:900,color:"#A855F7"}}>{team.name}</div>
+                          <div style={{fontSize:11,color:"#555"}}>{members.length}/4 members · Apex Madness team</div>
+                        </div>
+                        {members.length<4&&isOwner&&(
+                          <div style={{display:"flex",gap:8}}>
+                            <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Friend's email..." style={{...inp,width:200}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
+                            <button onClick={()=>inviteToTeam(team)} style={{background:"#A855F7",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
+                          </div>
+                        )}
+                      </div>
+                      {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:8}}>{inviteStatus.ok?"✅":"❌"} {inviteStatus.msg}</div>}
+
+                      {/* Members */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+                        {members.map(m=>{
+                          const mOwned = m.uid===user.uid ? owned : (friendOwned[m.uid]||{});
+                          const totalCards = Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
+                          const apexCards = cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
+                          return (
+                            <div key={m.uid} style={{background:"#0a0a0a",border:`1px solid ${m.uid===user.uid?"#A855F7":"#1a1a1a"}`,borderRadius:10,padding:12}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                                {m.photoURL?<img src={m.photoURL} alt="" style={{width:32,height:32,borderRadius:"50%",flexShrink:0}}/>:<div style={{width:32,height:32,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>👤</div>}
+                                <div>
+                                  <div style={{fontSize:13,fontWeight:700,color:m.uid===user.uid?"#A855F7":"#F0F0F0"}}>{m.displayName}{m.uid===user.uid?" (you)":""}</div>
+                                  <div style={{fontSize:11,color:"#555"}}>{totalCards} cards owned</div>
+                                </div>
+                              </div>
+                              {apexCards.length>0&&(
+                                <div>
+                                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex cards ({apexCards.length})</div>
+                                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                                    {apexCards.slice(0,6).map(c=>{
+                                      const wc=WEAPON_COLORS[c.weapon]||"#444";
+                                      return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:"#1a1a1a",border:`1px solid ${wc}44`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;
+                                    })}
+                                    {apexCards.length>6&&<div style={{fontSize:9,color:"#555"}}>+{apexCards.length-6}</div>}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {/* Empty slots */}
+                        {Array.from({length:4-members.length}).map((_,i)=>(
+                          <div key={i} style={{background:"#080808",border:"1px dashed #1a1a1a",borderRadius:10,padding:12,display:"flex",alignItems:"center",justifyContent:"center",minHeight:80}}>
+                            <span style={{fontSize:11,color:"#333"}}>Empty slot</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Team apex conflict overview */}
+                    {members.length>1&&(()=>{
+                      // Find duplicate apex cards across members
+                      const apexMap = {}; // dupKey → [memberName, ...]
+                      members.forEach(m=>{
+                        const mOwned = m.uid===user.uid ? owned : (friendOwned[m.uid]||{});
+                        cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
+                          const dk=dupKey(c);
+                          if(!apexMap[dk]) apexMap[dk]={card:c,members:[]};
+                          apexMap[dk].members.push(m.displayName);
+                        });
+                      });
+                      const conflicts = Object.values(apexMap).filter(x=>x.members.length>1);
+                      if (conflicts.length===0) return (
+                        <div style={{background:"#0a1a0a",border:"1px solid #4ade8044",borderRadius:12,padding:16,textAlign:"center"}}>
+                          <div style={{fontSize:20,marginBottom:4}}>✅</div>
+                          <div style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
+                          <div style={{fontSize:11,color:"#555",marginTop:4}}>All team members have unique apex cards</div>
+                        </div>
+                      );
+                      return (
+                        <div style={{background:"#1a0a0a",border:"1px solid #E8317A44",borderRadius:12,padding:16}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#E8317A",marginBottom:10}}>⚠️ {conflicts.length} Apex Card Conflict{conflicts.length!==1?"s":""}</div>
+                          {conflicts.map(({card,members:mems},i)=>{
+                            const wc=WEAPON_COLORS[card.weapon]||"#444";
+                            return (
+                              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,paddingBottom:8,borderBottom:"1px solid #2a0a0a"}}>
+                                <div style={{width:28,height:36,borderRadius:4,overflow:"hidden",flexShrink:0,background:"#1a1a1a"}}>
+                                  {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc}}>{card.hero?.split(" ")[0]}</div>}
+                                </div>
+                                <div style={{flex:1}}>
+                                  <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}⚡ · {card.treatment}</div>
+                                  <div style={{fontSize:11,color:"#E8317A"}}>Owned by: {mems.join(", ")}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
 
-// Parse a YYYY-MM-DD date string as LOCAL time (not UTC) to avoid timezone shifts
+
 function parseLocalDate(dateStr) {
   if (!dateStr) return new Date(0);
   const parts = String(dateStr).split("T")[0].split("-");
