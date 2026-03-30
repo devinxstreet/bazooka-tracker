@@ -6515,6 +6515,7 @@ function BobaChecklist({ userRole, user }) {
   const [renameVal,    setRenameVal]    = useState("");
   const [scanPdf,      setScanPdf]      = useState(null);
   const [scanProgress, setScanProgress] = useState(null);
+  const [imgScanProgress, setImgScanProgress] = useState(null); // {current, total, status}
   const [scanConfig,   setScanConfig]   = useState(null); // { file, setName, treatment, weapon }
   const [pendingScan,  setPendingScan]  = useState(null); // file waiting for config
   const [scanPaused,   setScanPaused]   = useState(false);
@@ -6815,6 +6816,103 @@ function BobaChecklist({ userRole, user }) {
 
     setScanProgress({ current:total, total, status:"✅ Scan complete!" });
     setTimeout(() => { setScanPdf(null); setScanProgress(null); }, 3000);
+  }
+
+  async function scanImagesForCards(files, setName) {
+    const fileList = Array.from(files);
+    if (fileList.length === 0) return;
+    setImgScanProgress({ current:0, total:fileList.length, status:"Starting image scan..." });
+
+    let matched = 0, skipped = 0;
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
+
+      try {
+        // Convert image to base64
+        const base64 = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result.split(",")[1]);
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+
+        const mediaType = file.type || "image/webp";
+
+        // Send to Claude Vision via scan-card API
+        const resp = await fetch("/api/scan-card", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ imageBase64: base64, mediaType, setName }),
+        });
+        const data = await resp.json();
+        if (!data.cardNum && !data.hero) { skipped++; continue; }
+
+        // Match against checklist using same logic as PDF scanner
+        const identifiedNum = (data.cardNum||"").replace(/[\s\-]/g,"").toLowerCase();
+        const heroName = (data.hero||"").toLowerCase();
+        const weapon   = (data.weapon||"").toLowerCase();
+        const treatment = (data.treatment||"").toLowerCase();
+        const power    = data.power||"";
+        const setNm    = setName||"";
+
+        function fuzzyMatch(a, b) {
+          if (!a || !b) return false;
+          return a.toLowerCase().includes(b) || b.includes(a.toLowerCase());
+        }
+        function normalizeCardNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
+
+        let match = null;
+
+        // 1. Card number + set name
+        if (identifiedNum) {
+          match = cards.find(c =>
+            normalizeCardNum(c.cardNum) === identifiedNum &&
+            (!setNm || c.setName === setNm)
+          );
+        }
+        // 2. Card number only
+        if (!match && identifiedNum) {
+          match = cards.find(c => normalizeCardNum(c.cardNum) === identifiedNum);
+        }
+        // 3. Hero + treatment + weapon
+        if (!match && heroName) {
+          match = cards.find(c =>
+            fuzzyMatch(c.hero, heroName) &&
+            (!treatment || c.treatment?.toLowerCase() === treatment) &&
+            (!weapon || c.weapon?.toLowerCase() === weapon)
+          );
+        }
+        // 4. Hero + weapon only
+        if (!match && heroName) {
+          match = cards.find(c =>
+            fuzzyMatch(c.hero, heroName) &&
+            (!weapon || c.weapon?.toLowerCase() === weapon)
+          );
+        }
+
+        if (!match) { skipped++; continue; }
+
+        // Upload image directly (already high quality — no re-rendering needed)
+        const imgBlob = new Blob([await file.arrayBuffer()], { type: mediaType });
+        const ext = file.name.split(".").pop() || "webp";
+        const storageRef = ref(storage, `boba_cards/${match.id}.${ext}`);
+        await uploadBytes(storageRef, imgBlob);
+        const imageUrl = await getDownloadURL(storageRef);
+        await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
+        matched++;
+
+      } catch(e) {
+        console.error(`Error scanning ${file.name}:`, e);
+        skipped++;
+      }
+    }
+
+    setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
+    setTimeout(() => setImgScanProgress(null), 5000);
+    // Bust cache
+    try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
   }
 
   async function toggleWant(cardId) {
@@ -7247,11 +7345,24 @@ function BobaChecklist({ userRole, user }) {
             ))}
           </div>
           {/* Action buttons — compact */}
-          <div style={{ display:"flex", gap:4 }}>
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
             {isAdmin && (
               <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                 📂 Import Cards
                 <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
+              </label>
+            )}
+            {isAdmin && (
+              <label title="Import .webp/.jpg/.png card images directly" style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8044", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:imgScanProgress?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:imgScanProgress?0.5:1 }}>
+                🖼 Import Images
+                <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple disabled={!!imgScanProgress}
+                  onChange={e=>{
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    const sn = filterSet || window.prompt("Which set are these images for? (optional — helps matching)", "") || "";
+                    scanImagesForCards(files, sn);
+                    e.target.value="";
+                  }} style={{ display:"none" }}/>
               </label>
             )}
             {isAdmin && (
@@ -7417,6 +7528,19 @@ function BobaChecklist({ userRole, user }) {
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
             <span style={{ color:"#888" }}>{scanProgress.status}</span>
             <span style={{ color:"#7B9CFF", fontWeight:700 }}>{scanProgress.current}/{scanProgress.total} pages</span>
+          </div>
+        </div>
+      )}
+
+      {imgScanProgress && (
+        <div style={{ ...S.card, border:"1.5px solid #4ade8044", background:"#0a1a0a" }}>
+          <div style={{ fontWeight:700, color:"#4ade80", fontSize:14, marginBottom:10 }}>🖼 Scanning Images...</div>
+          <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
+            <div style={{ width:`${imgScanProgress.total > 0 ? Math.round(imgScanProgress.current/imgScanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#4ade80,#7B9CFF)", borderRadius:4, transition:"width 0.3s" }}/>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
+            <span style={{ color:"#888" }}>{imgScanProgress.status}</span>
+            <span style={{ color:"#4ade80", fontWeight:700 }}>{imgScanProgress.current}/{imgScanProgress.total} images</span>
           </div>
         </div>
       )}
