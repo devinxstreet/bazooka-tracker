@@ -9965,6 +9965,8 @@ function PublicCardDatabase() {
   const [offerAmt,      setOfferAmt]      = useState("");
   const [offerNote,     setOfferNote]     = useState("");
   const [marketNotifs,  setMarketNotifs]  = useState([]);
+  const [counterModal,  setCounterModal]  = useState(null); // offer being countered
+  const [counterAmt,    setCounterAmt]    = useState("");
   const [wantNotifs,    setWantNotifs]    = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
@@ -10340,6 +10342,48 @@ function PublicCardDatabase() {
     }
   }
 
+  async function counterOffer(offer, counterAmount) {
+    if (!counterAmount || isNaN(parseFloat(counterAmount))) return;
+    const now = new Date().toISOString();
+    const amt = parseFloat(counterAmount);
+    // Update the offer with counter status + paper trail
+    await setDoc(doc(db,"market_offers",offer.id), {
+      status: "countered",
+      counterAmount: amt,
+      counterAt: now,
+      notified: false,
+      respondedAt: now,
+    }, {merge:true});
+    // Write a negotiation history entry
+    await setDoc(doc(db,"market_offers",offer.id,"history",uid()), {
+      action: "counter",
+      fromUid: offer.sellerUid,
+      fromName: offer.sellerName||"Seller",
+      amount: amt,
+      originalAmount: offer.offerAmount||0,
+      timestamp: now,
+    });
+    // Notify buyer via market_notifs
+    await setDoc(doc(db,"market_notifs",uid()), {
+      type: "counter",
+      toUid: offer.buyerUid,
+      fromUid: offer.sellerUid,
+      fromName: offer.sellerName||"Seller",
+      offerId: offer.id,
+      listingId: offer.listingId,
+      cardName: offer.cardName,
+      cardImage: offer.cardImage||null,
+      counterAmount: amt,
+      originalAmount: offer.offerAmount||0,
+      createdAt: now,
+      seen: false,
+    });
+    showToast("Counter offer sent!");
+    setCounterModal(null);
+    setCounterAmt("");
+  }
+
+
   // -- Thread messaging --
   useEffect(() => {
     if (!activeThread) { setThreadMsgs([]); return; }
@@ -10657,6 +10701,56 @@ function PublicCardDatabase() {
         </div>
       )}
 
+      {/* Counter offer modal */}
+      {counterModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setCounterModal(null)}>
+          <div style={{background:"#0E0E14",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
+
+            <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20}}>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Negotiation history</div>
+              <div style={{fontSize:13,color:"#FBBF24",fontWeight:700}}>
+                {counterModal.buyerName||"Buyer"} offered ${(counterModal.offerAmount||counterModal.counterAmount||0).toFixed(2)}
+              </div>
+              {counterModal.originalAmount&&counterModal.originalAmount!==(counterModal.offerAmount||counterModal.counterAmount)&&(
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
+                  Original ask: ${(counterModal.originalAmount||0).toFixed(2)}
+                </div>
+              )}
+            </div>
+
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:8,fontWeight:700}}>Your counter amount</div>
+              <div style={{display:"flex",alignItems:"center",gap:0}}>
+                <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:"8px 0 0 8px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
+                <input
+                  value={counterAmt}
+                  onChange={e=>setCounterAmt(e.target.value.replace(/[^0-9.]/g,""))}
+                  placeholder="0.00"
+                  style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button
+                onClick={()=>counterOffer(counterModal,counterAmt)}
+                disabled={!counterAmt||isNaN(parseFloat(counterAmt))}
+                style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.8),rgba(245,158,11,0.8))",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:counterAmt&&!isNaN(parseFloat(counterAmt))?1:0.4}}>
+                Send Counter
+              </button>
+              <button
+                onClick={()=>setCounterModal(null)}
+                style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Scan modal */}
       {scanModal&&(
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
@@ -10760,11 +10854,11 @@ function PublicCardDatabase() {
         <div style={{maxWidth:1400,margin:"0 auto",padding:"40px 24px 0",position:"relative"}}>
           <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:16,marginBottom:32}}>
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginBottom:8}}>Bazooka Breaks</div>
+              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginBottom:8}}>Bazooka Vault</div>
               <h1 style={{margin:0,fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1,textTransform:"uppercase",letterSpacing:"-1px"}}>
                 <span style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200%",animation:"gradientShift 4s ease infinite"}}>Bazooka</span>
                 <br/>
-                <span style={{color:"#F0F0F0"}}>Vault</span>
+                <span style={{color:"#F0F0F0"}}>{"Collector's Database"}</span>
               </h1>
               <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
                 {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"}].map(({v,l})=>(
@@ -10821,8 +10915,20 @@ function PublicCardDatabase() {
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:12,padding:"8px 14px"}}>
                 <span style={{fontSize:14}}>{"\uD83E\uDD1D"}</span>
                 <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} offered <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
-                <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
-                <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                {n.type==="counter"?(
+                  <>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{"Counter: $"}{(n.counterAmount||0).toFixed(2)}</span>
+                    <button onClick={()=>respondOffer({...n,offerAmount:n.counterAmount},"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
+                    <button onClick={()=>{setCounterModal({...n,offerAmount:n.counterAmount});setCounterAmt("");}} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Counter</button>
+                    <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                  </>
+                ):(
+                  <>
+                    <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
+                    <button onClick={()=>{setCounterModal(n);setCounterAmt("");}} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Counter</button>
+                    <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -10922,7 +11028,7 @@ function PublicCardDatabase() {
                       </button>
                       <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
                         style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
-                        \uD83D\uDCB0"}</button>
+                        {"\uD83D\uDCB0"}</button>
                     </div>
                   )}
                 </div>
