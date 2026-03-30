@@ -1637,7 +1637,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                   return (
                                     <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)" }}>
                                       {hits.map(c => {
-                                        const wc = WEAPON_COLORS[c.weapon]||"#444";
+                                        const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
                                         const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" — ");
                                         return (
                                           <div key={c.id}
@@ -6201,6 +6201,7 @@ function BobaChecklist({ userRole, user }) {
   const [pbOwnedOnly,    setPbOwnedOnly]    = useState(false);
   const [pbSaving,       setPbSaving]       = useState(false);
   const [pbSort,         setPbSort]         = useState("name");
+  const [pbFilterSet,    setPbFilterSet]    = useState("");
   const [pbTreatFilter,  setPbTreatFilter]  = useState(""); // name | dbs_asc | dbs_desc
   const PLAY_LIMIT = 30;
   const DECK_SIZE = 60;
@@ -6309,14 +6310,14 @@ function BobaChecklist({ userRole, user }) {
     setPbLoadId(pb.id);
     setPbName(pb.name);
     setPbCards(pb.entries||[]);
-    setPbSearch(""); setPbTreatFilter("");
+    setPbSearch(""); setPbTreatFilter(""); setPbFilterSet("");
   }
 
   function newPlaybook() {
     setPbLoadId(null);
     setPbName("My Playbook");
     setPbCards([]);
-    setPbSearch(""); setPbTreatFilter("");
+    setPbSearch(""); setPbTreatFilter(""); setPbFilterSet("");
   }
 
   async function scanPdfForCards(file, setName, treatment, weapon) {
@@ -7937,9 +7938,11 @@ function BobaChecklist({ userRole, user }) {
         const allPlays = cards.filter(c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
         const isPlay  = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="home team discount"; };
         const isBonus = c => (c.treatment||"").toLowerCase()==="bonus plays";
+        const pbSets   = [...new Set(allPlays.map(c=>c.setName).filter(Boolean))].sort();
         const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
+          if (pbFilterSet && c.setName !== pbFilterSet) return false;
           if (pbTreatFilter && (c.treatment||"").toLowerCase() !== pbTreatFilter.toLowerCase()) return false;
           if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
           return true;
@@ -8009,6 +8012,10 @@ function BobaChecklist({ userRole, user }) {
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)}
                     placeholder="Search hero, play ability..."
                     style={{ ...S.inp, flex:1 }}/>
+                  <select value={pbFilterSet} onChange={e=>setPbFilterSet(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                    <option value="">All Sets</option>
+                    {pbSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
                   <select value={pbTreatFilter} onChange={e=>setPbTreatFilter(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="">All Types</option>
                     <option value="Plays">⚔️ Plays</option>
