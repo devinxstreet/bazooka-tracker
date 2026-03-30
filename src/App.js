@@ -186,8 +186,11 @@ function GlobalStyles() {
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; }
+      html, body { overflow-x: hidden; max-width: 100vw; }
       body { background: #000000 !important; color: #F0F0F0; }
-      #root { background: #000000; min-height: 100vh; }
+      #root { background: #000000; min-height: 100vh; overflow-x: hidden; }
+      table { width: 100%; }
+      .tab-content { width: 100%; min-width: 0; }
       input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
       input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
       input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
@@ -5458,7 +5461,7 @@ function PublicDeckBuilder() {
 
   return (
     <div style={{ background:"#0a0a0a", minHeight:"100vh", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0", padding:20 }}>
-      <div style={{ maxWidth:1300, margin:"0 auto" }}>
+      <div style={{ maxWidth:1400, margin:"0 auto" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
           <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>← Back</a>
           <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>⚔️ Deck Builder</div>
@@ -5471,7 +5474,7 @@ function PublicDeckBuilder() {
           <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save decks</span>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:14, alignItems:"start" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)", gap:14, alignItems:"start" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, card #..." style={{ ...S.inp, flex:1, minWidth:140 }}/>
@@ -5597,7 +5600,7 @@ function PublicPlaybookBuilder() {
 
   return (
     <div style={{ background:"#0a0a0a", minHeight:"100vh", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0", padding:20 }}>
-      <div style={{ maxWidth:1300, margin:"0 auto" }}>
+      <div style={{ maxWidth:1400, margin:"0 auto" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
           <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>← Back</a>
           <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>📖 Playbook Builder</div>
@@ -5606,7 +5609,7 @@ function PublicPlaybookBuilder() {
           <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save playbooks</span>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:14, alignItems:"start" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)", gap:14, alignItems:"start" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play name or ability..." style={{ ...S.inp, flex:1 }}/>
@@ -6888,7 +6891,7 @@ function BobaChecklist({ userRole, user }) {
           {pct > 0 && <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700 }}>{pct}%</span>}
           <div style={{ flex:1 }}/>
           {/* View toggles */}
-          <div style={{ display:"flex", gap:3 }}>
+          <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
             {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
@@ -7698,7 +7701,7 @@ function BobaChecklist({ userRole, user }) {
               )}
             </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 340px", gap:14, alignItems:"start" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(280px,30%,360px)", gap:14, alignItems:"start" }}>
 
               {/* LEFT: Card picker */}
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -7994,7 +7997,7 @@ function BobaChecklist({ userRole, user }) {
               )}
             </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 360px", gap:14, alignItems:"start" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(280px,30%,380px)", gap:14, alignItems:"start" }}>
 
               {/* LEFT: Play card picker */}
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -8776,7 +8779,7 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0" }}>
+    <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
       <GlobalStyles />
 
       {/* ── GLOBAL SEARCH OVERLAY ── */}
@@ -8852,7 +8855,7 @@ export default function App() {
       })()}
 
       <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
-        <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <span className="nav-bazooka" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
             <span style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
@@ -8927,7 +8930,7 @@ export default function App() {
         </div>
       )}
 
-      <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
+      <div key={tab} className="tab-content" style={{ maxWidth:1400, margin:"0 auto", padding:"16px 20px", overflowX:"hidden" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
