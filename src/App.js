@@ -1360,9 +1360,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {activeQuotes.map(q => {
                   // Auto-dismiss badge when admin views a responded quote
-                  if (!q.notified && ["accepted","declined","countered"].includes(q.status) && onDismissQuoteNotif) {
-                    onDismissQuoteNotif(q.id);
-                  }
+                  // Note: notifications are dismissed from the Dashboard, not auto-dismissed here
                   const statusCfg = {
                     pending:   { color:"#888",    bg:"#1a1a1a",  label:"⏳ Awaiting Response" },
                     countered: { color:"#FBBF24", bg:"#1a1400",  label:"🤝 Counter Received" },
@@ -10006,9 +10004,9 @@ export default function App() {
 
   async function handleAccept(cards, seller, u, custNote) {
     for (const card of cards) {
-      await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString() });
+      await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString(), cardStatus:"in_transit" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added — marked In Transit until delivered`);
     setTab("inventory");
   }
 
@@ -10077,6 +10075,14 @@ export default function App() {
     const next = { ...lotTracking, [key]: data };
     setLotTracking(next);
     await setDoc(doc(db,"config","lotTracking"), next);
+    // Update cardStatus on all inventory cards in this lot
+    const lotCards = inventory.filter(c => `${c.seller||"Unknown"}__${c.date||"Unknown"}` === key);
+    if (lotCards.length > 0) {
+      const newStatus = data.status === "Delivered" ? "available" : "in_transit";
+      await Promise.all(lotCards.map(c =>
+        setDoc(doc(db,"inventory",c.id), { cardStatus: newStatus }, { merge:true })
+      ));
+    }
   }
 
   async function handleSaveLotNotes(key, notes) {
