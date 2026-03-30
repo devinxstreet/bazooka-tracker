@@ -7224,6 +7224,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
     try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
+  }  // ← closes scanImagesForCards
+
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
   const [scanModal,    setScanModal]    = useState(false); // full-screen scan modal open
   const [scanSession,  setScanSession]  = useState([]);    // [{card, qty, addedAt}]
