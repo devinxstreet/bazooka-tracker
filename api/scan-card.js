@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-opus-4-6",
-        max_tokens: 200,
+        max_tokens: 300,
         messages: [{
           role: "user",
           content: [
@@ -53,9 +53,10 @@ Look at the TOP LEFT for the hero/character name exactly as printed.
 Look at the TOP RIGHT for the power number.
 Look at the weapon symbol or label for the weapon type.
 Look for the treatment name (e.g. "Inspired Ink", "Base Set", "Great Grandma's Lino", "Alpha Battlefoil").
+Also describe the card's VISUAL APPEARANCE in 6-10 keywords: background texture, dominant colors, border style, art style, pattern (e.g. "linoleum cracked floor pink purple retro vintage", "holographic foil rainbow metallic shimmer", "watercolor brushstroke blue green", "comic dots halftone yellow orange").
 
 Return ONLY a JSON object, no markdown, no explanation:
-{"cardNum":"exact card number as printed at bottom (e.g. BFA-61)","hero":"exact hero name from top left","weapon":"Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic","power":"number only","treatment":"treatment name if visible"}
+{"cardNum":"exact card number as printed at bottom (e.g. BFA-61)","hero":"exact hero name from top left","weapon":"Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic","power":"number only","treatment":"treatment name if visible","visualHints":"6-10 keywords describing visual appearance"}
 If card is not readable return {"cardNum":null}`
             }
           ]
@@ -81,11 +82,12 @@ If card is not readable return {"cardNum":null}`
     const parsed = JSON.parse(clean);
     // Return both flat (new) and nested identified (legacy PDF scanner)
     const result = {
-      cardNum:   parsed.cardNum   || null,
-      hero:      parsed.hero      || null,
-      weapon:    parsed.weapon    || weapon  || null,
-      power:     parsed.power     || null,
-      treatment: parsed.treatment || treatment || null,
+      cardNum:      parsed.cardNum      || null,
+      hero:         parsed.hero         || null,
+      weapon:       parsed.weapon       || weapon  || null,
+      power:        parsed.power        || null,
+      treatment:    parsed.treatment    || treatment || null,
+      visualHints:  parsed.visualHints  || null,
     };
     return res.status(200).json({ ...result, identified: result });
   } catch(parseErr) {
