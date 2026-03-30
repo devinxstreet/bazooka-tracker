@@ -3468,9 +3468,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   );
 }
 
-  );
-}
-
 function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
   const [search,     setSearch]     = useState("");
