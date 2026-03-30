@@ -11932,7 +11932,7 @@ export default function App() {
     showToast("\uD83D\uDDD1 Stream deleted");
   }
 
-  async function handleSaveComp(comp)"}{
+  async function handleSaveComp(comp) {
     const id = uid();
     await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
     showToast("\uD83D\uDCBE Comp saved");
@@ -11980,7 +11980,7 @@ export default function App() {
     showToast("\uD83D\uDDD1 Lot deleted");
   }
 
-  async function handleSaveShipment(shipment)"}{ await setDoc(doc(db,"shipments",shipment.id), shipment); }
+  async function handleSaveShipment(shipment) { await setDoc(doc(db,"shipments",shipment.id), shipment); }
   async function handleDeleteShipment(id) { await deleteDoc(doc(db,"shipments",id)); }
 
   async function handleSaveProductUsage(usage) { await setDoc(doc(db,"product_usage",usage.id), usage); }
@@ -12076,7 +12076,7 @@ export default function App() {
     showToast("\uD83D\uDDD1 All buyer data cleared");
   }
 
-  async function handleDeleteCsvImport(id)"}{ await deleteDoc(doc(db,"csv_imports",id)); }
+  async function handleDeleteCsvImport(id) { await deleteDoc(doc(db,"csv_imports",id)); }
 
   async function handleDeleteImport(id) { await deleteDoc(doc(db,"csv_imports",id)); }
 
