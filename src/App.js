@@ -1631,14 +1631,23 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                 />
                                 {acOpen === r.id && (acQuery[r.id]||"").length >= 2 && (() => {
                                   const q = (acQuery[r.id]||"").toLowerCase();
-                                  const hits = bobaCards.filter(c =>
+                                  const all = bobaCards.filter(c =>
                                     (c.hero||"").toLowerCase().includes(q) ||
                                     String(c.cardNum||"").toLowerCase().includes(q) ||
                                     (c.treatment||"").toLowerCase().includes(q)
-                                  ).slice(0, 8);
+                                  );
+                                  // Rank: hero starts with query first, then contains, then others
+                                  const hits = all.sort((a,b) => {
+                                    const aHero = (a.hero||"").toLowerCase();
+                                    const bHero = (b.hero||"").toLowerCase();
+                                    const aStart = aHero.startsWith(q) ? 0 : 1;
+                                    const bStart = bHero.startsWith(q) ? 0 : 1;
+                                    if (aStart !== bStart) return aStart - bStart;
+                                    return aHero.localeCompare(bHero);
+                                  });
                                   if (hits.length === 0) return null;
                                   return (
-                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)" }}>
+                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:320, overflowY:"auto" }}>
                                       {hits.map(c => {
                                         const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
                                         const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" — ");
