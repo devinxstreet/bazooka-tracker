@@ -9807,6 +9807,16 @@ function PublicCardDatabase() {
   const [listings,      setListings]      = useState([]);
   const [myListings,    setMyListings]    = useState([]);
   const [listModal,     setListModal]     = useState(null); // card being listed
+  // ── Messages ──
+  const [threads,       setThreads]       = useState([]);
+  const [activeThread,  setActiveThread]  = useState(null);
+  const [threadMsgs,    setThreadMsgs]    = useState([]);
+  const [newMsg,        setNewMsg]        = useState("");
+  const [unreadThreads, setUnreadThreads] = useState(0);
+  // ── Market sales ──
+  const [marketSales,   setMarketSales]   = useState([]);
+  // ── Comp modal ──
+  const [compCard,      setCompCard]      = useState(null); // card being comped
   const [listPrice,     setListPrice]     = useState("");
   const [listType,      setListType]      = useState("sale"); // sale|trade|either
   const [listNotes,     setListNotes]     = useState("");
@@ -9895,6 +9905,18 @@ function PublicCardDatabase() {
       // Want notifications — someone listed a card I want
       onSnapshot(query(collection(db,"market_notifs"), where("toUid","==",uid2), where("read","==",false)),
         snap => setWantNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Deal threads
+      onSnapshot(query(collection(db,"deal_threads"), where("memberUids","array-contains",uid2), orderBy("lastMessageAt","desc")),
+        snap => {
+          const threads = snap.docs.map(d=>({...d.data(),id:d.id}));
+          setThreads(threads);
+          setUnreadThreads(threads.filter(t=>t.lastReadBy?.[uid2]<t.lastMessageAt&&t.lastSenderUid!==uid2).length);
+        }
+      ),
+      // Recent market sales (last 200)
+      onSnapshot(query(collection(db,"market_sales"), orderBy("soldAt","desc")),
+        snap => setMarketSales(snap.docs.map(d=>({...d.data(),id:d.id})).slice(0,200))
       ),
     ];
     return () => unsubs.forEach(u=>u());
@@ -10138,9 +10160,74 @@ function PublicCardDatabase() {
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferModal(null); setOfferAmt(""); setOfferNote("");
   }
-  async function respondOffer(offer,action) {
+  async function respondOffer(offer, action) {
     await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:new Date().toISOString()},{merge:true});
-    if(action==="accepted") await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold"},{merge:true});
+    if (action==="accepted") {
+      // Close the listing
+      await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold"},{merge:true});
+      // Create a deal thread for buyer + seller to coordinate payment
+      const threadId = uid();
+      const now = new Date().toISOString();
+      await setDoc(doc(db,"deal_threads",threadId),{
+        id: threadId,
+        memberUids: [offer.sellerUid, offer.buyerUid],
+        sellerUid: offer.sellerUid, sellerName: offer.sellerName||"Seller",
+        buyerUid: offer.buyerUid, buyerName: offer.buyerName||"Buyer",
+        cardName: offer.cardName, cardImage: offer.cardImage||null,
+        agreedPrice: offer.offerAmount||0,
+        status: "active",
+        lastMessage: "Deal accepted! Coordinate payment details here.",
+        lastMessageAt: now, lastSenderUid: "system",
+        lastReadBy: { [offer.sellerUid]: now },
+        createdAt: now,
+      });
+      // Opening system message
+      await setDoc(doc(db,"deal_threads",threadId,"messages",uid()),{
+        text:`✅ Deal agreed! ${offer.cardName} for $${(offer.offerAmount||0).toFixed(2)}. Use this chat to share payment details.`,
+        senderUid:"system", senderName:"System", sentAt:now,
+      });
+      // Log market sale
+      await setDoc(doc(db,"market_sales",uid()),{
+        cardId: offer.cardId||"", cardName: offer.cardName,
+        cardTreatment: offer.cardTreatment||"", cardWeapon: offer.cardWeapon||"",
+        cardPower: offer.cardPower||"", cardImage: offer.cardImage||null,
+        setName: offer.setName||"",
+        price: offer.offerAmount||0,
+        soldAt: now, soldDate: now.split("T")[0],
+        sellerUid: offer.sellerUid, buyerUid: offer.buyerUid,
+      });
+    }
+  }
+
+  // ── Thread messaging ──
+  useEffect(() => {
+    if (!activeThread) { setThreadMsgs([]); return; }
+    const unsub = onSnapshot(
+      query(collection(db,"deal_threads",activeThread.id,"messages"), orderBy("sentAt","asc")),
+      snap => setThreadMsgs(snap.docs.map(d=>({...d.data(),id:d.id})))
+    );
+    // Mark as read
+    if (user) setDoc(doc(db,"deal_threads",activeThread.id),{lastReadBy:{[user.uid]:new Date().toISOString()}},{merge:true});
+    return ()=>unsub();
+  }, [activeThread?.id]);
+
+  async function sendMessage() {
+    if (!newMsg.trim()||!activeThread||!user) return;
+    const now = new Date().toISOString();
+    const msgId = uid();
+    await setDoc(doc(db,"deal_threads",activeThread.id,"messages",msgId),{
+      text:newMsg.trim(), senderUid:user.uid, senderName:user.displayName||user.email, sentAt:now,
+    });
+    await setDoc(doc(db,"deal_threads",activeThread.id),{
+      lastMessage:newMsg.trim(), lastMessageAt:now, lastSenderUid:user.uid,
+      lastReadBy:{[user.uid]:now},
+    },{merge:true});
+    setNewMsg("");
+  }
+
+  async function closeThread(threadId) {
+    await setDoc(doc(db,"deal_threads",threadId),{status:"completed"},{merge:true});
+    setActiveThread(null);
   }
 
   // ── Computed ──
@@ -10195,7 +10282,7 @@ function PublicCardDatabase() {
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length;
+  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
   if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -10237,6 +10324,133 @@ function PublicCardDatabase() {
         .filter-bar select,.filter-bar input{transition:border-color 0.2s ease,box-shadow 0.2s ease}
         .filter-bar select:focus,.filter-bar input:focus{border-color:#E8317A!important;box-shadow:0 0 0 3px rgba(232,49,122,0.15)!important}
       `}</style>
+
+      {/* ── Comp Modal ── */}
+      {compCard&&(()=>{
+        const c = compCard;
+        const wc = WEAPON_COLORS[c.weapon]||"#444";
+        // Exact matches: same cardId
+        const exactSales = marketSales.filter(s=>s.cardId===c.id);
+        // Near matches: same hero + treatment, or same hero + weapon, excluding exact
+        const nearSales = marketSales.filter(s=>s.cardId!==c.id&&(
+          (s.cardName===c.hero&&s.cardTreatment===c.treatment)||
+          (s.cardName===c.hero&&s.cardWeapon===c.weapon&&s.cardPower===c.power)||
+          (s.cardName===c.hero&&s.cardTreatment===c.treatment&&s.cardPower!==c.power)
+        ));
+        // Stats helper
+        function stats(sales) {
+          if(!sales.length) return null;
+          const prices = sales.map(s=>s.price).sort((a,b)=>a-b);
+          const avg = prices.reduce((a,b)=>a+b,0)/prices.length;
+          const last = sales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0)[0];
+          return { avg, high:Math.max(...prices), low:Math.min(...prices), count:prices.length, last };
+        }
+        const exact = stats(exactSales);
+        const near = stats(nearSales);
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
+            <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+              {/* Header */}
+              <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
+                {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:64,height:85,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 8px 24px ${wc}44`}}/>:<div style={{width:64,height:85,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0}}/>}
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:`${wc}`,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>📊 Card Comp</div>
+                  <div style={{fontSize:20,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={{background:`${wc}22`,color:wc,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700}}>{c.weapon}</span>
+                    <span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.treatment}</span>
+                    {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}⚡</span>}
+                    {c.setName&&<span style={{background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"2px 8px",fontSize:10}}>{c.setName}</span>}
+                  </div>
+                </div>
+                <button onClick={()=>setCompCard(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:22,padding:0,alignSelf:"flex-start",lineHeight:1}}>×</button>
+              </div>
+
+              <div style={{padding:24}}>
+                {/* Exact match comps */}
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>✅ Exact Match Sales</div>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same card, same treatment, same power</span>
+                  </div>
+                  {exact?(
+                    <>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+                        {[{l:"Avg Sale",v:`$${exact.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${exact.high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${exact.low.toFixed(2)}`,c:"#FBBF24"},{l:"# Sales",v:exact.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c2=c})=>(
+                          <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:900,color:c2}}>{v}</div>
+                            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Last sale: <span style={{color:"#4ade80",fontWeight:700}}>${(exact.last?.price||0).toFixed(2)}</span> on {exact.last?.soldDate||"—"}</div>
+                      {/* Sales list */}
+                      <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
+                        {exactSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,8).map((s,i)=>(
+                          <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>{s.soldDate||"—"}</span>
+                            <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ):(
+                    <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"24px",textAlign:"center",color:"rgba(255,255,255,0.3)"}}>
+                      <div style={{fontSize:14,marginBottom:4}}>No exact sales yet on this platform</div>
+                      <div style={{fontSize:11}}>Be the first — list this card in the Market tab</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Similar cards */}
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>🔍 Similar Card Sales</div>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same hero, similar treatment or power</span>
+                  </div>
+                  {near?(
+                    <>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+                        {[{l:"Avg",v:`$${near.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${near.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:near.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c2=c})=>(
+                          <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:900,color:c2}}>{v}</div>
+                            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
+                        {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
+                          <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} · {s.cardPower}⚡</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"—"}</div>
+                            </div>
+                            <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ):(
+                    <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"16px",textAlign:"center",color:"rgba(255,255,255,0.3)",fontSize:12}}>
+                      No similar card sales yet
+                    </div>
+                  )}
+                </div>
+
+                {/* eBay placeholder */}
+                <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{fontSize:24}}>🛒</div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon — eBay sold listings will appear here for real-world comps</div>
+                  </div>
+                  <div style={{marginLeft:"auto",fontSize:10,background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>COMING SOON</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Sign-in modal ── */}
       {signingIn&&(
@@ -10442,6 +10656,7 @@ function PublicCardDatabase() {
             {tabBtn("deck","⚔️ Deck Builder",0)}
             {tabBtn("playbook","📖 Playbook",0)}
             {tabBtn("market","💰 Market",wantNotifs.length)}
+            {user&&tabBtn("messages","💬 Messages",unreadThreads)}
             {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
             {user&&tabBtn("team","🏆 Team",0)}
           </div>
@@ -10522,6 +10737,11 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+                  {/* Comp button — bottom left of every card */}
+                  <button onClick={e=>{e.stopPropagation();setCompCard(c);}} title="View price comps"
+                    style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.75)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:6,padding:"3px 7px",fontSize:10,cursor:"pointer",backdropFilter:"blur(6px)",color:"#7B9CFF",fontWeight:700,zIndex:10}}>
+                    📊 Comp
+                  </button>
                   {/* Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
                     <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
@@ -10844,6 +11064,178 @@ function PublicCardDatabase() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* MESSAGES TAB */}
+        {activeTab==="messages"&&(
+          <div style={{maxWidth:800,margin:"0 auto"}}>
+            {!user?(
+              <div style={{textAlign:"center",padding:80}}>
+                <div style={{fontSize:48,marginBottom:16}}>💬</div>
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to view messages</button>
+              </div>
+            ):activeThread?(
+              // ── Thread view ──
+              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
+                {/* Header */}
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.3)"}}>
+                  <button onClick={()=>setActiveThread(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>←</button>
+                  {activeThread.cardImage&&<img src={activeThread.cardImage} alt="" style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{activeThread.cardName}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+                      ${(activeThread.agreedPrice||0).toFixed(2)} agreed · with {activeThread.sellerUid===user.uid?activeThread.buyerName:activeThread.sellerName}
+                    </div>
+                  </div>
+                  {activeThread.status==="active"&&activeThread.sellerUid===user.uid&&(
+                    <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Mark Complete</button>
+                  )}
+                  {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>✅ Completed</span>}
+                </div>
+                {/* Messages */}
+                <div style={{height:400,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}} id="msg-scroll">
+                  {threadMsgs.length===0&&<div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:40,fontSize:13}}>No messages yet</div>}
+                  {threadMsgs.map(m=>{
+                    const isMe = m.senderUid===user.uid;
+                    const isSystem = m.senderUid==="system";
+                    if (isSystem) return (
+                      <div key={m.id} style={{textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"8px 14px"}}>{m.text}</div>
+                    );
+                    return (
+                      <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",gap:3}}>
+                        <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:2}}>{isMe?"You":m.senderName} · {new Date(m.sentAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                        <div style={{
+                          background:isMe?"linear-gradient(135deg,rgba(232,49,122,0.3),rgba(123,47,247,0.3))":"rgba(255,255,255,0.06)",
+                          border:`1px solid ${isMe?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,
+                          borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",
+                          padding:"10px 14px",maxWidth:"75%",fontSize:13,color:"#F0F0F0",lineHeight:1.5,wordBreak:"break-word"
+                        }}>{m.text}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Input */}
+                {activeThread.status==="active"&&(
+                  <div style={{display:"flex",gap:8,padding:"12px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.2)"}}>
+                    <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="Type a message... (e.g. 'My Venmo is @yourhandle')" style={{...inp,flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}/>
+                    <button onClick={sendMessage} disabled={!newMsg.trim()} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:newMsg.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:newMsg.trim()?1:0.4,transition:"opacity 0.2s"}}>Send</button>
+                  </div>
+                )}
+              </div>
+            ):(
+              // ── Thread list ──
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>💬 Deal Messages</div>
+                {threads.length===0?(
+                  <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
+                    <div style={{fontSize:48,marginBottom:16}}>💬</div>
+                    <div style={{fontSize:14,fontWeight:700}}>No deal threads yet</div>
+                    <div style={{fontSize:12,marginTop:8}}>When you accept or make an offer, a chat thread opens here to coordinate payment</div>
+                  </div>
+                ):(
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {threads.map(t=>{
+                      const isUnread = t.lastReadBy?.[user.uid]<t.lastMessageAt&&t.lastSenderUid!==user.uid;
+                      const otherName = t.sellerUid===user.uid?t.buyerName:t.sellerName;
+                      return (
+                        <div key={t.id} onClick={()=>setActiveThread(t)}
+                          style={{display:"flex",alignItems:"center",gap:14,background:isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:"14px 18px",cursor:"pointer",transition:"all 0.15s",backdropFilter:"blur(10px)"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.borderColor="rgba(255,255,255,0.12)";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)";e.currentTarget.style.borderColor=isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)";}}>
+                          {t.cardImage?<img src={t.cardImage} alt={t.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🃏</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                              <div style={{fontSize:14,fontWeight:isUnread?800:600,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.cardName}</div>
+                              {t.status==="completed"&&<span style={{fontSize:10,color:"#4ade80",fontWeight:700,flexShrink:0}}>✅ Done</span>}
+                              {isUnread&&<span style={{width:8,height:8,borderRadius:"50%",background:"#E8317A",flexShrink:0,boxShadow:"0 0 8px rgba(232,49,122,0.8)"}}/>}
+                            </div>
+                            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} · ${(t.agreedPrice||0).toFixed(2)}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"}</div>
+                          </div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",flexShrink:0,textAlign:"right"}}>
+                            {t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Recent Sales / Price History ── */}
+              {marketSales.length>0&&(
+                <div style={{marginTop:32}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>📈 Recent Sales</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}}>Price history from completed deals on this platform</div>
+                  {/* Summary by card */}
+                  {(()=>{
+                    // Group sales by cardName+treatment for price trends
+                    const byCard = {};
+                    marketSales.forEach(s=>{
+                      const key = `${s.cardName}|${s.cardTreatment||""}`;
+                      if(!byCard[key]) byCard[key]={cardName:s.cardName,treatment:s.cardTreatment,weapon:s.cardWeapon,power:s.cardPower,image:s.cardImage,sales:[]};
+                      byCard[key].sales.push({price:s.price,date:s.soldDate});
+                    });
+                    const sorted = Object.values(byCard).sort((a,b)=>b.sales.length-a.sales.length).slice(0,10);
+                    return (
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:24}}>
+                        {sorted.map((entry,i)=>{
+                          const prices=entry.sales.map(s=>s.price);
+                          const avg=prices.reduce((a,b)=>a+b,0)/prices.length;
+                          const high=Math.max(...prices), low=Math.min(...prices);
+                          const last=entry.sales[0];
+                          const wc=WEAPON_COLORS[entry.weapon]||"#444";
+                          return (
+                            <div key={i} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:14,padding:14,backdropFilter:"blur(10px)"}}>
+                              <div style={{display:"flex",gap:10,marginBottom:10}}>
+                                {entry.image?<img src={entry.image} alt={entry.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0}}/>}
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.cardName}</div>
+                                  <div style={{fontSize:10,color:wc,fontWeight:700}}>{entry.weapon}</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.treatment}</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.power}⚡</div>
+                                </div>
+                              </div>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
+                                {[{l:"Avg",v:`$${avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${low.toFixed(2)}`,c:"#FBBF24"}].map(({l,v,c})=>(
+                                  <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"6px 8px",textAlign:"center"}}>
+                                    <div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div>
+                                    <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:1}}>{l}</div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.sales.length} sale{entry.sales.length!==1?"s":""} · Last: {last?.date||"—"}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Raw sales feed */}
+                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden"}}>
+                    <div style={{padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5}}>Recent Sales Feed</div>
+                    {marketSales.slice(0,30).map((s,i)=>{
+                      const wc=WEAPON_COLORS[s.cardWeapon]||"#444";
+                      return (
+                        <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                          {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:28,height:37,objectFit:"cover",borderRadius:5,flexShrink:0}}/>:<div style={{width:28,height:37,background:"rgba(255,255,255,0.04)",borderRadius:5,flexShrink:0}}/>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} · <span style={{color:wc}}>{s.cardWeapon}</span> · {s.cardPower}⚡</div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{s.soldDate||"—"}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            )}
           </div>
         )}
 
