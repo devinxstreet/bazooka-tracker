@@ -9969,6 +9969,7 @@ function PublicCardDatabase() {
   const [counterModal,  setCounterModal]  = useState(null); // offer being countered
   const [counterAmt,    setCounterAmt]    = useState("");
   const [counterSent,   setCounterSent]   = useState(false);
+  const [negHistory,    setNegHistory]    = useState([]);
   const [wantNotifs,    setWantNotifs]    = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
@@ -9981,6 +9982,27 @@ function PublicCardDatabase() {
 
   // Animate header in
   useEffect(() => { setTimeout(()=>setHeaderLoaded(true), 100); }, []);
+
+  // Load negotiation history when counter modal opens
+  useEffect(() => {
+    if (!counterModal) { setNegHistory([]); return; }
+    const rootId = counterModal.parentOfferId||counterModal.id;
+    getDocs(query(
+      collection(db,"negotiation_history"),
+      where("rootOfferId","==",rootId),
+      orderBy("timestamp","asc")
+    )).then(snap => setNegHistory(snap.docs.map(d=>d.data())))
+      .catch(() => {
+        // Fallback: show at least the current offer as first entry
+        setNegHistory([{
+          action:"offer",
+          fromName:counterModal.buyerName||"Buyer",
+          amount:counterModal.offerAmount||0,
+          timestamp:counterModal.createdAt||"",
+        }]);
+      });
+  }, [counterModal?.id]);
+
 
   // -- Load cards --
   useEffect(() => {
@@ -10305,8 +10327,28 @@ function PublicCardDatabase() {
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
   }
+  async function logNegotiationHistory(offer, action, amount) {
+    try {
+      await setDoc(doc(db,"negotiation_history",uid()), {
+        rootOfferId: offer.parentOfferId||offer.id,
+        offerId: offer.id,
+        listingId: offer.listingId||"",
+        cardName: offer.cardName,
+        cardImage: offer.cardImage||null,
+        action,
+        amount: amount||offer.offerAmount||0,
+        fromUid: user.uid,
+        fromName: user.displayName||user.email||"Unknown",
+        sellerUid: offer.sellerUid,
+        buyerUid: offer.buyerUid,
+        timestamp: new Date().toISOString(),
+      });
+    } catch(e) { console.warn("History log failed:", e); }
+  }
+
   async function respondOffer(offer, action) {
     await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:new Date().toISOString()},{merge:true});
+    logNegotiationHistory(offer, action, offer.offerAmount||0);
     if (action==="accepted") {
       // Close the listing
       await setDoc(doc(db,"marketplace",offer.listingId),{status:"sold"},{merge:true});
@@ -10353,14 +10395,21 @@ function PublicCardDatabase() {
       await setDoc(doc(db,"market_offers",offer.id), {
         status: "countered", notified: true, respondedAt: now,
       }, {merge:true});
-      // Write paper trail to history subcollection
+      // Write paper trail to negotiation_history collection
       try {
-        await setDoc(doc(db,"market_offers",offer.id,"history",uid()), {
+        await setDoc(doc(db,"negotiation_history",uid()), {
+          rootOfferId: offer.parentOfferId||offer.id,
+          offerId: offer.id,
+          listingId: offer.listingId||"",
+          cardName: offer.cardName,
+          cardImage: offer.cardImage||null,
           action: "counter",
-          fromUid: user.uid,
-          fromName: user.displayName||user.email||"Unknown",
           amount: amt,
           previousAmount: offer.offerAmount||0,
+          fromUid: user.uid,
+          fromName: user.displayName||user.email||"Unknown",
+          sellerUid: offer.sellerUid,
+          buyerUid: offer.buyerUid,
           timestamp: now,
         });
       } catch(e) { console.warn("History write failed (non-fatal):", e); }
@@ -10768,14 +10817,26 @@ function PublicCardDatabase() {
               <>
                 <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
-                <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20}}>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Negotiation history</div>
-                  <div style={{fontSize:13,color:"#FBBF24",fontWeight:700}}>
-                    {counterModal.buyerName||"Buyer"} offered {"$"}{(counterModal.offerAmount||0).toFixed(2)}
-                  </div>
-                  {counterModal.isCounter&&(
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
-                      (counter offer - see Messages for full thread)
+                <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,maxHeight:160,overflowY:"auto"}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Negotiation history</div>
+                  {negHistory.length>0?negHistory.map((h,idx)=>{
+                    const isCounter=h.action==="counter";
+                    const isAccept=h.action==="accepted";
+                    const isDecline=h.action==="declined";
+                    const color=isAccept?"#4ade80":isDecline?"#f87171":isCounter?"#7B9CFF":"#FBBF24";
+                    const label=isAccept?"Accepted":isDecline?"Declined":isCounter?"Countered":"Offered";
+                    return (
+                      <div key={idx} style={{display:"flex",alignItems:"center",gap:8,marginBottom:idx<negHistory.length-1?6:0}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
+                        <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{h.fromName}</span>
+                        <span style={{fontSize:12,fontWeight:700,color:color}}>{label} ${(h.amount||0).toFixed(2)}</span>
+                      </div>
+                    );
+                  }):(
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:"#FBBF24",flexShrink:0}}/>
+                      <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{counterModal.buyerName||"Buyer"}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:"#FBBF24"}}>Offered ${(counterModal.offerAmount||0).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
