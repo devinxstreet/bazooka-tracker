@@ -5818,7 +5818,9 @@ function BobaChecklist({ userRole, user }) {
   const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
   const [deckSlotSort,   setDeckSlotSort]   = useState("added");
   const [deckType,       setDeckType]       = useState("none");
-  const [deckFilterPower, setDeckFilterPower] = useState(""); // none | spec | apex
+  const [deckFilterPower, setDeckFilterPower] = useState("");
+  const [dbsImporting,   setDbsImporting]   = useState(false);
+  const DBS_CAP = 1000; // none | spec | apex
   // Playbook state
   const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
   const [pbName,         setPbName]         = useState("My Playbook");
@@ -6222,6 +6224,52 @@ function BobaChecklist({ userRole, user }) {
     setCollectionImportResult({ matched, skipped, skippedRows });
   }
 
+  async function importDbsCsv(file) {
+    if (!file) return;
+    setDbsImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
+      const cardNumIdx = headers.indexOf("card_num") >= 0 ? headers.indexOf("card_num") : headers.indexOf("card#") >= 0 ? headers.indexOf("card#") : headers.indexOf("cardnum") >= 0 ? headers.indexOf("cardnum") : 0;
+      const dbsIdx = headers.indexOf("dbs") >= 0 ? headers.indexOf("dbs") : headers.indexOf("salary") >= 0 ? headers.indexOf("salary") : 1;
+
+      let updated = 0, skipped = 0;
+      const batch = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map(c => c.replace(/^"|"$/g,"").trim());
+        const cardNum = cols[cardNumIdx]||"";
+        const dbs = parseFloat(cols[dbsIdx]);
+        if (!cardNum || isNaN(dbs)) { skipped++; continue; }
+
+        // Find matching card(s) by cardNum
+        const matches = cards.filter(c =>
+          String(c.cardNum||"").toLowerCase() === String(cardNum).toLowerCase()
+        );
+        if (matches.length === 0) { skipped++; continue; }
+
+        for (const match of matches) {
+          batch.push({ id: match.id, dbs });
+          updated++;
+        }
+      }
+
+      // Write in batches of 400
+      for (let i = 0; i < batch.length; i += 400) {
+        const chunk = batch.slice(i, i + 400);
+        await Promise.all(chunk.map(({ id, dbs }) =>
+          setDoc(doc(db, "boba_checklist", id), { dbs }, { merge: true })
+        ));
+      }
+
+      alert(`✅ DBS import complete! Updated ${updated} cards, skipped ${skipped}.`);
+    } catch(e) {
+      console.error(e);
+      alert("Error importing DBS CSV: " + e.message);
+    }
+    setDbsImporting(false);
+  }
+
   function handleFileSelect(e) {
     const file = e.target.files[0]; if(!file) return;
     setPendingFile(file);
@@ -6379,6 +6427,12 @@ function BobaChecklist({ userRole, user }) {
               <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                 📂 Import Cards
                 <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
+              </label>
+            )}
+            {isAdmin && (
+              <label title="Import DBS salary values (CSV: card_num, dbs)" style={{ background:"#1a0f1a", color:"#A855F7", border:"1px solid #A855F744", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1 }}>
+                {dbsImporting?"Importing...":"💰 Import DBS"}
+                <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
               </label>
             )}
             {isAdmin && totalOwned === 0 && (
@@ -7343,6 +7397,13 @@ function BobaChecklist({ userRole, user }) {
         const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
         const playFull   = playCount >= PLAY_LIMIT;
 
+        // DBS tracking — cap applies to plays + BPL combined
+        const pbResolvedAll = pbCards.map(e=>({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card);
+        const totalDbs   = pbResolvedAll.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0), 0);
+        const dbsLeft    = DBS_CAP - totalDbs;
+        const dbsPct     = Math.min(totalDbs / DBS_CAP * 100, 100);
+        const dbsOver    = totalDbs > DBS_CAP;
+
         // All Play cards: PL-xxx = regular plays, BPL-xxx = bonus plays
         const allPlays = cards.filter(c => {
           const num = String(c.cardNum||"").toUpperCase();
@@ -7445,19 +7506,28 @@ function BobaChecklist({ userRole, user }) {
                             {c.playCost && <div style={{ fontSize:10, color:"#FBBF24", marginTop:2 }}>Cost: {c.playCost}</div>}
                           </div>
                           <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
-                            {isPlay(c) && (
-                              <button onClick={()=>{ if(!playFull) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
-                                disabled={playFull}
-                                style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:playFull?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:playFull?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                                + Play
-                              </button>
-                            )}
-                            {isBonus(c) && (
-                              <button onClick={()=>setPbCards(p=>[...p,{id:c.id,type:"bonus"}])}
-                                style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                                + BPL
-                              </button>
-                            )}
+                            {isPlay(c) && (() => {
+                              const wouldExceed = (parseFloat(c.dbs)||0) > 0 && totalDbs + (parseFloat(c.dbs)||0) > DBS_CAP;
+                              return (
+                                <button onClick={()=>{ if(!playFull && !wouldExceed) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
+                                  disabled={playFull || wouldExceed}
+                                  title={wouldExceed?`Adds ${c.dbs} DBS — would exceed ${DBS_CAP} cap`:playFull?"Play slots full":""}
+                                  style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:(playFull||wouldExceed)?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:(playFull||wouldExceed)?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                  + Play{c.dbs?` (${c.dbs})` :""}
+                                </button>
+                              );
+                            })()}
+                            {isBonus(c) && (() => {
+                              const wouldExceed = (parseFloat(c.dbs)||0) > 0 && totalDbs + (parseFloat(c.dbs)||0) > DBS_CAP;
+                              return (
+                                <button onClick={()=>{ if(!wouldExceed) setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); }}
+                                  disabled={wouldExceed}
+                                  title={wouldExceed?`Adds ${c.dbs} DBS — would exceed ${DBS_CAP} cap`:""}
+                                  style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:wouldExceed?"#333":"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:wouldExceed?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                  + BPL{c.dbs?` (${c.dbs})`:""}
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -7472,7 +7542,7 @@ function BobaChecklist({ userRole, user }) {
                 {/* Stats */}
                 <div style={{ ...S.card }}>
                   <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>📖 Playbook</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                     {[
                       { l:"Plays", v:`${playCount}/${PLAY_LIMIT}`, c:playFull?"#E8317A":"#4ade80" },
                       { l:"Bonus Plays", v:bonusCount, c:"#7B9CFF" },
@@ -7484,11 +7554,30 @@ function BobaChecklist({ userRole, user }) {
                     ))}
                   </div>
                   {/* Play slots bar */}
-                  <div style={{ marginTop:10 }}>
+                  <div style={{ marginBottom:12 }}>
                     <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
                       <div style={{ width:`${Math.min(playCount/PLAY_LIMIT*100,100)}%`, height:"100%", borderRadius:3, background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)", transition:"width 0.3s" }}/>
                     </div>
                     <div style={{ fontSize:10, color:"#555", marginTop:4 }}>{PLAY_LIMIT-playCount} play slots remaining</div>
+                  </div>
+                  {/* DBS cap */}
+                  <div style={{ background: dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
+                      <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>💰 DBS Salary Cap</span>
+                      <span style={{ fontSize:11, fontWeight:700, color: dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>
+                        {Math.round(totalDbs)} / {DBS_CAP}
+                      </span>
+                    </div>
+                    <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
+                      <div style={{ width:`${dbsPct}%`, height:"100%", borderRadius:4, transition:"width 0.3s",
+                        background: dbsOver?"#E8317A": dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)" }}/>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:10 }}>
+                      <span style={{ color:"#555" }}>Used: {Math.round(totalDbs)}</span>
+                      <span style={{ color: dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"#4ade80", fontWeight:700 }}>
+                        {dbsOver ? `⚠️ Over by ${Math.round(totalDbs-DBS_CAP)}` : `${Math.round(dbsLeft)} remaining`}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -7511,6 +7600,7 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
+                                {c.dbs && <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, marginTop:2 }}>💰 {c.dbs} DBS</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
                                 style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
@@ -7534,6 +7624,7 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
+                                {c.dbs && <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, marginTop:2 }}>💰 {c.dbs} DBS</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
                                 style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
