@@ -9961,6 +9961,8 @@ function PublicCardDatabase() {
   const [listPrice,     setListPrice]     = useState("");
   const [listType,      setListType]      = useState("sale"); // sale|trade|either
   const [listNotes,     setListNotes]     = useState("");
+  const [listPayment,  setListPayment]  = useState(""); // seller payment info
+  const [paymentPopup,  setPaymentPopup]  = useState(null);
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
   const [offerNote,     setOfferNote]     = useState("");
@@ -10309,7 +10311,7 @@ function PublicCardDatabase() {
     if(listType!=="offer"&&!listPrice)return;
     const id=uid();
     const card=listModal;
-    await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,status:"active",createdAt:new Date().toISOString(),offerCount:0});
+    await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,paymentInfo:listPayment,status:"active",createdAt:new Date().toISOString(),offerCount:0});
     // Notify users who have this card on their want list
     try {
       const wantSnaps = await getDocs(collection(db,"boba_wants"));
@@ -10329,7 +10331,7 @@ function PublicCardDatabase() {
       });
       await Promise.all(notifBatch);
     } catch(e) { console.error("Want notification error:", e); }
-    setListModal(null); setListPrice(""); setListNotes(""); setListType("sale");
+    setListModal(null); setListPrice(""); setListNotes(""); setListPayment(""); setListType("sale");
   }
   async function removeListing(id) {
     if(!window.confirm("Remove this listing?"))return;
@@ -10387,6 +10389,33 @@ function PublicCardDatabase() {
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
+
+  async function buyNow(listing) {
+    if (!user) { setSigningIn(true); return; }
+    if (!listing.askingPrice) return;
+    if (!window.confirm("Buy "+listing.cardName+" for $"+listing.askingPrice.toFixed(2)+"?")) return;
+    const now = new Date().toISOString();
+    const offId = uid();
+    // Create a pre-accepted offer doc
+    const offerDoc = {
+      id: offId, listingId: listing.id,
+      cardId: listing.cardId||"", cardName: listing.cardName,
+      cardImage: listing.cardImage||null, cardTreatment: listing.cardTreatment||"",
+      cardWeapon: listing.cardWeapon||"", setName: listing.setName||"",
+      sellerUid: listing.sellerUid, sellerName: listing.sellerName,
+      buyerUid: user.uid, buyerName: user.displayName||user.email,
+      offerAmount: listing.askingPrice, paymentInfo: listing.paymentInfo||"", status:"accepted",
+      notified:true, createdAt:now, respondedAt:now, isBuyNow:true,
+    };
+    await setDoc(doc(db,"market_offers",offId), offerDoc);
+    // Run the full accept flow
+    await respondOffer(offerDoc, "accepted");
+    // Show payment info if seller provided it
+    if (listing.paymentInfo) {
+      setPaymentPopup({cardName:listing.cardName, price:listing.askingPrice, paymentInfo:listing.paymentInfo, sellerName:listing.sellerName});
+    }
+  }
+
   }
   async function logNegotiationHistory(offer, action, amount) {
     try {
@@ -10461,8 +10490,9 @@ function PublicCardDatabase() {
         lastMessageAt:now, lastSenderUid:"system",
         lastReadBy:{[offer.sellerUid]:now}, createdAt:now,
       });
-      await setDoc(doc(db,"deal_threads",threadId,"messages",uid()),{
-        text:"\u2705 Deal agreed! "+offer.cardName+" for $"+(offer.offerAmount||0).toFixed(2)+". The card has been added to the buyer's collection automatically.",
+      await setDoc(doc(db,"thread_messages",uid()),{
+        threadId:threadId,
+        text:"\u2705 Deal agreed! "+offer.cardName+" for $"+(offer.offerAmount||0).toFixed(2)+(offer.paymentInfo?" | Payment: "+offer.paymentInfo:"")+" | Card added to buyer's collection automatically.",
         senderUid:"system", senderName:"System", sentAt:now,
       });
       // 6. Log sale
@@ -10555,7 +10585,7 @@ function PublicCardDatabase() {
   useEffect(() => {
     if (!activeThread) { setThreadMsgs([]); return; }
     const unsub = onSnapshot(
-      query(collection(db,"deal_threads",activeThread.id,"messages"), orderBy("sentAt","asc")),
+      query(collection(db,"thread_messages"), where("threadId","==",activeThread.id), orderBy("sentAt","asc")),
       snap => setThreadMsgs(snap.docs.map(d=>({...d.data(),id:d.id})))
     );
     // Mark as read
@@ -10567,7 +10597,7 @@ function PublicCardDatabase() {
     if (!newMsg.trim()||!activeThread||!user) return;
     const now = new Date().toISOString();
     const msgId = uid();
-    await setDoc(doc(db,"deal_threads",activeThread.id,"messages",msgId),{
+    await setDoc(doc(db,"thread_messages",msgId),{threadId:activeThread.id,
       text:newMsg.trim(), senderUid:user.uid, senderName:user.displayName||user.email, sentAt:now,
     });
     await setDoc(doc(db,"deal_threads",activeThread.id),{
@@ -10870,7 +10900,8 @@ function PublicCardDatabase() {
                 )}
               </div>
             )}
-            <textarea value={listNotes} onChange={e=>setListNotes(e.target.value)} placeholder="Notes (condition, trades wanted, etc.)" rows={3} style={{...inp,width:"100%",marginBottom:16,resize:"none"}}/>
+            <textarea value={listNotes} onChange={e=>setListNotes(e.target.value)} placeholder="Notes (condition, trades wanted, etc.)" rows={2} style={{...inp,width:"100%",marginBottom:10,resize:"none"}}/>
+                <input value={listPayment} onChange={e=>setListPayment(e.target.value)} placeholder="Payment info (e.g. Venmo @handle, PayPal friends, Cash App $tag)" style={{...inp,width:"100%",marginBottom:16,boxSizing:"border-box",fontSize:12}}/>
             <div style={{display:"flex",gap:10}}>
               <button onClick={createListing} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(74,222,128,0.3)"}}>List Card</button>
               <button onClick={()=>setListModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -10979,7 +11010,59 @@ function PublicCardDatabase() {
         </div>
       )}
 
+      {/* Payment info popup */}
+      {paymentPopup&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPaymentPopup(null)}>
+          <div style={{background:"linear-gradient(135deg,#0a1a0a,#0d0d0d)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:24,textAlign:"center",marginBottom:8}}>{"\uD83C\uDF89"}</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",textAlign:"center",marginBottom:4}}>Purchase Complete!</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:20}}>{paymentPopup.cardName} {"\u00B7"} {"$"}{(paymentPopup.price||0).toFixed(2)}</div>
+            <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Payment Instructions from {paymentPopup.sellerName}</div>
+              <div style={{fontSize:14,color:"#F0F0F0",fontWeight:600,lineHeight:1.5}}>{paymentPopup.paymentInfo}</div>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginBottom:16}}>Send payment and use the Messages tab to confirm with the seller.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setPaymentPopup(null);setActiveTab("messages");}}
+                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                Go to Messages
+              </button>
+              <button onClick={()=>setPaymentPopup(null)}
+                style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Counter offer modal */}
+      {/* Payment info popup */}
+      {paymentPopup&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPaymentPopup(null)}>
+          <div style={{background:"linear-gradient(135deg,#0a1a0a,#0d0d0d)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:24,textAlign:"center",marginBottom:8}}>{"\uD83C\uDF89"}</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",textAlign:"center",marginBottom:4}}>Purchase Complete!</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:20}}>{paymentPopup.cardName} {"\u00B7"} {"$"}{(paymentPopup.price||0).toFixed(2)}</div>
+            <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Payment Instructions from {paymentPopup.sellerName}</div>
+              <div style={{fontSize:14,color:"#F0F0F0",fontWeight:600,lineHeight:1.5}}>{paymentPopup.paymentInfo}</div>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginBottom:16}}>Send payment and use the Messages tab to confirm with the seller.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setPaymentPopup(null);setActiveTab("messages");}}
+                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                Go to Messages
+              </button>
+              <button onClick={()=>setPaymentPopup(null)}
+                style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Counter offer modal */}
       {counterModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
@@ -11820,10 +11903,20 @@ function PublicCardDatabase() {
                           </div>
                         </div>
                         {l.notes&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic",marginBottom:10,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:8}}>{l.notes}</div>}
-                        <button style={{width:"100%",background:`linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))`,border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
-                          onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.25),rgba(245,158,11,0.2))";e.currentTarget.style.boxShadow="0 4px 16px rgba(251,191,36,0.2)";}}
-                          onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))";e.currentTarget.style.boxShadow="";}}>
-                          {"\uD83E\uDD1D Make Offer"}</button>
+                        <div style={{display:"flex",gap:6,marginTop:2}}>
+                          {!l.isOBO&&l.askingPrice>0&&l.sellerUid!==user?.uid&&(
+                            <button onClick={e=>{e.stopPropagation();buyNow(l);}}
+                              style={{flex:1,background:"linear-gradient(135deg,rgba(74,222,128,0.2),rgba(34,197,94,0.15))",border:"1px solid rgba(74,222,128,0.35)",color:"#4ade80",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                              {"\uD83D\uDED2 Buy Now"}
+                            </button>
+                          )}
+                          {l.sellerUid!==user?.uid&&(
+                            <button onClick={e=>{e.stopPropagation();if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
+                              style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                              {"\uD83E\uDD1D "+(l.isOBO?"Make Offer":"Offer")}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
