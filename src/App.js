@@ -2798,7 +2798,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         buyerMap[username].orders++;
                         if (hasCoupon) buyerMap[username].couponCount++;
                       }
-                      const streamId = `${breaker}_${streamDate}`;
+                      // Use actual stream Firestore ID so multiple streams on same day don't collide
+                      const streamId = editingStreamId || `${breaker}_${streamDate}`;
                       onUpsertBuyers(Object.values(buyerMap), streamId, file.name);
                     }
                   } catch(err) { setCsvMsg({ type:"error", text:"Could not parse CSV. Make sure it's a Whatnot live sales export." }); }
@@ -3468,7 +3469,48 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   );
 }
 
-function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams=[] }) {
+function USHeatMap({ stateData, stateColor, selectedState, setSelectedState }) {
+  const [svgContent, setSvgContent] = useState(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    // Use the public domain US states SVG from Wikipedia via a CORS-friendly CDN
+    fetch("https://cdn.jsdelivr.net/gh/newamericafoundation/newamerica-maps@master/svg/us-states.svg")
+      .then(r => r.text())
+      .then(text => setSvgContent(text))
+      .catch(() => setSvgContent("error"));
+  }, []);
+
+  useEffect(() => {
+    if (!svgContent || svgContent === "error" || !containerRef.current) return;
+    const svg = containerRef.current.querySelector("svg");
+    if (!svg) return;
+    // Style each state path
+    svg.querySelectorAll("path[id], path[data-name]").forEach(path => {
+      const id = (path.getAttribute("id") || path.getAttribute("data-name") || "").toUpperCase().trim();
+      if (!id || id.length !== 2) return;
+      path.style.fill = stateColor(id);
+      path.style.stroke = "#2a2a2a";
+      path.style.strokeWidth = selectedState === id ? "3" : "0.5";
+      path.style.cursor = "pointer";
+      path.style.transition = "fill 0.2s";
+      path.onclick = () => setSelectedState(selectedState === id ? null : id);
+    });
+    svg.style.width = "100%";
+    svg.style.height = "auto";
+    svg.style.display = "block";
+  }, [svgContent, stateData, selectedState]);
+
+  if (!svgContent) return <div style={{ height:300, display:"flex", alignItems:"center", justifyContent:"center", color:"#555", fontSize:13 }}>Loading map...</div>;
+  if (svgContent === "error") return <div style={{ height:200, display:"flex", alignItems:"center", justifyContent:"center", color:"#555", fontSize:13 }}>Could not load map</div>;
+
+  return (
+    <div ref={containerRef} style={{ background:"#0a0a0a", borderRadius:8, overflow:"hidden" }}
+      dangerouslySetInnerHTML={{ __html: svgContent }}/>
+  );
+}
+
+function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
   const [search,       setSearch]       = useState("");
   const [sortBy,       setSortBy]       = useState("totalSpend");
@@ -3651,115 +3693,27 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
         {/* By State */}
         {activeTab === "map" && (() => {
           const maxBuyers = stateEntries.length > 0 ? stateEntries[0][1].buyers : 1;
-          // Pink shades based on buyer count intensity
           function stateColor(abbr) {
             const d = stateData[abbr];
             if (!d) return "#1a1a1a";
-            const intensity = d.buyers / maxBuyers;
-            if (intensity > 0.8) return "#E8317A";
-            if (intensity > 0.6) return "#cc2a68";
-            if (intensity > 0.4) return "#a82255";
-            if (intensity > 0.2) return "#7a1a3f";
-            if (intensity > 0.0) return "#4a1028";
-            return "#1a1a1a";
+            const t = d.buyers / maxBuyers;
+            if (t > 0.8) return "#E8317A";
+            if (t > 0.6) return "#cc2a68";
+            if (t > 0.4) return "#a82255";
+            if (t > 0.2) return "#7a1a3f";
+            return "#4a1028";
           }
-          // Approx SVG paths for all 50 states (simplified polygons keyed by abbr)
-          const STATE_PATHS = {
-            AL:"M530,380 L545,378 L548,420 L530,422 Z",
-            AK:"M80,440 L160,440 L160,500 L80,500 Z",
-            AZ:"M175,340 L230,340 L230,400 L175,400 Z",
-            AR:"M500,360 L540,360 L540,390 L500,390 Z",
-            CA:"M110,280 L165,265 L170,370 L110,380 Z",
-            CO:"M245,295 L320,295 L320,340 L245,340 Z",
-            CT:"M645,220 L660,220 L660,235 L645,235 Z",
-            DE:"M635,255 L645,255 L645,275 L635,275 Z",
-            FL:"M545,420 L620,420 L610,470 L545,460 Z",
-            GA:"M545,380 L590,378 L590,425 L548,425 Z",
-            HI:"M220,490 L290,490 L290,510 L220,510 Z",
-            ID:"M185,195 L230,185 L235,270 L190,275 Z",
-            IL:"M510,270 L535,270 L535,335 L510,335 Z",
-            IN:"M535,265 L560,265 L558,320 L535,320 Z",
-            IA:"M460,250 L515,250 L515,285 L460,285 Z",
-            KS:"M380,310 L460,310 L460,345 L380,345 Z",
-            KY:"M530,325 L610,320 L608,350 L530,352 Z",
-            LA:"M480,400 L530,400 L528,440 L480,440 Z",
-            ME:"M660,160 L685,155 L685,205 L660,205 Z",
-            MD:"M617,255 L650,250 L650,270 L617,270 Z",
-            MA:"M645,200 L685,198 L685,218 L645,218 Z",
-            MI:"M530,210 L570,205 L572,255 L530,258 Z",
-            MN:"M435,195 L490,192 L490,255 L435,255 Z",
-            MS:"M510,375 L540,375 L540,430 L510,430 Z",
-            MO:"M460,295 L525,292 L525,345 L460,348 Z",
-            MT:"M200,175 L320,172 L320,220 L200,222 Z",
-            NE:"M370,265 L455,265 L455,305 L370,305 Z",
-            NV:"M150,265 L200,255 L205,345 L152,350 Z",
-            NH:"M652,185 L668,182 L668,218 L652,218 Z",
-            NJ:"M632,240 L650,240 L650,268 L632,268 Z",
-            NM:"M240,355 L310,355 L310,410 L240,410 Z",
-            NY:"M590,195 L648,192 L645,245 L590,248 Z",
-            NC:"M560,340 L650,333 L648,365 L560,368 Z",
-            ND:"M355,190 L435,188 L435,228 L355,228 Z",
-            OH:"M560,255 L610,252 L608,305 L560,308 Z",
-            OK:"M355,345 L480,342 L480,380 L355,382 Z",
-            OR:"M130,210 L200,205 L200,268 L130,270 Z",
-            PA:"M575,228 L640,225 L638,258 L575,260 Z",
-            RI:"M662,220 L672,220 L672,235 L662,235 Z",
-            SC:"M565,365 L610,362 L608,398 L562,400 Z",
-            SD:"M355,228 L435,228 L435,268 L355,268 Z",
-            TN:"M505,350 L600,345 L598,375 L505,378 Z",
-            TX:"M330,375 L480,370 L478,455 L330,460 Z",
-            UT:"M210,285 L255,285 L255,345 L210,345 Z",
-            VT:"M638,178 L655,175 L655,205 L638,205 Z",
-            VA:"M575,295 L645,288 L643,328 L573,330 Z",
-            WA:"M130,168 L200,165 L200,205 L132,208 Z",
-            WV:"M570,278 L610,275 L608,318 L568,320 Z",
-            WI:"M480,208 L530,205 L530,262 L480,265 Z",
-            WY:"M248,228 L323,225 L323,275 L248,278 Z",
-          };
-          const STATE_LABELS = {
-            AL:[537,400],AK:[120,470],AZ:[202,370],AR:[520,375],CA:[138,325],CO:[282,317],CT:[652,227],DE:[640,265],
-            FL:[580,445],GA:[568,402],HI:[255,500],ID:[212,230],IL:[522,302],IN:[547,292],IA:[487,267],KS:[420,327],
-            KY:[569,337],LA:[504,420],ME:[672,182],MD:[633,260],MA:[665,208],MI:[551,232],MN:[462,224],MS:[525,402],
-            MO:[492,320],MT:[260,197],NE:[412,285],NV:[176,302],NH:[660,200],NJ:[641,254],NM:[275,382],NY:[618,220],
-            NC:[604,351],ND:[395,208],OH:[584,280],OK:[417,362],OR:[165,238],PA:[607,243],RI:[667,227],SC:[585,381],
-            SD:[395,248],TN:[551,362],TX:[404,415],UT:[232,315],VT:[646,190],VA:[609,309],WA:[165,186],WV:[589,298],WI:[505,233],WY:[285,251],
-          };
           return (
             <div style={{ padding:"12px 16px" }}>
-              {stateEntries.length === 0 && (
-                <div style={{ textAlign:"center", color:"#333", padding:32, fontSize:13 }}>No state data yet</div>
-              )}
-              {/* Legend */}
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, fontSize:10, color:"#555" }}>
                 <span>Fewer buyers</span>
                 {["#4a1028","#7a1a3f","#a82255","#cc2a68","#E8317A"].map(c=>(
                   <div key={c} style={{ width:20, height:12, background:c, borderRadius:2 }}/>
                 ))}
                 <span>More buyers</span>
-                <div style={{ marginLeft:"auto", fontSize:10, color:"#333" }}>Click a state to see buyers</div>
+                <span style={{ marginLeft:"auto", color:"#333" }}>Click a state to see buyers</span>
               </div>
-              <svg viewBox="0 0 760 520" style={{ width:"100%", cursor:"pointer" }}>
-                {Object.entries(STATE_PATHS).map(([abbr, path]) => {
-                  const color = stateColor(abbr);
-                  const d = stateData[abbr];
-                  const isSelected = selectedState === abbr;
-                  return (
-                    <g key={abbr} onClick={()=>setSelectedState(selectedState===abbr?null:abbr)} style={{ cursor:"pointer" }}>
-                      <path d={path} fill={color} stroke="#2a2a2a" strokeWidth={isSelected?2:0.5}
-                        style={{ filter:isSelected?"drop-shadow(0 0 4px #E8317A)":"none", transition:"fill 0.2s" }}/>
-                      {STATE_LABELS[abbr] && (
-                        <text x={STATE_LABELS[abbr][0]} y={STATE_LABELS[abbr][1]}
-                          textAnchor="middle" dominantBaseline="central"
-                          fontSize={d ? 8 : 7} fontWeight={d ? 700 : 400}
-                          fill={d ? "#ffffff" : "#333"} style={{ pointerEvents:"none", userSelect:"none" }}>
-                          {abbr}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-              </svg>
-              {/* Selected state buyers */}
+              <USHeatMap stateData={stateData} stateColor={stateColor} selectedState={selectedState} setSelectedState={setSelectedState} />
               {selectedState && (() => {
                 const stateBuyers = buyers.filter(b=>(b.state||"").toUpperCase()===selectedState);
                 const d = stateData[selectedState];
@@ -3773,9 +3727,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
                       <button onClick={()=>setSelectedState(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>×</button>
                     </div>
                     <div style={{ maxHeight:260, overflowY:"auto" }}>
-                      {stateBuyers.length === 0 ? (
-                        <div style={{ padding:20, textAlign:"center", color:"#333", fontSize:12 }}>No buyers found for {selectedState}</div>
-                      ) : stateBuyers.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map((b,i)=>(
+                      {stateBuyers.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map((b,i)=>(
                         <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
                           <span style={{ color:"#7B9CFF", fontWeight:700, fontSize:12 }}>@{b.username}</span>
                           {b.fullName && <span style={{ fontSize:11, color:"#555" }}>{b.fullName}</span>}
@@ -3790,7 +3742,6 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
             </div>
           );
         })()}
-
         {/* By Time Zone */}
         {activeTab === "zones" && (
           <div style={{ padding:16 }}>
@@ -3816,7 +3767,15 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams
         <button onClick={()=>setShowImports(p=>!p)}
           style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:"transparent", border:"none", color:"#F0F0F0", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>
           <span>📥 CSV Imports ({csvImports.length})</span>
-          <span style={{ color:"#555", fontSize:11 }}>{showImports?"▲ collapse":"▼ expand"}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            {isAdmin && buyers.length > 0 && (
+              <span onClick={e => { e.stopPropagation(); if(onClearAll) onClearAll(); }}
+                style={{ fontSize:11, color:"#E8317A", border:"1px solid #E8317A33", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontWeight:700 }}>
+                🗑 Clear All
+              </span>
+            )}
+            <span style={{ color:"#555", fontSize:11 }}>{showImports?"▲ collapse":"▼ expand"}</span>
+          </div>
         </button>
         {showImports && csvImports.length > 0 && (
           <div style={{ borderTop:"1px solid #1a1a1a", padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
@@ -8903,9 +8862,11 @@ export default function App() {
     const chaserBreaks = breaks.filter(b => chaserIds.includes(b.inventoryId));
     for (const b of chaserBreaks) await deleteDoc(doc(db,"breaks",b.id));
     // Clean up buyers linked to this stream's CSV import
-    const streamKey = stream ? `${stream.breaker}_${stream.date}` : null;
-    if (streamKey) {
-      const linkedImports = csvImports.filter(i => i.streamId === streamKey);
+    // Match on stream.id (new format) OR legacy breaker_date key
+    const streamKey = stream ? stream.id : null;
+    const legacyKey = stream ? `${stream.breaker}_${stream.date}` : null;
+    if (streamKey || legacyKey) {
+      const linkedImports = csvImports.filter(i => i.streamId === streamKey || i.streamId === legacyKey);
       for (const imp of linkedImports) {
         // Remove this import from each buyer's importIds
         const impBuyers = buyers.filter(b => (b.importIds||[]).includes(imp.id));
@@ -9326,7 +9287,7 @@ export default function App() {
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
+        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams} onClearAll={async()=>{ if(!window.confirm(`Delete ALL ${buyers.length} buyers and ${csvImports.length} import records? This cannot be undone.`)) return; await Promise.all(buyers.map(b=>deleteDoc(doc(db,"buyers",b.id)))); await Promise.all(csvImports.map(i=>deleteDoc(doc(db,"csv_imports",i.id)))); showToast("🗑 All buyer data cleared"); }}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
         {tab==="checklist"   && <BobaChecklist userRole={userRole} user={effectiveUser}/>}
         {tab==="showcase"    && <BobaShowcase uid={effectiveUser?.uid} />}
