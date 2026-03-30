@@ -9713,6 +9713,172 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
 
 // --- PUBLIC CARD DATABASE (full community app) ---------------
+
+function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs, newMsg, setNewMsg, sendMessage, closeThread, marketSales, inp, WEAPON_COLORS, setSigningIn }) {
+  if (!user) return (
+    <div style={{textAlign:"center",padding:80}}>
+      <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCAC"}</div>
+      <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to view messages</button>
+    </div>
+  );
+
+  if (activeThread) return (
+    <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.3)"}}>
+        <button onClick={()=>setActiveThread(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>{"\u2190"}</button>
+        {activeThread.cardImage&&<img src={activeThread.cardImage} alt="" style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{activeThread.cardName}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+            {"$"}{(activeThread.agreedPrice||0).toFixed(2)} agreed {"\u00B7"} with {activeThread.sellerUid===user.uid?activeThread.buyerName:activeThread.sellerName}
+          </div>
+        </div>
+        {activeThread.status==="active"&&activeThread.sellerUid===user.uid&&(
+          <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Mark Complete"}</button>
+        )}
+        {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>{"\u2705 Completed"}</span>}
+      </div>
+      <div style={{height:400,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}}>
+        {threadMsgs.length===0&&<div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:40,fontSize:13}}>No messages yet</div>}
+        {threadMsgs.map(m=>{
+          const isMe=m.senderUid===user.uid;
+          if(m.senderUid==="system") return (
+            <div key={m.id} style={{textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"8px 14px"}}>{m.text}</div>
+          );
+          return (
+            <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",gap:3}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:2}}>{isMe?"You":m.senderName} {"\u00B7"} {new Date(m.sentAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+              <div style={{
+                background:isMe?"linear-gradient(135deg,rgba(232,49,122,0.3),rgba(123,47,247,0.3))":"rgba(255,255,255,0.06)",
+                border:"1px solid "+(isMe?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"),
+                borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",
+                padding:"10px 14px",maxWidth:"75%",fontSize:13,color:"#F0F0F0",lineHeight:1.5,wordBreak:"break-word"
+              }}>{m.text}</div>
+            </div>
+          );
+        })}
+      </div>
+      {activeThread.status==="active"&&(
+        <div style={{display:"flex",gap:8,padding:"12px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.2)"}}>
+          <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="Type a message..." style={{...inp,flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}/>
+          <button onClick={sendMessage} disabled={!newMsg.trim()} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:newMsg.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:newMsg.trim()?1:0.4}}>Send</button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>Deal Messages</div>
+      {threads.length===0?(
+        <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
+          <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCAC"}</div>
+          <div style={{fontSize:14,fontWeight:700}}>No deal threads yet</div>
+          <div style={{fontSize:12,marginTop:8}}>When you accept or make an offer, a chat opens here</div>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {threads.map(t=>{
+            const isUnread=t.lastReadBy?.[user.uid]<t.lastMessageAt&&t.lastSenderUid!==user.uid;
+            const otherName=t.sellerUid===user.uid?t.buyerName:t.sellerName;
+            return (
+              <div key={t.id} onClick={()=>setActiveThread(t)}
+                style={{display:"flex",alignItems:"center",gap:14,
+                  background:isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)",
+                  border:"1px solid "+(isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)"),
+                  borderRadius:14,padding:"14px 18px",cursor:"pointer",transition:"all 0.15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background=isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)";}}>
+                {t.cardImage
+                  ?<img src={t.cardImage} alt={t.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>
+                  :<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{"\uD83C\uDCCF"}</div>
+                }
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                    <div style={{fontSize:14,fontWeight:isUnread?800:600,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.cardName}</div>
+                    {t.status==="completed"&&<span style={{fontSize:10,color:"#4ade80",fontWeight:700,flexShrink:0}}>Done</span>}
+                    {isUnread&&<span style={{width:8,height:8,borderRadius:"50%",background:"#E8317A",flexShrink:0}}/>}
+                  </div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} {"\u00B7"} {"$"}{(t.agreedPrice||0).toFixed(2)}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"}</div>
+                </div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",flexShrink:0,textAlign:"right"}}>
+                  {t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {marketSales.length>0&&(
+        <div style={{marginTop:32}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Recent Sales</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}}>Price history from completed deals on this platform</div>
+          {(()=>{
+            const byCard={};
+            marketSales.forEach(s=>{
+              const key=s.cardName+"|"+(s.cardTreatment||"");
+              if(!byCard[key]) byCard[key]={cardName:s.cardName,treatment:s.cardTreatment,weapon:s.cardWeapon,image:s.cardImage,sales:[]};
+              byCard[key].sales.push({price:s.price,date:s.soldDate});
+            });
+            const sorted=Object.values(byCard).sort((a,b)=>b.sales.length-a.sales.length).slice(0,10);
+            return (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:24}}>
+                {sorted.map((entry,idx)=>{
+                  const prices=entry.sales.map(s=>s.price);
+                  const avg=prices.reduce((a,b)=>a+b,0)/prices.length;
+                  const high=Math.max(...prices),low=Math.min(...prices);
+                  const last=entry.sales[0];
+                  const wc=WEAPON_COLORS[entry.weapon]||"#444";
+                  return (
+                    <div key={idx} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+wc+"22",borderRadius:14,padding:14}}>
+                      <div style={{display:"flex",gap:10,marginBottom:10}}>
+                        {entry.image?<img src={entry.image} alt={entry.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.cardName}</div>
+                          <div style={{fontSize:10,color:wc,fontWeight:700}}>{entry.weapon}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
+                        {[{l:"Avg",v:"$"+avg.toFixed(2),c:"#7B9CFF"},{l:"High",v:"$"+high.toFixed(2),c:"#4ade80"},{l:"Low",v:"$"+low.toFixed(2),c:"#FBBF24"}].map(({l,v,c})=>(
+                          <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"6px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div>
+                            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:1}}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.sales.length} sale{entry.sales.length!==1?"s":""} {"\u00B7"} Last: {last&&last.date?last.date:"--"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden"}}>
+            <div style={{padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5}}>Recent Sales Feed</div>
+            {marketSales.slice(0,30).map((s,i)=>{
+              const wc=WEAPON_COLORS[s.cardWeapon]||"#444";
+              return (
+                <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                  {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:28,height:37,objectFit:"cover",borderRadius:5,flexShrink:0}}/>:<div style={{width:28,height:37,background:"rgba(255,255,255,0.04)",borderRadius:5,flexShrink:0}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} <span style={{color:wc}}>{s.cardWeapon}</span></div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{s.soldDate||"--"}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -11072,172 +11238,21 @@ function PublicCardDatabase() {
         {/* MESSAGES TAB */}
         {activeTab==="messages"&&(
           <div style={{maxWidth:800,margin:"0 auto"}}>
-            {!user?(
-              <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCAC"}</div>
-                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to view messages</button>
-              </div>
-            ):activeThread?(
-              // -- Thread view --
-              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
-                {/* Header */}
-                <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.3)"}}>
-                  <button onClick={()=>setActiveThread(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>{"\u2190"}</button>
-                  {activeThread.cardImage&&<img src={activeThread.cardImage} alt="" style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{activeThread.cardName}</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>
-                      ${(activeThread.agreedPrice||0).toFixed(2)} agreed &middot; with {activeThread.sellerUid===user.uid?activeThread.buyerName:activeThread.sellerName}
-                    </div>
-                  </div>
-                  {activeThread.status==="active"&&activeThread.sellerUid===user.uid&&(
-                    <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Mark Complete"}</button>
-                  )}
-                  {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>{"\u2705 Completed"}</span>}
-                </div>
-                {/* Messages */}
-                <div style={{height:400,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}} id="msg-scroll">
-                  {threadMsgs.length===0&&<div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:40,fontSize:13}}>No messages yet</div>}
-                  {threadMsgs.map(m=>{
-                    const isMe = m.senderUid===user.uid;
-                    const isSystem = m.senderUid==="system";
-                    if (isSystem) return (
-                      <div key={m.id} style={{textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"8px 14px"}}>{m.text}</div>
-                    );
-                    return (
-                      <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",gap:3}}>
-                        <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:2}}>{isMe?"You":m.senderName} &middot; {new Date(m.sentAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
-                        <div style={{
-                          background:isMe?"linear-gradient(135deg,rgba(232,49,122,0.3),rgba(123,47,247,0.3))":"rgba(255,255,255,0.06)",
-                          border:`1px solid ${isMe?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,
-                          borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",
-                          padding:"10px 14px",maxWidth:"75%",fontSize:13,color:"#F0F0F0",lineHeight:1.5,wordBreak:"break-word"
-                        }}>{m.text}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Input */}
-                {activeThread.status==="active"&&(
-                  <div style={{display:"flex",gap:8,padding:"12px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.2)"}}>
-                    <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="Type a message... (e.g. 'My Venmo is @yourhandle')" style={{...inp,flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}/>
-                    <button onClick={sendMessage} disabled={!newMsg.trim()} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:newMsg.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:newMsg.trim()?1:0.4,transition:"opacity 0.2s"}}>Send</button>
-                  </div>
-                )}
-              </div>
-            ):(
-              // -- Thread list --
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>{"\uD83D\uDCAC Deal Messages"}</div>
-                {threads.length===0?(
-                  <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                    <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCAC"}</div>
-                    <div style={{fontSize:14,fontWeight:700}}>No deal threads yet</div>
-                    <div style={{fontSize:12,marginTop:8}}>When you accept or make an offer, a chat thread opens here to coordinate payment</div>
-                  </div>
-                ):(
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    {threads.map(t=>{
-                      const isUnread = t.lastReadBy?.[user.uid]<t.lastMessageAt&&t.lastSenderUid!==user.uid;
-                      const otherName = t.sellerUid===user.uid?t.buyerName:t.sellerName;
-                      return (
-                        <div key={t.id} onClick={()=>setActiveThread(t)}
-                          style={{display:"flex",alignItems:"center",gap:14,background:isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:"14px 18px",cursor:"pointer",transition:"all 0.15s",backdropFilter:"blur(10px)"}}
-                          onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.borderColor="rgba(255,255,255,0.12)";}}
-                          onMouseLeave={e=>{e.currentTarget.style.background=isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)";e.currentTarget.style.borderColor=isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)";}}>
-                          {t.cardImage?<img src={t.cardImage} alt={t.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{"\uD83C\uDCCF"}</div>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                              <div style={{fontSize:14,fontWeight:isUnread?800:600,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.cardName}</div>
-                              {t.status==="completed"&&<span style={{fontSize:10,color:"#4ade80",fontWeight:700,flexShrink:0}}>{"\u2705 Done"}</span>}
-                              {isUnread&&<span style={{width:8,height:8,borderRadius:"50%",background:"#E8317A",flexShrink:0,boxShadow:"0 0 8px rgba(232,49,122,0.8)"}}/>}
-                            </div>
-                            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} &middot; ${(t.agreedPrice||0).toFixed(2)}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"}</div>
-                          </div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",flexShrink:0,textAlign:"right"}}>
-                            {t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent Sales / Price History */}
-              {marketSales.length>0&&(
-                <div style={{marginTop:32}}>
-                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>{"\uD83D\uDCC8 Recent Sales"}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}}>Price history from completed deals on this platform</div>
-                  {/* Summary by card */}
-                  {(()=>{
-                    // Group sales by cardName+treatment for price trends
-                    const byCard = {};
-                    marketSales.forEach(s=>{
-                      const key = `${s.cardName}|${s.cardTreatment||""}`;
-                      if(!byCard[key]) byCard[key]={cardName:s.cardName,treatment:s.cardTreatment,weapon:s.cardWeapon,power:s.cardPower,image:s.cardImage,sales:[]};
-                      byCard[key].sales.push({price:s.price,date:s.soldDate});
-                    });
-                    const sorted = Object.values(byCard).sort((a,b)=>b.sales.length-a.sales.length).slice(0,10);
-                    return (
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,marginBottom:24}}>
-                        {sorted.map((entry,i)=>{
-                          const prices=entry.sales.map(s=>s.price);
-                          const avg=prices.reduce((a,b)=>a+b,0)/prices.length;
-                          const high=Math.max(...prices), low=Math.min(...prices);
-                          const last=entry.sales[0];
-                          const wc=WEAPON_COLORS[entry.weapon]||"#444";
-                          return (
-                            <div key={i} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:14,padding:14,backdropFilter:"blur(10px)"}}>
-                              <div style={{display:"flex",gap:10,marginBottom:10}}>
-                                {entry.image?<img src={entry.image} alt={entry.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0}}/>}
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.cardName}</div>
-                                  <div style={{fontSize:10,color:wc,fontWeight:700}}>{entry.weapon}</div>
-                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.treatment}</div>
-                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.power}\u26A1</div>
-                                </div>
-                              </div>
-                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
-                                {[{l:"Avg",v:`$${avg.toFixed(2)}`,col:"#7B9CFF"},{l:"High",v:`$${high.toFixed(2)}`,col:"#4ade80"},{l:"Low",v:`$${low.toFixed(2)}`,col:"#FBBF24"}].map(({l,v,col})=>(
-                                  <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"6px 8px",textAlign:"center"}}>
-                                    <div style={{fontSize:13,fontWeight:800,color:col}}>{v}</div>
-                                    <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:1}}>{l}</div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.sales.length} sale{entry.sales.length!==1?"s":""} &middot; Last: {last?.date||"--"}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Raw sales feed */}
-                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden"}}>
-                    <div style={{padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5}}>Recent Sales Feed</div>
-                    {marketSales.slice(0,30).map((s,i)=>{
-                      const wc=WEAPON_COLORS[s.cardWeapon]||"#444";
-                      return (
-                        <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                          {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:28,height:37,objectFit:"cover",borderRadius:5,flexShrink:0}}/>:<div style={{width:28,height:37,background:"rgba(255,255,255,0.04)",borderRadius:5,flexShrink:0}}/>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} &middot; <span style={{color:wc}}>{s.cardWeapon}</span> &middot; {s.cardPower}\u26A1</div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{s.soldDate||"--"}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            )}
+            <MessagesTab
+              user={user}
+              activeThread={activeThread}
+              setActiveThread={setActiveThread}
+              threads={threads}
+              threadMsgs={threadMsgs}
+              newMsg={newMsg}
+              setNewMsg={setNewMsg}
+              sendMessage={sendMessage}
+              closeThread={closeThread}
+              marketSales={marketSales}
+              inp={inp}
+              WEAPON_COLORS={WEAPON_COLORS}
+              setSigningIn={setSigningIn}
+            />
           </div>
         )}
 
