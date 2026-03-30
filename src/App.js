@@ -9964,6 +9964,7 @@ function PublicCardDatabase() {
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
   const [offerNote,     setOfferNote]     = useState("");
+  const [offerSent,     setOfferSent]     = useState(false);
   const [marketNotifs,  setMarketNotifs]  = useState([]);
   const [counterModal,  setCounterModal]  = useState(null); // offer being countered
   const [counterAmt,    setCounterAmt]    = useState("");
@@ -10301,7 +10302,7 @@ function PublicCardDatabase() {
     await setDoc(doc(db,"market_offers",offId),{id:offId,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,sellerUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
-    setOfferModal(null); setOfferAmt(""); setOfferNote("");
+    setOfferSent(true);
   }
   async function respondOffer(offer, action) {
     await setDoc(doc(db,"market_offers",offer.id),{status:action,notified:true,respondedAt:new Date().toISOString()},{merge:true});
@@ -10346,37 +10347,43 @@ function PublicCardDatabase() {
     if (!counterAmount || isNaN(parseFloat(counterAmount))) return;
     const now = new Date().toISOString();
     const amt = parseFloat(counterAmount);
-    // Update the offer with counter status + paper trail
+    // Mark original offer as countered + dismiss from current user's bar
     await setDoc(doc(db,"market_offers",offer.id), {
-      status: "countered",
-      counterAmount: amt,
-      counterAt: now,
-      notified: false,
-      respondedAt: now,
+      status: "countered", notified: true, respondedAt: now,
     }, {merge:true});
-    // Write a negotiation history entry
+    // Write paper trail to history subcollection
     await setDoc(doc(db,"market_offers",offer.id,"history",uid()), {
       action: "counter",
-      fromUid: offer.sellerUid,
-      fromName: offer.sellerName||"Seller",
+      fromUid: user.uid,
+      fromName: user.displayName||user.email||"Unknown",
       amount: amt,
-      originalAmount: offer.offerAmount||0,
+      previousAmount: offer.offerAmount||0,
       timestamp: now,
     });
-    // Notify buyer via market_notifs
-    await setDoc(doc(db,"market_notifs",uid()), {
-      type: "counter",
-      toUid: offer.buyerUid,
-      fromUid: offer.sellerUid,
-      fromName: offer.sellerName||"Seller",
-      offerId: offer.id,
+    // Create a NEW offer doc with roles flipped so it lands in the
+    // other party's marketNotifs feed (they query where sellerUid==theirUid)
+    const newOffId = uid();
+    const iAmSeller = offer.sellerUid === user.uid;
+    await setDoc(doc(db,"market_offers",newOffId), {
+      id: newOffId,
+      parentOfferId: offer.id,          // paper trail link
       listingId: offer.listingId,
+      cardId: offer.cardId||"",
       cardName: offer.cardName,
       cardImage: offer.cardImage||null,
-      counterAmount: amt,
-      originalAmount: offer.offerAmount||0,
+      cardTreatment: offer.cardTreatment||"",
+      cardWeapon: offer.cardWeapon||"",
+      // Flip: whoever is countering becomes the "buyer" making the offer
+      // so it shows up in the other person's seller notification bar
+      sellerUid:  iAmSeller ? offer.buyerUid  : offer.sellerUid,
+      sellerName: iAmSeller ? offer.buyerName  : offer.sellerName,
+      buyerUid:   iAmSeller ? offer.sellerUid  : offer.buyerUid,
+      buyerName:  iAmSeller ? offer.sellerName : offer.buyerName,
+      offerAmount: amt,
+      isCounter: true,
+      status: "pending",
+      notified: false,
       createdAt: now,
-      seen: false,
     });
     showToast("Counter offer sent!");
     setCounterModal(null);
@@ -10686,17 +10693,44 @@ function PublicCardDatabase() {
 
       {/* Offer modal */}
       {offerModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setOfferModal(null)}>
-          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(251,191,36,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"\uD83E\uDD1D Make an Offer"}</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{offerModal.cardName} &middot; listed by {offerModal.sellerName}</div>
-            <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:20}}>Asking: ${(offerModal.askingPrice||0).toFixed(2)}</div>
-            <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="Your offer ($)" type="number" step="0.01" style={{...inp,width:"100%",marginBottom:10,borderColor:"rgba(251,191,36,0.3)"}}/>
-            <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message (optional)" rows={2} style={{...inp,width:"100%",marginBottom:16,resize:"none"}}/>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={submitOffer} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(251,191,36,0.3)"}}>Send Offer</button>
-              <button onClick={()=>setOfferModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+          onClick={()=>{if(offerSent){setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}}>
+          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            {offerSent?(
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Offer Sent!</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
+                  Your offer of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(offerAmt||0).toFixed(2)}</strong> on
+                </div>
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>
+                  {offerModal.cardName}
+                </div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
+                  has been sent to the seller. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
+                  {"You'll be notified when they respond."}
+                </div>
+                <button
+                  onClick={()=>{setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
+                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Done
+                </button>
+              </div>
+            ):(
+              <>
+                <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"\uD83E\uDD1D Make an Offer"}</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{offerModal.cardName} {"\u00B7"} {offerModal.sellerName}</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:20}}>Asking: {"$"}{(offerModal.askPrice||0).toFixed(2)}</div>
+                <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="Your offer ($)" type="number" min="0" step="0.01"
+                  style={{width:"100%",marginBottom:12,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
+                <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message (optional)" rows={2}
+                  style={{width:"100%",marginBottom:16,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#F0F0F0",fontFamily:"inherit",outline:"none",resize:"none"}}/>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={submitOffer} disabled={!offerAmt||isNaN(parseFloat(offerAmt))} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:offerAmt&&!isNaN(parseFloat(offerAmt))?1:0.4}}>Send Offer</button>
+                  <button onClick={()=>setOfferModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -10711,11 +10745,11 @@ function PublicCardDatabase() {
             <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20}}>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Negotiation history</div>
               <div style={{fontSize:13,color:"#FBBF24",fontWeight:700}}>
-                {counterModal.buyerName||"Buyer"} offered ${(counterModal.offerAmount||counterModal.counterAmount||0).toFixed(2)}
+                {counterModal.buyerName||"Buyer"} offered ${(counterModal.offerAmount||0).toFixed(2)}
               </div>
-              {counterModal.originalAmount&&counterModal.originalAmount!==(counterModal.offerAmount||counterModal.counterAmount)&&(
+              {counterModal.isCounter&&(
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
-                  Original ask: ${(counterModal.originalAmount||0).toFixed(2)}
+                  (counter offer - see Messages for full thread)
                 </div>
               )}
             </div>
@@ -10914,8 +10948,8 @@ function PublicCardDatabase() {
             {marketNotifs.map(n=>(
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:12,padding:"8px 14px"}}>
                 <span style={{fontSize:14}}>{"\uD83E\uDD1D"}</span>
-                <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} offered <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
-                {n.type==="counter"?(
+                <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} {n.isCounter?"countered":"offered"} <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
+                {n.isCounter?(
                   <>
                     <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{"Counter: $"}{(n.counterAmount||0).toFixed(2)}</span>
                     <button onClick={()=>respondOffer({...n,offerAmount:n.counterAmount},"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
