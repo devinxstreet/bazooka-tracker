@@ -1695,25 +1695,27 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                   placeholder="Type hero name or card #..."
                                   style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
                                 />
-                                {acOpen === r.id && (acQuery[r.id]||"").length >= 2 && (() => {
-                                  const q = (acQuery[r.id]||"").toLowerCase();
-                                  const all = bobaCards.filter(c =>
-                                    (c.hero||"").toLowerCase().includes(q) ||
-                                    String(c.cardNum||"").toLowerCase().includes(q) ||
-                                    (c.treatment||"").toLowerCase().includes(q)
-                                  );
-                                  // Rank: hero starts with query first, then contains, then others
-                                  const hits = all.sort((a,b) => {
+                                {acOpen === r.id && (acQuery[r.id]||"").length >= 1 && (() => {
+                                  const raw = (acQuery[r.id]||"").toLowerCase();
+                                  // Multi-term fuzzy: split on spaces, every term must match somewhere
+                                  const terms = raw.trim().split(/\s+/).filter(Boolean);
+                                  const searchFields = c => [
+                                    c.hero||"", c.weapon||"", c.treatment||"",
+                                    String(c.cardNum||""), c.notation||"", c.setName||""
+                                  ].join(" ").toLowerCase();
+                                  const hits = bobaCards.filter(c =>
+                                    terms.every(t => searchFields(c).includes(t))
+                                  ).sort((a,b) => {
                                     const aHero = (a.hero||"").toLowerCase();
                                     const bHero = (b.hero||"").toLowerCase();
-                                    const aStart = aHero.startsWith(q) ? 0 : 1;
-                                    const bStart = bHero.startsWith(q) ? 0 : 1;
-                                    if (aStart !== bStart) return aStart - bStart;
-                                    return aHero.localeCompare(bHero);
+                                    // Exact hero match first, then startsWith, then contains
+                                    const score = h => h === raw ? 0 : h.startsWith(terms[0]) ? 1 : 2;
+                                    return score(aHero) - score(bHero) || aHero.localeCompare(bHero);
                                   });
                                   if (hits.length === 0) return null;
                                   return (
-                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:320, overflowY:"auto" }}>
+                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:400, overflowY:"auto" }}>
+                                      <div style={{ padding:"4px 10px", fontSize:10, color:"#555", borderBottom:"1px solid #111" }}>{hits.length} match{hits.length!==1?"es":""}</div>
                                       {hits.map(c => {
                                         const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
                                         const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" — ");
@@ -1724,18 +1726,25 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                               setAcOpen(null);
                                               setAcQuery(q2 => ({ ...q2, [r.id]: label }));
                                             }}
-                                            style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                                            style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", cursor:"pointer", borderBottom:"1px solid #111" }}
                                             className="inv-row">
-                                            {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:24, height:32, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                                            {/* Card image — large on hover via title tooltip, small inline */}
+                                            <div style={{ position:"relative", flexShrink:0 }}>
+                                              {c.imageUrl
+                                                ? <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4 }}/>
+                                                : <div style={{ width:36, height:48, background:"#2a2a2a", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, color:"#555", textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>
+                                              }
+                                            </div>
                                             <div style={{ flex:1, minWidth:0 }}>
-                                              <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
-                                              <div style={{ display:"flex", gap:6, fontSize:10 }}>
+                                              <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
+                                              <div style={{ display:"flex", gap:6, fontSize:10, flexWrap:"wrap" }}>
                                                 <span style={{ color:"#555" }}>#{c.cardNum}</span>
                                                 {c.weapon && <span style={{ color:wc, fontWeight:700 }}>{c.weapon}</span>}
                                                 {c.treatment && <span style={{ color:"#888" }}>{c.treatment}</span>}
+                                                {c.setName && <span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
                                               </div>
                                             </div>
-                                            {c.power && <span style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</span>}
+                                            {c.power && <span style={{ fontSize:16, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</span>}
                                           </div>
                                         );
                                       })}
