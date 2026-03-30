@@ -6287,25 +6287,81 @@ function BobaChecklist({ userRole, user }) {
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l => l.trim());
       const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
-      const cardNumIdx = headers.indexOf("card_num") >= 0 ? headers.indexOf("card_num") : headers.indexOf("card#") >= 0 ? headers.indexOf("card#") : headers.indexOf("cardnum") >= 0 ? headers.indexOf("cardnum") : 0;
-      const dbsIdx = headers.indexOf("dbs") >= 0 ? headers.indexOf("dbs") : headers.indexOf("salary") >= 0 ? headers.indexOf("salary") : 1;
+      const cardNumIdx = ["card_num","card#","cardnum","card num","card number","number","num","id"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
+      const dbsIdx     = ["dbs score","dbs_score","dbs","salary","cap","value","cost"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
+      const nameIdx    = ["play name","card name","name","play"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
+      const costIdx    = ["cost","play cost","mana","energy"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
+      const textIdx    = ["text","ability","description","card text"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
+
+      // Use first and second column as fallback
+      const cnIdx = cardNumIdx >= 0 ? cardNumIdx : 0;
+      const dsIdx = dbsIdx     >= 0 ? dbsIdx     : 1;
+
+      // Normalize a card number: strip all non-alphanumeric, lowercase
+      // e.g. "PL-1", "PL1", "pl-1", "1" all normalize differently
+      // Strategy: strip prefix letters+dashes, keep numeric part for fuzzy match
+      // Strip rarity prefix: "A - PL-59" → "PL59", "U - BPL-17" → "BPL17"
+      function normalizeNum(s) {
+        const stripped = String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
+        return stripped.replace(/[^a-z0-9]/gi,"").toLowerCase();
+      }
+      function numericPart(s) {
+        const stripped = String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
+        return stripped.replace(/[^0-9]/g,"");
+      }
+
+      // Build lookup maps from checklist cards
+      const exactMap  = {};  // normalized full cardNum -> [cards]
+      const numericMap = {}; // numeric-only part -> [cards]
+      cards.forEach(c => {
+        const norm = normalizeNum(c.cardNum);
+        const num  = numericPart(c.cardNum);
+        if (!exactMap[norm])   exactMap[norm]   = [];
+        if (!numericMap[num])  numericMap[num]  = [];
+        exactMap[norm].push(c);
+        if (num) numericMap[num].push(c);
+      });
 
       let updated = 0, skipped = 0;
       const batch = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(",").map(c => c.replace(/^"|"$/g,"").trim());
-        const cardNum = cols[cardNumIdx]||"";
-        const dbs = parseFloat(cols[dbsIdx]);
-        if (!cardNum || isNaN(dbs)) { skipped++; continue; }
 
-        // Find matching card(s) by cardNum
-        const matches = cards.filter(c =>
-          String(c.cardNum||"").toLowerCase() === String(cardNum).toLowerCase()
-        );
+      for (let i = 1; i < lines.length; i++) {
+        // Parse CSV line respecting quoted fields
+        const cols = [];
+        let cur = "", inQ = false;
+        for (const ch of lines[i]) {
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+          else { cur += ch; }
+        }
+        cols.push(cur.trim());
+
+        const rawNum = cols[cnIdx]||"";
+        const dbs    = parseFloat(cols[dsIdx]);
+        const playName = nameIdx >= 0 ? (cols[nameIdx]||"").trim() : "";
+        const playCost = costIdx >= 0 ? (cols[costIdx]||"").trim() : "";
+        const playText = textIdx >= 0 ? (cols[textIdx]||"").trim() : "";
+        if (!rawNum || isNaN(dbs)) { skipped++; continue; }
+
+        const norm    = normalizeNum(rawNum);
+        const numOnly = numericPart(rawNum);
+
+        // 1. Exact normalized match
+        let matches = exactMap[norm] || [];
+
+        // 2. Numeric-only fallback (handles "1" matching "PL-1", "BPL-1" etc)
+        if (matches.length === 0 && numOnly) {
+          matches = numericMap[numOnly] || [];
+        }
+
         if (matches.length === 0) { skipped++; continue; }
 
         for (const match of matches) {
-          batch.push({ id: match.id, dbs });
+          const update = { dbs };
+          if (playName) update.playName = playName;
+          if (playCost) update.playCost = playCost;
+          if (playText) update.playAbility = playText;
+          batch.push({ id: match.id, update });
           updated++;
         }
       }
@@ -6313,12 +6369,13 @@ function BobaChecklist({ userRole, user }) {
       // Write in batches of 400
       for (let i = 0; i < batch.length; i += 400) {
         const chunk = batch.slice(i, i + 400);
-        await Promise.all(chunk.map(({ id, dbs }) =>
-          setDoc(doc(db, "boba_checklist", id), { dbs }, { merge: true })
+        await Promise.all(chunk.map(({ id, update }) =>
+          setDoc(doc(db, "boba_checklist", id), update, { merge: true })
         ));
       }
 
-      alert(`✅ DBS import complete! Updated ${updated} cards, skipped ${skipped}.`);
+      try { localStorage.removeItem("boba_checklist_cache"); } catch(e2) {}
+      alert(`✅ DBS import complete!\nUpdated: ${updated} cards\nSkipped: ${skipped} (no match found)`);
     } catch(e) {
       console.error(e);
       alert("Error importing DBS CSV: " + e.message);
