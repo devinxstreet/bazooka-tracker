@@ -6747,6 +6747,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const [scanProgress, setScanProgress] = useState(null);
   const _setScanProgress = (v) => { setScanProgress(v); if(onScanUpdate) onScanUpdate(v ? { type:"pdf", ...v } : null); };
   const [imgScanProgress, setImgScanProgress] = useState(null);
+  const [imgImportModal, setImgImportModal] = useState(null); // {files} waiting for set selection
+  const [imgImportSet, setImgImportSet] = useState("");
   const _setImgScanProgress = (v) => { setImgScanProgress(v); if(onScanUpdate) onScanUpdate(v ? { type:"images", ...v } : null); };
   const [scanConfig,   setScanConfig]   = useState(null); // { file, setName, treatment, weapon }
   const [pendingScan,  setPendingScan]  = useState(null); // file waiting for config
@@ -7071,95 +7073,147 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     let matched = 0, skipped = 0;
 
+    // ── Matching helpers ──────────────────────────────────────
+    function normNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
+
+    // Strict hero match: first word must agree, full strings must be close
+    function heroMatch(cardHero, identified) {
+      if (!cardHero || !identified) return false;
+      const a = cardHero.toLowerCase().trim();
+      const b = identified.toLowerCase().trim();
+      if (a === b) return true;
+      // First word must match exactly
+      if (a.split(" ")[0] !== b.split(" ")[0]) return false;
+      // And overall similarity must be high (one is substring of other)
+      return a.includes(b) || b.includes(a);
+    }
+
+    // Extract set-order number from filename e.g. "setorder61" → "61"
+    function extractSetOrder(filename) {
+      const m = filename.match(/setorder(\d+)/i) || filename.match(/[-_](\d+)\./);
+      return m ? m[1] : null;
+    }
+
+    // Try filename-based matching first (most reliable, no Vision needed)
+    function matchByFilename(filename, setNm) {
+      const order = extractSetOrder(filename);
+      if (!order) return null;
+      const idx = parseInt(order) - 1; // setorder is 1-based
+      const setCards = setNm
+        ? cards.filter(c => c.setName === setNm)
+        : cards;
+      // Sort by card number numerically to get set order
+      const sorted = [...setCards].sort((a, b) => {
+        const na = parseInt(String(a.cardNum||"").replace(/[^0-9]/g,""))||0;
+        const nb = parseInt(String(b.cardNum||"").replace(/[^0-9]/g,""))||0;
+        return na - nb;
+      });
+      return sorted[idx] || null;
+    }
+
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       _setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
 
       try {
-        // Resize image to max 1200px before sending — keeps quality but avoids 15MB limit
-        const base64 = await new Promise((res, rej) => {
-          const img = new Image();
-          const url = URL.createObjectURL(file);
-          img.onload = () => {
-            URL.revokeObjectURL(url);
-            const MAX = 1200;
-            const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-            const canvas = document.createElement("canvas");
-            canvas.width  = Math.round(img.width  * scale);
-            canvas.height = Math.round(img.height * scale);
-            const ctx = canvas.getContext("2d");
-            ctx.imageSmoothingQuality = "high";
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
-          };
-          img.onerror = rej;
-          img.src = url;
-        });
+        // ── Step 1: Try filename matching first (free, instant, reliable) ──
+        let match = matchByFilename(file.name, setName);
 
-        const mediaType = "image/jpeg"; // resized to JPEG in browser
+        // ── Step 2: Vision API if filename didn't work ──
+        if (!match) {
+          const base64 = await new Promise((res, rej) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+              URL.revokeObjectURL(url);
+              const MAX = 1200;
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+              const canvas = document.createElement("canvas");
+              canvas.width  = Math.round(img.width  * scale);
+              canvas.height = Math.round(img.height * scale);
+              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+              res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+            };
+            img.onerror = rej;
+            img.src = url;
+          });
 
-        // Send to Claude Vision via scan-card API
-        const resp = await fetch("/api/scan-card", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ imageBase64: base64, mediaType, setName }),
-        });
-        const data = await resp.json();
-        if (!data.cardNum && !data.hero) { skipped++; continue; }
+          const resp = await fetch("/api/scan-card", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg", setName }),
+          });
+          const data = await resp.json();
 
-        // Match against checklist using same logic as PDF scanner
-        const identifiedNum = (data.cardNum||"").replace(/[\s\-]/g,"").toLowerCase();
-        const heroName = (data.hero||"").toLowerCase();
-        const weapon   = (data.weapon||"").toLowerCase();
-        const treatment = (data.treatment||"").toLowerCase();
-        const power    = data.power||"";
-        const setNm    = setName||"";
+          if (data.cardNum || data.hero) {
+            const identifiedNum = normNum(data.cardNum);
+            const heroName  = (data.hero||"").trim().toLowerCase();
+            const weapon    = (data.weapon||"").trim().toLowerCase();
+            const treatment = (data.treatment||"").trim().toLowerCase();
+            const setNm     = setName||"";
 
-        function fuzzyMatch(a, b) {
-          if (!a || !b) return false;
-          return a.toLowerCase().includes(b) || b.includes(a.toLowerCase());
+            // 1. Card# + set + hero
+            if (!match && identifiedNum && heroName) {
+              match = cards.find(c =>
+                normNum(c.cardNum) === identifiedNum &&
+                heroMatch(c.hero, heroName) &&
+                (!setNm || c.setName === setNm)
+              );
+            }
+            // 2. Card# + hero (cross-set)
+            if (!match && identifiedNum && heroName) {
+              match = cards.find(c =>
+                normNum(c.cardNum) === identifiedNum &&
+                heroMatch(c.hero, heroName)
+              );
+            }
+            // 3. Card# alone (only if set matches)
+            if (!match && identifiedNum && setNm) {
+              match = cards.find(c =>
+                normNum(c.cardNum) === identifiedNum &&
+                c.setName === setNm
+              );
+            }
+            // 4. Hero + treatment + weapon (all three, strict)
+            if (!match && heroName && treatment && weapon) {
+              const cands = cards.filter(c =>
+                heroMatch(c.hero, heroName) &&
+                c.treatment?.toLowerCase() === treatment &&
+                c.weapon?.toLowerCase() === weapon &&
+                (!setNm || c.setName === setNm)
+              );
+              if (cands.length === 1) match = cands[0];
+              // If multiple, pick by power
+              else if (cands.length > 1 && data.power) {
+                match = cands.find(c => String(c.power||"") === String(data.power||"")) || cands[0];
+              }
+            }
+            // 5. Hero + weapon (strict hero matching)
+            if (!match && heroName && weapon) {
+              const cands = cards.filter(c =>
+                heroMatch(c.hero, heroName) &&
+                c.weapon?.toLowerCase() === weapon &&
+                (!setNm || c.setName === setNm)
+              );
+              if (cands.length === 1) match = cands[0];
+              else if (cands.length > 1 && data.power) {
+                match = cands.find(c => String(c.power||"") === String(data.power||""));
+              }
+            }
+          }
         }
-        function normalizeCardNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
 
-        let match = null;
+        if (!match) { skipped++; console.log(`No match: ${file.name}`); continue; }
 
-        // 1. Card number + set name
-        if (identifiedNum) {
-          match = cards.find(c =>
-            normalizeCardNum(c.cardNum) === identifiedNum &&
-            (!setNm || c.setName === setNm)
-          );
-        }
-        // 2. Card number only
-        if (!match && identifiedNum) {
-          match = cards.find(c => normalizeCardNum(c.cardNum) === identifiedNum);
-        }
-        // 3. Hero + treatment + weapon
-        if (!match && heroName) {
-          match = cards.find(c =>
-            fuzzyMatch(c.hero, heroName) &&
-            (!treatment || c.treatment?.toLowerCase() === treatment) &&
-            (!weapon || c.weapon?.toLowerCase() === weapon)
-          );
-        }
-        // 4. Hero + weapon only
-        if (!match && heroName) {
-          match = cards.find(c =>
-            fuzzyMatch(c.hero, heroName) &&
-            (!weapon || c.weapon?.toLowerCase() === weapon)
-          );
-        }
-
-        if (!match) { skipped++; continue; }
-
-        // Upload image directly (already high quality — no re-rendering needed)
-        const imgBlob = new Blob([await file.arrayBuffer()], { type: mediaType });
+        // Upload original file (not re-compressed)
+        const imgBlob = new Blob([await file.arrayBuffer()], { type: file.type || "image/webp" });
         const ext = file.name.split(".").pop() || "webp";
         const storageRef = ref(storage, `boba_cards/${match.id}.${ext}`);
         await uploadBytes(storageRef, imgBlob);
         const imageUrl = await getDownloadURL(storageRef);
         await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
         matched++;
+        console.log(`✅ ${file.name} → ${match.hero} #${match.cardNum} (${match.setName})`);
 
       } catch(e) {
         console.error(`Error scanning ${file.name}:`, e);
@@ -7169,10 +7223,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
-    // Bust cache
     try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
-  }
-
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
   const [scanModal,    setScanModal]    = useState(false); // full-screen scan modal open
   const [scanSession,  setScanSession]  = useState([]);    // [{card, qty, addedAt}]
@@ -7814,8 +7865,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   onChange={e=>{
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
-                    const sn = filterSet || window.prompt("Which set are these images for? (optional — helps matching)", "") || "";
-                    scanImagesForCards(files, sn);
+                    setImgImportSet(filterSet || "");
+                    setImgImportModal({ files });
                     e.target.value="";
                   }} style={{ display:"none" }}/>
               </label>
@@ -7925,6 +7976,54 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           </div>
         )}
       </div>
+
+      {/* Image Import Set Picker Modal */}
+      {imgImportModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={()=>setImgImportModal(null)}>
+          <div style={{ background:"#111", border:"1.5px solid #4ade8044", borderRadius:16, padding:28, width:420, maxWidth:"90vw" }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>🖼 Import {imgImportModal.files.length} Image{imgImportModal.files.length!==1?"s":""}</div>
+            <div style={{ fontSize:12, color:"#555", marginBottom:20 }}>Select which set these images belong to. This dramatically improves matching accuracy.</div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:8 }}>Set (required for best matching)</label>
+              <select value={imgImportSet} onChange={e=>setImgImportSet(e.target.value)}
+                autoFocus
+                style={{ width:"100%", background:"#0a0a0a", border:`1.5px solid ${imgImportSet?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:imgImportSet?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+                <option value="">— No set filter (use filename/Vision only) —</option>
+                {sets.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              {imgImportSet && (
+                <div style={{ fontSize:11, color:"#4ade80", marginTop:6 }}>
+                  ✓ Will match against {cards.filter(c=>c.setName===imgImportSet).length} cards in {imgImportSet}
+                </div>
+              )}
+            </div>
+
+            <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:11, color:"#555", lineHeight:1.7 }}>
+              <div style={{ color:"#4ade80", fontWeight:700, marginBottom:4 }}>Matching priority:</div>
+              <div>1. Filename set-order number (e.g. <span style={{color:"#888"}}>setorder61</span>)</div>
+              <div>2. Card # + set + hero name</div>
+              <div>3. Hero + treatment + weapon + power</div>
+            </div>
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>{
+                scanImagesForCards(imgImportModal.files, imgImportSet);
+                setImgImportModal(null);
+              }}
+                style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
+                🖼 Start Import
+              </button>
+              <button onClick={()=>setImgImportModal(null)}
+                style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:10, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collection Import Result Modal */}
       {collectionImportResult && (
