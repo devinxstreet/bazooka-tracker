@@ -10878,12 +10878,12 @@ function PublicCardDatabase() {
                 {!offerModal?.isOBO&&<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                     <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Asking price</span>
-                    <span style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{"$"}{(offerModal.askPrice||0).toFixed(2)}</span>
+                    <span style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{"$"}{(offerModal.askingPrice||0).toFixed(2)}</span>
                   </div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:6}}>Quick offer</div>
                   <div style={{display:"flex",gap:6}}>
                     {[100,95,90,85,80].map(pct=>{
-                      const qAmt=((offerModal.askPrice||0)*pct/100).toFixed(2);
+                      const qAmt=((offerModal.askingPrice||0)*pct/100).toFixed(2);
                       const active=offerAmt===qAmt;
                       return (
                         <button key={pct} onClick={()=>setOfferAmt(qAmt)}
@@ -10908,12 +10908,12 @@ function PublicCardDatabase() {
                       background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",
                       borderRadius:"0 10px 10px 0",padding:"10px 12px",fontSize:13,fontWeight:800,minWidth:52,textAlign:"center",
                       color:"rgba(255,255,255,0.3)"}}>
-                      {offerModal?.isOBO||!offerModal?.askPrice?"--":offerAmt&&!isNaN(parseFloat(offerAmt))?Math.round(parseFloat(offerAmt)/(offerModal.askPrice||1)*100)+"%":"--"}
+                      {offerModal?.isOBO||!offerModal?.askingPrice?"--":offerAmt&&!isNaN(parseFloat(offerAmt))?Math.round(parseFloat(offerAmt)/(offerModal.askingPrice||1)*100)+"%":"--"}
                     </span>
                   </div>
-                  {offerAmt&&!isNaN(parseFloat(offerAmt))&&!offerModal?.isOBO&&offerModal?.askPrice>0&&(()=>{
+                  {offerAmt&&!isNaN(parseFloat(offerAmt))&&!offerModal?.isOBO&&offerModal?.askingPrice>0&&(()=>{
                     const oa=parseFloat(offerAmt);
-                    const ask=offerModal.askPrice||0;
+                    const ask=offerModal.askingPrice||0;
                     const pct=ask>0?oa/ask*100:0;
                     const savings=ask-oa;
                     const barColor=pct>=95?"#4ade80":pct>=85?"#FBBF24":pct>=75?"#F97316":"#f87171";
