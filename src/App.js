@@ -261,63 +261,24 @@ function GlobalStyles() {
 
       /* ── MOBILE RESPONSIVE ── */
       @media (max-width: 768px) {
-        /* Nav */
-        .nav-tabs-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-        .nav-tabs-row::-webkit-scrollbar { display: none; }
-        .nav-tab-label { display: none !important; }
-        .nav-tab-icon { display: block !important; }
-        .nav-header-title { font-size: 18px !important; }
-
-        /* Layout */
-        .tab-content { padding: 10px !important; }
-        .mobile-stack { flex-direction: column !important; }
-        .mobile-stack-reverse { flex-direction: column-reverse !important; }
-        .mobile-full { width: 100% !important; min-width: 0 !important; }
         .mobile-hide { display: none !important; }
-        .mobile-2col { grid-template-columns: 1fr 1fr !important; }
-        .mobile-1col { grid-template-columns: 1fr !important; }
-
-        /* Cards grid — 2 columns on mobile */
+        .mobile-show { display: inline !important; }
+        .nav-tab-label { display: none !important; }
+        .nav-tab-icon { display: inline !important; }
+        .nav-tab { padding: 10px 14px !important; font-size: 18px !important; }
+        .tab-content { padding: 10px !important; }
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-
-        /* Filter bars wrap nicely */
-        .filter-bar { flex-wrap: wrap !important; gap: 6px !important; }
-        .filter-bar select, .filter-bar input { font-size: 13px !important; padding: 8px 10px !important; }
-
-        /* Bigger tap targets */
-        button, label[style], .nav-tab { min-height: 36px; }
-        .boba-owned-btn { width: 32px !important; height: 32px !important; font-size: 16px !important; }
-
-        /* Stats grids — 2 col */
-        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
-
-        /* Tables — horizontal scroll */
-        .mobile-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-        .mobile-scroll-x table { min-width: 500px; }
-
-        /* Lot comp */
         .lot-comp-grid { grid-template-columns: 1fr !important; }
         .seller-intel-panel { display: none !important; }
-
-        /* Checklist header buttons wrap */
-        .checklist-actions { flex-wrap: wrap !important; gap: 4px !important; }
-        .checklist-action-btn { font-size: 10px !important; padding: 4px 8px !important; }
-
-        /* View mode toggles scroll */
+        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
+        .mobile-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+        .mobile-scroll-x table { min-width: 500px; }
         .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
         .view-mode-row::-webkit-scrollbar { display: none; }
-
-        /* Modals fill screen */
-        .modal-card { max-width: 100% !important; margin: 0 !important; border-radius: 0 !important; min-height: 100vh !important; }
-
-        /* Lot comp card row — stack fields */
-        .lot-row-grid { grid-template-columns: 1fr !important; }
+        .checklist-actions { flex-wrap: wrap !important; }
       }
-
       @media (max-width: 480px) {
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
-        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
-        .nav-header-title { font-size: 16px !important; }
         .tab-content { padding: 8px !important; }
       }
 
@@ -9868,76 +9829,50 @@ export default function App() {
         );
       })()}
 
-      <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
-        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
-          <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span className="nav-bazooka nav-header-title" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
+
+      <div style={{ background:"#000000", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", gap:8 }}>
+          <div style={{ padding:"10px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <span className="nav-bazooka" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
             <span className="mobile-hide" style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
           </div>
-          <nav className="nav-tabs-row" style={{ display:"flex", gap:2, flex:1 }}>
-            {TABS.map(t => {
-              const pendingQuotes = t.id==="comp" ? quotes.filter(q=>!q.notified&&["accepted","declined","countered"].includes(q.status)).length : 0;
-              // Split emoji icon from text label
-              const match = t.label.match(/^(\S+)\s+(.+)$/);
-              const icon = match ? match[1] : t.label;
-              const text = match ? match[2] : "";
-              return (
-                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab" style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", position:"relative", whiteSpace:"nowrap" }}>
-                  <span className="nav-tab-icon" style={{ display:"none" }}>{icon}</span>
-                  <span className="nav-tab-label">{t.label}</span>
-                  {pendingQuotes > 0 && <span style={{ position:"absolute", top:4, right:4, background:"#E8317A", color:"#fff", borderRadius:"50%", width:16, height:16, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingQuotes}</span>}
-                </button>
-              );
-            })}
-          </nav>
-          <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-            {/* Search button */}
-            <button
-              onClick={()=>{ setGOpen(true); setGSearch(""); }}
-              style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a2e", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}
-            >
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            <button onClick={()=>{ setGOpen(true); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}>
               <span style={{ fontSize:13 }}>🔍</span>
-              <span style={{ fontSize:12 }}>Search</span>
-              <kbd style={{ background:"#111", color:"#999999", border:"1px solid #2a2a2a", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
+              <span className="mobile-hide" style={{ fontSize:12 }}>Search</span>
+              <kbd className="mobile-hide" style={{ background:"#111", color:"#999", border:"1px solid #2a2a2a", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
             </button>
-            <span style={{ color:"#AAAAAA", fontSize:11 }}>{inventory.length} cards</span>
+            <span className="mobile-hide" style={{ color:"#AAAAAA", fontSize:11 }}>{inventory.length} cards</span>
             {realRole.role === "Admin" && (
-              <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
-                <span style={{ fontSize:10, color: viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
-                <select
-                  value={viewAs?.key||""}
-                  onChange={e=>{
-                    if (!e.target.value) { setViewAs(null); return; }
-                    const ROLE_MAP = {
-                      Admin:       { role:"Admin",       label:"CEO (Devin)",    key:"Admin",       displayName:user.displayName },
-                      Dev:         { role:"Streamer",    label:"Dev",            key:"Dev",         displayName:"Dev" },
-                      Dre:         { role:"Streamer",    label:"Dre",            key:"Dre",         displayName:"Dre" },
-                      Krystal:     { role:"Streamer",    label:"Krystal",        key:"Krystal",     displayName:"Krystal" },
-                      Procurement: { role:"Procurement", label:"Procurement",    key:"Procurement", displayName:"John" },
-                      Shipping:    { role:"Shipping",    label:"Shipping",       key:"Shipping",    displayName:"Jake" },
-                    };
-                    setViewAs(ROLE_MAP[e.target.value]);
-                    setTab("dashboard");
-                  }}
-                  style={{ background:"none", border:"none", color: viewAs?"#f59e0b":"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none" }}
-                >
+              <div className="mobile-hide" style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
+                <span style={{ fontSize:10, color:viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
+                <select value={viewAs?.key||""} onChange={e=>{ if(!e.target.value){setViewAs(null);return;} const M={Admin:{role:"Admin",label:"CEO (Devin)",key:"Admin",displayName:user.displayName},Dev:{role:"Streamer",label:"Dev",key:"Dev",displayName:"Dev"},Dre:{role:"Streamer",label:"Dre",key:"Dre",displayName:"Dre"},Krystal:{role:"Streamer",label:"Krystal",key:"Krystal",displayName:"Krystal"},Procurement:{role:"Procurement",label:"Procurement",key:"Procurement",displayName:"John"},Shipping:{role:"Shipping",label:"Shipping",key:"Shipping",displayName:"Jake"}}; setViewAs(M[e.target.value]); setTab("dashboard"); }} style={{ background:"none", border:"none", color:viewAs?"#f59e0b":"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none" }}>
                   <option value="">— Real Role —</option>
-                  <optgroup label="Streamers">
-                    <option value="Dev">Dev</option>
-                    <option value="Dre">Dre</option>
-                    <option value="Krystal">Krystal</option>
-                  </optgroup>
-                  <optgroup label="Other Roles">
-                    <option value="Procurement">Procurement (John)</option>
-                    <option value="Shipping">Shipping (Jake)</option>
-                  </optgroup>
+                  <optgroup label="Streamers"><option value="Dev">Dev</option><option value="Dre">Dre</option><option value="Krystal">Krystal</option></optgroup>
+                  <optgroup label="Other Roles"><option value="Procurement">Procurement (John)</option><option value="Shipping">Shipping (Jake)</option></optgroup>
                 </select>
               </div>
             )}
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
-            <span style={{ color:"#AAAAAA", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
-            <span style={{ background:"#1a1a2e", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{userRole.label}</span>
-            <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #444444", color:"#999999", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+            <span className="mobile-hide" style={{ color:"#AAAAAA", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
+            <span className="mobile-hide" style={{ background:"#1a1a2e", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{userRole.label}</span>
+            <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #444", color:"#999", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+          </div>
+        </div>
+        <div style={{ borderTop:"1px solid #111", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
+          <div style={{ display:"flex", padding:"0 8px", minWidth:"min-content" }}>
+            {TABS.map(t => {
+              const pq = t.id==="comp" ? quotes.filter(q=>!q.notified&&["accepted","declined","countered"].includes(q.status)).length : 0;
+              const im = t.label.match(/^(\S+)\s+(.+)$/);
+              return (
+                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab"
+                  style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", color:tab===t.id?"#E8317A":"#666", padding:"10px 12px", cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", position:"relative", whiteSpace:"nowrap", flexShrink:0 }}>
+                  <span className="nav-tab-icon" style={{ display:"none" }}>{im?im[1]:t.label}</span>
+                  <span className="nav-tab-label">{t.label}</span>
+                  {pq>0 && <span style={{ position:"absolute", top:4, right:2, background:"#E8317A", color:"#fff", borderRadius:"50%", width:14, height:14, fontSize:8, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{pq}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
