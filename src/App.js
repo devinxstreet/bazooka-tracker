@@ -3468,6 +3468,186 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   );
 }
 
+  );
+}
+
+function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, userRole, streams=[] }) {
+  const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
+  const [search,     setSearch]     = useState("");
+  const [sortBy,     setSortBy]     = useState("totalSpend");
+  const [filterNew,  setFilterNew]  = useState(false);
+  const [selected,   setSelected]   = useState(null);
+
+  const fmt = n => `$${(parseFloat(n)||0).toFixed(2)}`;
+
+  const filtered = buyers.filter(b => {
+    if (filterNew && !b.isNew) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (b.username||"").toLowerCase().includes(q) ||
+             (b.fullName||"").toLowerCase().includes(q) ||
+             (b.city||"").toLowerCase().includes(q) ||
+             (b.state||"").toLowerCase().includes(q);
+    }
+    return true;
+  }).sort((a,b) => {
+    if (sortBy==="totalSpend")  return (b.totalSpend||0)-(a.totalSpend||0);
+    if (sortBy==="orderCount")  return (b.orderCount||0)-(a.orderCount||0);
+    if (sortBy==="lastSeen")    return (b.lastSeen||"").localeCompare(a.lastSeen||"");
+    if (sortBy==="username")    return (a.username||"").localeCompare(b.username||"");
+    return 0;
+  });
+
+  const totalBuyers   = buyers.length;
+  const totalRevenue  = buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const newBuyers     = buyers.filter(b=>b.isNew).length;
+  const avgSpend      = totalBuyers > 0 ? totalRevenue/totalBuyers : 0;
+
+  const S = {
+    card: { background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" },
+    inp:  { background:"#111", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none" },
+    th:   { padding:"10px 12px", textAlign:"left", fontSize:11, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid #1a1a1a", whiteSpace:"nowrap" },
+    td:   { padding:"10px 12px", borderBottom:"1px solid #111", fontSize:12 },
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Stats row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+        {[
+          { l:"Total Buyers",    v:totalBuyers.toLocaleString(),     c:"#7B9CFF" },
+          { l:"Total Revenue",   v:`$${Math.round(totalRevenue).toLocaleString()}`, c:"#4ade80" },
+          { l:"New Buyers",      v:newBuyers.toLocaleString(),        c:"#FBBF24" },
+          { l:"Avg Spend",       v:fmt(avgSpend),                     c:"#E8317A" },
+        ].map(({l,v,c})=>(
+          <div key={l} style={{ ...S.card, textAlign:"center" }}>
+            <div style={{ fontSize:22, fontWeight:900, color:c }}>{v}</div>
+            <div style={{ fontSize:11, color:"#555", marginTop:4 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={{ ...S.card, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search username, name, city..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+          <option value="totalSpend">Sort: Total Spend</option>
+          <option value="orderCount">Sort: Orders</option>
+          <option value="lastSeen">Sort: Last Seen</option>
+          <option value="username">Sort: Username</option>
+        </select>
+        <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#888", cursor:"pointer" }}>
+          <input type="checkbox" checked={filterNew} onChange={e=>setFilterNew(e.target.checked)}/>
+          New buyers only
+        </label>
+        <span style={{ fontSize:11, color:"#555" }}>{filtered.length} of {totalBuyers} buyers</span>
+      </div>
+
+      {/* CSV Imports */}
+      {csvImports.length > 0 && (
+        <div style={{ ...S.card }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>📥 CSV Imports ({csvImports.length})</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            {csvImports.map(imp => {
+              const stream = streams.find(s=>s.id===imp.streamId);
+              return (
+                <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", background:"#0a0a0a", borderRadius:7, border:"1px solid #1a1a1a" }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{imp.filename}</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                      {imp.rowCount} buyers · {new Date(imp.importedAt).toLocaleDateString()}
+                      {stream && <span style={{ color:"#7B9CFF", marginLeft:8 }}>{stream.name||stream.id}</span>}
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={()=>{ if(window.confirm(`Delete import "${imp.filename}"? This will recalculate buyer stats.`)) onDeleteImport(imp.id); }}
+                      style={{ background:"transparent", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Buyers table */}
+      <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
+            <thead>
+              <tr>
+                {["Username","Name","Location","Orders","Total Spend","Avg/Order","Last Seen","Streams"].map(h=>(
+                  <th key={h} style={S.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={8} style={{ ...S.td, textAlign:"center", color:"#333", padding:32 }}>
+                  {buyers.length === 0 ? "No buyers yet — import a CSV from the Streams tab" : "No buyers match your search"}
+                </td></tr>
+              ) : filtered.map((b,i) => {
+                const avgOrder = b.orderCount > 0 ? (b.totalSpend||0)/b.orderCount : 0;
+                const loc = [b.city, b.state].filter(Boolean).join(", ");
+                const streamCount = (b.streams||[]).length;
+                return (
+                  <tr key={b.id} onClick={()=>setSelected(selected?.id===b.id?null:b)}
+                    style={{ cursor:"pointer", background:selected?.id===b.id?"#1A1A2E":i%2===0?"#0d0d0d":"#111" }}
+                    className="clickable-row">
+                    <td style={S.td}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        {b.isNew && <span style={{ fontSize:9, background:"#FBBF2422", color:"#FBBF24", border:"1px solid #FBBF2444", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>NEW</span>}
+                        <span style={{ color:"#7B9CFF", fontWeight:700 }}>@{b.username}</span>
+                      </div>
+                    </td>
+                    <td style={{ ...S.td, color:"#F0F0F0" }}>{b.fullName||"—"}</td>
+                    <td style={{ ...S.td, color:"#888" }}>{loc||"—"}</td>
+                    <td style={{ ...S.td, color:"#F0F0F0", textAlign:"center" }}>{b.orderCount||0}</td>
+                    <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>{fmt(b.totalSpend)}</td>
+                    <td style={{ ...S.td, color:"#888" }}>{fmt(avgOrder)}</td>
+                    <td style={{ ...S.td, color:"#555" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "—"}</td>
+                    <td style={{ ...S.td, color:"#555", textAlign:"center" }}>{streamCount}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Selected buyer detail */}
+        {selected && (
+          <div style={{ borderTop:"1px solid #1a1a1a", padding:"14px 16px", background:"#0a0a0a" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:"#7B9CFF" }}>@{selected.username}</div>
+              <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:8 }}>
+              {[
+                { l:"Full Name",    v:selected.fullName||"—" },
+                { l:"Location",     v:[selected.city,selected.state,selected.zip].filter(Boolean).join(", ")||"—" },
+                { l:"Total Spend",  v:fmt(selected.totalSpend), c:"#4ade80" },
+                { l:"Orders",       v:selected.orderCount||0 },
+                { l:"Coupons Used", v:selected.couponCount||0 },
+                { l:"First Seen",   v:selected.firstSeen ? new Date(selected.firstSeen).toLocaleDateString() : "—" },
+                { l:"Last Seen",    v:selected.lastSeen  ? new Date(selected.lastSeen).toLocaleDateString()  : "—" },
+                { l:"Streams",      v:(selected.streams||[]).length },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{ background:"#111", borderRadius:7, padding:"8px 10px" }}>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:3 }}>{l}</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:c||"#F0F0F0" }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Performance({ breaks, user, userRole, streams=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
