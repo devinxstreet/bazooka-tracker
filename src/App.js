@@ -6496,6 +6496,65 @@ function getRarity(c) {
   return RARITY_TIERS.find(r => p >= r.minPower) || RARITY_TIERS[3];
 }
 
+const ATHLETE_SPORT = {
+  // Baseball
+  "Aaron Judge":"MLB","Adrian Beltré":"MLB","Adrián Beltré":"MLB","Brent Rooker":"MLB",
+  "Cal Raleigh":"MLB","Carlton Fisk":"MLB","Craig Biggio":"MLB","David Ortiz":"MLB",
+  "Dennis Eckersley":"MLB","Edgar Martinez":"MLB","Elly De La Cruz":"MLB","Evan Carter":"MLB",
+  "Fernando Tatis Jr.":"MLB","Félix Hernández":"MLB","George Bell":"MLB",
+  "Gunnar Henderson":"MLB","Jack Morris":"MLB","Jackson Holliday":"MLB","Jeff Bagwell":"MLB",
+  "Jim Rice":"MLB","John Smoltz":"MLB","Jung Hoo Lee":"MLB","Junior Caminero":"MLB",
+  "Ken Griffey Jr.":"MLB","Ken Griffey Sr.":"MLB","Ketel Marte":"MLB","Kyle Tucker":"MLB",
+  "Manny Machado":"MLB","Mariano Rivera":"MLB","Miguel Cabrera":"MLB","Nick Kurtz":"MLB",
+  "Ozzie Albies":"MLB","Pedro Martínez":"MLB","Rafael Devers":"MLB","Reggie Jackson":"MLB",
+  "Rick Sutcliffe":"MLB","Robin Yount":"MLB","Roger Clemens":"MLB","Rollie Fingers":"MLB",
+  "Roman Anthony":"MLB","Scott Rolen":"MLB","Steve Garvey":"MLB","Tarik Skubal":"MLB",
+  "Tim Raines":"MLB","Todd Helton":"MLB","Tom Glavine":"MLB","Vladimir Guerrero Sr.":"MLB",
+  "William Contreras":"MLB","Wyatt Langford":"MLB","Éric Gagné":"MLB","James Wood":"MLB",
+  "Jac Caglianone":"MLB","Kristian Campbell":"MLB",
+  // Football (NFL)
+  "AJ Brown":"NFL","Aaron Rodgers":"NFL","Adrian Peterson":"NFL","Ashton Jeanty":"NFL",
+  "Bo Jackson":"NFL/MLB","Brock Bowers":"NFL","Caleb Williams":"NFL","Cam Ward":"NFL",
+  "Courtland Sutton":"NFL","DK Metcalf":"NFL","Dante Hall":"NFL","Donnie Shell":"NFL",
+  "Doug Plank":"NFL","Drake Baldwin":"NFL","Jack Ham":"NFL","Jaxson Dart":"NFL",
+  "Jordan Love":"NFL","Julius Peppers":"NFL","Justin Fields":"NFL",
+  "Kenneth Walker lll":"NFL","Kenneth Walker III":"NFL","Matthew Golden":"NFL",
+  "Pierre Garçon":"NFL","Ron Jaworski":"NFL","Santana Moss":"NFL","Steve Spurrier":"NFL/NCAA",
+  "TJ Watt":"NFL","Terry McLaurin":"NFL","Travis Hunter":"NFL","Troy Aikman":"NFL",
+  "Bijon Robinson":"NFL","Collin Murray- Boyles":"NFL","Collin Murray-Boyles":"NFL",
+  // Basketball (NBA)
+  "Cade Cunningham":"NBA","Cam Thomas":"NBA","Chauncey Billups":"NBA",
+  "Chris Mullin":"NBA","Cooper Flagg":"NBA","DeMarr Derozen":"NBA","DeMar DeRozan":"NBA",
+  "Dominique Wilkins":"NBA","Dylan Harper":"NBA","Giannis Antetokounmpo":"NBA",
+  "Jalen Brunson":"NBA","Jamal Murray":"NBA","John Starks":"NBA","Julius Erving":"NBA/ABA",
+  "Kawhi Leonard":"NBA","Lauri Markkanen":"NBA","Patrick Ewing":"NBA","Paulo Banchero":"NBA",
+  "Sam Perkins":"NBA","Stephon Castle":"NBA","Tyrese Haliburton":"NBA","Tyrese Maxey":"NBA",
+  "Tyler Herro":"NBA","V.J. Edgecombe":"NBA","Victor Wembanyama":"NBA",
+  "Alex Antetokounmpo":"NBA","Kostas Antetokounmpo":"NBA","Thanasis Antetokounmpo":"NBA",
+  "Ace Bailey":"NBA",
+  // WNBA
+  "Alysha Clark":"WNBA","Cheryl Miller":"WNBA","Elena Delle Donne":"WNBA",
+  "Paige Bueckers":"WNBA",
+  // Hockey (NHL)
+  "Alexander Ovechkin":"NHL","Henrik Lundqvist":"NHL","Sidney Crosby":"NHL",
+  // Golf
+  "Bryson DeChambeau":"PGA","Jordan Spieth":"PGA",
+  // Soccer
+  "Christie Pearce Rampone":"USWNT","Jozy Altidore":"MLS/USMNT",
+  // Tennis
+  "Jessica Pegula":"WTA","Paula Badosa":"WTA",
+  // Boxing / MMA
+  "Muhammed Ali":"Boxing","Muhammad Ali":"Boxing",
+  // Celebrity / Other
+  "Flavor Flav":"Music","Randy Quaid":"Acting",
+  "Jim Boeheim":"NCAA Basketball",
+};
+
+function athleteSport(name) {
+  if (!name) return null;
+  return ATHLETE_SPORT[name] || ATHLETE_SPORT[name.trim()] || null;
+}
+
 function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
@@ -6576,7 +6635,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                 {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                 {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
               </div>
-              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 {c.athlete}</div>}
+              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
@@ -6600,7 +6659,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
         {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
-      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 {c.athlete}</div>}
+      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
