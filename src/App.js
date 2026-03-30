@@ -8818,7 +8818,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(280px,30%,360px)", gap:14, alignItems:"start" }}>
 
               {/* LEFT: Card picker */}
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:10, minHeight:0 }}>
                 {/* Filters */}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                   {/* Owned only toggle */}
@@ -8850,7 +8850,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 </div>
 
                 {/* Available cards list */}
-                <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:520, overflowY:"auto" }}>
+                <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", minHeight:300, maxHeight:"calc(100vh - 280px)", overflowY:"auto" }}>
                   {available.length === 0 ? (
                     <div style={{ padding:"32px", textAlign:"center", color:"#333", fontSize:13 }}>
                       {Object.keys(owned).length === 0 ? "No owned cards — mark cards as owned in the Checklist first" : "No cards match your filters"}
