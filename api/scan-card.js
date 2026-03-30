@@ -48,9 +48,15 @@ module.exports = async function handler(req, res) {
             {
               type: "text",
               text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}
-Extract ALL visible text fields and return ONLY a JSON object with no markdown, no explanation:
-{"cardNum":"card number exactly as printed (e.g. BFA-61, PL-12, HTD-40, 1, RAD-1 — include any prefix)","hero":"hero name exactly as printed including punctuation (e.g. X.L., Thurmanator, The Kid)","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","power":"power number only (e.g. 180)","treatment":"treatment name if visible (e.g. Inspired Ink, Base Set, Autograph)"}
-If the card is not readable return {"cardNum":null}`
+Look carefully at the BOTTOM of the card for the card number (e.g. BFA-61, PL-12, HTD-40, A-5 — always includes a prefix).
+Look at the TOP LEFT for the hero/character name exactly as printed.
+Look at the TOP RIGHT for the power number.
+Look at the weapon symbol or label for the weapon type.
+Look for the treatment name (e.g. "Inspired Ink", "Base Set", "Great Grandma's Lino", "Alpha Battlefoil").
+
+Return ONLY a JSON object, no markdown, no explanation:
+{"cardNum":"exact card number as printed at bottom (e.g. BFA-61)","hero":"exact hero name from top left","weapon":"Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic","power":"number only","treatment":"treatment name if visible"}
+If card is not readable return {"cardNum":null}`
             }
           ]
         }]
