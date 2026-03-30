@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -9952,10 +9952,28 @@ function PublicCardDatabase() {
     setPrivateCards(next);
     await setDoc(doc(db,"boba_private",user.uid), next);
   }
-  async function signInGoogle() {
-    try { await signInWithPopup(auth, new GoogleAuthProvider()); setSigningIn(false); }
-    catch(e) { console.error(e); }
+  function signInGoogle() {
+    const provider = new GoogleAuthProvider();
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      signInWithRedirect(auth, provider).catch(console.error);
+    } else {
+      signInWithPopup(auth, provider)
+        .then(()=>setSigningIn(false))
+        .catch(e=>{
+          if(e.code==="auth/popup-blocked"||e.code==="auth/popup-closed-by-user") {
+            signInWithRedirect(auth, provider).catch(console.error);
+          } else { console.error(e); }
+        });
+    }
   }
+
+  // Handle redirect result on page load
+  useEffect(() => {
+    getRedirectResult(auth).then(result => {
+      if (result?.user) setSigningIn(false);
+    }).catch(console.error);
+  }, []);
 
   // ── Scan ──
   async function scanCardPhoto(file) {
