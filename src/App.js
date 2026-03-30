@@ -7983,40 +7983,40 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           onClick={()=>setImgImportModal(null)}>
           <div style={{ background:"#111", border:"1.5px solid #4ade8044", borderRadius:16, padding:28, width:420, maxWidth:"90vw" }}
             onClick={e=>e.stopPropagation()}>
-            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>🖼 Import {imgImportModal.files.length} Image{imgImportModal.files.length!==1?"s":""}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>
+              {"🖼 Import "}{imgImportModal.files.length}{" Image"}{imgImportModal.files.length !== 1 ? "s" : ""}
+            </div>
             <div style={{ fontSize:12, color:"#555", marginBottom:20 }}>Select which set these images belong to. This dramatically improves matching accuracy.</div>
-
             <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:8 }}>Set (required for best matching)</label>
-              <select value={imgImportSet} onChange={e=>setImgImportSet(e.target.value)}
+              <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:8 }}>Set (recommended)</label>
+              <select
+                value={imgImportSet}
+                onChange={e=>setImgImportSet(e.target.value)}
                 autoFocus
-                style={{ width:"100%", background:"#0a0a0a", border:`1.5px solid ${imgImportSet?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:imgImportSet?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-                <option value="">— No set filter (use filename/Vision only) —</option>
+                style={{ width:"100%", background:"#0a0a0a", border:"1.5px solid #2a2a2a", borderRadius:8, color:imgImportSet?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+                <option value="">— No set filter (filename / Vision only) —</option>
                 {sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
               {imgImportSet && (
                 <div style={{ fontSize:11, color:"#4ade80", marginTop:6 }}>
-                  ✓ Will match against {cards.filter(c=>c.setName===imgImportSet).length} cards in {imgImportSet}
+                  {"✓ Matching against "}{cards.filter(c=>c.setName===imgImportSet).length}{" cards in "}{imgImportSet}
                 </div>
               )}
             </div>
-
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:11, color:"#555", lineHeight:1.7 }}>
               <div style={{ color:"#4ade80", fontWeight:700, marginBottom:4 }}>Matching priority:</div>
-              <div>1. Filename set-order number (e.g. <span style={{color:"#888"}}>setorder61</span>)</div>
-              <div>2. Card # + set + hero name</div>
-              <div>3. Hero + treatment + weapon + power</div>
+              <div>{"1. Filename set-order number (e.g. setorder61)"}</div>
+              <div>{"2. Card # + set + hero name"}</div>
+              <div>{"3. Hero + treatment + weapon + power"}</div>
             </div>
-
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>{
-                scanImagesForCards(imgImportModal.files, imgImportSet);
-                setImgImportModal(null);
-              }}
+              <button
+                onClick={()=>{ scanImagesForCards(imgImportModal.files, imgImportSet); setImgImportModal(null); }}
                 style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
-                🖼 Start Import
+                Start Import
               </button>
-              <button onClick={()=>setImgImportModal(null)}
+              <button
+                onClick={()=>setImgImportModal(null)}
                 style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:10, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                 Cancel
               </button>
