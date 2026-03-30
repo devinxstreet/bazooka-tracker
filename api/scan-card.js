@@ -11,17 +11,20 @@ module.exports = async function handler(req, res) {
     try { body = JSON.parse(body); } catch(e) {}
   }
 
-  const { imageBase64, treatment, weapon } = body || {};
+  const { imageBase64, mediaType, treatment, weapon, setName } = body || {};
   if (!imageBase64) return res.status(400).json({ error: "No image provided" });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "No API key configured", identified: null });
+  if (!apiKey) return res.status(500).json({ error: "No API key configured" });
 
-  const hint = treatment && weapon
-    ? `This card is from the "${treatment}" treatment set with "${weapon}" weapon type. `
-    : treatment ? `This card is from the "${treatment}" treatment set. `
-    : weapon ? `This card has "${weapon}" weapon type. `
-    : "";
+  // Determine media type — default to jpeg for PDF-rendered pages, webp for direct uploads
+  const imageMediaType = mediaType || "image/jpeg";
+
+  const hint = [
+    setName    ? `This card is from the "${setName}" set.` : "",
+    treatment  ? `Treatment: "${treatment}".` : "",
+    weapon     ? `Weapon type: "${weapon}".` : "",
+  ].filter(Boolean).join(" ");
 
   let anthropicResponse;
   try {
@@ -40,49 +43,50 @@ module.exports = async function handler(req, res) {
           content: [
             {
               type: "image",
-              source: { type: "base64", media_type: "image/jpeg", data: imageBase64 }
+              source: { type: "base64", media_type: imageMediaType, data: imageBase64 }
             },
             {
               type: "text",
-              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}Extract ALL visible fields and return ONLY a JSON object with no other text:
-{"cardNum":"card number exactly as printed (e.g. RAD-1, ALT-4, 1, P-5 — include any prefix like RAD-, ALT-, etc.)","hero":"hero name exactly as printed including any punctuation (e.g. X.L., Bojax, The Kid)","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic — Alt cards often have no weapon symbol)","power":"power number (e.g. 135)","treatment":"treatment/set name if visible"}
-If you cannot read the card clearly, return {"cardNum":null}`
+              text: `This is a Bo Jackson Battle Arena (BoBA) trading card. ${hint}
+Extract ALL visible text fields and return ONLY a JSON object with no markdown, no explanation:
+{"cardNum":"card number exactly as printed (e.g. BFA-61, PL-12, HTD-40, 1, RAD-1 — include any prefix)","hero":"hero name exactly as printed including punctuation (e.g. X.L., Thurmanator, The Kid)","weapon":"weapon type (Fire/Ice/Steel/Brawl/Glow/Hex/Gum/Super/Alt/Metallic)","power":"power number only (e.g. 180)","treatment":"treatment name if visible (e.g. Inspired Ink, Base Set, Autograph)"}
+If the card is not readable return {"cardNum":null}`
             }
           ]
         }]
       })
     });
   } catch(fetchErr) {
-    return res.status(500).json({ error: "Fetch failed: " + fetchErr.message, identified: null });
+    return res.status(500).json({ error: "Fetch failed: " + fetchErr.message });
   }
 
   let data;
   try { data = await anthropicResponse.json(); } catch(e) {
-    return res.status(500).json({ error: "JSON parse failed", identified: null });
+    return res.status(500).json({ error: "JSON parse failed" });
   }
 
   if (!anthropicResponse.ok) {
-    return res.status(500).json({ error: "Anthropic error", details: data, identified: null });
+    return res.status(500).json({ error: "Anthropic error", details: data });
   }
 
   try {
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
-    return res.status(200).json({
-      identified: {
-        cardNum:   parsed.cardNum   || null,
-        hero:      parsed.hero      || null,
-        weapon:    parsed.weapon    || weapon  || null,
-        power:     parsed.power     || null,
-        treatment: parsed.treatment || treatment || null,
-      }
-    });
+    // Return both flat (new) and nested identified (legacy PDF scanner)
+    const result = {
+      cardNum:   parsed.cardNum   || null,
+      hero:      parsed.hero      || null,
+      weapon:    parsed.weapon    || weapon  || null,
+      power:     parsed.power     || null,
+      treatment: parsed.treatment || treatment || null,
+    };
+    return res.status(200).json({ ...result, identified: result });
   } catch(parseErr) {
-    return res.status(200).json({ identified: { cardNum: null }, error: "parse failed" });
+    return res.status(200).json({ cardNum: null, identified: { cardNum: null }, error: "parse failed" });
   }
 };
 
 module.exports.config = {
-  api: { bodyParser: { sizeLimit: "10mb" } },
+  api: { bodyParser: { sizeLimit: "15mb" } },
 };
