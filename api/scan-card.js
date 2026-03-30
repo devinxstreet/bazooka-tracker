@@ -17,8 +17,24 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "No API key configured" });
 
-  // Determine media type — default to jpeg for PDF-rendered pages, webp for direct uploads
-  const imageMediaType = mediaType || "image/jpeg";
+  // Validate base64 size — Anthropic allows up to ~5MB decoded (~6.7MB base64)
+  // If too large, return a soft error rather than crashing
+  const estimatedBytes = Math.round(imageBase64.length * 0.75);
+  if (estimatedBytes > 6_000_000) {
+    return res.status(200).json({
+      cardNum: null, hero: null, weapon: null, power: null, treatment: null, visualHints: null,
+      identified: { cardNum: null },
+      error: "Image too large — resize before sending",
+    });
+  }
+
+  // Normalize media type — Anthropic supports jpeg, png, gif, webp
+  const rawType = (mediaType || "image/jpeg").toLowerCase();
+  const imageMediaType =
+    rawType.includes("webp")  ? "image/webp"  :
+    rawType.includes("png")   ? "image/png"   :
+    rawType.includes("gif")   ? "image/gif"   :
+                                "image/jpeg";
 
   const hint = [
     setName    ? `This card is from the "${setName}" set.` : "",
@@ -36,7 +52,7 @@ module.exports = async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 300,
         messages: [{
           role: "user",
@@ -80,14 +96,13 @@ If card is not readable return {"cardNum":null}`
     const text = data.content?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
-    // Return both flat (new) and nested identified (legacy PDF scanner)
     const result = {
-      cardNum:      parsed.cardNum      || null,
-      hero:         parsed.hero         || null,
-      weapon:       parsed.weapon       || weapon  || null,
-      power:        parsed.power        || null,
-      treatment:    parsed.treatment    || treatment || null,
-      visualHints:  parsed.visualHints  || null,
+      cardNum:     parsed.cardNum     || null,
+      hero:        parsed.hero        || null,
+      weapon:      parsed.weapon      || weapon  || null,
+      power:       parsed.power       || null,
+      treatment:   parsed.treatment   || treatment || null,
+      visualHints: parsed.visualHints || null,
     };
     return res.status(200).json({ ...result, identified: result });
   } catch(parseErr) {
@@ -96,5 +111,5 @@ If card is not readable return {"cardNum":null}`
 };
 
 module.exports.config = {
-  api: { bodyParser: { sizeLimit: "15mb" } },
+  api: { bodyParser: { sizeLimit: "20mb" } },
 };
