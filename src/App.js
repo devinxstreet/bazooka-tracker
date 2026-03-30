@@ -9813,7 +9813,7 @@ function PublicCardDatabase() {
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
   const [offerNote,     setOfferNote]     = useState("");
-  const [marketNotifs,  setMarketNotifs]  = useState([]);
+  const [wantNotifs,    setWantNotifs]    = useState([]);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
@@ -9890,6 +9890,10 @@ function PublicCardDatabase() {
       // Marketplace notifications for me (offers on my listings)
       onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
         snap => setMarketNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Want notifications — someone listed a card I want
+      onSnapshot(query(collection(db,"market_notifs"), where("toUid","==",uid2), where("read","==",false)),
+        snap => setWantNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
     ];
     return () => unsubs.forEach(u=>u());
@@ -10012,7 +10016,8 @@ function PublicCardDatabase() {
   async function createTeam() {
     if(!user||!newTeamName.trim())return;
     const id=uid();
-    await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),members:[{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
+    const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
+    await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),starters:[me],bench:[],members:[me],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
     setNewTeamName("");
   }
   async function inviteToTeam(team) {
@@ -10022,14 +10027,57 @@ function PublicCardDatabase() {
     if(profSnap.empty){setInviteStatus({ok:false,msg:"No account found"});return;}
     const toUid=profSnap.docs[0].id, toProfile=profSnap.docs[0].data();
     if(team.memberUids?.includes(toUid)){setInviteStatus({ok:false,msg:"Already on team"});return;}
-    if(team.members?.length>=4){setInviteStatus({ok:false,msg:"Team is full (4 max)"});return;}
+    if((team.members||[]).length>=6){setInviteStatus({ok:false,msg:"Team is full (4 starters + 2 bench max)"});return;}
     const invId=uid();
     await setDoc(doc(db,"team_invites",invId),{id:invId,teamId:team.id,teamName:team.name,fromUid:user.uid,fromName:user.displayName||user.email,toUid,toEmail:email,toName:toProfile.displayName||email,status:"pending",createdAt:new Date().toISOString()});
     setInviteEmail(""); setInviteStatus({ok:true,msg:`Invite sent to ${toProfile.displayName||email}`});
   }
+
+  async function deleteTeam(team) {
+    if(!window.confirm(`Delete team "${team.name}"? This cannot be undone.`))return;
+    await setDoc(doc(db,"teams",team.id),{status:"deleted"},{merge:true});
+    setActiveTeam(null);
+  }
+
+  async function moveTeamMember(team, memberUid, direction) {
+    // direction: "to_bench" or "to_starter"
+    const starters = [...(team.starters||[])];
+    const bench    = [...(team.bench||[])];
+    if(direction==="to_bench") {
+      if(bench.length>=2){return;} // bench full
+      const idx = starters.findIndex(m=>m.uid===memberUid);
+      if(idx<0)return;
+      const [moved] = starters.splice(idx,1);
+      bench.push(moved);
+    } else {
+      if(starters.length>=4){return;} // starters full
+      const idx = bench.findIndex(m=>m.uid===memberUid);
+      if(idx<0)return;
+      const [moved] = bench.splice(idx,1);
+      starters.push(moved);
+    }
+    await setDoc(doc(db,"teams",team.id),{starters,bench},{merge:true});
+    setActiveTeam(prev=>prev?{...prev,starters,bench}:prev);
+  }
   async function respondTeamInvite(invite,accept) {
     await setDoc(doc(db,"team_invites",invite.id),{status:accept?"accepted":"declined"},{merge:true});
-    if(accept){const tsnap=await getDoc(doc(db,"teams",invite.teamId));if(tsnap.exists()){const t=tsnap.data();await setDoc(doc(db,"teams",invite.teamId),{members:[...(t.members||[]),{uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""}],memberUids:[...(t.memberUids||[]),user.uid]},{merge:true});}}
+    if(accept){
+      const tsnap=await getDoc(doc(db,"teams",invite.teamId));
+      if(tsnap.exists()){
+        const t=tsnap.data();
+        const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
+        const starters=t.starters||[];
+        const bench=t.bench||[];
+        // Put in starters if room, else bench
+        if(starters.length<4) starters.push(me);
+        else bench.push(me);
+        await setDoc(doc(db,"teams",invite.teamId),{
+          starters,bench,
+          members:[...(t.members||[]),me],
+          memberUids:[...(t.memberUids||[]),user.uid]
+        },{merge:true});
+      }
+    }
   }
 
   // ── Marketplace ──
@@ -10038,6 +10086,25 @@ function PublicCardDatabase() {
     const id=uid();
     const card=listModal;
     await setDoc(doc(db,"marketplace",id),{id,cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,status:"active",createdAt:new Date().toISOString(),offerCount:0});
+    // Notify users who have this card on their want list
+    try {
+      const wantSnaps = await getDocs(collection(db,"boba_wants"));
+      const notifBatch = [];
+      wantSnaps.forEach(wsnap => {
+        const wantData = wsnap.data();
+        if (wsnap.id !== user.uid && wantData[card.id]) {
+          notifBatch.push(setDoc(doc(db,"market_notifs",uid()), {
+            toUid: wsnap.id, cardId: card.id, cardName: card.hero,
+            cardImage: card.imageUrl||null, listingId: id,
+            sellerName: user.displayName||user.email,
+            askingPrice: parseFloat(listPrice)||0,
+            type: "want_listed", read: false,
+            createdAt: new Date().toISOString()
+          }));
+        }
+      });
+      await Promise.all(notifBatch);
+    } catch(e) { console.error("Want notification error:", e); }
     setListModal(null); setListPrice(""); setListNotes(""); setListType("sale");
   }
   async function removeListing(id) {
@@ -10109,7 +10176,7 @@ function PublicCardDatabase() {
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length;
+  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length;
 
   if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -10355,7 +10422,7 @@ function PublicCardDatabase() {
             {tabBtn("wants","🎯 Wants",Object.keys(wantList).length)}
             {tabBtn("deck","⚔️ Deck Builder",0)}
             {tabBtn("playbook","📖 Playbook",0)}
-            {tabBtn("market","💰 Market",0)}
+            {tabBtn("market","💰 Market",wantNotifs.length)}
             {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
             {user&&tabBtn("team","🏆 Team",0)}
           </div>
@@ -10372,6 +10439,24 @@ function PublicCardDatabase() {
                 <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} offered <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
                 <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
                 <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Want notifications bar ── */}
+      {wantNotifs.length>0&&(
+        <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.05))",borderBottom:"1px solid rgba(232,49,122,0.15)",padding:"10px 24px"}}>
+          <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>🎯 Cards on your want list are now available:</span>
+            {wantNotifs.map(n=>(
+              <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px 12px"}}>
+                {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>{n.cardName}</span>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>by {n.sellerName} · ${(n.askingPrice||0).toFixed(2)}</span>
+                <button onClick={()=>{setActiveTab("market");setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
+                <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>×</button>
               </div>
             ))}
           </div>
@@ -10846,7 +10931,7 @@ function PublicCardDatabase() {
 
         {/* TEAM TAB */}
         {activeTab==="team"&&(
-          <div style={{maxWidth:900,margin:"0 auto"}}>
+          <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
               <div style={{textAlign:"center",padding:80}}>
                 <div style={{fontSize:48,marginBottom:16}}>🏆</div>
@@ -10854,8 +10939,9 @@ function PublicCardDatabase() {
               </div>
             ):(
               <>
-                {teams.length===0&&(
-                  <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                {/* Create team form — only show if no teams */}
+                {teams.filter(t=>t.status!=="deleted").length===0&&(
+                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
                     <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Create Your Team</div>
                     <div style={{display:"flex",gap:8}}>
                       <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
@@ -10864,22 +10950,29 @@ function PublicCardDatabase() {
                   </div>
                 )}
 
-                {teams.length>1&&(
-                  <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-                    {teams.map(t=>(
+                {/* Team selector */}
+                {teams.filter(t=>t.status!=="deleted").length>1&&(
+                  <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+                    {teams.filter(t=>t.status!=="deleted").map(t=>(
                       <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"rgba(168,85,247,0.15)":"rgba(255,255,255,0.02)",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.08)"}`,color:activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.4)",borderRadius:10,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
-                        {t.name} ({t.members?.length||1}/4)
+                        {t.name} ({(t.members||[]).length}/6)
                       </button>
                     ))}
-                    <button onClick={()=>setNewTeamName(" ")} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+                    <button onClick={()=>{setNewTeamName(" ");}} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New Team</button>
                   </div>
                 )}
 
-                {activeTeam&&(()=>{
-                  const team=activeTeam, members=team.members||[], isOwner=team.createdBy===user.uid;
+                {activeTeam&&activeTeam.status!=="deleted"&&(()=>{
+                  const team=activeTeam;
+                  const starters=team.starters||team.members?.slice(0,4)||[];
+                  const bench=team.bench||team.members?.slice(4)||[];
+                  const allMembers=[...starters,...bench];
+                  const isOwner=team.createdBy===user.uid;
+
+                  // Apex conflict detection across all members
                   const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
                   const apexMap={};
-                  members.forEach(m=>{
+                  allMembers.forEach(m=>{
                     const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
                     cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
                       const dk=dupKey2(c);
@@ -10888,57 +10981,133 @@ function PublicCardDatabase() {
                     });
                   });
                   const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
-                  return (
-                    <>
-                      <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
-                          <div>
-                            <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{members.length}/4 members · Apex Madness</div>
+
+                  // Drag state
+                  let dragUid=null;
+
+                  function MemberCard({m, slot, isDraggable}) {
+                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
+                    const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
+                    const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
+                    const isMe=m.uid===user.uid;
+                    const wc_starter="#A855F7", wc_bench="#7B9CFF";
+                    const borderColor=slot==="starter"?wc_starter:wc_bench;
+                    return (
+                      <div
+                        draggable={isDraggable}
+                        onDragStart={e=>{e.dataTransfer.setData("memberUid",m.uid);e.dataTransfer.setData("fromSlot",slot);}}
+                        style={{background:isMe?"rgba(168,85,247,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isMe?`${borderColor}44`:"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14,cursor:isDraggable?"grab":"default",transition:"all 0.2s",userSelect:"none"}}
+                        onMouseEnter={e=>{if(isDraggable)e.currentTarget.style.borderColor=`${borderColor}88`;}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor=isMe?`${borderColor}44`:"rgba(255,255,255,0.06)";}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                          {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👤</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
                           </div>
-                          {members.length<4&&isOwner&&(
-                            <div style={{display:"flex",gap:8}}>
-                              <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Friend's email..." style={{...inp,width:200}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
-                              <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
+                          {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>⠿</span>}
+                        </div>
+                        {apexCards.length>0&&(
+                          <div>
+                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                              {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
+                            </div>
+                          </div>
+                        )}
+                        {/* Move buttons */}
+                        {isOwner&&m.uid!==user.uid&&(
+                          <div style={{display:"flex",gap:6,marginTop:10}}>
+                            {slot==="starter"&&bench.length<2&&(
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_bench")} style={{fontSize:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",color:"#7B9CFF",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>→ Bench</button>
+                            )}
+                            {slot==="bench"&&starters.length<4&&(
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_starter")} style={{fontSize:10,background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.2)",color:"#A855F7",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>→ Starter</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  function DropZone({slot, label, color, members, maxCount}) {
+                    const [over,setOver]=useState(false);
+                    return (
+                      <div
+                        onDragOver={e=>{e.preventDefault();setOver(true);}}
+                        onDragLeave={()=>setOver(false)}
+                        onDrop={e=>{
+                          e.preventDefault(); setOver(false);
+                          const memberUid=e.dataTransfer.getData("memberUid");
+                          const fromSlot=e.dataTransfer.getData("fromSlot");
+                          if(fromSlot===slot)return;
+                          if(slot==="starter"&&members.length>=4)return;
+                          if(slot==="bench"&&members.length>=2)return;
+                          moveTeamMember(team,memberUid,slot==="bench"?"to_bench":"to_starter");
+                        }}
+                        style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontSize:12,fontWeight:800,color,textTransform:"uppercase",letterSpacing:1.5}}>{label}</div>
+                          <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700}}>{members.length}/{maxCount}</span>
+                        </div>
+                        <div style={{
+                          display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,
+                          minHeight:90,borderRadius:14,padding:over?"12px":"0",
+                          border:over?`2px dashed ${color}55`:"2px dashed transparent",
+                          background:over?`${color}08`:"transparent",
+                          transition:"all 0.15s"
+                        }}>
+                          {members.map(m=>(
+                            <MemberCard key={m.uid} m={m} slot={slot} isDraggable={isOwner}/>
+                          ))}
+                          {members.length<maxCount&&(
+                            <div style={{background:"rgba(255,255,255,0.01)",border:`1px dashed ${color}22`,borderRadius:14,minHeight:80,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                              <span style={{fontSize:20,opacity:0.3}}>{slot==="bench"?"🪑":"⭐"}</span>
+                              <span style={{fontSize:10,color:"rgba(255,255,255,0.15)"}}>Empty {slot} slot</span>
                             </div>
                           )}
                         </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div>
+                      {/* Team header */}
+                      <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+                          <div>
+                            <div style={{fontSize:22,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{allMembers.length}/6 members · Apex Madness · Drag players to move between starter/bench</div>
+                          </div>
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {allMembers.length<6&&isOwner&&(
+                              <>
+                                <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Invite by email..." style={{...inp,width:200,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
+                                <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
+                              </>
+                            )}
+                            {isOwner&&(
+                              <button onClick={()=>deleteTeam(team)} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,49,122,0.15)";e.currentTarget.style.color="#E8317A";}}
+                                onMouseLeave={e=>{e.currentTarget.style.background="rgba(232,49,122,0.08)";e.currentTarget.style.color="rgba(232,49,122,0.6)";}}>
+                                🗑 Delete Team
+                              </button>
+                            )}
+                          </div>
+                        </div>
                         {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:12,fontWeight:600}}>{inviteStatus.ok?"✅":"❌"} {inviteStatus.msg}</div>}
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-                          {members.map(m=>{
-                            const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                            const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
-                            const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
-                            return (
-                              <div key={m.uid} style={{background:m.uid===user.uid?"rgba(168,85,247,0.08)":"rgba(255,255,255,0.02)",border:`1px solid ${m.uid===user.uid?"rgba(168,85,247,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14}}>
-                                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                                  {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${m.uid===user.uid?"#A855F7":"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>👤</div>}
-                                  <div>
-                                    <div style={{fontSize:13,fontWeight:700,color:m.uid===user.uid?"#A855F7":"#F0F0F0"}}>{m.displayName}{m.uid===user.uid?" (you)":""}</div>
-                                    <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
-                                  </div>
-                                </div>
-                                {apexCards.length>0&&(
-                                  <div>
-                                    <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:5}}>Apex ({apexCards.length})</div>
-                                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                                      {apexCards.slice(0,6).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:6,padding:"2px 7px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
-                                      {apexCards.length>6&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-6}</span>}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {Array.from({length:4-members.length}).map((_,i)=>(
-                            <div key={i} style={{background:"rgba(255,255,255,0.01)",border:"1px dashed rgba(255,255,255,0.05)",borderRadius:14,padding:14,display:"flex",alignItems:"center",justifyContent:"center",minHeight:90}}>
-                              <span style={{fontSize:12,color:"rgba(255,255,255,0.15)"}}>Empty slot</span>
-                            </div>
-                          ))}
+
+                        {/* Starters + Bench with drag drop */}
+                        <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+                          <DropZone slot="starter" label="⭐ Starters" color="#A855F7" members={starters} maxCount={4}/>
+                          <DropZone slot="bench" label="🪑 Bench" color="#7B9CFF" members={bench} maxCount={2}/>
                         </div>
                       </div>
 
-                      {members.length>1&&(
+                      {/* Apex conflict panel */}
+                      {allMembers.length>1&&(
                         conflicts.length===0?(
                           <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
                             <div style={{fontSize:24,marginBottom:8}}>✅</div>
@@ -10952,12 +11121,12 @@ function PublicCardDatabase() {
                               const wc=WEAPON_COLORS[card.weapon]||"#444";
                               return (
                                 <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                                  <div style={{width:32,height:43,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
-                                    {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc}}>{card.hero?.split(" ")[0]}</div>}
+                                  <div style={{width:36,height:48,borderRadius:6,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
+                                    {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
                                   <div style={{flex:1}}>
-                                    <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}⚡ · {card.treatment}</div>
-                                    <div style={{fontSize:11,color:"#E8317A"}}>Conflict: {mems.join(", ")}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}⚡ · {card.treatment}</div>
+                                    <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
                                 </div>
                               );
@@ -10965,15 +11134,13 @@ function PublicCardDatabase() {
                           </div>
                         )
                       )}
-                    </>
+                    </div>
                   );
                 })()}
               </>
             )}
           </div>
         )}
-
-      </div>
     </div>
   );
 }
