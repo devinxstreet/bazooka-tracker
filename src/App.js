@@ -5876,6 +5876,7 @@ function BobaChecklist({ userRole, user }) {
   const [deckType,       setDeckType]       = useState("none");
   const [deckFilterPower, setDeckFilterPower] = useState("");
   const [dbsImporting,   setDbsImporting]   = useState(false);
+  const [dbsStatus,      setDbsStatus]      = useState(null); // {msg, ok}
   const DBS_CAP = 1000; // none | spec | apex
   // Playbook state
   const [pbCards,        setPbCards]        = useState([]); // {id, type: "play"|"bonus"}
@@ -6283,9 +6284,11 @@ function BobaChecklist({ userRole, user }) {
   async function importDbsCsv(file) {
     if (!file) return;
     setDbsImporting(true);
+    setDbsStatus({ msg:"Reading CSV...", ok:null });
     try {
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l => l.trim());
+      setDbsStatus({ msg:`Parsing ${lines.length-1} rows...`, ok:null });
       const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
       const cardNumIdx = ["card_num","card#","cardnum","card num","card number","number","num","id"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
       const dbsIdx     = ["dbs score","dbs_score","dbs","salary","cap","value","cost"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
@@ -6367,18 +6370,26 @@ function BobaChecklist({ userRole, user }) {
       }
 
       // Write in batches of 400
-      for (let i = 0; i < batch.length; i += 400) {
-        const chunk = batch.slice(i, i + 400);
+      setDbsStatus({ msg:`Writing ${writes.length} cards to Firestore...`, ok:null });
+      for (let i = 0; i < writes.length; i += 400) {
+        const chunk = writes.slice(i, i + 400);
         await Promise.all(chunk.map(({ id, update }) =>
           setDoc(doc(db, "boba_checklist", id), update, { merge: true })
         ));
+        setDbsStatus({ msg:`Writing... ${Math.min(i+400, writes.length)}/${writes.length}`, ok:null });
       }
 
+      // Bust cache and reload cards so DBS shows immediately
       try { localStorage.removeItem("boba_checklist_cache"); } catch(e2) {}
-      alert(`✅ DBS import complete!\nUpdated: ${updated} cards\nSkipped: ${skipped} (no match found)`);
+      const freshSnap = await getDocs(collection(db, "boba_checklist"));
+      const freshCards = freshSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
+      setCards(freshCards);
+      try { localStorage.setItem("boba_checklist_cache", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
+      setDbsStatus({ msg:`✅ Done! Updated ${updated} cards, skipped ${skipped}.`, ok:true });
+      setTimeout(() => setDbsStatus(null), 5000);
     } catch(e) {
       console.error(e);
-      alert("Error importing DBS CSV: " + e.message);
+      setDbsStatus({ msg:"❌ Error: " + e.message, ok:false });
     }
     setDbsImporting(false);
   }
@@ -6547,6 +6558,11 @@ function BobaChecklist({ userRole, user }) {
                 {dbsImporting?"Importing...":"💰 Import DBS"}
                 <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
               </label>
+            )}
+            {dbsStatus && (
+              <span style={{ fontSize:11, fontWeight:700, color:dbsStatus.ok===true?"#4ade80":dbsStatus.ok===false?"#E8317A":"#A855F7", background:dbsStatus.ok===true?"#0a1a0a":dbsStatus.ok===false?"#1a0a0a":"#1a0f1a", border:`1px solid ${dbsStatus.ok===true?"#4ade8044":dbsStatus.ok===false?"#E8317A44":"#A855F744"}`, borderRadius:7, padding:"4px 10px", whiteSpace:"nowrap" }}>
+                {dbsStatus.msg}
+              </span>
             )}
             {isAdmin && totalOwned === 0 && (
               <button onClick={async()=>{
@@ -7676,7 +7692,7 @@ function BobaChecklist({ userRole, user }) {
                   {/* DBS cap */}
                   <div style={{ background: dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
-                      <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>💰 DBS Salary Cap</span>
+                      <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>💰 DBS</span>
                       <span style={{ fontSize:11, fontWeight:700, color: dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>
                         {Math.round(totalDbs)} / {DBS_CAP}
                       </span>
