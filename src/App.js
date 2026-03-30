@@ -6702,6 +6702,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const [imports,      setImports]      = useState([]); // list of {id, setName, filename, importedAt, cardIds}
   const [owned,        setOwned]        = useState({});
   const [loading,      setLoading]      = useState(true);
+  const [setsCollapsed, setSetsCollapsed] = useState(false);
   const [importing,    setImporting]    = useState(false);
   const [importProgress, setImportProgress] = useState("");
   const [pendingFile,  setPendingFile]  = useState(null); // file waiting for set name
@@ -7860,8 +7861,14 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             )}
           </div>
         </div>
-        {/* Row 2: per-set progress bars — compact */}
+        {/* Row 2: per-set progress bars — collapsible */}
         {imports.length > 0 && (
+          <div>
+            <button onClick={()=>setSetsCollapsed(p=>!p)}
+              style={{ background:"none", border:"none", color:"#333", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", padding:"4px 0", display:"flex", alignItems:"center", gap:4 }}>
+              {setsCollapsed ? "▶ Show sets" : "▼ Hide sets"}
+            </button>
+            {!setsCollapsed && (
           <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
             {imports.map(imp => {
               const setCards = cards.filter(c => c.setName === imp.setName);
@@ -7886,6 +7893,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 </div>
               );
             })}
+          </div>
+            )}
           </div>
         )}
       </div>
@@ -9406,6 +9415,221 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 }
 
 
+// ─── PUBLIC CARD DATABASE ────────────────────────────────────
+function PublicCardDatabase() {
+  const [cards,       setCards]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [filterSet,   setFilterSet]   = useState("");
+  const [filterWeapon,setFilterWeapon]= useState("");
+  const [filterTreat, setFilterTreat] = useState("");
+  const [sortCol,     setSortCol]     = useState("cardNum");
+  const [sortDir,     setSortDir]     = useState("asc");
+  const [page,        setPage]        = useState(1);
+  const PAGE = 100;
+
+  useEffect(() => {
+    getDocs(collection(db, "boba_checklist")).then(snap => {
+      setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+  }, []);
+
+  const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#9CA3AF", Brawl:"#EF4444",
+    Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
+
+  const sets      = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const weapons   = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
+  const treatments= [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+
+  const filtered = cards.filter(c => {
+    if (filterSet    && c.setName   !== filterSet)    return false;
+    if (filterWeapon && c.weapon    !== filterWeapon)  return false;
+    if (filterTreat  && c.treatment !== filterTreat)   return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return [c.hero, c.cardNum, c.athlete, c.weapon, c.treatment, c.setName]
+        .some(v => v?.toLowerCase().includes(q));
+    }
+    return true;
+  }).sort((a, b) => {
+    let av = a[sortCol] || "", bv = b[sortCol] || "";
+    if (sortCol === "power") { av = parseFloat(av)||0; bv = parseFloat(bv)||0; }
+    const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const paginated = filtered.slice((page-1)*PAGE, page*PAGE);
+  const totalPages = Math.ceil(filtered.length / PAGE);
+
+  function SortHeader({ col, label, width }) {
+    const active = sortCol === col;
+    return (
+      <th onClick={() => { if (active) setSortDir(d=>d==="asc"?"desc":"asc"); else { setSortCol(col); setSortDir("asc"); }}}
+        style={{ padding:"10px 12px", textAlign:"left", fontSize:11, fontWeight:700, color:active?"#E8317A":"#555",
+          textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid #1a1a1a", cursor:"pointer",
+          whiteSpace:"nowrap", width, userSelect:"none" }}>
+        {label} {active ? (sortDir==="asc"?"↑":"↓") : ""}
+      </th>
+    );
+  }
+
+  const inp = { background:"#111", border:"1px solid #1a1a1a", borderRadius:8, color:"#F0F0F0",
+    padding:"8px 12px", fontSize:13, fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", outline:"none", width:"100%" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+
+      {/* Hero header */}
+      <div style={{ background:"linear-gradient(180deg,#0a0a0a 0%,#000 100%)", borderBottom:"1px solid #1a1a1a", padding:"40px 24px 28px" }}>
+        <div style={{ maxWidth:1200, margin:"0 auto" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
+            <span style={{ fontSize:11, fontWeight:700, color:"#E8317A", letterSpacing:3, textTransform:"uppercase" }}>Bazooka Breaks</span>
+          </div>
+          <h1 style={{ fontSize:"clamp(24px,5vw,48px)", fontWeight:900, color:"#F0F0F0", margin:"0 0 8px",
+            textTransform:"uppercase", letterSpacing:2, lineHeight:1.1 }}>
+            Bo Jackson Battle Arena
+          </h1>
+          <h2 style={{ fontSize:"clamp(14px,2.5vw,20px)", fontWeight:400, color:"#E8317A", margin:"0 0 20px", letterSpacing:4, textTransform:"uppercase" }}>
+            Collector's Database
+          </h2>
+          <p style={{ fontSize:13, color:"#555", margin:0 }}>
+            {loading ? "Loading..." : `${cards.length.toLocaleString()} cards across ${sets.length} sets`}
+          </p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", padding:"16px 24px", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}
+            placeholder="Search card #, hero, athlete..." style={{ ...inp, flex:2, minWidth:200 }}/>
+          <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:160, cursor:"pointer" }}>
+            <option value="">All Sets</option>
+            {sets.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:160, cursor:"pointer" }}>
+            <option value="">All Treatments</option>
+            {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{ ...inp, width:130, cursor:"pointer" }}>
+            <option value="">All Weapons</option>
+            {weapons.map(w=><option key={w} value={w}>{w}</option>)}
+          </select>
+          {(search||filterSet||filterTreat||filterWeapon) && (
+            <button onClick={()=>{setSearch("");setFilterSet("");setFilterTreat("");setFilterWeapon("");setPage(1);}}
+              style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              Clear
+            </button>
+          )}
+          <span style={{ fontSize:12, color:"#333", whiteSpace:"nowrap" }}>
+            {filtered.length.toLocaleString()} result{filtered.length!==1?"s":""}
+          </span>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{ maxWidth:1200, margin:"0 auto", padding:"0 24px 40px" }}>
+        {loading ? (
+          <div style={{ textAlign:"center", padding:80, color:"#333" }}>Loading cards...</div>
+        ) : (
+          <>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                  <tr style={{ background:"#0a0a0a" }}>
+                    <SortHeader col="cardNum"   label="Card #"    width={80}/>
+                    <SortHeader col="hero"      label="Hero"      width={180}/>
+                    <th style={{ padding:"10px 12px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid #1a1a1a", width:32 }}></th>
+                    <SortHeader col="treatment" label="Treatment" width={180}/>
+                    <SortHeader col="weapon"    label="Weapon"    width={100}/>
+                    <SortHeader col="power"     label="PWR"       width={70}/>
+                    <SortHeader col="athlete"   label="Athlete"   width={180}/>
+                    <SortHeader col="setName"   label="Set"       width={200}/>
+                    <SortHeader col="notation"  label="Notation"  width={100}/>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.length === 0 ? (
+                    <tr><td colSpan={9} style={{ padding:48, textAlign:"center", color:"#333", fontSize:14 }}>
+                      No cards match your filters
+                    </td></tr>
+                  ) : paginated.map((c, i) => {
+                    const wc = WEAPON_COLORS[c.weapon] || "#555";
+                    const sport = athleteSport(c.athlete);
+                    return (
+                      <tr key={c.id} style={{ background:i%2===0?"#000":"#080808", borderBottom:"1px solid #0d0d0d" }}
+                        className="inv-row">
+                        <td style={{ padding:"10px 12px", fontSize:12, color:"#555", fontFamily:"monospace" }}>
+                          {c.cardNum}
+                        </td>
+                        <td style={{ padding:"10px 12px" }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
+                          {c.variation && <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{c.variation}</div>}
+                        </td>
+                        <td style={{ padding:"10px 4px" }}>
+                          {c.imageUrl && (
+                            <img src={c.imageUrl} alt={c.hero}
+                              style={{ width:24, height:32, objectFit:"cover", borderRadius:3, display:"block" }}/>
+                          )}
+                        </td>
+                        <td style={{ padding:"10px 12px", fontSize:12, color:"#888" }}>{c.treatment||"—"}</td>
+                        <td style={{ padding:"10px 12px" }}>
+                          {c.weapon && (
+                            <span style={{ fontSize:11, fontWeight:700, color:wc, background:wc+"18",
+                              border:`1px solid ${wc}44`, borderRadius:5, padding:"2px 8px" }}>
+                              {c.weapon}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding:"10px 12px", fontSize:14, fontWeight:900, color:wc }}>{c.power||"—"}</td>
+                        <td style={{ padding:"10px 12px" }}>
+                          {c.athlete && (
+                            <>
+                              <div style={{ fontSize:12, color:"#888" }}>{c.athlete}</div>
+                              {sport && <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{sport}</div>}
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding:"10px 12px", fontSize:11, color:"#444", fontStyle:"italic" }}>{c.setName||"—"}</td>
+                        <td style={{ padding:"10px 12px", fontSize:11, color:"#333" }}>{c.notation||"—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"24px 0" }}>
+                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
+                  style={{ background:"#111", border:"1px solid #1a1a1a", color:page===1?"#333":"#888", borderRadius:7,
+                    padding:"6px 16px", fontSize:12, cursor:page===1?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
+                <span style={{ fontSize:12, color:"#555" }}>Page {page} of {totalPages} · {filtered.length.toLocaleString()} cards</span>
+                <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
+                  style={{ background:"#111", border:"1px solid #1a1a1a", color:page===totalPages?"#333":"#888", borderRadius:7,
+                    padding:"6px 16px", fontSize:12, cursor:page===totalPages?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ borderTop:"1px solid #1a1a1a", padding:"20px 24px", textAlign:"center" }}>
+        <span style={{ fontSize:11, color:"#333" }}>
+          Powered by{" "}
+          <a href="https://bazookadash.com" style={{ color:"#E8317A", textDecoration:"none", fontWeight:700 }}>
+            Bazooka Breaks
+          </a>
+          {" "}· Bo Jackson Battle Arena is a trademark of BJBA Inc.
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,       setTab]       = useState("dashboard");
   const [gSearch,   setGSearch]   = useState("");
@@ -9868,6 +10092,8 @@ export default function App() {
   // ── PUBLIC QUOTE ROUTE (no login required) ──
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
+
+  if (window.location.pathname === "/cards") return <PublicCardDatabase />;
 
   if (window.location.pathname === "/showcase") {
     const params = new URLSearchParams(window.location.search);
