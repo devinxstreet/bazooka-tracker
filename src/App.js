@@ -6830,15 +6830,27 @@ function BobaChecklist({ userRole, user }) {
       setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
 
       try {
-        // Convert image to base64
+        // Resize image to max 1200px before sending — keeps quality but avoids 15MB limit
         const base64 = await new Promise((res, rej) => {
-          const reader = new FileReader();
-          reader.onload = () => res(reader.result.split(",")[1]);
-          reader.onerror = rej;
-          reader.readAsDataURL(file);
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            const MAX = 1200;
+            const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width  = Math.round(img.width  * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext("2d");
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+          };
+          img.onerror = rej;
+          img.src = url;
         });
 
-        const mediaType = file.type || "image/webp";
+        const mediaType = "image/jpeg"; // resized to JPEG in browser
 
         // Send to Claude Vision via scan-card API
         const resp = await fetch("/api/scan-card", {
@@ -6920,17 +6932,28 @@ function BobaChecklist({ userRole, user }) {
   async function scanCardPhoto(file) {
     setPhotoScan({ status:"scanning", card:null });
     try {
+      // Resize to max 1200px for fast API response
       const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result.split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const MAX = 1200;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          res(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
+        };
+        img.onerror = rej;
+        img.src = url;
       });
 
       const resp = await fetch("/api/scan-card", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ imageBase64: base64, mediaType: file.type||"image/jpeg" }),
+        body: JSON.stringify({ imageBase64: base64, mediaType: "image/jpeg" }),
       });
       const data = await resp.json();
       if (!data.cardNum && !data.hero) {
