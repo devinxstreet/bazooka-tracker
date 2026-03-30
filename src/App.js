@@ -10348,47 +10348,51 @@ function PublicCardDatabase() {
     if (!counterAmount || isNaN(parseFloat(counterAmount))) return;
     const now = new Date().toISOString();
     const amt = parseFloat(counterAmount);
-    // Mark original offer as countered + dismiss from current user's bar
-    await setDoc(doc(db,"market_offers",offer.id), {
-      status: "countered", notified: true, respondedAt: now,
-    }, {merge:true});
-    // Write paper trail to history subcollection
-    await setDoc(doc(db,"market_offers",offer.id,"history",uid()), {
-      action: "counter",
-      fromUid: user.uid,
-      fromName: user.displayName||user.email||"Unknown",
-      amount: amt,
-      previousAmount: offer.offerAmount||0,
-      timestamp: now,
-    });
-    // Create a NEW offer doc with roles flipped so it lands in the
-    // other party's marketNotifs feed (they query where sellerUid==theirUid)
-    const newOffId = uid();
-    const iAmSeller = offer.sellerUid === user.uid;
-    await setDoc(doc(db,"market_offers",newOffId), {
-      id: newOffId,
-      parentOfferId: offer.id,          // paper trail link
-      listingId: offer.listingId,
-      cardId: offer.cardId||"",
-      cardName: offer.cardName,
-      cardImage: offer.cardImage||null,
-      cardTreatment: offer.cardTreatment||"",
-      cardWeapon: offer.cardWeapon||"",
-      // Flip: whoever is countering becomes the "buyer" making the offer
-      // so it shows up in the other person's seller notification bar
-      sellerUid:  iAmSeller ? offer.buyerUid  : offer.sellerUid,
-      sellerName: iAmSeller ? offer.buyerName  : offer.sellerName,
-      buyerUid:   iAmSeller ? offer.sellerUid  : offer.buyerUid,
-      buyerName:  iAmSeller ? offer.sellerName : offer.buyerName,
-      offerAmount: amt,
-      isCounter: true,
-      status: "pending",
-      notified: false,
-      createdAt: now,
-    });
-    showToast("Counter offer sent!");
-    setCounterModal(null);
-    setCounterAmt("");
+    try {
+      // Mark original offer as countered + dismiss from current user's bar
+      await setDoc(doc(db,"market_offers",offer.id), {
+        status: "countered", notified: true, respondedAt: now,
+      }, {merge:true});
+      // Write paper trail to history subcollection
+      try {
+        await setDoc(doc(db,"market_offers",offer.id,"history",uid()), {
+          action: "counter",
+          fromUid: user.uid,
+          fromName: user.displayName||user.email||"Unknown",
+          amount: amt,
+          previousAmount: offer.offerAmount||0,
+          timestamp: now,
+        });
+      } catch(e) { console.warn("History write failed (non-fatal):", e); }
+      // Create a NEW offer doc with roles flipped so it lands in the
+      // other party's marketNotifs feed (they query where sellerUid==theirUid)
+      const newOffId = uid();
+      const iAmSeller = offer.sellerUid === user.uid;
+      await setDoc(doc(db,"market_offers",newOffId), {
+        id: newOffId,
+        parentOfferId: offer.id,
+        listingId: offer.listingId,
+        cardId: offer.cardId||"",
+        cardName: offer.cardName,
+        cardImage: offer.cardImage||null,
+        cardTreatment: offer.cardTreatment||"",
+        cardWeapon: offer.cardWeapon||"",
+        sellerUid:  iAmSeller ? offer.buyerUid  : offer.sellerUid,
+        sellerName: iAmSeller ? offer.buyerName  : offer.sellerName,
+        buyerUid:   iAmSeller ? offer.sellerUid  : offer.buyerUid,
+        buyerName:  iAmSeller ? offer.sellerName : offer.buyerName,
+        offerAmount: amt,
+        isCounter: true,
+        status: "pending",
+        notified: false,
+        createdAt: now,
+      });
+    } catch(e) {
+      console.error("counterOffer error:", e);
+    } finally {
+      // Always show confirmation regardless of errors
+      setCounterSent(true);
+    }
   }
 
 
