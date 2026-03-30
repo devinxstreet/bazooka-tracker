@@ -10458,13 +10458,7 @@ function PublicCardDatabase() {
       setPaymentPopup({cardName:listing.cardName,price:listing.askingPrice,paymentInfo:listing.paymentInfo,sellerName:listing.sellerName});
     }
   }
-    } catch(e){
-      console.error("buyNow error:",e);
-      showToast("Something went wrong. Please try again.");
-    }
-  }
 
-  }
 
   async function logNegotiationHistory(offer, action, amount) {
     try {
