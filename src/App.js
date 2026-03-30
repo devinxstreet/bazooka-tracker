@@ -7150,6 +7150,16 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
   const [scanSession,  setScanSession]  = useState([]);    // [{card, qty, addedAt}]
   const [scanQty,      setScanQty]      = useState(1);     // qty selector for pending match
   const scanInputRef = useRef(null);
+  const treatmentVisuals = useRef({}); // { treatmentName: ["hint1","hint2",...] }
+
+  // Load treatment visual fingerprints once
+  useEffect(() => {
+    getDocs(collection(db,"treatment_visuals")).then(snap => {
+      const map = {};
+      snap.forEach(d => { map[d.id] = d.data().hints || []; });
+      treatmentVisuals.current = map;
+    }).catch(()=>{});
+  }, []);
 
   async function scanCardPhoto(file) {
     setPhotoScan({ status:"scanning", card:null });
@@ -7200,6 +7210,22 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
         return aF === bF && aF.length > 2;
       }
 
+      // Visual tiebreaker — score how well a treatment's fingerprint matches detected hints
+      function visualScore(treatment, detectedHints) {
+        if (!detectedHints || !treatment) return 0;
+        const fingerprints = treatmentVisuals.current[treatment] || [];
+        if (fingerprints.length === 0) return 0;
+        const detected = detectedHints.toLowerCase().split(/[\s,]+/).filter(w => w.length > 3);
+        let score = 0;
+        fingerprints.forEach(hint => {
+          const words = hint.toLowerCase().split(/[\s,]+/).filter(w => w.length > 3);
+          words.forEach(w => { if (detected.includes(w)) score++; });
+        });
+        return score / Math.max(detected.length, 1);
+      }
+
+      const visualHints = data.visualHints || null;
+
       let match = null;
       // 1. Card number + hero + weapon (all three agree — most reliable)
       if (identifiedNum && heroName) {
@@ -7221,10 +7247,29 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
           c.weapon?.toLowerCase()===weapon
         );
       }
-      // 4. Hero + weapon — prefer exact hero name match
+      // 4. Hero + weapon — use visual score to break ties between treatments
       if (!match && heroName && weapon) {
         const cands = cards.filter(c => heroMatch(c.hero, heroName) && c.weapon?.toLowerCase()===weapon);
-        match = cands.find(c => c.hero.toLowerCase()===heroName) || (cands.length===1 ? cands[0] : null);
+        if (cands.length === 1) {
+          match = cands[0];
+        } else if (cands.length > 1) {
+          // Try exact hero name first
+          const exact = cands.find(c => c.hero.toLowerCase()===heroName);
+          if (exact) {
+            match = exact;
+          } else if (visualHints) {
+            // Score each candidate's treatment against visual hints
+            const scored = cands.map(c => ({
+              card: c,
+              score: visualScore(c.treatment, visualHints)
+            })).sort((a,b) => b.score - a.score);
+            // Only pick visually if there's a clear winner (score > 0)
+            if (scored[0].score > 0 && scored[0].score > scored[1]?.score) {
+              match = scored[0].card;
+            }
+            // Otherwise leave as null — show no-match so user retakes
+          }
+        }
       }
       // 5. Card number alone — only if hero also matches loosely (prevent wrong-number matches)
       if (!match && identifiedNum) {
@@ -7272,9 +7317,26 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
     setOwned(next);
     await setDoc(doc(db,"boba_owned",ownedDocId), next);
     setScanSession(prev => [{ card:match, qty:q, addedAt:new Date().toISOString() }, ...prev]);
+
+    // Save visual fingerprint for this treatment — builds accuracy over time
+    const hints = photoScan.detected?.visualHints;
+    if (hints && match.treatment) {
+      const treatKey = match.treatment;
+      const existing = treatmentVisuals.current[treatKey] || [];
+      // Add new hints, keep last 20 confirmed scans per treatment
+      const updated = [...existing, hints].slice(-20);
+      treatmentVisuals.current[treatKey] = updated;
+      // Save to Firestore in background
+      setDoc(doc(db,"treatment_visuals",treatKey), {
+        hints: updated,
+        treatment: treatKey,
+        updatedAt: new Date().toISOString(),
+        sampleCount: updated.length,
+      }, { merge: true }).catch(()=>{});
+    }
+
     setPhotoScan(null);
     setScanQty(1);
-    // Re-open camera for next scan
     setTimeout(() => { if (scanInputRef.current) scanInputRef.current.click(); }, 300);
   }
 
@@ -7969,7 +8031,8 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
                         {/* Debug: show what Vision actually detected */}
                         {photoScan.detected && (
                           <div style={{ fontSize:10, color:"#333", marginTop:6, borderTop:"1px solid #1a1a1a", paddingTop:4 }}>
-                            Vision read: #{photoScan.detected.cardNum||"?"} · {photoScan.detected.hero||"?"} · {photoScan.detected.weapon||"?"}
+                            <div>Vision read: #{photoScan.detected.cardNum||"?"} · {photoScan.detected.hero||"?"} · {photoScan.detected.weapon||"?"}</div>
+                            {photoScan.detected.visualHints && <div style={{ color:"#2a2a2a", marginTop:2 }}>Visual: {photoScan.detected.visualHints}</div>}
                           </div>
                         )}
                       </div>
