@@ -5943,11 +5943,22 @@ function PublicDeckBuilder() {
   const deckSet = new Set(deckCards);
   const inDeck  = cards.filter(c => deckSet.has(c.id));
   const empty   = PUBLIC_DECK_SIZE - inDeck.length;
-  const isSpec  = deckType==="spec", isApex = deckType==="apex", hasRules = isSpec||isApex;
+  const isSpec        = deckType==="spec";
+  const isApex        = deckType==="apex";
+  const isApexMadness = deckType==="apexmadness";
+  const hasRules = isSpec||isApex||isApexMadness;
   const dupKey  = c => `${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {};
   inDeck.forEach(c => { const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1; });
+  const treatCountCore = {}, treatCountApex = {};
+  if (isApexMadness) {
+    inDeck.forEach(c => {
+      const t=(c.treatment||"Unknown").toLowerCase(), p=parseFloat(c.power||0);
+      if (p>=115&&p<=160) treatCountCore[t]=(treatCountCore[t]||0)+1;
+      if (p>160)          treatCountApex[t]=(treatCountApex[t]||0)+1;
+    });
+  }
   const totalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
   const weaponBreak = {}, heroCover = new Set();
   inDeck.forEach(c=>{ const w=c.weapon||"Unknown"; weaponBreak[w]=(weaponBreak[w]||0)+1; if(c.hero) heroCover.add(c.hero); });
@@ -5956,9 +5967,16 @@ function PublicDeckBuilder() {
   function canAdd(c) {
     if (deckSet.has(c.id)) return { ok:false, reason:"Already in deck" };
     if (inDeck.length >= PUBLIC_DECK_SIZE) return { ok:false, reason:"Deck full" };
-    if (isSpec && parseFloat(c.power||0)>160) return { ok:false, reason:`Power ${c.power} exceeds 160` };
     if (hasRules && inDeckDupKeys.has(dupKey(c))) return { ok:false, reason:"Duplicate card" };
     if (hasRules && (powerCount[c.power||"0"]||0)>=6) return { ok:false, reason:`6 cards already at power ${c.power}` };
+    const p = parseFloat(c.power||0);
+    if (isSpec && p>160) return { ok:false, reason:`Power ${c.power} exceeds 160` };
+    if (isApexMadness && p>160) {
+      const t=(c.treatment||"Unknown").toLowerCase();
+      const core=treatCountCore[t]||0;
+      if (core<10) return { ok:false, reason:`Need 10 core ${c.treatment} cards first (have ${core}/10)` };
+      if ((treatCountApex[t]||0)>=1) return { ok:false, reason:`Already have 1 unlocked ${c.treatment} apex card` };
+    }
     return { ok:true };
   }
 
@@ -5989,6 +6007,7 @@ function PublicDeckBuilder() {
             <option value="none">No Restrictions</option>
             <option value="spec">Spec Deck (≤160 power)</option>
             <option value="apex">Apex Deck</option>
+            <option value="apexmadness">Apex Madness</option>
           </select>
           <span style={{ fontSize:12, color:empty===0?"#4ade80":"#FBBF24", fontWeight:700 }}>{inDeck.length}/{PUBLIC_DECK_SIZE} cards</span>
           <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save decks</span>
@@ -6041,6 +6060,25 @@ function PublicDeckBuilder() {
                 ))}
               </div>
               {weaponEntries.length > 0 && <div>{weaponEntries.map(([w,cnt])=>{ const wc=PUBLIC_WEAPON_COLORS[w]||"#444"; const pct=Math.round(cnt/inDeck.length*100); return (<div key={w} style={{ marginBottom:5 }}><div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}><span style={{ fontSize:11, color:wc, fontWeight:700 }}>{w}</span><span style={{ fontSize:11, color:"#555" }}>{cnt} ({pct}%)</span></div><div style={{ height:4, background:"#1a1a1a", borderRadius:2 }}><div style={{ width:`${pct}%`, height:"100%", background:wc, borderRadius:2 }}/></div></div>); })}</div>}
+              {isApexMadness && inDeck.length > 0 && (
+                <div style={{ marginTop:12 }}>
+                  <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Treatment Unlocks</div>
+                  {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t => {
+                    const tl=t.toLowerCase(), core=treatCountCore[tl]||0, apex=treatCountApex[tl]||0, unlocked=core>=10;
+                    return (
+                      <div key={t} style={{ marginBottom:6 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+                          <span style={{ fontSize:11, color:unlocked?"#A855F7":"#888", fontWeight:unlocked?700:400 }}>{unlocked?"🔓":"🔒"} {t}</span>
+                          <span style={{ fontSize:11, color:unlocked?"#A855F7":"#555" }}>{core}/10{unlocked?` · ${apex}/1 apex`:""}</span>
+                        </div>
+                        <div style={{ height:3, background:"#1a1a1a", borderRadius:2 }}>
+                          <div style={{ width:`${Math.min(100,core/10*100)}%`, height:"100%", background:unlocked?"#A855F7":"#333", borderRadius:2 }}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div style={{ ...S.card }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -8813,9 +8851,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const empty    = DECK_SIZE - inDeck.length;
 
         // ── Deck rules ──
-        const isSpec = deckType === "spec";
-        const isApex = deckType === "apex";
-        const hasRules = isSpec || isApex;
+        const isSpec        = deckType === "spec";
+        const isApex        = deckType === "apex";
+        const isApexMadness = deckType === "apexmadness";
+        const hasRules      = isSpec || isApex || isApexMadness;
 
         // Duplicate check: same hero + variation + power + weapon = duplicate
         const dupKey = c => `${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
@@ -8825,9 +8864,29 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const powerCount = {};
         inDeck.forEach(c => { const p = c.power||"0"; powerCount[p] = (powerCount[p]||0)+1; });
 
+        // Treatment count: how many 115-160 cards per treatment (for Apex Madness unlock)
+        const treatCountCore = {};   // treatment → count of 115-160 cards in deck
+        const treatCountApex = {};   // treatment → count of >160 cards in deck
+        if (isApexMadness) {
+          inDeck.forEach(c => {
+            const t = (c.treatment||"Unknown").toLowerCase();
+            const p = parseFloat(c.power||0);
+            if (p >= 115 && p <= 160) treatCountCore[t] = (treatCountCore[t]||0) + 1;
+            if (p > 160)              treatCountApex[t]  = (treatCountApex[t]||0)  + 1;
+          });
+        }
+
         // Validation errors for cards already in deck
         const deckViolations = hasRules ? inDeck.filter(c => {
-          if (isSpec && parseFloat(c.power||0) > 160) return true;
+          if ((isSpec || isApexMadness) && parseFloat(c.power||0) > 160) {
+            // Apex Madness: >160 allowed only if treatment has 10 core cards
+            if (isApexMadness) {
+              const t = (c.treatment||"Unknown").toLowerCase();
+              if ((treatCountCore[t]||0) < 10) return true;
+            } else {
+              return true;
+            }
+          }
           if ((powerCount[c.power||"0"]||0) > 6) return true;
           return false;
         }) : [];
@@ -8836,9 +8895,17 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         function canAdd(c) {
           if (deckSet.has(c.id)) return { ok:false, reason:"Already in deck" };
           if (inDeck.length >= DECK_SIZE) return { ok:false, reason:"Deck full" };
-          if (isSpec && parseFloat(c.power||0) > 160) return { ok:false, reason:`Power ${c.power} exceeds 160 limit` };
           if (hasRules && inDeckDupKeys.has(dupKey(c))) return { ok:false, reason:"Duplicate (same hero, pose, power & weapon)" };
           if (hasRules && (powerCount[c.power||"0"]||0) >= 6) return { ok:false, reason:`Already 6 cards at power ${c.power}` };
+          const p = parseFloat(c.power||0);
+          if (isSpec && p > 160) return { ok:false, reason:`Power ${c.power} exceeds 160 limit` };
+          if (isApexMadness && p > 160) {
+            const t = (c.treatment||"Unknown").toLowerCase();
+            const coreCount = (treatCountCore[t]||0);
+            if (coreCount < 10) return { ok:false, reason:`Need 10 core ${c.treatment} cards first (have ${coreCount}/10)` };
+            const apexCount = (treatCountApex[t]||0);
+            if (apexCount >= 1) return { ok:false, reason:`Already have 1 unlocked ${c.treatment} apex card` };
+          }
           return { ok:true };
         }
 
@@ -8883,10 +8950,11 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   placeholder="Deck name..."/>
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)}
                   style={{ ...S.inp, width:"auto", fontWeight:700, cursor:"pointer",
-                    color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7":"#888" }}>
+                    color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7": deckType==="apexmadness"?"#E8317A":"#888" }}>
                   <option value="none">No Restrictions</option>
                   <option value="spec">Spec Deck (≤160 power)</option>
                   <option value="apex">Apex Deck (no power limit)</option>
+                  <option value="apexmadness">Apex Madness</option>
                 </select>
                 <span style={{ fontSize:12, color: inDeck.length===DECK_SIZE?"#4ade80":inDeck.length>DECK_SIZE?"#E8317A":"#FBBF24", fontWeight:700 }}>
                   {inDeck.length}/{DECK_SIZE} cards
@@ -8997,8 +9065,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
                   <div style={{ ...S.card }}>
                   <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Deck Stats
-                    {deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":"#A855F7", fontWeight:700 }}>
-                      {deckType==="spec"?"SPEC":"APEX"}
+                    {deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":"#A855F7", fontWeight:700 }}>
+                      {deckType==="spec"?"SPEC":deckType==="apexmadness"?"APEX MADNESS":"APEX"}
                     </span>}
                   </div>
                   {/* Rule violations */}
@@ -9014,21 +9082,65 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {/* Rules summary */}
                   {hasRules && (
                     <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:10, fontSize:10, color:"#555", lineHeight:1.8 }}>
-                      {isSpec && <div style={{ color:"#FBBF24" }}>⚡ Max power: 160</div>}
+                      {isSpec        && <div style={{ color:"#FBBF24" }}>⚡ Max power: 160</div>}
+                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ Core deck: 115–160 power only</div>}
+                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ 10 core cards per treatment unlocks 1 apex card (&gt;160) of that treatment</div>}
                       <div>⚡ No duplicates (same hero + pose + power + weapon)</div>
                       <div>⚡ Max 6 cards per power level</div>
+                    </div>
+                  )}
+
+                  {/* Apex Madness treatment unlock tracker */}
+                  {isApexMadness && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Treatment Unlocks</div>
+                      {(() => {
+                        const allTreats = [...new Set(inDeck.map(c=>(c.treatment||"Unknown")))].sort();
+                        if (allTreats.length === 0) return <div style={{ fontSize:11, color:"#333" }}>Add cards to see unlock progress</div>;
+                        return allTreats.map(t => {
+                          const tl = t.toLowerCase();
+                          const core  = treatCountCore[tl] || 0;
+                          const apex  = treatCountApex[tl]  || 0;
+                          const unlocked = core >= 10;
+                          const pct = Math.min(100, Math.round(core / 10 * 100));
+                          return (
+                            <div key={t} style={{ marginBottom:8 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                                <span style={{ fontSize:11, color: unlocked ? "#A855F7" : "#888", fontWeight: unlocked ? 700 : 400 }}>
+                                  {unlocked ? "🔓" : "🔒"} {t}
+                                </span>
+                                <span style={{ fontSize:11, color: unlocked ? "#A855F7" : "#555" }}>
+                                  {core}/10 core{unlocked ? ` · ${apex}/1 apex` : ""}
+                                </span>
+                              </div>
+                              <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                                <div style={{ width:`${pct}%`, height:"100%", background: unlocked ? "#A855F7" : "#333", borderRadius:2, transition:"width 0.3s" }}/>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                      <div style={{ fontSize:10, color:"#333", marginTop:6 }}>
+                        {Object.values(treatCountCore).filter(v=>v>=10).length} of {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].length} treatments unlocked
+                      </div>
                     </div>
                   )}
                   {/* Power level breakdown */}
                   {hasRules && Object.keys(powerCount).length > 0 && (
                     <div style={{ marginBottom:10 }}>
                       <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Power Level Counts</div>
-                      {Object.entries(powerCount).sort((a,b)=>parseFloat(b[0])-parseFloat(a[0])).map(([pwr,cnt])=>(
-                        <div key={pwr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:2 }}>
-                          <span style={{ color: isSpec && parseFloat(pwr)>160 ? "#E8317A" : "#888" }}>Power {pwr}</span>
-                          <span style={{ fontWeight:700, color: cnt>=6?"#E8317A":cnt>=4?"#FBBF24":"#4ade80" }}>{cnt}/6</span>
-                        </div>
-                      ))}
+                      {Object.entries(powerCount).sort((a,b)=>parseFloat(b[0])-parseFloat(a[0])).map(([pwr,cnt])=>{
+                        const over160 = parseFloat(pwr) > 160;
+                        const bad = isSpec && over160;
+                        return (
+                          <div key={pwr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:2 }}>
+                            <span style={{ color: bad ? "#E8317A" : over160 && isApexMadness ? "#A855F7" : "#888" }}>
+                              Power {pwr}{over160 && isApexMadness ? " 🔓" : ""}
+                            </span>
+                            <span style={{ fontWeight:700, color: cnt>=6?"#E8317A":cnt>=4?"#FBBF24":"#4ade80" }}>{cnt}/6</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
