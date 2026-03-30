@@ -7228,7 +7228,8 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
       // In header mode — auto-add 1 and show toast
       if (scanModal) {
         setScanQty(1);
-        setPhotoScan({ status:"matched", card:match });
+        // Pass detected data too so user can see what Vision read
+        setPhotoScan({ status:"matched", card:match, detected: data });
       } else {
         const next = { ...owned, [match.id]: (owned[match.id]||0) + 1 };
         setOwned(next);
@@ -7946,6 +7947,12 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
                         </div>
                         {c.power && <div style={{ fontSize:28, fontWeight:900, color:wc, lineHeight:1 }}>{c.power}</div>}
                         {c.athlete && <div style={{ fontSize:11, color:"#555", marginTop:4 }}>Inspired by {c.athlete}</div>}
+                        {/* Debug: show what Vision actually detected */}
+                        {photoScan.detected && (
+                          <div style={{ fontSize:10, color:"#333", marginTop:6, borderTop:"1px solid #1a1a1a", paddingTop:4 }}>
+                            Vision read: #{photoScan.detected.cardNum||"?"} · {photoScan.detected.hero||"?"} · {photoScan.detected.weapon||"?"}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {/* Qty + confirm */}
@@ -7964,6 +7971,10 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
                       <button onClick={()=>{ setPhotoScan(null); setScanQty(1); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
                         style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         Retake
+                      </button>
+                      <button onClick={()=>{ setPhotoScan({ status:"nomatch", card:null, identified: photoScan.detected }); }}
+                        style={{ background:"transparent", border:"none", color:"#E8317A", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", padding:"0 4px" }}>
+                        Wrong card?
                       </button>
                     </div>
                   </div>
