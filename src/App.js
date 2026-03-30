@@ -6578,16 +6578,18 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
     return ()=>{ u2(); u3(); u4(); u5(); uWants(); };
   }, []);
 
-  // Infinite scroll — stable observer that only triggers when sentinel is visible
+  // Infinite scroll — load more when user scrolls near bottom
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setPage(p => p + 1);
-    }, { rootMargin:"300px" });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [sentinelRef.current]);
+    if (viewMode !== "cards") return;
+    function onScroll() {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      if (scrollHeight - scrollTop - clientHeight < 400) {
+        setPage(p => p + 1);
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [viewMode]);
 
   async function saveDeck() {
     if (!deckName.trim() || deckCards.length === 0) return;
@@ -8788,7 +8790,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
               })}
             </div>
             {hasMore && (
-              <div ref={sentinelRef} style={{ textAlign:"center", padding:"16px 0", color:"#555", fontSize:12 }}>
+              <div style={{ textAlign:"center", padding:"16px 0", color:"#555", fontSize:12 }}>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:8 }}>
                   <div style={{ width:16, height:16, border:"2px solid #333", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
                   Loading more... ({visibleCards.length} of {filtered.length.toLocaleString()})
