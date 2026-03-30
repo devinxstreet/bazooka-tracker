@@ -5630,6 +5630,7 @@ function PublicPlaybookBuilder() {
                         <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:2, fontSize:10 }}>
                           <span style={{ color:"#555" }}>#{c.cardNum}</span>
+                          {c.setName&&<span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
                           {c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                           {c.dbs!==undefined&&<span style={{ color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
                           {c.weapon&&<span style={{ color:wc, fontWeight:700 }}>{c.weapon}</span>}
@@ -5680,8 +5681,8 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
                 <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>✕ Clear</button></div>
               </div>
             )}
@@ -6604,77 +6605,80 @@ function BobaChecklist({ userRole, user }) {
     setDbsStatus({ msg:"Reading CSV...", ok:null });
     try {
       const text = await file.text();
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
-      setDbsStatus({ msg:`Parsing ${lines.length-1} rows...`, ok:null });
-      const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
-      const cardNumIdx = ["card_num","card#","cardnum","card num","card number","number","num","id"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
-      const dbsIdx     = ["dbs score","dbs_score","dbs","salary","cap","value","cost"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
-      const nameIdx    = ["play name","card name","name","play"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
-      const costIdx    = ["cost","play cost","mana","energy"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
-      const textIdx    = ["text","ability","description","card text"].reduce((found, k) => found >= 0 ? found : headers.indexOf(k), -1);
 
-      // Use first and second column as fallback
-      const cnIdx = cardNumIdx >= 0 ? cardNumIdx : 0;
-      const dsIdx = dbsIdx     >= 0 ? dbsIdx     : 1;
+      // RFC 4180 compliant CSV parser — handles quoted fields with embedded newlines/commas
+      function parseCSV(str) {
+        const rows = [];
+        let row = [], cur = "", inQ = false, i = 0;
+        while (i < str.length) {
+          const ch = str[i];
+          if (ch === '"') {
+            if (inQ && str[i+1] === '"') { cur += '"'; i += 2; continue; }
+            inQ = !inQ;
+          } else if (ch === ',' && !inQ) {
+            row.push(cur.trim()); cur = "";
+          } else if ((ch === '\n' || (ch === '\r' && str[i+1] === '\n')) && !inQ) {
+            if (ch === '\r') i++;
+            row.push(cur.trim()); rows.push(row); row = []; cur = "";
+          } else {
+            cur += ch;
+          }
+          i++;
+        }
+        if (cur || row.length) { row.push(cur.trim()); rows.push(row); }
+        return rows;
+      }
 
-      // Normalize a card number: strip all non-alphanumeric, lowercase
-      // e.g. "PL-1", "PL1", "pl-1", "1" all normalize differently
-      // Strategy: strip prefix letters+dashes, keep numeric part for fuzzy match
-      // Strip rarity prefix: "A - PL-59" → "PL59", "U - BPL-17" → "BPL17"
+      const rows = parseCSV(text).filter(r => r.some(c => c));
+      if (rows.length < 2) { setDbsStatus({ msg:"❌ CSV appears empty", ok:false }); setDbsImporting(false); return; }
+
+      const headers = rows[0].map(h => h.replace(/^"|"$/g,"").trim().toLowerCase());
+      setDbsStatus({ msg:`Parsing ${rows.length-1} rows...`, ok:null });
+
+      const find = keys => keys.reduce((f,k) => f >= 0 ? f : headers.indexOf(k), -1);
+      const cnIdx   = find(["card number","card_num","card#","cardnum","card num"]);
+      const dbsIdx  = find(["dbs score","dbs_score","dbs","salary"]);
+      const nameIdx = find(["play name","card name","name","play"]);
+      const costIdx = find(["cost","play cost","hot dog cost","hd cost"]);
+      const textIdx = find(["text","ability","description","card text"]);
+
+      if (cnIdx < 0 || dbsIdx < 0) {
+        setDbsStatus({ msg:`❌ Couldn't find required columns. Found: ${headers.join(", ")}`, ok:false });
+        setDbsImporting(false); return;
+      }
+
       function normalizeNum(s) {
-        const stripped = String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
-        return stripped.replace(/[^a-z0-9]/gi,"").toLowerCase();
-      }
-      function numericPart(s) {
-        const stripped = String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
-        return stripped.replace(/[^0-9]/g,"");
+        // Strip single-letter rarity prefix ONLY: "A - PL-59" → "PL-59", "G - BPL-3" → "BPL-3"
+        // But leave "PL-59" alone (PL is not a rarity prefix, it's part of the card number)
+        return String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim().replace(/[^a-z0-9]/gi,"").toLowerCase();
       }
 
-      // Build lookup maps from checklist cards
-      const exactMap  = {};  // normalized full cardNum -> [cards]
-      const numericMap = {}; // numeric-only part -> [cards]
+      // Build exact lookup map from checklist
+      const exactMap = {};
       cards.forEach(c => {
         const norm = normalizeNum(c.cardNum);
-        const num  = numericPart(c.cardNum);
-        if (!exactMap[norm])   exactMap[norm]   = [];
-        if (!numericMap[num])  numericMap[num]  = [];
+        if (!exactMap[norm]) exactMap[norm] = [];
         exactMap[norm].push(c);
-        if (num) numericMap[num].push(c);
       });
 
       let updated = 0, skipped = 0;
       const batch = [];
 
-      for (let i = 1; i < lines.length; i++) {
-        // Parse CSV line respecting quoted fields
-        const cols = [];
-        let cur = "", inQ = false;
-        for (const ch of lines[i]) {
-          if (ch === '"') { inQ = !inQ; }
-          else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
-          else { cur += ch; }
-        }
-        cols.push(cur.trim());
-
-        const rawNum = cols[cnIdx]||"";
-        const dbs    = parseFloat(cols[dsIdx]);
-        const playName = nameIdx >= 0 ? (cols[nameIdx]||"").trim() : "";
-        const playCost = costIdx >= 0 ? (cols[costIdx]||"").trim() : "";
-        const playText = textIdx >= 0 ? (cols[textIdx]||"").trim() : "";
+      for (let i = 1; i < rows.length; i++) {
+        const cols    = rows[i];
+        const rawNum  = (cols[cnIdx]||"").replace(/^"|"$/g,"").trim();
+        const rawDbs  = (cols[dbsIdx]||"").replace(/^"|"$/g,"").trim();
+        const dbs     = parseFloat(rawDbs);
         if (!rawNum || isNaN(dbs)) { skipped++; continue; }
 
         const norm    = normalizeNum(rawNum);
-        const numOnly = numericPart(rawNum);
-
-        // 1. Exact normalized match
-        let matches = exactMap[norm] || [];
-
-        // 2. Numeric-only fallback (handles "1" matching "PL-1", "BPL-1" etc)
-        if (matches.length === 0 && numOnly) {
-          matches = numericMap[numOnly] || [];
-        }
+        const matches = exactMap[norm] || [];
 
         if (matches.length === 0) { skipped++; continue; }
+
+        const playName = nameIdx >= 0 ? (cols[nameIdx]||"").replace(/^"|"$/g,"").trim() : "";
+        const playCost = costIdx >= 0 ? (cols[costIdx]||"").replace(/^"|"$/g,"").trim() : "";
+        const playText = textIdx >= 0 ? (cols[textIdx]||"").replace(/^"|"$/g,"").trim() : "";
 
         for (const match of matches) {
           const update = { dbs };
@@ -6696,7 +6700,7 @@ function BobaChecklist({ userRole, user }) {
         setDbsStatus({ msg:`Writing... ${Math.min(i+400, batch.length)}/${batch.length}`, ok:null });
       }
 
-      // Bust cache and reload cards so DBS shows immediately
+      // Bust cache and reload
       try { localStorage.removeItem("boba_checklist_cache"); } catch(e2) {}
       const freshSnap = await getDocs(collection(db, "boba_checklist"));
       const freshCards = freshSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
@@ -7955,6 +7959,7 @@ function BobaChecklist({ userRole, user }) {
                             </div>
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
                               <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                              {c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
                               {c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                               {c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
                               {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
@@ -8055,7 +8060,7 @@ function BobaChecklist({ userRole, user }) {
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
@@ -8079,7 +8084,7 @@ function BobaChecklist({ userRole, user }) {
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
