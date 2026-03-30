@@ -6886,25 +6886,26 @@ function BobaChecklist({ userRole, user }) {
                 <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
               </label>
             )}
-            {isAdmin && cards.some(c=>c.playName) && (
+            {isAdmin && (
               <button onClick={async()=>{
-                if(!window.confirm("Clear bad play names written by the DBS import? This restores the checklist names.")) return;
-                const dirty = cards.filter(c=>c.playName);
-                setDbsStatus({ msg:`Clearing playName from ${dirty.length} cards...`, ok:null });
-                for(let i=0;i<dirty.length;i+=400){
-                  await Promise.all(dirty.slice(i,i+400).map(c=>
-                    setDoc(doc(db,"boba_checklist",c.id), { playName: deleteField() }, { merge:true })
+                if(!window.confirm("Wipe all DBS import data (dbs, playCost, playName) from all play cards so you can re-import clean. Continue?")) return;
+                const playcards = cards.filter(c=>{ const n=String(c.cardNum||"").toUpperCase(); return n.startsWith("PL")||n.startsWith("BPL"); });
+                setDbsStatus({ msg:`Wiping DBS data from ${playcards.length} play cards...`, ok:null });
+                for(let i=0;i<playcards.length;i+=400){
+                  await Promise.all(playcards.slice(i,i+400).map(c=>
+                    setDoc(doc(db,"boba_checklist",c.id), { dbs:deleteField(), playCost:deleteField(), playName:deleteField() }, { merge:true })
                   ));
+                  setDbsStatus({ msg:`Wiping... ${Math.min(i+400,playcards.length)}/${playcards.length}`, ok:null });
                 }
                 try { localStorage.removeItem("boba_checklist_cache"); } catch(e){}
                 const snap = await getDocs(collection(db,"boba_checklist"));
                 const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
                 setCards(fresh);
                 try { localStorage.setItem("boba_checklist_cache", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
-                setDbsStatus({ msg:`✅ Cleared ${dirty.length} cards — play names restored`, ok:true });
-                setTimeout(()=>setDbsStatus(null),5000);
+                setDbsStatus({ msg:`✅ Wiped ${playcards.length} play cards — re-import DBS CSV now`, ok:true });
+                setTimeout(()=>setDbsStatus(null),8000);
               }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                🧹 Fix Play Names
+                🧹 Wipe DBS Data
               </button>
             )}
             {dbsStatus && (
