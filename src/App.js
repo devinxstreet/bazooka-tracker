@@ -11141,6 +11141,8 @@ function PublicCardDatabase() {
             )}
           </div>
         )}
+
+      </div>{/* end tab content */}
     </div>
   );
 }
