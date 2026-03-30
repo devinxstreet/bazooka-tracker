@@ -9417,199 +9417,255 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
 // ─── PUBLIC CARD DATABASE ────────────────────────────────────
 function PublicCardDatabase() {
-  const [cards,       setCards]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [search,      setSearch]      = useState("");
-  const [filterSet,   setFilterSet]   = useState("");
-  const [filterWeapon,setFilterWeapon]= useState("");
-  const [filterTreat, setFilterTreat] = useState("");
-  const [sortCol,     setSortCol]     = useState("cardNum");
-  const [sortDir,     setSortDir]     = useState("asc");
-  const [page,        setPage]        = useState(1);
-  const PAGE = 100;
+  const [cards,        setCards]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [filterSet,    setFilterSet]    = useState("");
+  const [filterWeapon, setFilterWeapon] = useState("");
+  const [filterTreat,  setFilterTreat]  = useState("");
+  const [filterOwned,  setFilterOwned]  = useState("all"); // all | owned | missing
+  const [sortBy,       setSortBy]       = useState("cardNum");
+  const [page,         setPage]         = useState(1);
+  const [flippedCard,  setFlippedCard]  = useState(null);
 
-  useEffect(() => {
-    getDocs(collection(db, "boba_checklist")).then(snap => {
-      setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-  }, []);
+  // Auth + owned collection
+  const [user,         setUser]         = useState(null);
+  const [owned,        setOwned]        = useState({});
+  const [ownedDocId,   setOwnedDocId]   = useState(null);
+  const [signingIn,    setSigningIn]    = useState(false);
+
+  const PAGE_SIZE = 100;
+  const sentinelRef = useRef(null);
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#9CA3AF", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
 
-  const sets      = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-  const weapons   = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
-  const treatments= [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+  // Load cards
+  useEffect(() => {
+    const CACHE_KEY = "boba_checklist_cache_v2";
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const { cards: cc, ts } = JSON.parse(raw);
+        if (cc?.length > 0 && Date.now() - ts < 5*60*1000) { setCards(cc); setLoading(false); return; }
+      }
+    } catch(e) {}
+    getDocs(collection(db,"boba_checklist")).then(snap => {
+      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      setCards(all);
+      setLoading(false);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+    });
+  }, []);
 
-  const filtered = cards.filter(c => {
-    if (filterSet    && c.setName   !== filterSet)    return false;
-    if (filterWeapon && c.weapon    !== filterWeapon)  return false;
-    if (filterTreat  && c.treatment !== filterTreat)   return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return [c.hero, c.cardNum, c.athlete, c.weapon, c.treatment, c.setName]
-        .some(v => v?.toLowerCase().includes(q));
+  // Auth listener
+  useEffect(() => {
+    return onAuthStateChanged(auth, async u => {
+      setUser(u);
+      if (u) {
+        const docId = u.uid;
+        setOwnedDocId(docId);
+        const snap = await getDoc(doc(db,"boba_owned",docId));
+        setOwned(snap.exists() ? snap.data() : {});
+      } else {
+        setOwned({});
+        setOwnedDocId(null);
+      }
+    });
+  }, []);
+
+  // Infinite scroll
+  useEffect(() => {
+    function onScroll() {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      if (scrollHeight - scrollTop - clientHeight < 400) setPage(p => p + 1);
     }
-    return true;
-  }).sort((a, b) => {
-    let av = a[sortCol] || "", bv = b[sortCol] || "";
-    if (sortCol === "power") { av = parseFloat(av)||0; bv = parseFloat(bv)||0; }
-    const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
-    return sortDir === "asc" ? cmp : -cmp;
-  });
+    window.addEventListener("scroll", onScroll, { passive:true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const paginated = filtered.slice((page-1)*PAGE, page*PAGE);
-  const totalPages = Math.ceil(filtered.length / PAGE);
-
-  function SortHeader({ col, label, width }) {
-    const active = sortCol === col;
-    return (
-      <th onClick={() => { if (active) setSortDir(d=>d==="asc"?"desc":"asc"); else { setSortCol(col); setSortDir("asc"); }}}
-        style={{ padding:"10px 12px", textAlign:"left", fontSize:11, fontWeight:700, color:active?"#E8317A":"#555",
-          textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid #1a1a1a", cursor:"pointer",
-          whiteSpace:"nowrap", width, userSelect:"none" }}>
-        {label} {active ? (sortDir==="asc"?"↑":"↓") : ""}
-      </th>
-    );
+  async function toggleOwned(cardId) {
+    if (!user) { setSigningIn(true); return; }
+    const next = { ...owned };
+    if (next[cardId]) delete next[cardId];
+    else next[cardId] = 1;
+    setOwned(next);
+    await setDoc(doc(db,"boba_owned",ownedDocId), next);
   }
 
+  async function setOwnedQty(cardId, qty) {
+    if (!user) return;
+    const next = { ...owned };
+    if (qty <= 0) delete next[cardId];
+    else next[cardId] = qty;
+    setOwned(next);
+    await setDoc(doc(db,"boba_owned",ownedDocId), next);
+  }
+
+  async function signInGoogle() {
+    try { await signInWithPopup(auth, new GoogleAuthProvider()); setSigningIn(false); }
+    catch(e) { console.error(e); }
+  }
+
+  const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
+  const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+
+  const filtered = cards.filter(c => {
+    if (filterSet    && c.setName   !== filterSet)   return false;
+    if (filterWeapon && c.weapon    !== filterWeapon) return false;
+    if (filterTreat  && c.treatment !== filterTreat)  return false;
+    if (filterOwned === "owned"   && !owned[c.id])    return false;
+    if (filterOwned === "missing" &&  owned[c.id])    return false;
+    if (search) {
+      const terms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      const fields = [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.notation].join(" ").toLowerCase();
+      return terms.every(t => fields.includes(t));
+    }
+    return true;
+  }).sort((a,b) => {
+    if (sortBy==="power")   return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+    if (sortBy==="cardNum") {
+      const na = String(a.cardNum||""), nb = String(b.cardNum||"");
+      const ia = parseInt(na.replace(/[^0-9]/g,"")||"0"), ib = parseInt(nb.replace(/[^0-9]/g,"")||"0");
+      return ia-ib||na.localeCompare(nb);
+    }
+    return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
+  });
+
+  const visibleCards = filtered.slice(0, page * PAGE_SIZE);
+  const hasMore = visibleCards.length < filtered.length;
+
+  const totalOwned = Object.keys(owned).filter(id => cards.find(c=>c.id===id)).length;
+
   const inp = { background:"#111", border:"1px solid #1a1a1a", borderRadius:8, color:"#F0F0F0",
-    padding:"8px 12px", fontSize:13, fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", outline:"none", width:"100%" };
+    padding:"8px 12px", fontSize:12, fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", outline:"none" };
 
   return (
     <div style={{ minHeight:"100vh", background:"#000", color:"#F0F0F0", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
+      <GlobalStyles/>
 
-      {/* Hero header */}
-      <div style={{ background:"linear-gradient(180deg,#0a0a0a 0%,#000 100%)", borderBottom:"1px solid #1a1a1a", padding:"40px 24px 28px" }}>
-        <div style={{ maxWidth:1200, margin:"0 auto" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
-            <span style={{ fontSize:11, fontWeight:700, color:"#E8317A", letterSpacing:3, textTransform:"uppercase" }}>Bazooka Breaks</span>
+      {/* Sign-in prompt */}
+      {signingIn && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={()=>setSigningIn(false)}>
+          <div style={{ background:"#111", border:"1.5px solid #E8317A44", borderRadius:16, padding:32, textAlign:"center", maxWidth:340 }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:32, marginBottom:12 }}>🃏</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", marginBottom:8 }}>Track Your Collection</div>
+            <div style={{ fontSize:13, color:"#555", marginBottom:24 }}>Sign in with Google to mark cards as owned and track your collection progress.</div>
+            <button onClick={signInGoogle}
+              style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+              Sign in with Google
+            </button>
           </div>
-          <h1 style={{ fontSize:"clamp(24px,5vw,48px)", fontWeight:900, color:"#F0F0F0", margin:"0 0 8px",
-            textTransform:"uppercase", letterSpacing:2, lineHeight:1.1 }}>
-            Bo Jackson Battle Arena
-          </h1>
-          <h2 style={{ fontSize:"clamp(14px,2.5vw,20px)", fontWeight:400, color:"#E8317A", margin:"0 0 20px", letterSpacing:4, textTransform:"uppercase" }}>
-            Collector's Database
-          </h2>
-          <p style={{ fontSize:13, color:"#555", margin:0 }}>
-            {loading ? "Loading..." : `${cards.length.toLocaleString()} cards across ${sets.length} sets`}
-          </p>
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ background:"linear-gradient(180deg,#0a0a0a 0%,#000 100%)", borderBottom:"1px solid #1a1a1a", padding:"32px 24px 24px" }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"flex-end", justifyContent:"space-between", flexWrap:"wrap", gap:16 }}>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", letterSpacing:3, textTransform:"uppercase", marginBottom:6 }}>Bazooka Breaks</div>
+            <h1 style={{ fontSize:"clamp(22px,4vw,42px)", fontWeight:900, color:"#F0F0F0", margin:"0 0 4px", textTransform:"uppercase", letterSpacing:2, lineHeight:1.1 }}>
+              Bo Jackson Battle Arena
+            </h1>
+            <h2 style={{ fontSize:"clamp(12px,2vw,16px)", fontWeight:400, color:"#E8317A", margin:"0 0 10px", letterSpacing:4, textTransform:"uppercase" }}>
+              Collector's Database
+            </h2>
+            <p style={{ fontSize:12, color:"#444", margin:0 }}>
+              {loading ? "Loading..." : `${cards.length.toLocaleString()} cards · ${sets.length} sets`}
+            </p>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            {user ? (
+              <>
+                {user.photoURL && <img src={user.photoURL} alt="" style={{ width:32, height:32, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
+                <div>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{user.displayName?.split(" ")[0]}</div>
+                  <div style={{ fontSize:11, color:"#4ade80" }}>{totalOwned.toLocaleString()} owned</div>
+                </div>
+                <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:7, padding:"5px 12px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+              </>
+            ) : (
+              <button onClick={()=>setSigningIn(true)}
+                style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                Sign in to track collection
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", padding:"16px 24px", position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}
-            placeholder="Search card #, hero, athlete..." style={{ ...inp, flex:2, minWidth:200 }}/>
-          <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:160, cursor:"pointer" }}>
+      {/* Sticky filter bar */}
+      <div style={{ background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", padding:"12px 24px", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete..." style={{ ...inp, flex:2, minWidth:180 }}/>
+          <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:150, cursor:"pointer" }}>
             <option value="">All Sets</option>
             {sets.map(s=><option key={s} value={s}>{s}</option>)}
           </select>
-          <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:160, cursor:"pointer" }}>
+          <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{ ...inp, flex:1, minWidth:150, cursor:"pointer" }}>
             <option value="">All Treatments</option>
             {treatments.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
-          <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{ ...inp, width:130, cursor:"pointer" }}>
+          <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{ ...inp, width:120, cursor:"pointer" }}>
             <option value="">All Weapons</option>
             {weapons.map(w=><option key={w} value={w}>{w}</option>)}
           </select>
+          <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{ ...inp, width:130, cursor:"pointer" }}>
+            <option value="cardNum">Sort: Card #</option>
+            <option value="hero">Sort: Hero</option>
+            <option value="power">Sort: Power</option>
+            <option value="setName">Sort: Set</option>
+          </select>
+          {user && (
+            <div style={{ display:"flex", gap:4 }}>
+              {[["all","All"],["owned","✅ Owned"],["missing","❌ Missing"]].map(([v,l])=>(
+                <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}}
+                  style={{ background:filterOwned===v?"#1A1A2E":"transparent", color:filterOwned===v?"#E8317A":"#555", border:`1.5px solid ${filterOwned===v?"#E8317A":"#333"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
           {(search||filterSet||filterTreat||filterWeapon) && (
             <button onClick={()=>{setSearch("");setFilterSet("");setFilterTreat("");setFilterWeapon("");setPage(1);}}
-              style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              Clear
-            </button>
+              style={{ ...inp, width:"auto", cursor:"pointer", color:"#888", padding:"8px 14px" }}>Clear</button>
           )}
-          <span style={{ fontSize:12, color:"#333", whiteSpace:"nowrap" }}>
-            {filtered.length.toLocaleString()} result{filtered.length!==1?"s":""}
-          </span>
+          <span style={{ fontSize:11, color:"#333", whiteSpace:"nowrap" }}>{filtered.length.toLocaleString()} cards</span>
         </div>
       </div>
 
-      {/* Table */}
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"0 24px 40px" }}>
+      {/* Card grid */}
+      <div style={{ maxWidth:1400, margin:"0 auto", padding:"16px 16px 40px" }}>
         {loading ? (
-          <div style={{ textAlign:"center", padding:80, color:"#333" }}>Loading cards...</div>
+          <div style={{ textAlign:"center", padding:80, color:"#333", fontSize:14 }}>Loading cards...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign:"center", padding:80, color:"#333", fontSize:14 }}>No cards match your filters</div>
         ) : (
           <>
-            <div style={{ overflowX:"auto" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <thead>
-                  <tr style={{ background:"#0a0a0a" }}>
-                    <SortHeader col="cardNum"   label="Card #"    width={80}/>
-                    <SortHeader col="hero"      label="Hero"      width={180}/>
-                    <th style={{ padding:"10px 12px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid #1a1a1a", width:32 }}></th>
-                    <SortHeader col="treatment" label="Treatment" width={180}/>
-                    <SortHeader col="weapon"    label="Weapon"    width={100}/>
-                    <SortHeader col="power"     label="PWR"       width={70}/>
-                    <SortHeader col="athlete"   label="Athlete"   width={180}/>
-                    <SortHeader col="setName"   label="Set"       width={200}/>
-                    <SortHeader col="notation"  label="Notation"  width={100}/>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding:48, textAlign:"center", color:"#333", fontSize:14 }}>
-                      No cards match your filters
-                    </td></tr>
-                  ) : paginated.map((c, i) => {
-                    const wc = WEAPON_COLORS[c.weapon] || "#555";
-                    const sport = athleteSport(c.athlete);
-                    return (
-                      <tr key={c.id} style={{ background:i%2===0?"#000":"#080808", borderBottom:"1px solid #0d0d0d" }}
-                        className="inv-row">
-                        <td style={{ padding:"10px 12px", fontSize:12, color:"#555", fontFamily:"monospace" }}>
-                          {c.cardNum}
-                        </td>
-                        <td style={{ padding:"10px 12px" }}>
-                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
-                          {c.variation && <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{c.variation}</div>}
-                        </td>
-                        <td style={{ padding:"10px 4px" }}>
-                          {c.imageUrl && (
-                            <img src={c.imageUrl} alt={c.hero}
-                              style={{ width:24, height:32, objectFit:"cover", borderRadius:3, display:"block" }}/>
-                          )}
-                        </td>
-                        <td style={{ padding:"10px 12px", fontSize:12, color:"#888" }}>{c.treatment||"—"}</td>
-                        <td style={{ padding:"10px 12px" }}>
-                          {c.weapon && (
-                            <span style={{ fontSize:11, fontWeight:700, color:wc, background:wc+"18",
-                              border:`1px solid ${wc}44`, borderRadius:5, padding:"2px 8px" }}>
-                              {c.weapon}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding:"10px 12px", fontSize:14, fontWeight:900, color:wc }}>{c.power||"—"}</td>
-                        <td style={{ padding:"10px 12px" }}>
-                          {c.athlete && (
-                            <>
-                              <div style={{ fontSize:12, color:"#888" }}>{c.athlete}</div>
-                              {sport && <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{sport}</div>}
-                            </>
-                          )}
-                        </td>
-                        <td style={{ padding:"10px 12px", fontSize:11, color:"#444", fontStyle:"italic" }}>{c.setName||"—"}</td>
-                        <td style={{ padding:"10px 12px", fontSize:11, color:"#333" }}>{c.notation||"—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
+              {visibleCards.map(c => (
+                <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                  flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                  toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
+                  setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
+                  toggleWant={()=>{}} wantList={{}} WEAPON_COLORS={WEAPON_COLORS}
+                />
+              ))}
             </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"24px 0" }}>
-                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
-                  style={{ background:"#111", border:"1px solid #1a1a1a", color:page===1?"#333":"#888", borderRadius:7,
-                    padding:"6px 16px", fontSize:12, cursor:page===1?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
-                <span style={{ fontSize:12, color:"#555" }}>Page {page} of {totalPages} · {filtered.length.toLocaleString()} cards</span>
-                <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
-                  style={{ background:"#111", border:"1px solid #1a1a1a", color:page===totalPages?"#333":"#888", borderRadius:7,
-                    padding:"6px 16px", fontSize:12, cursor:page===totalPages?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
+            {hasMore && (
+              <div style={{ textAlign:"center", padding:"24px 0", color:"#333", fontSize:12 }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:16, height:16, border:"2px solid #1a1a1a", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+                  Loading more... ({visibleCards.length} of {filtered.length.toLocaleString()})
+                </div>
+              </div>
+            )}
+            {!hasMore && filtered.length > PAGE_SIZE && (
+              <div style={{ textAlign:"center", padding:"16px 0", color:"#222", fontSize:11 }}>
+                All {filtered.length.toLocaleString()} cards loaded
               </div>
             )}
           </>
@@ -9617,665 +9673,12 @@ function PublicCardDatabase() {
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop:"1px solid #1a1a1a", padding:"20px 24px", textAlign:"center" }}>
+      <div style={{ borderTop:"1px solid #111", padding:"20px 24px", textAlign:"center" }}>
         <span style={{ fontSize:11, color:"#333" }}>
-          Powered by{" "}
-          <a href="https://bazookadash.com" style={{ color:"#E8317A", textDecoration:"none", fontWeight:700 }}>
-            Bazooka Breaks
-          </a>
+          Powered by <a href="https://bazookadash.com" style={{ color:"#E8317A", textDecoration:"none", fontWeight:700 }}>Bazooka Breaks</a>
           {" "}· Bo Jackson Battle Arena is a trademark of BJBA Inc.
         </span>
       </div>
-    </div>
-  );
-}
-
-export default function App() {
-  const [tab,       setTab]       = useState("dashboard");
-  const [gSearch,   setGSearch]   = useState("");
-  const [gOpen,     setGOpen]     = useState(false);
-  const [user,      setUser]      = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [inventory, setInventory] = useState([]);
-  const [breaks,    setBreaks]    = useState([]);
-  const [comps,     setComps]     = useState([]);
-  const [bobaCards, setBobaCards] = useState([]);
-  const BOBA_CACHE_KEY = "boba_checklist_cache_v2"; // bump version to force bust stale caches
-  const BOBA_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  // Load bobaCards at startup — used by Lot Comp, Inventory, Scan, everywhere
-  useEffect(() => {
-    async function loadBobaCards() {
-      try {
-        const raw = localStorage.getItem(BOBA_CACHE_KEY);
-        if (raw) {
-          const { cards: cc, ts } = JSON.parse(raw);
-          if (cc?.length > 0 && Date.now() - ts < BOBA_CACHE_TTL) {
-            setBobaCards(cc);
-            return;
-          }
-        }
-      } catch(e) {}
-      try {
-        const snap = await getDocs(collection(db, "boba_checklist"));
-        const cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setBobaCards(cards);
-        try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({ cards, ts: Date.now() })); } catch(e) {}
-      } catch(e) {}
-    }
-    loadBobaCards();
-  }, []);
-  const [toast,        setToast]        = useState(null);
-  const [activeScan,   setActiveScan]   = useState(null); // {type, current, total, status}
-  const [lotTracking,  setLotTracking]  = useState({});
-  const [lotNotes,     setLotNotes]     = useState({});
-  const [streams,      setStreams]       = useState([]);
-  const [shipments,    setShipments]     = useState([]);
-  const [productUsage, setProductUsage] = useState([]);
-  const [skuPrices,       setSkuPrices]       = useState({});
-  const [skuPriceHistory, setSkuPriceHistory] = useState([]);
-  const [historicalData, setHistoricalData] = useState([]);
-  const [payStubs,       setPayStubs]       = useState([]);
-  const [quotes,         setQuotes]         = useState([]);
-  const [buyers,         setBuyers]         = useState([]);
-  const [csvImports,     setCsvImports]     = useState([]);
-  const [cardPools,      setCardPools]      = useState([]);
-  const [imcFormUrl,     setImcFormUrl]     = useState("");
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
-    return unsub;
-  }, []);
-
-  // Keyboard shortcut: / to open search, Esc to close
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") { setGOpen(false); setGSearch(""); }
-      if (e.key === "/" && !gOpen && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-        e.preventDefault(); setGOpen(true);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [gOpen]);
-
-  
-
-  useEffect(() => {
-    if (!user) return;
-    const u1 = onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")),  snap => setInventory(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    const u2 = onSnapshot(query(collection(db,"breaks"),    orderBy("dateAdded","asc")),  snap => setBreaks(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    const u3 = onSnapshot(query(collection(db,"comps"),     orderBy("dateAdded","desc")), snap => setComps(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    const u4 = onSnapshot(collection(db,"lot_tracking"), snap => { const t={}; snap.docs.forEach(d => { t[d.id]=d.data(); }); setLotTracking(t); });
-    const u5 = onSnapshot(collection(db,"lot_notes"),    snap => { const n={}; snap.docs.forEach(d => { n[d.id]=d.data(); }); setLotNotes(n); });
-    const u6 = onSnapshot(query(collection(db,"streams"), orderBy("date","desc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u7 = onSnapshot(query(collection(db,"shipments"), orderBy("date","desc")), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u8 = onSnapshot(query(collection(db,"product_usage"), orderBy("date","desc")), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u9  = onSnapshot(doc(db,"settings","sku_prices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); });
-    const u9b = onSnapshot(collection(db,"sku_price_history"), snap => { setSkuPriceHistory(snap.docs.map(d=>d.data()).sort((a,b)=>a.savedAt?.localeCompare(b.savedAt))); });
-    const u10 = onSnapshot(query(collection(db,"historical_data"), orderBy("yearMonth","asc")), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u11 = onSnapshot(query(collection(db,"pay_stubs"), orderBy("createdAt","desc")), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u12 = onSnapshot(query(collection(db,"quotes"), orderBy("createdAt","desc")), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u13 = onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u14 = onSnapshot(query(collection(db,"csv_imports"), orderBy("importedAt","desc")), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u15 = onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u16 = onSnapshot(doc(db,"settings","imc_form"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); });
-
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u9b(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); };
-  }, [user]);
-
-  function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
-
-  async function handleAccept(cards, seller, u, custNote) {
-    const firstCard  = cards[0];
-    const lotKey     = `${firstCard?.seller||"Unknown"}__${firstCard?.date||"Unknown"}`;
-    const hasTracking = !!(lotTracking[lotKey]?.trackingNum);
-    const cardStatus  = hasTracking && lotTracking[lotKey]?.status === "Delivered" ? "available" : "in_transit";
-
-    // Write all cards to inventory
-    for (const card of cards) {
-      await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus, addedBy:u?.displayName||"Unknown" });
-    }
-
-    // Update matching pool quantities for pool-type cards
-    if (POOL_TYPES.some(t => cards.find(c => c.cardType === t))) {
-      const poolUpdates = {};
-      for (const card of cards) {
-        if (!POOL_TYPES.includes(card.cardType)) continue;
-        const key = `${card.cardType}__${card.cardName}`;
-        poolUpdates[key] = (poolUpdates[key] || 0) + 1;
-      }
-      for (const [key, qty] of Object.entries(poolUpdates)) {
-        const [cardType, ...nameParts] = key.split("__");
-        const cardName = nameParts.join("__");
-        const existing = cardPools.find(p => p.cardType === cardType && p.cardName === cardName);
-        if (existing) {
-          await setDoc(doc(db,"card_pools",existing.id), {
-            totalQty: (parseInt(existing.totalQty)||0) + qty,
-            updatedAt: new Date().toISOString(),
-          }, { merge:true });
-        }
-      }
-    }
-
-    if (custNote && custNote.trim()) {
-      await setDoc(doc(db,"lot_notes",lotKey), { notes:custNote.trim(), updatedAt:new Date().toISOString(), updatedBy:u?.displayName||"Unknown" });
-    }
-
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added — In Transit`);
-    setTab("inventory");
-  }
-  async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
-  async function handleBulkRemove(ids) {
-    for (const id of ids) await deleteDoc(doc(db,"inventory",id));
-    showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
-  }
-  async function handleSaveComp(comp) {
-    const id = uid();
-    await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
-    showToast("💾 Comp saved to history");
-  }
-  async function handleDeleteComp(id) {
-    const comp = comps.find(c => c.id === id);
-    if (comp) {
-      await setDoc(doc(db,"comp_log",uid()), { ...comp, action:"deleted", actionBy:user?.displayName||"Unknown", actionByEmail:user?.email||"", actionAt:new Date().toISOString() });
-    }
-    await deleteDoc(doc(db,"comps",id));
-    showToast("🗑 Comp deleted");
-  }
-  async function handleAddBreak(b) {
-    await setDoc(doc(db,"breaks",b.id), b);
-    showToast(`✅ ${b.cardName} logged out by ${b.breaker}`);
-  }
-  async function handleBulkAddBreak(entries) {
-    for (const b of entries) await setDoc(doc(db,"breaks",b.id), b);
-    showToast(`✅ ${entries.length} cards logged out by ${entries[0]?.breaker}`);
-  }
-  async function handleDeleteBreak(id) {
-    await deleteDoc(doc(db,"breaks",id));
-    showToast("↩️ Break entry removed — card is available again");
-  }
-  async function handleSaveLotTracking(lotKey, data) {
-    let finalData = { ...data, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" };
-
-    await setDoc(doc(db,"lot_tracking",lotKey), finalData);
-
-    // Auto-flip card status
-    const lotCards = inventory.filter(c => `${c.seller||"Unknown"}__${c.date||"Unknown"}` === lotKey);
-    if (finalData.status === "Delivered") {
-      for (const card of lotCards) await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"available" }, { merge:true });
-      showToast("✅ Delivered — cards now Available");
-    } else if (data.trackingNum) {
-      for (const card of lotCards) if (card.cardStatus === "available" && card.cardStatus !== "used") await setDoc(doc(db,"inventory",card.id), { ...card, cardStatus:"in_transit" }, { merge:true });
-      const eta = finalData.eta ? ` · ETA ${finalData.eta}` : "";
-      showToast(`📦 ${finalData.status||"In Transit"}${eta}`);
-    } else {
-      showToast("📦 Tracking saved");
-    }
-  }
-  async function handleSaveLotNotes(lotKey, notes) {
-    await setDoc(doc(db,"lot_notes",lotKey), { notes, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
-    showToast("📝 Notes saved");
-  }
-  async function handleSaveStream(stream) {
-    const id = stream.id || uid();
-    // Snapshot current SKU prices so historical calcs stay frozen at time of stream
-    const marketSnapshot = { ...skuPrices, snapshotDate: new Date().toISOString() };
-    await setDoc(doc(db,"streams",id), { ...stream, id, marketSnapshot, updatedAt:new Date().toISOString(), updatedBy:user?.displayName||"Unknown" });
-    showToast(stream.id ? "💾 Stream updated" : "✅ Stream saved");
-  }
-  async function handleDeleteStream(id) {
-    // Find the stream to get its chaserCardIds
-    const stream = streams.find(s => s.id === id);
-    await deleteDoc(doc(db,"streams",id));
-    // Delete linked product usage
-    const linked = productUsage.filter(u => u.streamId === id);
-    for (const u of linked) await deleteDoc(doc(db,"product_usage",u.id));
-    // Restore chaser cards — delete their break log entries so they show as available again
-    const chaserIds = stream?.chaserCardIds ? stream.chaserCardIds.split(",").filter(Boolean) : [];
-    const chaserBreaks = breaks.filter(b => chaserIds.includes(b.inventoryId));
-    for (const b of chaserBreaks) await deleteDoc(doc(db,"breaks",b.id));
-    // Clean up buyers linked to this stream's CSV import
-    // Match on stream.id (new format) OR legacy breaker_date key
-    const streamKey = stream ? stream.id : null;
-    const legacyKey = stream ? `${stream.breaker}_${stream.date}` : null;
-    if (streamKey || legacyKey) {
-      const linkedImports = csvImports.filter(i => i.streamId === streamKey || i.streamId === legacyKey);
-      for (const imp of linkedImports) {
-        // Remove this import from each buyer's importIds
-        const impBuyers = buyers.filter(b => (b.importIds||[]).includes(imp.id));
-        for (const b of impBuyers) {
-          const remaining = (b.importIds||[]).filter(i => i !== imp.id);
-          if (remaining.length === 0) {
-            // Buyer has no other imports — delete them
-            await deleteDoc(doc(db,"buyers",b.id));
-          } else {
-            // Buyer has other imports — just remove this one
-            const update = { importIds: remaining };
-            update[`importData_${imp.id}`] = null;
-            await setDoc(doc(db,"buyers",b.id), update, { merge:true });
-          }
-        }
-        // Delete the import record itself
-        await deleteDoc(doc(db,"csv_imports",imp.id));
-      }
-    }
-    showToast(`🗑 Stream deleted${chaserIds.length>0?` — ${chaserIds.length} chaser card${chaserIds.length!==1?"s":""} restored`:""}${linked.length>0?" — product usage removed":""}`);
-  }
-
-  async function handleSaveShipment(shipment) {
-    const id = shipment.id || uid();
-    await setDoc(doc(db,"shipments",id), { ...shipment, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
-    showToast(shipment.id ? "📦 Shipment updated" : "✅ Shipment added");
-  }
-  async function handleDeleteShipment(id) {
-    await deleteDoc(doc(db,"shipments",id));
-    showToast("🗑 Shipment deleted");
-  }
-  async function handleSaveHistorical(entry) {
-    const id = entry.id || entry.yearMonth;
-    await setDoc(doc(db,"historical_data",id), { ...entry, id });
-    showToast("📅 Historical data saved");
-  }
-  async function handleDeleteHistorical(id) {
-    await deleteDoc(doc(db,"historical_data",id));
-    showToast("🗑 Historical entry deleted");
-  }
-  async function handleSavePayStub(stub) {
-    const id = uid();
-    await setDoc(doc(db,"pay_stubs",id), { ...stub, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown", read:false });
-    showToast(`💵 Pay stub sent to ${stub.breaker}`);
-  }
-  async function handleDismissPayStub(id) {
-    await setDoc(doc(db,"pay_stubs",id), { read:true }, { merge:true });
-  }
-  async function handleDeletePayStub(id) {
-    await deleteDoc(doc(db,"pay_stubs",id));
-    showToast("🗑 Pay stub deleted");
-  }
-  async function handleSaveQuote(quoteData) {
-    const id = uid();
-    await setDoc(doc(db,"quotes",id), { ...quoteData, id, createdAt:new Date().toISOString() });
-    return id;
-  }
-  async function handleDismissQuoteNotif(id) {
-    await setDoc(doc(db,"quotes",id), { notified:true }, { merge:true });
-  }
-  async function handleUpsertBuyers(buyerRows, streamId, filename) {
-    const importId  = uid();
-    const importedAt = new Date().toISOString();
-    const usernames = buyerRows.map(b => b.username);
-
-    // Save the import record first
-    await setDoc(doc(db,"csv_imports", importId), {
-      id: importId, filename, streamId, importedAt,
-      rowCount: buyerRows.length,
-      buyerUsernames: usernames,
-    });
-
-    // Upsert each buyer, tracking which imports they came from
-    for (const b of buyerRows) {
-      const existing = buyers.find(x => x.id === b.username);
-      const prevImports = existing?.importIds || [];
-      const isNew = !existing;
-      await setDoc(doc(db,"buyers", b.username), {
-        id:          b.username,
-        username:    b.username,
-        fullName:    b.fullName,
-        city:        b.city,
-        state:       b.state,
-        zip:         b.zip,
-        totalSpend:  (existing?.totalSpend||0) + b.spend,
-        orderCount:  (existing?.orderCount||0) + b.orders,
-        streams:     (existing?.streams||[]).includes(streamId) ? (existing?.streams||[]) : [...(existing?.streams||[]), streamId],
-        couponCount: (existing?.couponCount||0) + b.couponCount,
-        firstSeen:   existing?.firstSeen || b.date,
-        lastSeen:    b.date,
-        isNew,
-        importIds:   prevImports.includes(importId) ? prevImports : [...prevImports, importId],
-        // Store per-import data so we can recalculate on delete
-        [`importData_${importId}`]: { spend:b.spend, orders:b.orders, couponCount:b.couponCount, streamId, date:b.date },
-        updatedAt:   importedAt,
-      }, { merge:true });
-    }
-    showToast(`✅ Imported ${buyerRows.length} buyers from ${filename}`);
-  }
-
-  async function handleDeleteImport(importId) {
-    // Get the import record
-    const importSnap = await getDoc(doc(db,"csv_imports",importId));
-    if (!importSnap.exists()) return;
-    const importData = importSnap.data();
-
-    // For each buyer in this import, recalculate or delete
-    for (const username of (importData.buyerUsernames||[])) {
-      const buyerSnap = await getDoc(doc(db,"buyers",username));
-      if (!buyerSnap.exists()) continue;
-      const buyer = buyerSnap.data();
-      const remainingImports = (buyer.importIds||[]).filter(id => id !== importId);
-
-      if (remainingImports.length === 0) {
-        // No more imports — delete the buyer entirely
-        await deleteDoc(doc(db,"buyers",username));
-      } else {
-        // Recalculate totals from remaining imports only
-        let totalSpend = 0, orderCount = 0, couponCount = 0;
-        const streams = new Set();
-        let firstSeen = null, lastSeen = null;
-
-        for (const iid of remainingImports) {
-          const d = buyer[`importData_${iid}`];
-          if (!d) continue;
-          totalSpend  += d.spend || 0;
-          orderCount  += d.orders || 0;
-          couponCount += d.couponCount || 0;
-          if (d.streamId) streams.add(d.streamId);
-          if (!firstSeen || new Date(d.date) < new Date(firstSeen)) firstSeen = d.date;
-          if (!lastSeen  || new Date(d.date) > new Date(lastSeen))  lastSeen  = d.date;
-        }
-
-        // Remove the deleted import's data field
-        const update = {
-          importIds: remainingImports,
-          totalSpend, orderCount, couponCount,
-          streams: [...streams],
-          firstSeen, lastSeen,
-          updatedAt: new Date().toISOString(),
-        };
-        // We can't easily delete a field with setDoc merge, so set it to null
-        update[`importData_${importId}`] = null;
-        await setDoc(doc(db,"buyers",username), update, { merge:true });
-      }
-    }
-
-    // Delete the import record itself
-    await deleteDoc(doc(db,"csv_imports",importId));
-    showToast(`🗑 Import deleted — buyers recalculated`);
-  }
-  async function handleCloseQuote(id) {
-    await setDoc(doc(db,"quotes",id), { status:"closed", closedAt:new Date().toISOString() }, { merge:true });
-    showToast("🔒 Quote closed");
-  }
-  async function handleBazookaCounter(id, amount, currentHistory=[]) {
-    const entry = { type:"bazooka_counter", amount, timestamp:new Date().toISOString() };
-    await setDoc(doc(db,"quotes",id), { status:"pending", currentOffer:amount, notified:false, history:[...currentHistory, entry] }, { merge:true });
-    showToast(`🤝 Counter sent: $${parseFloat(amount).toFixed(2)}`);
-  }
-  async function handleSaveSkuPrices(prices) {
-    await setDoc(doc(db,"settings","sku_prices"), prices);
-    // Log price history snapshot
-    const histId = uid();
-    await setDoc(doc(db,"sku_price_history", histId), {
-      id: histId,
-      date: new Date().toISOString().split("T")[0],
-      savedAt: new Date().toISOString(),
-      prices,
-    });
-    showToast("💰 SKU prices saved");
-  }
-  async function handleSaveImcFormUrl(url) {
-    await setDoc(doc(db,"settings","imc_form"), { url });
-    showToast("✅ IMC form URL saved");
-  }
-  async function handleSaveProductUsage(usage) {
-    const id = usage.id || uid();
-    await setDoc(doc(db,"product_usage",id), { ...usage, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Unknown" });
-    showToast("📋 Product usage logged");
-  }
-  async function handleDeleteProductUsage(id) {
-    await deleteDoc(doc(db,"product_usage",id));
-    showToast("🗑 Usage entry deleted — stock restored");
-  }
-  async function handleSaveCardCost(id, newCost) {
-    const card = inventory.find(c => c.id === id);
-    if (!card) return;
-    await setDoc(doc(db,"inventory",id), { ...card, costPerCard:newCost, buyPct: card.marketValue>0 ? newCost/card.marketValue : null }, { merge:true });
-    showToast("💰 Card cost updated");
-  }
-  async function handlePutBack(cardId) {
-    // Delete all break log entries for this card so it shows as available again
-    const cardBreaks = breaks.filter(b => b.inventoryId === cardId);
-    for (const b of cardBreaks) await deleteDoc(doc(db,"breaks",b.id));
-    showToast("↩ Card restored to inventory");
-  }
-  async function handleSavePool(pool) {
-    const id = pool.id || uid();
-    await setDoc(doc(db,"card_pools",id), { ...pool, id, updatedAt:new Date().toISOString() }, { merge:true });
-    showToast(pool.id ? "💾 Pool updated" : "✅ Pool created");
-    return id;
-  }
-  async function handleDeletePool(id) {
-    await deleteDoc(doc(db,"card_pools",id));
-    showToast("🗑 Pool deleted");
-  }
-  async function handleLogPoolOut(poolId, qty, breaker, date, usage) {
-    const pool = cardPools.find(p => p.id === poolId);
-    if (!pool) return;
-    const newUsed = (pool.usedQty||0) + qty;
-    await setDoc(doc(db,"card_pools",poolId), { usedQty:newUsed, updatedAt:new Date().toISOString() }, { merge:true });
-    const eid = uid();
-    await setDoc(doc(db,"breaks",eid), { id:eid, date, breaker, inventoryId:poolId, poolId, cardName:pool.cardName, cardType:pool.cardType, qty, usage, dateAdded:new Date().toISOString(), loggedBy:"", isPool:true });
-    showToast("✅ Logged " + qty + "× " + pool.cardName + " out of pool");
-  }
-  async function handleAddToPool(poolId, qty) {
-    const pool = cardPools.find(p => p.id === poolId);
-    if (!pool) return;
-    const newTotal = (pool.totalQty||0) + qty;
-    await setDoc(doc(db,"card_pools",poolId), { totalQty:newTotal, updatedAt:new Date().toISOString() }, { merge:true });
-    showToast("✅ Added " + qty + " cards to " + pool.cardName + " pool");
-  }
-  async function handleDeleteLot(lotKey, cardIds) {
-    if (!window.confirm(`Delete this entire lot (${cardIds.length} card${cardIds.length!==1?"s":""})? This cannot be undone.`)) return;
-    for (const id of cardIds) await deleteDoc(doc(db,"inventory",id));
-    await deleteDoc(doc(db,"lot_tracking",lotKey)).catch(()=>{});
-    await deleteDoc(doc(db,"lot_notes",lotKey)).catch(()=>{});
-    showToast(`🗑 Lot deleted — ${cardIds.length} card${cardIds.length!==1?"s":""} removed`);
-  }
-
-  const realRole = getUserRole(user);
-  const [viewAs,  setViewAs]  = useState(null);
-  const userRole    = viewAs ? viewAs : realRole;
-  const effectiveUser = viewAs ? { ...user, displayName: viewAs.displayName } : user;
-  const TABS = [
-    { id:"dashboard",   label:"📊 Dashboard",   roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"comp",        label:"🧮 Lot Comp",     roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"inventory",   label:"📦 Inventory",    roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"streams",     label:"🎯 Streams",      roles:["Admin","Streamer"] },
-    { id:"buyers",      label:"👥 Buyers",       roles:["Admin","Streamer"] },
-    { id:"performance", label:"📈 Performance",  roles:["Admin","Streamer"] },
-    { id:"checklist",   label:"🃏 BoBA",            roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"showcase",    label:"✨ Showcase",         roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-  ].filter(t => t.roles.includes(userRole?.role));
-
-  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
-
-  // ── PUBLIC QUOTE ROUTE (no login required) ──
-  const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
-  if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
-
-  if (window.location.pathname === "/cards") return <PublicCardDatabase />;
-
-  if (window.location.pathname === "/showcase") {
-    const params = new URLSearchParams(window.location.search);
-    const uid = params.get("uid");
-    return <BobaShowcase uid={uid} />;
-  }
-
-  if (window.location.pathname === "/deck") return <PublicDeckBuilder />;
-  if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
-
-  if (!user) return <LoginScreen />;
-
-  return (
-    <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
-      <GlobalStyles />
-
-      {/* ── GLOBAL SEARCH OVERLAY ── */}
-      {gOpen && (() => {
-        const usedIds = new Set(breaks.map(b => b.inventoryId));
-        const q = gSearch.toLowerCase().trim();
-        const results = q.length < 2 ? [] : inventory.filter(c => {
-          return (
-            c.cardName?.toLowerCase().includes(q) ||
-            c.seller?.toLowerCase().includes(q) ||
-            c.cardType?.toLowerCase().includes(q) ||
-            c.source?.toLowerCase().includes(q) ||
-            (usedIds.has(c.id) ? "used" : c.cardStatus === "in_transit" ? "in transit" : "available").includes(q)
-          );
-        });
-        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#7B9CFF" } : { l:"Available", bg:"#0a1a0a", c:"#4ade80" };
-        return (
-          <div style={{ position:"fixed", inset:0, zIndex:999, display:"flex", flexDirection:"column" }}>
-            {/* Backdrop */}
-            <div onClick={()=>{ setGOpen(false); setGSearch(""); }} style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(2px)" }}/>
-            {/* Panel */}
-            <div style={{ position:"relative", zIndex:1000, margin:"60px auto 0", width:"100%", maxWidth:720, background:"#111111", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.8)", border:"1px solid #2a2a2a", overflow:"hidden" }}>
-              {/* Search input */}
-              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 20px", borderBottom:"1px solid #222" }}>
-                <span style={{ fontSize:18, color:"#E8317A" }}>🔍</span>
-                <input
-                  autoFocus
-                  value={gSearch}
-                  onChange={e=>setGSearch(e.target.value)}
-                  placeholder="Search cards, sellers, types, sources..."
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:"#F0F0F0", fontSize:16, fontFamily:"inherit" }}
-                />
-                {gSearch && <button onClick={()=>setGSearch("")} style={{ background:"none", border:"none", color:"#888888", cursor:"pointer", fontSize:18 }}>✕</button>}
-                <kbd style={{ background:"#222", color:"#666", border:"1px solid #444", borderRadius:5, padding:"2px 8px", fontSize:11 }}>esc</kbd>
-              </div>
-
-              {/* Results */}
-              <div style={{ maxHeight:500, overflowY:"auto" }}>
-                {q.length < 2
-                  ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#AAAAAA", fontSize:13 }}>Type at least 2 characters to search</div>
-                  : results.length === 0
-                    ? <div style={{ padding:"40px 20px", textAlign:"center", color:"#AAAAAA", fontSize:13 }}>No cards found for "{gSearch}"</div>
-                    : <>
-                        <div style={{ padding:"8px 20px", fontSize:11, color:"#999999", borderBottom:"1px solid #1a1a1a" }}>{results.length} result{results.length!==1?"s":""}</div>
-                        {results.map((c,i) => {
-                          const st = getStatus(c);
-                          const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
-                          return (
-                            <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, padding:"12px 20px", borderBottom:"1px solid #1a1a1a", background:i%2===0?"#111111":"#161616" }}>
-                              <div>
-                                <div style={{ fontWeight:700, color:"#F0F0F0", fontSize:14, marginBottom:4 }}>{c.cardName||"—"}</div>
-                                <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                                  {c.cardType && <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{c.cardType}</span>}
-                                  {c.seller && <span style={{ fontSize:11, color:"#888" }}>from <strong style={{color:"#AAAAAA"}}>{c.seller}</strong></span>}
-                                  {c.source && <span style={{ fontSize:11, color:"#666" }}>{c.source}</span>}
-                                  {c.date && <span style={{ fontSize:11, color:"#999999" }}>{c.date}</span>}
-                                </div>
-                              </div>
-                              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                                <span style={{ background:st.bg, color:st.c, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{st.l}</span>
-                                {c.marketValue > 0 && <span style={{ fontSize:11, color:"#AAAAAA" }}>MV: <strong>${c.marketValue.toFixed(2)}</strong></span>}
-                                {c.costPerCard > 0 && <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>Cost: ${c.costPerCard.toFixed(2)}</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </>
-                }
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-
-      <div style={{ background:"#000000", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
-        <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", gap:8 }}>
-          <div style={{ padding:"10px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span className="nav-bazooka" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
-            <span className="mobile-hide" style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-            <button onClick={()=>{ setGOpen(true); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", color:"#888" }}>
-              <span style={{ fontSize:13 }}>🔍</span>
-              <span className="mobile-hide" style={{ fontSize:12 }}>Search</span>
-              <kbd className="mobile-hide" style={{ background:"#111", color:"#999", border:"1px solid #2a2a2a", borderRadius:4, padding:"1px 5px", fontSize:10 }}>/</kbd>
-            </button>
-            <span className="mobile-hide" style={{ color:"#AAAAAA", fontSize:11 }}>{inventory.length} cards</span>
-            {realRole.role === "Admin" && (
-              <div className="mobile-hide" style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:`1.5px solid ${viewAs?"#f59e0b":"#333"}`, borderRadius:8, padding:"3px 10px" }}>
-                <span style={{ fontSize:10, color:viewAs?"#f59e0b":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{viewAs?"👁 Viewing as":"View As"}</span>
-                <select value={viewAs?.key||""} onChange={e=>{ if(!e.target.value){setViewAs(null);return;} const M={Admin:{role:"Admin",label:"CEO (Devin)",key:"Admin",displayName:user.displayName},Dev:{role:"Streamer",label:"Dev",key:"Dev",displayName:"Dev"},Dre:{role:"Streamer",label:"Dre",key:"Dre",displayName:"Dre"},Krystal:{role:"Streamer",label:"Krystal",key:"Krystal",displayName:"Krystal"},Procurement:{role:"Procurement",label:"Procurement",key:"Procurement",displayName:"John"},Shipping:{role:"Shipping",label:"Shipping",key:"Shipping",displayName:"Jake"}}; setViewAs(M[e.target.value]); setTab("dashboard"); }} style={{ background:"none", border:"none", color:viewAs?"#f59e0b":"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none" }}>
-                  <option value="">— Real Role —</option>
-                  <optgroup label="Streamers"><option value="Dev">Dev</option><option value="Dre">Dre</option><option value="Krystal">Krystal</option></optgroup>
-                  <optgroup label="Other Roles"><option value="Procurement">Procurement (John)</option><option value="Shipping">Shipping (Jake)</option></optgroup>
-                </select>
-              </div>
-            )}
-            {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%", border:"2px solid #E8317A" }}/>}
-            <span className="mobile-hide" style={{ color:"#AAAAAA", fontSize:11 }}>{user.displayName?.split(" ")[0]}</span>
-            <span className="mobile-hide" style={{ background:"#1a1a2e", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:10, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{userRole.label}</span>
-            <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #444", color:"#999", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
-          </div>
-        </div>
-        <div style={{ borderTop:"1px solid #111", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
-          <div style={{ display:"flex", padding:"0 8px", minWidth:"min-content" }}>
-            {TABS.map(t => {
-              const pq = t.id==="comp" ? quotes.filter(q=>!q.notified&&["accepted","declined","countered"].includes(q.status)).length : 0;
-              const im = t.label.match(/^(\S+)\s+(.+)$/);
-              return (
-                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab"
-                  style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", color:tab===t.id?"#E8317A":"#666", padding:"10px 12px", cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", position:"relative", whiteSpace:"nowrap", flexShrink:0 }}>
-                  <span className="nav-tab-icon" style={{ display:"none" }}>{im?im[1]:t.label}</span>
-                  <span className="nav-tab-label">{t.label}</span>
-                  {pq>0 && <span style={{ position:"absolute", top:4, right:2, background:"#E8317A", color:"#fff", borderRadius:"50%", width:14, height:14, fontSize:8, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{pq}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {viewAs && (
-        <div style={{ background:"#78350f", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"center", gap:16 }}>
-          <span style={{ fontSize:12, color:"#fef3c7", fontWeight:700 }}>👁 Previewing as <strong style={{color:"#f59e0b"}}>{viewAs.label}</strong> — this is exactly what they see</span>
-          <button onClick={()=>{ setViewAs(null); }} style={{ background:"#f59e0b", color:"#78350f", border:"none", borderRadius:6, padding:"3px 12px", fontSize:11, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>Exit Preview</button>
-        </div>
-      )}
-
-      <div key={tab} className="tab-content" style={{ maxWidth:1400, margin:"0 auto", padding:"16px 20px", overflowX:"hidden" }}>
-        {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
-        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
-        {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams} onClearAll={async()=>{ if(!window.confirm(`Delete ALL ${buyers.length} buyers and ${csvImports.length} import records? This cannot be undone.`)) return; await Promise.all(buyers.map(b=>deleteDoc(doc(db,"buyers",b.id)))); await Promise.all(csvImports.map(i=>deleteDoc(doc(db,"csv_imports",i.id)))); showToast("🗑 All buyer data cleared"); }}/>}
-        {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
-        {/* BobaChecklist stays mounted always so scans survive tab switching */}
-        <div style={{ display: tab==="checklist" ? "block" : "none" }}>
-          <BobaChecklist userRole={userRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={async ()=>{
-            try { localStorage.removeItem(BOBA_CACHE_KEY); } catch(e) {}
-            const snap = await getDocs(collection(db,"boba_checklist"));
-            const cards = snap.docs.map(d=>({id:d.id,...d.data()}));
-            setBobaCards(cards);
-            try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({cards, ts:Date.now()})); } catch(e) {}
-          }}/>
-        </div>
-        {tab==="showcase"    && <BobaShowcase uid={effectiveUser?.uid} />}
-      </div>
-
-      {toast && <div className="toast" style={{ position:"fixed", bottom:20, right:20, background:"#166534", color:"#ffffff", padding:"12px 18px", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 24px rgba(0,0,0,0.2)", zIndex:999 }}>{toast}</div>}
-      {activeScan && tab !== "checklist" && (
-        <div onClick={()=>setTab("checklist")} style={{ position:"fixed", bottom:20, left:20, background:"#0a0f1a", border:"1.5px solid #7B9CFF44", borderRadius:12, padding:"10px 16px", zIndex:999, cursor:"pointer", boxShadow:"0 4px 24px rgba(0,0,0,0.6)", minWidth:260 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-            <div style={{ width:8, height:8, borderRadius:"50%", background:"#7B9CFF", animation:"pulse 1s infinite" }}/>
-            <span style={{ fontSize:11, fontWeight:800, color:"#7B9CFF" }}>
-              {activeScan.type==="images" ? "🖼 Scanning Images" : "🔍 Scanning PDF"}
-            </span>
-            <span style={{ fontSize:10, color:"#555", marginLeft:"auto" }}>click to view</span>
-          </div>
-          <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden", marginBottom:4 }}>
-            <div style={{ width:`${activeScan.total>0?Math.round(activeScan.current/activeScan.total*100):0}%`, height:"100%", background:"linear-gradient(90deg,#7B9CFF,#C084FC)", borderRadius:2, transition:"width 0.3s" }}/>
-          </div>
-          <div style={{ fontSize:10, color:"#555", display:"flex", justifyContent:"space-between" }}>
-            <span>{activeScan.status}</span>
-            <span style={{ color:"#7B9CFF", fontWeight:700 }}>{activeScan.current}/{activeScan.total}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
