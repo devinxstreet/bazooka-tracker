@@ -1521,7 +1521,71 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
         <div id="comp-builder-top" style={S.card}>
           <SectionLabel t="Seller Information" />
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
-            <TextInput label="Seller Name"      value={seller.name}    onChange={v=>setSeller(p=>({...p,name:v}))} />
+            {/* Seller Name with autocomplete from history */}
+            {(() => {
+              const prevSellers = [...new Map(
+                [...comps].reverse()
+                  .filter(c => c.seller)
+                  .map(c => [c.seller.toLowerCase(), c])
+              ).values()].slice(0, 50);
+
+              const q = (seller.name||"").toLowerCase();
+              const suggestions = q.length >= 1
+                ? prevSellers.filter(c => c.seller.toLowerCase().includes(q) && c.seller.toLowerCase() !== q)
+                : [];
+
+              function fillSeller(comp) {
+                setSeller(p => ({
+                  ...p,
+                  name: comp.seller||"",
+                  contact: comp.contact||p.contact,
+                  source: comp.source||p.source,
+                  payment: comp.payment||p.payment,
+                  paymentHandle: comp.paymentHandle||p.paymentHandle,
+                }));
+              }
+
+              return (
+                <Field label="Seller Name">
+                  <div style={{ position:"relative" }}>
+                    <input
+                      type="text"
+                      value={seller.name}
+                      onChange={e => setSeller(p=>({...p, name:e.target.value}))}
+                      placeholder="Seller name..."
+                      style={S.inp}
+                      autoComplete="off"
+                    />
+                    {suggestions.length > 0 && (
+                      <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:240, overflowY:"auto" }}>
+                        {suggestions.map((c,i) => {
+                          const lastComp = comps.filter(x=>x.seller===c.seller).slice(-1)[0];
+                          const totalBought = comps.filter(x=>x.seller===c.seller).reduce((s,x)=>s+(parseFloat(x.offer)||0),0);
+                          const dealCount = comps.filter(x=>x.seller===c.seller).length;
+                          return (
+                            <div key={i} onMouseDown={()=>fillSeller(c)}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderBottom:"1px solid #111", cursor:"pointer", background:"#1a1a1a" }}
+                              className="inv-row">
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.seller}</div>
+                                <div style={{ fontSize:10, color:"#555", marginTop:1 }}>
+                                  {dealCount} deal{dealCount!==1?"s":""} · ${Math.round(totalBought).toLocaleString()} total
+                                  {c.source && <span style={{ marginLeft:6, color:"#7B9CFF" }}>{c.source}</span>}
+                                </div>
+                              </div>
+                              <div style={{ textAlign:"right", flexShrink:0 }}>
+                                {c.payment && <div style={{ fontSize:10, color:"#FBBF24" }}>{c.payment}</div>}
+                                {lastComp?.date && <div style={{ fontSize:10, color:"#333" }}>Last: {lastComp.date}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </Field>
+              );
+            })()}
             <TextInput label="Contact"          value={seller.contact} onChange={v=>setSeller(p=>({...p,contact:v}))} />
             <TextInput label="Date" type="date" value={seller.date}    onChange={v=>setSeller(p=>({...p,date:v}))} />
             <SelectInput label="Payment Method" value={seller.payment} onChange={v=>setSeller(p=>({...p,payment:v,paymentHandle:""}))} options={PAYMENT_METHODS} />
