@@ -930,11 +930,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
               const avail   = d.total - d.used - d.inTransit;
               const transit = d.inTransit;
-              const pct     = d.market > {"0 ? d.invested/d.market : null;
+              const pct     = d.market > 0 ? d.invested/d.market : null;
               const ok = avail >= buffer; const warn = avail >= buffer*0.5;
               const sc = ok?"#4ade80":warn?"#FBBF24":"#E8317A";
               const sl = ok?"\u2705 Stocked":warn?"\u26A0\uFE0F Low":"\uD83D\uDEA8 Critical";
-              return ("}<tr key={ct} style={{ background:i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
+              return (<tr key={ct} style={{ background:i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
                   <td style={{ padding:"14px 20px", fontWeight:800, color:cc.text, fontSize:14 }}>{ct}</td>
                   <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:cc.text }}>{d.total}</td>
                   <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:d.used>0?"#E8317A":"#333" }}>{d.used}</td>
@@ -1052,7 +1052,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
                           <td style={{ ...S.td, color:"#E8317A" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"--"}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
-                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>{"0?`\uD83C\uDF31 $"}{h.newBuyers}`:"--"}</td>
+                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>0?`\uD83C\uDF31 ${h.newBuyers}`:"--"}</td>
                           <td style={{ ...S.td, color:"#AAAAAA" }}>{h.notes||"--"}</td>
                           <td style={S.td}>
                             <div style={{ display:"flex", gap:6 }}>
@@ -1388,8 +1388,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
                             {(q.viewCount||0) === 0
                               ? <span style={{ fontSize:11, color:"#444" }}>{"\uD83D\uDC41 Not opened yet"}</span>
-                              : <span style={{ fontSize:11, color:(q.viewCount||0)>{"=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
-                                  \uD83D\uDC41 Opened"}{q.viewCount} time{q.viewCount!==1?"s":""}
+                              : <span style={{ fontSize:11, color:(q.viewCount||0)>=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
+                                  {"\uD83D\uDC41 Opened "}{q.viewCount} time{q.viewCount!==1?"s":""}
                                   {q.lastViewedAt && <span style={{color:"#555",fontWeight:400}}> &middot; Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
                                   {(q.viewCount||0)>=5 && <span style={{color:"#FBBF24",marginLeft:6}}>{"\uD83D\uDD25 Interested!"}</span>}
                                 </span>
@@ -3506,7 +3506,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.commAmt)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
-                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > {"0 ? `\uD83C\uDF31 $"}{s.newBuyers}` : "--"}</td>
+                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `\uD83C\uDF31 ${s.newBuyers}` : "--"}</td>
                         {PRODUCT_TYPES.map(pt => {
                           const qty = parseInt(s[`prod_${pt}`])||0;
                           const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
@@ -4379,7 +4379,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               const first = pts[0].price, last = pts[pts.length-1].price;
               const diff = last - first, pct = ((diff/first)*100).toFixed(1);
               return <div style={{ fontSize:11, color:diff>=0?"#4ade80":"#E8317A", textAlign:"right", marginTop:4 }}>
-                {diff>{"=0?"\u2191":"\u2193"} $"}{Math.abs(diff).toFixed(0)} ({Math.abs(pct)}%) since {pts[0].date}
+                {diff>=0?"\u2191":"\u2193"} ${Math.abs(diff).toFixed(0)} ({Math.abs(pct)}%) since {pts[0].date}
               </div>;
             })()}
           </div>
@@ -5029,13 +5029,13 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                   const gfc = g - (parseFloat(couponAmt)||0);
                   const bnc = gfc * 0.30;
                   const re = (parseFloat(couponAmt)||0) * 0.135;
-                  const mult = totalMktVal > {"0 ? g/totalMktVal : 0;
+                  const mult = totalMktVal > 0 ? g/totalMktVal : 0;
                   const r = mult>=1.8?0.55:mult>=1.7?0.50:mult>=1.6?0.45:mult>=1.5?0.40:0.35;
                   const ca = (bnc-re) * r;
                   const isTarget = pct === parseInt(targetPct);
                   const zc = pct>=150?"#4ade80":pct>=130?"#FBBF24":"#E8317A";
                   const zl = pct>=150?"\uD83D\uDFE2 Green":pct>=130?"\uD83D\uDFE1 Yellow":"\uD83D\uDD34 Red";
-                  return ("}<tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
+                  return (<tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }}>
                       <td style={{ ...S.td, fontWeight:isTarget?900:400, color:zc }}>{pct}%{isTarget?" \u2190 target":""}</td>
                       <td style={{ ...S.td, fontWeight:900, color:isTarget?zc:"#F0F0F0" }}>${sp.toFixed(2)}</td>
                       <td style={{ ...S.td, color:"#F0F0F0" }}>${g.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -6453,7 +6453,7 @@ function BobaShowcase({ uid }) {
                 {totalPages > 9 && <span style={{ color:"#333", fontSize:11 }}>{"\u2026"}{totalPages}</span>}
               </div>
               <button onClick={()=>goPage(page+1)} disabled={page>=totalPages-1}
-                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page>{"=totalPages-1?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page>=totalPages-1?"default":"pointer", fontFamily:"inherit" }}>
+                style={{ background:"transparent", border:"1px solid #2a2a2a", color:page>=totalPages-1?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page>=totalPages-1?"default":"pointer", fontFamily:"inherit" }}>
                 Next \u2192"}</button>
             </div>
 
@@ -11881,7 +11881,7 @@ export default function App() {
   async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
 
   async function handleBulkRemove(ids) {
-    await Promise.all(ids.map(id => {"deleteDoc(doc(db,"inventory",id))));
+    await Promise.all(ids.map(id => deleteDoc(doc(db,"inventory",id))));
     showToast(`\uD83D\uDDD1 $"}{ids.length} card${ids.length!==1?"s":""} deleted`);
   }
 
@@ -11899,7 +11899,7 @@ export default function App() {
   }
 
   async function handleBulkAddBreak(entries) {
-    await Promise.all(entries.map(e => {"setDoc(doc(db,"breaks",e.id), e)));
+    await Promise.all(entries.map(e => setDoc(doc(db,"breaks",e.id), e)));
     showToast(`\u2705 $"}{entries.length} cards logged out`);
   }
 
@@ -11911,7 +11911,7 @@ export default function App() {
 
   async function handleDeleteStream(id) {
     // Restore any chaser cards logged under this stream
-    const streamBreaks = breaks.filter(b => {"b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
+    const streamBreaks = breaks.filter(b => b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
     await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id))));
     await deleteDoc(doc(db,"streams",id));
     showToast("\uD83D\uDDD1 Stream deleted");
@@ -11961,7 +11961,7 @@ export default function App() {
 
   async function handleDeleteLot(key, cardIds) {
     if (!window.confirm(`Delete this entire lot and all ${cardIds.length} cards? Cannot be undone.`)) return;
-    await Promise.all(cardIds.map(id => {"deleteDoc(doc(db,"inventory",id))));
+    await Promise.all(cardIds.map(id => deleteDoc(doc(db,"inventory",id))));
     showToast("\uD83D\uDDD1 Lot deleted");
   }
 
@@ -12056,7 +12056,7 @@ export default function App() {
 
   async function handleClearAllBuyers() {
     if (!window.confirm("Delete ALL buyer data and CSV imports? This cannot be undone.")) return;
-    await Promise.all(buyers.map(b => {"deleteDoc(doc(db,"buyers",b.id))));
+    await Promise.all(buyers.map(b => deleteDoc(doc(db,"buyers",b.id))));
     await Promise.all(csvImports.map(i => deleteDoc(doc(db,"csv_imports",i.id))));
     showToast("\uD83D\uDDD1 All buyer data cleared");
   }
