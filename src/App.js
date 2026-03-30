@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc, getDocs } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDoc, getDocs, deleteField } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
@@ -5583,12 +5583,12 @@ function PublicPlaybookBuilder() {
 
   const available = cards.filter(c => {
     if (pbEntryIds.has(c.id)) return false;
-    if (pbSearch && !`${c.playName||""} ${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
+    if (pbSearch && !`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
     return true;
   }).sort((a,b)=>{
     if (pbSort==="dbs_desc") return (parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);
     if (pbSort==="dbs_asc")  return (parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);
-    return (a.playName||a.hero||"").localeCompare(b.playName||b.hero||"");
+    return (a.hero||"").localeCompare(b.hero||"");
   });
 
   const S = { inp:{ background:"#111", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" } };
@@ -5627,7 +5627,7 @@ function PublicPlaybookBuilder() {
                     <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px" }}>
                       {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div>
+                        <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:2, fontSize:10 }}>
                           <span style={{ color:"#555" }}>#{c.cardNum}</span>
                           {c.setName&&<span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
@@ -5681,8 +5681,8 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
                 <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>✕ Clear</button></div>
               </div>
             )}
@@ -6682,9 +6682,8 @@ function BobaChecklist({ userRole, user }) {
 
         for (const match of matches) {
           const update = { dbs };
-          if (playName) update.playName = playName;
           if (playCost) update.playCost = playCost;
-          if (playText) update.playAbility = playText;
+          // Never overwrite playName or playAbility — checklist is source of truth
           batch.push({ id: match.id, update });
           updated++;
         }
@@ -6879,6 +6878,27 @@ function BobaChecklist({ userRole, user }) {
                 {dbsImporting?"Importing...":"💰 Import DBS"}
                 <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
               </label>
+            )}
+            {isAdmin && cards.some(c=>c.playName) && (
+              <button onClick={async()=>{
+                if(!window.confirm("Clear bad play names written by the DBS import? This restores the checklist names.")) return;
+                const dirty = cards.filter(c=>c.playName);
+                setDbsStatus({ msg:`Clearing playName from ${dirty.length} cards...`, ok:null });
+                for(let i=0;i<dirty.length;i+=400){
+                  await Promise.all(dirty.slice(i,i+400).map(c=>
+                    setDoc(doc(db,"boba_checklist",c.id), { playName: deleteField() }, { merge:true })
+                  ));
+                }
+                try { localStorage.removeItem("boba_checklist_cache"); } catch(e){}
+                const snap = await getDocs(collection(db,"boba_checklist"));
+                const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
+                setCards(fresh);
+                try { localStorage.setItem("boba_checklist_cache", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
+                setDbsStatus({ msg:`✅ Cleared ${dirty.length} cards — play names restored`, ok:true });
+                setTimeout(()=>setDbsStatus(null),5000);
+              }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                🧹 Fix Play Names
+              </button>
             )}
             {dbsStatus && (
               <span style={{ fontSize:11, fontWeight:700, color:dbsStatus.ok===true?"#4ade80":dbsStatus.ok===false?"#E8317A":"#A855F7", background:dbsStatus.ok===true?"#0a1a0a":dbsStatus.ok===false?"#1a0a0a":"#1a0f1a", border:`1px solid ${dbsStatus.ok===true?"#4ade8044":dbsStatus.ok===false?"#E8317A44":"#A855F744"}`, borderRadius:7, padding:"4px 10px", whiteSpace:"nowrap" }}>
@@ -7864,12 +7884,12 @@ function BobaChecklist({ userRole, user }) {
         const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
-          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility} ${c.playName}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
+          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
           return true;
         }).sort((a,b) => {
           if (pbSort === "dbs_desc") return (parseFloat(b.dbs)||0) - (parseFloat(a.dbs)||0);
           if (pbSort === "dbs_asc")  return (parseFloat(a.dbs)||0) - (parseFloat(b.dbs)||0);
-          return (a.playName||a.hero||"").localeCompare(b.playName||b.hero||"");
+          return (a.hero||"").localeCompare(b.hero||"");
         });
 
         // Cards currently in playbook (resolved)
@@ -7954,7 +7974,7 @@ function BobaChecklist({ userRole, user }) {
                           {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0, opacity:isOwned?1:0.4 }}/>}
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-                              <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</span>
+                              <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</span>
                               {!pbOwnedOnly && <span style={{ fontSize:10, fontWeight:700, color:isOwned?"#4ade80":"#333" }}>{isOwned?"✓":"—"}</span>}
                             </div>
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
@@ -8059,7 +8079,7 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div>
+                                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
                                 <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
@@ -8083,7 +8103,7 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>B{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div>
+                                <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
                                 <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
