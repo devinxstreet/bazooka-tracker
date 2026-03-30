@@ -5896,12 +5896,12 @@ function PublicDeckBuilder() {
 
   useEffect(() => {
     async function load() {
-      const CACHE_KEY = "boba_checklist_cache";
+      const CACHE_KEY = "boba_checklist_cache_v2";
       try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
           const { cards: cc, ts } = JSON.parse(raw);
-          if (Date.now() - ts < 30*60*1000 && cc?.length > 0) { setCards(cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; })); setLoading(false); return; }
+          if (Date.now() - ts < 5*60*1000 && cc?.length > 0) { setCards(cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; })); setLoading(false); return; }
         }
       } catch(e) {}
       const snap = await getDocs(collection(db, "boba_checklist"));
@@ -6044,12 +6044,12 @@ function PublicPlaybookBuilder() {
 
   useEffect(() => {
     async function load() {
-      const CACHE_KEY = "boba_checklist_cache";
+      const CACHE_KEY = "boba_checklist_cache_v2";
       try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
           const { cards: cc, ts } = JSON.parse(raw);
-          if (Date.now() - ts < 30*60*1000 && cc?.length > 0) {
+          if (Date.now() - ts < 5*60*1000 && cc?.length > 0) {
             const plays = cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
             setCards(plays); setLoading(false); return;
           }
@@ -6770,7 +6770,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
   useEffect(() => {
     // Cards are static after import — use localStorage cache for instant load
-    const CACHE_KEY = "boba_checklist_cache";
+    const CACHE_KEY = "boba_checklist_cache_v2";
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -7143,7 +7143,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
     // Bust cache
-    try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
+    try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
   }
 
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
@@ -7602,11 +7602,11 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       }
 
       // Bust cache and reload
-      try { localStorage.removeItem("boba_checklist_cache"); } catch(e2) {}
+      try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e2) {}
       const freshSnap = await getDocs(collection(db, "boba_checklist"));
       const freshCards = freshSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
       setCards(freshCards);
-      try { localStorage.setItem("boba_checklist_cache", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
+      try { localStorage.setItem("boba_checklist_cache_v2", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
       setDbsStatus({ msg:`✅ Done! Updated ${updated} cards, skipped ${skipped}.`, ok:true });
       setTimeout(() => setDbsStatus(null), 5000);
     } catch(e) {
@@ -7816,11 +7816,11 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   ));
                   setDbsStatus({ msg:`Wiping... ${Math.min(i+400,playcards.length)}/${playcards.length}`, ok:null });
                 }
-                try { localStorage.removeItem("boba_checklist_cache"); } catch(e){}
+                try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e){}
                 const snap = await getDocs(collection(db,"boba_checklist"));
                 const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
                 setCards(fresh);
-                try { localStorage.setItem("boba_checklist_cache", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
+                try { localStorage.setItem("boba_checklist_cache_v2", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
                 setDbsStatus({ msg:`✅ Wiped ${playcards.length} play cards — re-import DBS CSV now`, ok:true });
                 setTimeout(()=>setDbsStatus(null),8000);
               }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -9350,7 +9350,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   }
                   await setDoc(doc(db,"boba_owned",ownedDocId), {});
                   setOwned({});
-                  try { localStorage.removeItem("boba_checklist_cache"); } catch(e) {}
+                  try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
                 }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   🗑 Clear All Cards
                 </button>
@@ -9640,8 +9640,8 @@ export default function App() {
   const [breaks,    setBreaks]    = useState([]);
   const [comps,     setComps]     = useState([]);
   const [bobaCards, setBobaCards] = useState([]);
-  const BOBA_CACHE_KEY = "boba_checklist_cache";
-  const BOBA_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  const BOBA_CACHE_KEY = "boba_checklist_cache_v2"; // bump version to force bust stale caches
+  const BOBA_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   // Load bobaCards at startup — used by Lot Comp, Inventory, Scan, everywhere
   useEffect(() => {
