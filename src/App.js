@@ -9758,12 +9758,11 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
           );
         })}
       </div>
-      {activeThread.status==="active"&&(
-        <div style={{display:"flex",gap:8,padding:"12px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.2)"}}>
-          <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="Type a message..." style={{...inp,flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}/>
-          <button onClick={sendMessage} disabled={!newMsg.trim()} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:newMsg.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:newMsg.trim()?1:0.4}}>Send</button>
-        </div>
-      )}
+      <div style={{display:"flex",gap:8,padding:"12px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.2)"}}>
+        {activeThread.status!=="active"&&<div style={{position:"absolute",bottom:72,left:0,right:0,textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.2)",pointerEvents:"none"}}>Deal marked complete</div>}
+        <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder={activeThread.status==="active"?"Message to coordinate payment...":"Continue the conversation..."} style={{...inp,flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}/>
+        <button onClick={sendMessage} disabled={!newMsg.trim()} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:newMsg.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:newMsg.trim()?1:0.4}}>Send</button>
+      </div>
     </div>
   );
 
@@ -9800,7 +9799,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
                     {isUnread&&<span style={{width:8,height:8,borderRadius:"50%",background:"#E8317A",flexShrink:0}}/>}
                   </div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} {"\u00B7"} {"$"}{(t.agreedPrice||0).toFixed(2)}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.lastMessage||"No messages yet"} <span style={{color:"rgba(232,49,122,0.5)",fontWeight:700}}>{"\u2192 Tap to chat"}</span></div>
                 </div>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",flexShrink:0,textAlign:"right"}}>
                   {t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}
@@ -10324,6 +10323,43 @@ function PublicCardDatabase() {
     if(!window.confirm("Remove this listing?"))return;
     await setDoc(doc(db,"marketplace",id),{status:"removed"},{merge:true});
   }
+  async function unsellListing(sale) {
+    if(!window.confirm("Reverse this sale? The listing will reopen and the card will be removed from the buyer's collection.")) return;
+    try {
+      // Reopen the listing
+      await setDoc(doc(db,"marketplace",sale.listingId||""),{status:"active",soldAt:null,soldTo:null,soldFor:null},{merge:true});
+    } catch(e){}
+    // Remove from buyer collection
+    try {
+      if(sale.cardId&&sale.buyerUid) {
+        const buyerSnap=await getDoc(doc(db,"boba_owned",sale.buyerUid));
+        if(buyerSnap.exists()) {
+          const bo=buyerSnap.data(); const newQty=(bo[sale.cardId]||1)-1;
+          const next={...bo}; if(newQty<=0) delete next[sale.cardId]; else next[sale.cardId]=newQty;
+          await setDoc(doc(db,"boba_owned",sale.buyerUid),next);
+          if(user?.uid===sale.buyerUid) setOwned(next);
+        }
+      }
+    } catch(e){ console.warn("Buyer reversal failed:",e); }
+    // Restore seller collection
+    try {
+      if(sale.cardId&&sale.sellerUid) {
+        const sellerSnap=await getDoc(doc(db,"boba_owned",sale.sellerUid));
+        const so=sellerSnap.exists()?sellerSnap.data():{};
+        const newQty=(so[sale.cardId]||0)+1;
+        const next={...so,[sale.cardId]:newQty};
+        await setDoc(doc(db,"boba_owned",sale.sellerUid),next);
+        if(user?.uid===sale.sellerUid) setOwned(next);
+      }
+    } catch(e){ console.warn("Seller restore failed:",e); }
+    // Delete the market_sales entry
+    try {
+      // Find and delete the sale doc - market_sales uses uid() as key so query by soldAt+sellerUid
+      const saleSnap=await getDocs(query(collection(db,"market_sales"),where("sellerUid","==",sale.sellerUid),where("soldAt","==",sale.soldAt)));
+      await Promise.all(saleSnap.docs.map(d=>deleteDoc(doc(db,"market_sales",d.id))));
+    } catch(e){ console.warn("Sale doc delete failed:",e); }
+    showToast("Sale reversed.");
+  }
   async function submitOffer() {
     if(!user||!offerModal||!offerAmt)return;
     const offId=uid();
@@ -10532,6 +10568,21 @@ function PublicCardDatabase() {
   });
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
   const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+  const collectionValue=(()=>{
+    // Build avg sale price per cardId from marketSales
+    const priceMap={};
+    marketSales.forEach(s=>{
+      if(!s.cardId||!s.price) return;
+      if(!priceMap[s.cardId]) priceMap[s.cardId]={total:0,count:0};
+      priceMap[s.cardId].total+=s.price;
+      priceMap[s.cardId].count+=1;
+    });
+    return Object.keys(owned).reduce((sum,cid)=>{
+      const qty=owned[cid]||1;
+      const avg=priceMap[cid]?priceMap[cid].total/priceMap[cid].count:0;
+      return sum+avg*qty;
+    },0);
+  })();
 
   // -- Deck logic --
   const deckSet=new Set(deckCards);
@@ -11087,7 +11138,7 @@ function PublicCardDatabase() {
                 <span style={{color:"#F0F0F0"}}>{"Collector's Database"}</span>
               </h1>
               <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
-                {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"}].map(({v,l})=>(
+                {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"},{v:collectionValue>0?"$"+collectionValue.toFixed(0):"--",l:"Est. Value"}].map(({v,l})=>(
                   <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"6px 14px",backdropFilter:"blur(10px)"}}>
                     <span style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{v}</span>
                     <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginLeft:6}}>{l}</span>
@@ -11539,6 +11590,7 @@ function PublicCardDatabase() {
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
                           <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
+                          <button onClick={e=>{e.stopPropagation();unsellListing(s);}} style={{marginTop:4,background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.4)",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Reverse</button>
                         </div>
                       </div>
                     ))}
