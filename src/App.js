@@ -9690,3 +9690,657 @@ function parseLocalDate(dateStr) {
   if (parts.length === 3) return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 12, 0, 0);
   return new Date(dateStr);
 }
+
+
+// ─── PUBLIC QUOTE PAGE ──────────────────────────────────────
+function PublicQuote({ quoteId }) {
+  const [quote, setQuote] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [response, setResponse] = useState("");
+  const [counterAmt, setCounterAmt] = useState("");
+  const [payment, setPayment] = useState("");
+  const [paymentHandle, setPaymentHandle] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (!quoteId) return;
+    getDoc(doc(db, "quotes", quoteId)).then(snap => {
+      if (snap.exists()) {
+        setQuote({ id: snap.id, ...snap.data() });
+        // Track view
+        setDoc(doc(db, "quotes", quoteId), {
+          viewCount: (snap.data().viewCount || 0) + 1,
+          lastViewedAt: new Date().toISOString(),
+        }, { merge: true });
+      }
+      setLoading(false);
+    });
+  }, [quoteId]);
+
+  if (loading) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#E8317A", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700 }}>Loading quote...</div>;
+  if (!quote) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#888", fontFamily:"'Trebuchet MS',sans-serif", fontSize:14 }}>Quote not found or has expired.</div>;
+
+  const isExpired = new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000);
+  const isClosed  = quote.status === "closed";
+  const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
+  const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
+  const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
+
+  async function submitResponse(type) {
+    if (type === "accepted") {
+      await setDoc(doc(db,"quotes",quote.id), { status:"accepted", sellerPayment:payment, sellerHandle:paymentHandle, notified:false, respondedAt:new Date().toISOString() }, { merge:true });
+    } else if (type === "declined") {
+      await setDoc(doc(db,"quotes",quote.id), { status:"declined", notified:false, respondedAt:new Date().toISOString() }, { merge:true });
+    } else if (type === "countered") {
+      const amt = parseFloat(counterAmt);
+      if (!amt) return;
+      await setDoc(doc(db,"quotes",quote.id), { status:"countered", sellerCounter:amt, notified:false, respondedAt:new Date().toISOString(), history:[...(quote.history||[]),{type:"seller_counter",amount:amt,timestamp:new Date().toISOString()}] }, { merge:true });
+    }
+    setSubmitted(true);
+    setQuote(prev => ({ ...prev, status: type }));
+  }
+
+  const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash App","Cash","Other"];
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", padding:"24px 16px" }}>
+      <div style={{ maxWidth:680, margin:"0 auto" }}>
+        {/* Header */}
+        <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:16, textAlign:"center", border:"1px solid #1a1a1a" }}>
+          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
+          <div style={{ fontSize:11, color:"#555", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
+        </div>
+
+        {(isExpired || isClosed) && (
+          <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:12, padding:"16px 20px", marginBottom:16, textAlign:"center" }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#E8317A" }}>{isClosed ? "This quote has been closed." : "This quote has expired (7-day limit)."}</div>
+            <div style={{ fontSize:12, color:"#555", marginTop:4 }}>Please contact Bazooka Breaks for a new offer.</div>
+          </div>
+        )}
+
+        {/* Status badge */}
+        {quote.status && quote.status !== "pending" && (
+          <div style={{ marginBottom:16, textAlign:"center" }}>
+            {{ accepted:<span style={{background:"#0a1a0a",color:"#4ade80",border:"1px solid #4ade8044",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>✅ You accepted this offer</span>, declined:<span style={{background:"#1a0a0a",color:"#E8317A",border:"1px solid #E8317A44",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>❌ You declined this offer</span>, countered:<span style={{background:"#1a1400",color:"#FBBF24",border:"1px solid #FBBF2444",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>🤝 Counter offer sent</span> }[quote.status]}
+          </div>
+        )}
+
+        {/* Seller info */}
+        <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:12, display:"grid", gridTemplateColumns:"1fr 1fr" }}>
+          <div><span style={{ color:"#555", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#F0F0F0" }}>{quote.seller?.name || "—"}</strong></div>
+          <div style={{ textAlign:"right" }}><span style={{ color:"#555", fontSize:11 }}>Date: </span><strong style={{ color:"#F0F0F0" }}>{quote.seller?.date || new Date(quote.createdAt).toLocaleDateString()}</strong></div>
+        </div>
+
+        {/* Cards table */}
+        {quote.cards && quote.cards.length > 0 && (
+          <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr style={{ background:"#0a0a0a" }}>
+                  {["#","Card Name","Qty","Value/Card","Offer/Card"].map(h=>(
+                    <th key={h} style={{ padding:"10px 12px", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, textAlign:"left", borderBottom:"1px solid #1a1a1a" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {quote.cards.map((c,i) => {
+                  const mv = parseFloat(c.mktVal)||0;
+                  const dispPct = totalMkt > 0 ? offer/totalMkt : 0;
+                  return (
+                    <tr key={i} style={{ borderBottom:"1px solid #1a1a1a" }}>
+                      <td style={{ padding:"10px 12px", color:"#555", fontSize:12 }}>{i+1}</td>
+                      <td style={{ padding:"10px 12px", fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{c.name}</td>
+                      <td style={{ padding:"10px 12px", color:"#888", fontSize:12, textAlign:"center" }}>{parseInt(c.qty)||1}</td>
+                      <td style={{ padding:"10px 12px", color:"#888", fontSize:12 }}>${mv.toFixed(2)}</td>
+                      <td style={{ padding:"10px 12px", color:"#E8317A", fontWeight:700, fontSize:12 }}>${(mv*dispPct).toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Notes */}
+        {quote.custNote && (
+          <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderLeft:"3px solid #E8317A", borderRadius:8, padding:"12px 16px", marginBottom:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes from Bazooka</div>
+            <p style={{ margin:0, fontSize:13, color:"#888", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{quote.custNote}</p>
+          </div>
+        )}
+
+        {/* Offer box */}
+        <div style={{ background:"#111111", border:"2px solid #E8317A33", borderRadius:12, padding:"20px 24px", marginBottom:12 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>Bazooka's Offer</span>
+            <span style={{ fontSize:28, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
+          </div>
+          {offerPct && <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{offerPct}% of market value · {quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards</div>}
+        </div>
+
+        {/* Ship-to */}
+        <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:16 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Ship Cards To</div>
+          <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
+            Devin — Bazooka<br/>
+            425 Prosperity Dr<br/>
+            Warsaw, IN 46582
+          </div>
+        </div>
+
+        {/* Response area */}
+        {!isExpired && !isClosed && quote.status === "pending" && !submitted && (
+          <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px" }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0", marginBottom:16 }}>Your Response</div>
+
+            <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+              <button onClick={()=>submitResponse("accepted")}
+                style={{ flex:1, background:"#0a1a0a", border:"2px solid #4ade80", color:"#4ade80", borderRadius:10, padding:"14px 0", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                ✅ Accept Offer
+              </button>
+              <button onClick={()=>submitResponse("declined")}
+                style={{ flex:1, background:"#1a0a0a", border:"2px solid #E8317A44", color:"#E8317A", borderRadius:10, padding:"14px 0", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                ❌ Decline
+              </button>
+            </div>
+
+            {/* Payment info for acceptance */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Payment Method (fill before accepting)</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <select value={payment} onChange={e=>setPayment(e.target.value)}
+                  style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:7, color:payment?"#F0F0F0":"#555", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}>
+                  <option value="">Select payment...</option>
+                  {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+                <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
+                  placeholder={payment==="Venmo"?"@handle":payment==="PayPal"?"username/email":payment==="Zelle"?"email or phone":"handle or info"}
+                  style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+              </div>
+            </div>
+
+            {/* Counter offer */}
+            {quote.allowCounter && (
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Counter Offer</div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input type="number" step="0.01" value={counterAmt} onChange={e=>setCounterAmt(e.target.value)}
+                    placeholder={`Enter your counter (e.g. ${(offer*1.1).toFixed(2)})`}
+                    style={{ flex:1, background:"#0a0a0a", border:"1px solid #FBBF2444", borderRadius:7, color:"#FBBF24", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+                  <button onClick={()=>submitResponse("countered")} disabled={!counterAmt}
+                    style={{ background:"#1a1400", border:"2px solid #FBBF24", color:"#FBBF24", borderRadius:8, padding:"8px 20px", fontSize:12, fontWeight:700, cursor:counterAmt?"pointer":"not-allowed", fontFamily:"inherit", opacity:counterAmt?1:0.4 }}>
+                    🤝 Send Counter
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {submitted && (
+          <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:12, padding:"20px", textAlign:"center" }}>
+            <div style={{ fontSize:28, marginBottom:8 }}>✅</div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>Response sent!</div>
+            <div style={{ fontSize:12, color:"#555", marginTop:6 }}>Bazooka Breaks will be in touch soon.</div>
+          </div>
+        )}
+
+        <div style={{ marginTop:20, textAlign:"center", color:"#333", fontSize:11, fontStyle:"italic" }}>
+          This offer is valid for 7 days. Thank you for bringing your collection to Bazooka!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [tab,           setTab]           = useState("dashboard");
+  const [gSearch,       setGSearch]       = useState("");
+  const [gOpen,         setGOpen]         = useState(false);
+  const [user,          setUser]          = useState(null);
+  const [authReady,     setAuthReady]     = useState(false);
+  const [viewAs,        setViewAs]        = useState("");
+  const [inventory,     setInventory]     = useState([]);
+  const [breaks,        setBreaks]        = useState([]);
+  const [streams,       setStreams]       = useState([]);
+  const [comps,         setComps]         = useState([]);
+  const [quotes,        setQuotes]        = useState([]);
+  const [buyers,        setBuyers]        = useState([]);
+  const [csvImports,    setCsvImports]    = useState([]);
+  const [shipments,     setShipments]     = useState([]);
+  const [productUsage,  setProductUsage]  = useState([]);
+  const [skuPrices,     setSkuPrices]     = useState({});
+  const [skuPriceHistory,setSkuPriceHistory]=useState([]);
+  const [cardPools,     setCardPools]     = useState([]);
+  const [lotTracking,   setLotTracking]   = useState({});
+  const [lotNotes,      setLotNotes]      = useState({});
+  const [historicalData,setHistoricalData]=useState([]);
+  const [payStubs,      setPayStubs]      = useState([]);
+  const [imcFormUrl,    setImcFormUrl]    = useState("");
+  const [bobaCards,     setBobaCards]     = useState([]);
+  const [toast,         setToast]         = useState(null);
+  const [scanStatus,    setScanStatus]    = useState(null);
+  const [activeScan,    setActiveScan]    = useState(null);
+
+  const BOBA_CACHE_KEY = "boba_checklist_cache_v2";
+  const BOBA_CACHE_TTL = 5 * 60 * 1000;
+
+  // Load bobaCards at startup
+  useEffect(() => {
+    async function loadBobaCards() {
+      try {
+        const raw = localStorage.getItem(BOBA_CACHE_KEY);
+        if (raw) {
+          const { cards: cc, ts } = JSON.parse(raw);
+          if (cc?.length > 0 && Date.now() - ts < BOBA_CACHE_TTL) {
+            setBobaCards(cc); return;
+          }
+        }
+      } catch(e) {}
+      try {
+        const snap = await getDocs(collection(db, "boba_checklist"));
+        const cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setBobaCards(cards);
+        try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({ cards, ts: Date.now() })); } catch(e) {}
+      } catch(e) {}
+    }
+    loadBobaCards();
+  }, []);
+
+  // Auth listener
+  useEffect(() => {
+    return onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
+  }, []);
+
+  // Firestore listeners
+  useEffect(() => {
+    if (!user) return;
+    const unsubs = [
+      onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")), snap => setInventory(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(query(collection(db,"breaks"), orderBy("dateAdded","asc")), snap => setBreaks(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(query(collection(db,"streams"), orderBy("date","asc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))),
+      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))),
+      onSnapshot(collection(db,"shipments"), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)))),
+      onSnapshot(collection(db,"product_usage"), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
+      onSnapshot(collection(db,"sku_price_history"), snap => setSkuPriceHistory(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")))),
+      onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(doc(db,"config","lotTracking"), snap => { if(snap.exists()) setLotTracking(snap.data()); }),
+      onSnapshot(doc(db,"config","lotNotes"), snap => { if(snap.exists()) setLotNotes(snap.data()); }),
+      onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
+      onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))),
+      onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, [user]);
+
+  // Keyboard shortcut for global search
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") { e.preventDefault(); setGOpen(p=>!p); }
+      if (e.key === "Escape") { setGOpen(false); setGSearch(""); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null), 3500); }
+
+  const userRole    = getUserRole(user);
+  const effectiveRole = viewAs ? ROLES[viewAs] || userRole : userRole;
+  const effectiveUser = viewAs ? { displayName: viewAs, email: viewAs + "@bazooka.com", uid: viewAs } : user;
+
+  // ── HANDLERS ────────────────────────────────────────────────
+
+  async function handleAccept(cards, seller, u, custNote) {
+    for (const card of cards) {
+      await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString() });
+    }
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added to inventory`);
+    setTab("inventory");
+  }
+
+  async function handleRemove(id) { await deleteDoc(doc(db,"inventory",id)); }
+
+  async function handleBulkRemove(ids) {
+    await Promise.all(ids.map(id => deleteDoc(doc(db,"inventory",id))));
+    showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
+  }
+
+  async function handleSaveCardCost(id, cost) {
+    await setDoc(doc(db,"inventory",id), { costPerCard: cost }, { merge:true });
+  }
+
+  async function handlePutBack(id) {
+    await deleteDoc(doc(db,"breaks", breaks.find(b=>b.inventoryId===id)?.id || "noop"));
+  }
+
+  async function handleAddBreak(entry) {
+    await setDoc(doc(db,"breaks",entry.id), { ...entry });
+    showToast(`✅ ${entry.cardName} logged out`);
+  }
+
+  async function handleBulkAddBreak(entries) {
+    await Promise.all(entries.map(e => setDoc(doc(db,"breaks",e.id), e)));
+    showToast(`✅ ${entries.length} cards logged out`);
+  }
+
+  async function handleDeleteBreak(id) { await deleteDoc(doc(db,"breaks",id)); }
+
+  async function handleSaveStream(stream) {
+    await setDoc(doc(db,"streams",stream.id), stream, { merge:true });
+  }
+
+  async function handleDeleteStream(id) {
+    // Restore any chaser cards logged under this stream
+    const streamBreaks = breaks.filter(b => b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
+    await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id))));
+    await deleteDoc(doc(db,"streams",id));
+    showToast("🗑 Stream deleted");
+  }
+
+  async function handleSaveComp(comp) {
+    const id = uid();
+    await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
+    showToast("💾 Comp saved");
+  }
+
+  async function handleDeleteComp(id) { await deleteDoc(doc(db,"comps",id)); showToast("🗑 Comp deleted"); }
+
+  async function handleSaveQuote(quoteData) {
+    const id = uid();
+    await setDoc(doc(db,"quotes",id), { ...quoteData, id, status:"pending", createdAt:new Date().toISOString(), viewCount:0, notified:true, history:[] });
+    return id;
+  }
+
+  async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { status:"closed" }, { merge:true }); }
+
+  async function handleBazookaCounter(quoteId, amount, history) {
+    await setDoc(doc(db,"quotes",quoteId), { status:"pending", currentOffer:amount, history:[...history,{type:"bazooka_counter",amount,timestamp:new Date().toISOString()}], notified:false }, { merge:true });
+  }
+
+  async function handleDismissQuoteNotif(id) { await setDoc(doc(db,"quotes",id), { notified:true }, { merge:true }); }
+
+  async function handleSaveLotTracking(key, data) {
+    const next = { ...lotTracking, [key]: data };
+    setLotTracking(next);
+    await setDoc(doc(db,"config","lotTracking"), next);
+  }
+
+  async function handleSaveLotNotes(key, notes) {
+    const next = { ...lotNotes, [key]: { notes } };
+    setLotNotes(next);
+    await setDoc(doc(db,"config","lotNotes"), next);
+  }
+
+  async function handleDeleteLot(key, cardIds) {
+    if (!window.confirm(`Delete this entire lot and all ${cardIds.length} cards? Cannot be undone.`)) return;
+    await Promise.all(cardIds.map(id => deleteDoc(doc(db,"inventory",id))));
+    showToast("🗑 Lot deleted");
+  }
+
+  async function handleSaveShipment(shipment) { await setDoc(doc(db,"shipments",shipment.id), shipment); }
+  async function handleDeleteShipment(id) { await deleteDoc(doc(db,"shipments",id)); }
+
+  async function handleSaveProductUsage(usage) { await setDoc(doc(db,"product_usage",usage.id), usage); }
+  async function handleDeleteProductUsage(id) { await deleteDoc(doc(db,"product_usage",id)); }
+
+  async function handleSaveSkuPrices(prices) {
+    await setDoc(doc(db,"config","skuPrices"), prices);
+    // Save snapshot to price history
+    const histId = uid();
+    await setDoc(doc(db,"sku_price_history",histId), { id:histId, date:new Date().toISOString().split("T")[0], prices, savedAt:new Date().toISOString() });
+    showToast("💾 SKU prices saved");
+  }
+
+  async function handleSavePool(pool) { await setDoc(doc(db,"card_pools",pool.id||uid()), { ...pool, id:pool.id||uid() }); }
+  async function handleDeletePool(id) { await deleteDoc(doc(db,"card_pools",id)); }
+
+  async function handleLogPoolOut(poolId, qty, breaker, date, usage) {
+    const pool = cardPools.find(p=>p.id===poolId);
+    if (!pool) return;
+    const newUsed = (parseInt(pool.usedQty)||0) + qty;
+    await setDoc(doc(db,"card_pools",poolId), { usedQty: newUsed }, { merge:true });
+    // Log a break entry for tracking
+    const breakId = uid();
+    await setDoc(doc(db,"breaks",breakId), { id:breakId, date, breaker, inventoryId:poolId, cardName:pool.cardName, cardType:pool.cardType, usage, notes:`Pool log: ${qty} units`, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", isPoolLog:true, qty });
+    showToast(`✅ Logged ${qty} ${pool.cardName}`);
+  }
+
+  async function handleAddToPool(poolId, qty) {
+    const pool = cardPools.find(p=>p.id===poolId);
+    if (!pool) return;
+    await setDoc(doc(db,"card_pools",poolId), { totalQty:(parseInt(pool.totalQty)||0)+qty }, { merge:true });
+    showToast(`✅ Added ${qty} to ${pool.cardName}`);
+  }
+
+  async function handleSaveHistorical(entry) {
+    await setDoc(doc(db,"historical_data",entry.id), entry);
+    showToast("💾 Historical data saved");
+  }
+
+  async function handleDeleteHistorical(id) {
+    await deleteDoc(doc(db,"historical_data",id));
+    showToast("🗑 Entry deleted");
+  }
+
+  async function handleSavePayStub(stub) {
+    const id = uid();
+    await setDoc(doc(db,"pay_stubs",id), { ...stub, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Admin", read:false });
+    showToast(`📤 Pay stub sent to ${stub.breaker}`);
+  }
+
+  async function handleDismissPayStub(id) { await setDoc(doc(db,"pay_stubs",id), { read:true }, { merge:true }); }
+  async function handleDeletePayStub(id) { await deleteDoc(doc(db,"pay_stubs",id)); showToast("🗑 Pay stub deleted"); }
+
+  async function handleSaveImcFormUrl(url) {
+    await setDoc(doc(db,"config","imcFormUrl"), { url });
+    showToast("💾 IMC Form URL saved");
+  }
+
+  async function handleUpsertBuyers(buyerList, streamId, filename) {
+    // Merge buyers — accumulate spend and orders
+    const existing = [...buyers];
+    const updates = {};
+    buyerList.forEach(b => {
+      const prev = existing.find(x => x.username === b.username);
+      updates[b.username] = {
+        id: prev?.id || uid(),
+        username: b.username,
+        fullName: b.fullName || prev?.fullName || "",
+        city: b.city || prev?.city || "",
+        state: b.state || prev?.state || "",
+        zip: b.zip || prev?.zip || "",
+        totalSpend: (prev?.totalSpend || 0) + b.spend,
+        orderCount: (prev?.orderCount || 0) + b.orders,
+        couponCount: (prev?.couponCount || 0) + (b.couponCount||0),
+        streams: [...new Set([...(prev?.streams||[]), streamId])],
+        firstSeen: prev?.firstSeen || b.date || new Date().toISOString().split("T")[0],
+        lastSeen: b.date || new Date().toISOString().split("T")[0],
+        isNew: !prev,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    await Promise.all(Object.values(updates).map(b => setDoc(doc(db,"buyers",b.id), b, { merge:true })));
+    // Save CSV import record
+    const impId = uid();
+    await setDoc(doc(db,"csv_imports",impId), { id:impId, streamId, filename, importedAt:new Date().toISOString(), rowCount:buyerList.length });
+    showToast(`✅ ${buyerList.length} buyers imported`);
+  }
+
+  async function handleClearAllBuyers() {
+    if (!window.confirm("Delete ALL buyer data and CSV imports? This cannot be undone.")) return;
+    await Promise.all(buyers.map(b => deleteDoc(doc(db,"buyers",b.id))));
+    await Promise.all(csvImports.map(i => deleteDoc(doc(db,"csv_imports",i.id))));
+    showToast("🗑 All buyer data cleared");
+  }
+
+  async function handleDeleteCsvImport(id) { await deleteDoc(doc(db,"csv_imports",id)); }
+
+  async function handleDeleteImport(id) { await deleteDoc(doc(db,"csv_imports",id)); }
+
+  function handleOnChecklistUpdated() {
+    try { localStorage.removeItem(BOBA_CACHE_KEY); } catch(e) {}
+    getDocs(collection(db,"boba_checklist")).then(snap => {
+      const cards = snap.docs.map(d=>({id:d.id,...d.data()}));
+      setBobaCards(cards);
+      try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({cards,ts:Date.now()})); } catch(e) {}
+    });
+  }
+
+  // ── NAV TABS ─────────────────────────────────────────────────
+  const ALL_TABS = [
+    { id:"dashboard",  label:"Dashboard",   icon:"📊", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"comp",       label:"Lot Comp",     icon:"🧮", roles:["Admin","Procurement","Streamer","Shipping","Viewer"] },
+    { id:"inventory",  label:"Inventory",   icon:"📦", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"streams",    label:"Streams",      icon:"🎯", roles:["Admin","Streamer","Procurement","Shipping"] },
+    { id:"buyers",     label:"Buyers",       icon:"👥", roles:["Admin","Streamer"] },
+    { id:"performance",label:"Performance",  icon:"📈", roles:["Admin","Streamer"] },
+    { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"showcase",   label:"Showcase",     icon:"✨", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+  ].filter(t => t.roles.includes(effectiveRole?.role));
+
+  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
+
+  // Public routes
+  const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
+  if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
+
+  if (window.location.pathname === "/showcase") {
+    const params = new URLSearchParams(window.location.search);
+    const uid2 = params.get("uid");
+    return <BobaShowcase uid={uid2} />;
+  }
+
+  if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
+  if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
+  if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
+
+  if (!user) return <LoginScreen />;
+
+  return (
+    <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
+      <GlobalStyles />
+
+      {/* Global search overlay */}
+      {gOpen && (() => {
+        const usedIds = new Set(breaks.map(b=>b.inventoryId));
+        const q = gSearch.toLowerCase().trim();
+        const results = q.length < 2 ? [] : inventory.filter(c => {
+          return (
+            c.cardName?.toLowerCase().includes(q) ||
+            c.seller?.toLowerCase().includes(q) ||
+            c.cardType?.toLowerCase().includes(q) ||
+            c.source?.toLowerCase().includes(q) ||
+            (usedIds.has(c.id) ? "used" : c.cardStatus==="in_transit" ? "in transit" : "available").includes(q)
+          );
+        });
+        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#7B9CFF" } : { l:"Available", bg:"#0a1a0a", c:"#4ade80" };
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-start", paddingTop:80 }}
+            onClick={()=>{ setGOpen(false); setGSearch(""); }}>
+            <div style={{ background:"#111111", borderRadius:14, width:"100%", maxWidth:620, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1.5px solid #2a2a2a", overflow:"hidden" }}
+              onClick={e=>e.stopPropagation()}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid #1a1a1a" }}>
+                <span style={{ fontSize:20 }}>🔍</span>
+                <input autoFocus value={gSearch} onChange={e=>setGSearch(e.target.value)} placeholder="Search inventory by name, seller, type, status..." style={{ flex:1, background:"transparent", border:"none", color:"#F0F0F0", fontSize:15, fontFamily:"inherit", outline:"none" }}/>
+                <span style={{ fontSize:11, color:"#444" }}>ESC to close</span>
+              </div>
+              <div style={{ maxHeight:400, overflowY:"auto" }}>
+                {q.length < 2 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>Type at least 2 characters to search</div> :
+                  results.length === 0 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>No matches for "{gSearch}"</div> :
+                  results.slice(0,20).map((c,i) => {
+                    const st = getStatus(c);
+                    const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
+                    return (
+                      <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"#111":"#0d0d0d" }} className="inv-row">
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"—"} · {c.source||"—"} · {c.date||"—"}</div>
+                        </div>
+                        <span style={{ background:cc.bg, color:cc.text, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{c.cardType}</span>
+                        <span style={{ background:st.bg, color:st.c, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{st.l}</span>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Toast */}
+      {toast && (
+        <div className="toast" style={{ position:"fixed", bottom:24, right:24, background:"#111111", border:"1.5px solid #4ade80", borderRadius:12, padding:"12px 20px", fontSize:13, fontWeight:700, color:"#4ade80", zIndex:999, boxShadow:"0 8px 32px rgba(0,0,0,0.5)" }}>
+          {toast}
+        </div>
+      )}
+
+      {/* Active scan indicator (when scanning from non-BoBA tab) */}
+      {activeScan && tab !== "checklist" && (
+        <div style={{ position:"fixed", bottom:24, left:24, background:"#1a0a1a", border:"1.5px solid #E8317A44", borderRadius:12, padding:"10px 16px", fontSize:12, fontWeight:700, color:"#E8317A", zIndex:998 }}>
+          📷 Scan mode active
+        </div>
+      )}
+
+      {/* Nav */}
+      <div style={{ background:"#000000", borderBottom:"1px solid #1a1a1a", position:"sticky", top:0, zIndex:100 }}>
+        {/* Row 1: brand + controls */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:48 }}>
+          <div className="nav-bazooka" style={{ fontSize:18, fontWeight:900, color:"#E8317A", letterSpacing:3, cursor:"pointer", flexShrink:0 }} onClick={()=>setTab("dashboard")}>
+            BAZOOKA
+          </div>
+          <span style={{ fontSize:10, color:"#333", fontWeight:700, letterSpacing:2, textTransform:"uppercase" }} className="mobile-hide">DASHBOARD</span>
+          <div style={{ flex:1 }}/>
+          {/* Global search */}
+          <button onClick={()=>setGOpen(p=>!p)} style={{ display:"flex", alignItems:"center", gap:8, background:"#111111", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#555", fontSize:12 }}>
+            <span>🔍</span>
+            <span className="mobile-hide">Search</span>
+            <kbd style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10, color:"#444" }} className="mobile-hide">/</kbd>
+          </button>
+          {/* Card count */}
+          <span style={{ fontSize:11, color:"#555" }} className="mobile-hide">{inventory.length} cards</span>
+          {/* View As */}
+          {userRole.role === "Admin" && (
+            <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:7, color:"#888", padding:"4px 8px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }} className="mobile-hide">
+              <option value="">— Real Role —</option>
+              {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
+            </select>
+          )}
+          {/* User badge */}
+          <div style={{ display:"flex", alignItems:"center", gap:6 }} className="mobile-hide">
+            <span style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{user?.displayName?.split(" ")[0]}</span>
+            <span style={{ background:effectiveRole.bg||"#1a1a1a", color:effectiveRole.color, border:`1px solid ${effectiveRole.color}33`, borderRadius:20, padding:"2px 10px", fontSize:10, fontWeight:700 }}>{effectiveRole.label}</span>
+          </div>
+          <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} className="mobile-hide">Sign out</button>
+        </div>
+        {/* Row 2: tabs */}
+        <div style={{ display:"flex", overflowX:"auto", padding:"0 8px 0", gap:2, scrollbarWidth:"none" }} className="nav-tabs-row">
+          {ALL_TABS.map(t => (
+            <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab"
+              style={{ background:tab===t.id?"#1A1A2E":"transparent", color:tab===t.id?"#E8317A":"#9CA3AF", border:"none", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:6 }}>
+              <span className="nav-tab-icon" style={{ display:"none" }}>{t.icon}</span>
+              <span className="nav-tab-label">{t.icon} {t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto" }}>
+        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
+        {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="inventory"  && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
+        {tab==="streams"    && <Streams     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
+        {tab==="buyers"     && <BuyersCRM   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
+        {tab==="performance"&& <Performance breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
+        {tab==="checklist"  && <BobaChecklist userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
+        {tab==="showcase"   && <BobaShowcase uid={effectiveUser?.uid} />}
+      </div>
+    </div>
+  );
+}
