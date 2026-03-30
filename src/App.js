@@ -1048,7 +1048,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   );
 }
 
-function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif }) {
+function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState("builder");
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
@@ -1068,6 +1068,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
   const [counterOffer,        setCounterOffer]        = useState("");
   const [loadedCompId,        setLoadedCompId]        = useState(null);
   const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
+  const [acOpen,       setAcOpen]       = useState(null);  // row id with open autocomplete
+  const [acQuery,      setAcQuery]      = useState({});    // {rowId: queryString}
 
 
 
@@ -1606,9 +1608,63 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                               <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
                             )
                           ) : (
-                            // Individual type — free text input
+                            // Individual type — BoBA checklist autocomplete
                             <>
-                              <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                              <div style={{ position:"relative", flex:1 }}>
+                                <input
+                                  value={acOpen === r.id ? (acQuery[r.id] ?? r.name) : r.name}
+                                  onChange={e => {
+                                    setAcOpen(r.id);
+                                    setAcQuery(q => ({ ...q, [r.id]: e.target.value }));
+                                    upd(r.id, "name", e.target.value);
+                                  }}
+                                  onFocus={() => {
+                                    setAcOpen(r.id);
+                                    setAcQuery(q => ({ ...q, [r.id]: r.name }));
+                                  }}
+                                  onBlur={() => setTimeout(() => setAcOpen(p => p === r.id ? null : p), 150)}
+                                  placeholder="Type hero name or card #..."
+                                  style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
+                                />
+                                {acOpen === r.id && (acQuery[r.id]||"").length >= 2 && (() => {
+                                  const q = (acQuery[r.id]||"").toLowerCase();
+                                  const hits = bobaCards.filter(c =>
+                                    (c.hero||"").toLowerCase().includes(q) ||
+                                    String(c.cardNum||"").toLowerCase().includes(q) ||
+                                    (c.treatment||"").toLowerCase().includes(q)
+                                  ).slice(0, 8);
+                                  if (hits.length === 0) return null;
+                                  return (
+                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)" }}>
+                                      {hits.map(c => {
+                                        const wc = WEAPON_COLORS[c.weapon]||"#444";
+                                        const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" — ");
+                                        return (
+                                          <div key={c.id}
+                                            onMouseDown={() => {
+                                              upd(r.id, "name", label);
+                                              setAcOpen(null);
+                                              setAcQuery(q2 => ({ ...q2, [r.id]: label }));
+                                            }}
+                                            style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                                            className="inv-row">
+                                            {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:24, height:32, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                                            <div style={{ flex:1, minWidth:0 }}>
+                                              <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
+                                              <div style={{ display:"flex", gap:6, fontSize:10 }}>
+                                                <span style={{ color:"#555" }}>#{c.cardNum}</span>
+                                                {c.weapon && <span style={{ color:wc, fontWeight:700 }}>{c.weapon}</span>}
+                                                {c.treatment && <span style={{ color:"#888" }}>{c.treatment}</span>}
+                                              </div>
+                                            </div>
+                                            {c.power && <span style={{ fontSize:13, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</span>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
                               {r.name.trim() && (
                                 <a
                                   href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`}
@@ -7774,6 +7830,7 @@ export default function App() {
   const [inventory, setInventory] = useState([]);
   const [breaks,    setBreaks]    = useState([]);
   const [comps,     setComps]     = useState([]);
+  const [bobaCards, setBobaCards] = useState([]);
   const [toast,        setToast]        = useState(null);
   const [lotTracking,  setLotTracking]  = useState({});
   const [lotNotes,     setLotNotes]     = useState({});
@@ -7806,6 +7863,21 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [gOpen]);
+
+  useEffect(() => {
+    if (tab !== "comp" || bobaCards.length > 0) return;
+    const CACHE_KEY = "boba_checklist_cache";
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const { cards: cc } = JSON.parse(raw);
+        if (cc && cc.length > 0) { setBobaCards(cc); return; }
+      }
+    } catch(e) {}
+    getDocs(collection(db, "boba_checklist")).then(snap => {
+      setBobaCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  }, [tab]);
 
   useEffect(() => {
     if (!user) return;
@@ -8359,7 +8431,7 @@ export default function App() {
 
       <div key={tab} className="tab-content" style={{ maxWidth:1200, margin:"0 auto", padding:"20px" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
-        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams}/>}
