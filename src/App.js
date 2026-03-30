@@ -2000,10 +2000,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
 }
 
 
-// --─ CARD POOL GLOBALS --------------------------------------─
+// --- CARD POOL GLOBALS ---------------------------------------
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
 
-// --─ CARD POOLS ----------------------------------------------
+// --- CARD POOLS ----------------------------------------------
 function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
@@ -4239,7 +4239,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
   );
 }
 
-// --─ PRODUCT INVENTORY ------------------------------------------─
+// --- PRODUCT INVENTORY -------------------------------------------
 function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[], skuPriceHistory=[] }) {
   const canEdit = ["Admin"].includes(userRole?.role);
   const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
@@ -4593,7 +4593,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
   );
 }
 
-// --─ CUSTOMERS CRM ----------------------------------------------
+// --- CUSTOMERS CRM ----------------------------------------------
 function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
@@ -4870,8 +4870,8 @@ function SkuPriceChart({ streams }) {
   return null;
 }
 
-// --─ STREAMS (wrapper: recap + cards + commission) --------------─
-// --─ BREAK PLANNER ------------------------------------------─
+// --- STREAMS (wrapper: recap + cards + commission) ---------------
+// --- BREAK PLANNER -------------------------------------------
 function BreakPlanner({ skuPrices={}, userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_PRODUCT = { type:"", qty:"1" };
@@ -5114,7 +5114,7 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
   );
 }
 
-// --─ COMMISSION --------------------------------------------------
+// --- COMMISSION --------------------------------------------------
 function StubRow({ stub, S, onDeletePayStub }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -5395,7 +5395,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     );
   }
 
-  // -- FORM ----------------------------------------------------─
+  // -- FORM -----------------------------------------------------
   if (editing) {
     const preview = calcStream(form);
     return (
@@ -5908,7 +5908,7 @@ const PUBLIC_DECK_SIZE = 60;
 const PUBLIC_PLAY_LIMIT = 30;
 const PUBLIC_DBS_CAP = 1000;
 
-// --─ PUBLIC DECK BUILDER (no auth required) --------------------
+// --- PUBLIC DECK BUILDER (no auth required) --------------------
 function PublicDeckBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6133,7 +6133,7 @@ function PublicDeckBuilder() {
   );
 }
 
-// --─ PUBLIC PLAYBOOK BUILDER (no auth required) --------------------
+// --- PUBLIC PLAYBOOK BUILDER (no auth required) --------------------
 function PublicPlaybookBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6289,7 +6289,7 @@ function PublicPlaybookBuilder() {
 }
 
 
-// --─ BOBA SHOWCASE (public, no auth required) --------------------
+// --- BOBA SHOWCASE (public, no auth required) --------------------
 function BobaShowcase({ uid }) {
   const [cards,     setCards]     = useState([]);
   const [owned,     setOwned]     = useState({});
@@ -6605,8 +6605,8 @@ function ShowcaseCard({ c, onClick, large }) {
   );
 }
 
-// --─ PUBLIC QUOTE PAGE (no auth required) --------------------
-// --─ BOBA SHOWCASE (public, no auth required) ----------------
+// --- PUBLIC QUOTE PAGE (no auth required) --------------------
+// --- BOBA SHOWCASE (public, no auth required) ----------------
 const SHOWCASE_WEAPON_COLORS = { Fire:"#F97316",Ice:"#60A5FA",Steel:"#9CA3AF",Brawl:"#E8317A",Glow:"#4ade80",Hex:"#A855F7",Gum:"#FBBF24",Super:"#F472B6",Alt:"#AAAAAA",Metallic:"#E5E7EB" };
 const RARITY_TIERS = [
   { label:"Legendary", minPower:200, color:"#FBBF24" },
@@ -7163,7 +7163,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       return a.includes(b) || b.includes(a);
     }
 
-    // Extract set-order number from filename e.g. "setorder61" → "61"
+    // Extract set-order number from filename e.g. "setorder61" - "61"
     function extractSetOrder(filename) {
       const m = filename.match(/setorder(\d+)/i) || filename.match(/[-_](\d+)\./);
       return m ? m[1] : null;
@@ -7299,7 +7299,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
     try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
-  }  // ← closes scanImagesForCards
+  }  // - closes scanImagesForCards
 
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
   const [scanModal,    setScanModal]    = useState(false); // full-screen scan modal open
@@ -7551,7 +7551,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     await setDoc(doc(db,"boba_owned",ownedDocId), next);
   }
 
-  // Keep toggleOwned as convenience (0→1, 1→0)
+  // Keep toggleOwned as convenience (0-1, 1-0)
   async function toggleOwned(cardId) {
     await setOwnedQty(cardId, owned[cardId] ? 0 : 1);
   }
@@ -7696,7 +7696,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         setDbsImporting(false); return;
       }
 
-      // Rarity prefix → set name mapping
+      // Rarity prefix - set name mapping
       const PREFIX_TO_SET = {
         "a": "2024 Alpha Edition",
         "u": "2025 Alpha Update",
@@ -7705,14 +7705,14 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       };
 
       function stripPrefix(s) {
-        // Strip single-letter rarity prefix: "A - PL-59" → "PL-59", "G - BPL-3" → "BPL-3"
+        // Strip single-letter rarity prefix: "A - PL-59" - "PL-59", "G - BPL-3" - "BPL-3"
         return String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
       }
       function normStr(s) {
         return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
       }
 
-      // Build lookup map: normalized cardNum → [cards]
+      // Build lookup map: normalized cardNum - [cards]
       const exactMap = {};
       cards.forEach(c => {
         const k = normStr(c.cardNum);
@@ -7738,7 +7738,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const allMatches = exactMap[normNum] || [];
         if (allMatches.length === 0) { skipped++; continue; }
 
-        // Extract rarity prefix: "G - BPL-6" → "g", "HTD-40" → "htd"
+        // Extract rarity prefix: "G - BPL-6" - "g", "HTD-40" - "htd"
         const prefixMatch = rawNum.match(/^([A-Za-z]+)\s*-\s*/);
         const prefix = prefixMatch ? prefixMatch[1].toLowerCase() : "";
         const prefixSet = PREFIX_TO_SET[prefix] || "";
@@ -8918,8 +8918,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         inDeck.forEach(c => { const p = c.power||"0"; powerCount[p] = (powerCount[p]||0)+1; });
 
         // Treatment count: how many 115-160 cards per treatment (for Apex Madness unlock)
-        const treatCountCore = {};   // treatment → count of 115-160 cards in deck
-        const treatCountApex = {};   // treatment → count of >160 cards in deck
+        const treatCountCore = {};   // treatment - count of 115-160 cards in deck
+        const treatCountApex = {};   // treatment - count of >160 cards in deck
         if (isApexMadness) {
           inDeck.forEach(c => {
             const t = (c.treatment||"Unknown").toLowerCase();
@@ -9738,7 +9738,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
 
 
-// --─ PUBLIC CARD DATABASE (full community app) --------------─
+// --- PUBLIC CARD DATABASE (full community app) ---------------
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -11600,7 +11600,7 @@ function parseLocalDate(dateStr) {
 }
 
 
-// --─ PUBLIC QUOTE PAGE --------------------------------------
+// --- PUBLIC QUOTE PAGE --------------------------------------
 function PublicQuote({ quoteId }) {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12108,7 +12108,7 @@ export default function App() {
     });
   }
 
-  // -- NAV TABS ------------------------------------------------─
+  // -- NAV TABS -------------------------------------------------
   const ALL_TABS = [
     { id:"dashboard",  label:"Dashboard",   icon:"📊", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"comp",       label:"Lot Comp",     icon:"🧮", roles:["Admin","Procurement","Streamer","Shipping","Viewer"] },
