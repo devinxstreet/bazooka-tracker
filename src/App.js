@@ -198,6 +198,7 @@ function GlobalStyles() {
       select option { background: #111111; color: #F0F0F0; }
       @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
       @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+      @keyframes spin { to { transform: rotate(360deg); } }
       .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       @keyframes toastIn { from { opacity:0; transform:translateY(24px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
       .card-hover { transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease !important; }
@@ -8763,24 +8764,40 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
       ) : cards.length === 0 ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
-      ) : (
-        <>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
-            {paginated.map(c => {
-              const isOwned = !!owned[c.id];
-              const wc = WEAPON_COLORS[c.weapon] || "#444";
-              return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
-            })}
-          </div>
-          {totalPages > 1 && (
-            <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"8px 0" }}>
-              <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{ background:"none", border:"1px solid #333", color:page===1?"#333":"#888", borderRadius:7, padding:"4px 12px", fontSize:11, cursor:page===1?"default":"pointer", fontFamily:"inherit" }}>← Prev</button>
-              <span style={{ fontSize:12, color:"#555" }}>Page {page} of {totalPages} · {filtered.length.toLocaleString()} cards</span>
-              <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} style={{ background:"none", border:"1px solid #333", color:page===totalPages?"#333":"#888", borderRadius:7, padding:"4px 12px", fontSize:11, cursor:page===totalPages?"default":"pointer", fontFamily:"inherit" }}>Next →</button>
+      ) : (() => {
+        const visibleCards = filtered.slice(0, page * PAGE_SIZE);
+        const hasMore = visibleCards.length < filtered.length;
+        return (
+          <>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
+              {visibleCards.map(c => {
+                const isOwned = !!owned[c.id];
+                return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+              })}
             </div>
-          )}
-        </>
-      ))}
+            {hasMore && (
+              <div style={{ textAlign:"center", padding:"16px 0", color:"#555", fontSize:12 }}
+                ref={el => {
+                  if (!el) return;
+                  const obs = new IntersectionObserver(([entry]) => {
+                    if (entry.isIntersecting) { setPage(p => p + 1); obs.disconnect(); }
+                  }, { rootMargin:"200px" });
+                  obs.observe(el);
+                }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:16, height:16, border:"2px solid #333", borderTopColor:"#E8317A", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+                  Loading more... ({visibleCards.length} of {filtered.length.toLocaleString()})
+                </div>
+              </div>
+            )}
+            {!hasMore && filtered.length > PAGE_SIZE && (
+              <div style={{ textAlign:"center", padding:"12px 0", color:"#333", fontSize:11 }}>
+                All {filtered.length.toLocaleString()} cards loaded
+              </div>
+            )}
+          </>
+        );
+      })())}
       {/* Imported sets */}
       {isAdmin && (
         <div style={{ ...S.card }}>
