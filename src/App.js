@@ -5886,6 +5886,7 @@ function BobaChecklist({ userRole, user }) {
   const [pbSearch,       setPbSearch]       = useState("");
   const [pbOwnedOnly,    setPbOwnedOnly]    = useState(false);
   const [pbSaving,       setPbSaving]       = useState(false);
+  const [pbSort,         setPbSort]         = useState("name"); // name | dbs_asc | dbs_desc
   const PLAY_LIMIT = 30;
   const DECK_SIZE = 60;
   const PAGE_SIZE = 100;
@@ -6113,14 +6114,18 @@ function BobaChecklist({ userRole, user }) {
       if (!match) { console.log(`Page ${pageNum}: no match — cardNum="${identified.cardNum}" hero="${identified.hero}"`); return; }
       console.log(`Page ${pageNum}: matched ${match.hero} #${match.cardNum}`);
 
-      // Render high quality version for storage
+      // Render high quality version for storage — 3.5x scale, PNG lossless
       const hiCanvas = document.createElement("canvas");
-      const hiViewport = page.getViewport({ scale: 2.0 });
+      const hiViewport = page.getViewport({ scale: 3.5 });
       hiCanvas.width = hiViewport.width;
       hiCanvas.height = hiViewport.height;
-      await page.render({ canvasContext: hiCanvas.getContext("2d"), viewport: hiViewport }).promise;
-      const imgBlob = await new Promise(res => hiCanvas.toBlob(res, "image/jpeg", 0.92));
-      const storageRef = ref(storage, `boba_cards/${match.id}.jpg`);
+      const hiCtx = hiCanvas.getContext("2d");
+      hiCtx.imageSmoothingEnabled = true;
+      hiCtx.imageSmoothingQuality = "high";
+      await page.render({ canvasContext: hiCtx, viewport: hiViewport }).promise;
+      const imgBlob = await new Promise(res => hiCanvas.toBlob(res, "image/png"));
+      const storageRef = ref(storage, `boba_cards/${match.id}.png`);
+      await uploadBytes(storageRef, imgBlob);
       await uploadBytes(storageRef, imgBlob);
       const imageUrl = await getDownloadURL(storageRef);
       await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
@@ -7539,12 +7544,17 @@ function BobaChecklist({ userRole, user }) {
           return num.startsWith("PL") || num.startsWith("BPL");
         });
         const isPlay  = c => String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL");
-        const isBonus = c => String(c.cardNum||"").toUpperCase().startsWith("BPL");        const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
+        const isBonus = c => String(c.cardNum||"").toUpperCase().startsWith("BPL");
+        const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
-          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
+          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility} ${c.playName}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
           return true;
-        }).sort((a,b)=>(a.hero||"").localeCompare(b.hero||""));
+        }).sort((a,b) => {
+          if (pbSort === "dbs_desc") return (parseFloat(b.dbs)||0) - (parseFloat(a.dbs)||0);
+          if (pbSort === "dbs_asc")  return (parseFloat(a.dbs)||0) - (parseFloat(b.dbs)||0);
+          return (a.playName||a.hero||"").localeCompare(b.playName||b.hero||"");
+        });
 
         // Cards currently in playbook (resolved)
         const pbResolved = pbCards.map(e => ({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card);
@@ -7606,6 +7616,11 @@ function BobaChecklist({ userRole, user }) {
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)}
                     placeholder="Search hero, play ability..."
                     style={{ ...S.inp, flex:1 }}/>
+                  <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                    <option value="name">Sort: Name</option>
+                    <option value="dbs_desc">DBS: High → Low</option>
+                    <option value="dbs_asc">DBS: Low → High</option>
+                  </select>
                   <span style={{ fontSize:11, color:"#555" }}>{available.length} plays available</span>
                 </div>
 
@@ -7623,16 +7638,16 @@ function BobaChecklist({ userRole, user }) {
                           {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0, opacity:isOwned?1:0.4 }}/>}
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-                              <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</span>
+                              <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</span>
                               {!pbOwnedOnly && <span style={{ fontSize:10, fontWeight:700, color:isOwned?"#4ade80":"#333" }}>{isOwned?"✓":"—"}</span>}
                             </div>
-                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:c.playAbility?4:0 }}>
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
                               <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
+                              {c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
+                              {c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
                               {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
-                              {c.treatment && <span style={{ fontSize:10, color:"#7B9CFF" }}>{c.treatment}</span>}
                             </div>
                             {c.playAbility && <div style={{ fontSize:10, color:"#888", lineHeight:1.4, fontStyle:"italic" }}>{c.playAbility}</div>}
-                            {c.playCost && <div style={{ fontSize:10, color:"#FBBF24", marginTop:2 }}>Cost: {c.playCost}</div>}
                           </div>
                           <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
                             {isPlay(c) && (() => {
@@ -7640,9 +7655,9 @@ function BobaChecklist({ userRole, user }) {
                               return (
                                 <button onClick={()=>{ if(!playFull && !wouldExceed) setPbCards(p=>[...p,{id:c.id,type:"play"}]); }}
                                   disabled={playFull || wouldExceed}
-                                  title={wouldExceed?`Adds ${c.dbs} DBS — would exceed ${DBS_CAP} cap`:playFull?"Play slots full":""}
+                                  title={wouldExceed?`Would exceed ${DBS_CAP} DBS cap`:playFull?"Play slots full":""}
                                   style={{ background:"#1a1a2e", border:"1px solid #E8317A44", color:(playFull||wouldExceed)?"#333":"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:(playFull||wouldExceed)?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                                  + Play{c.dbs?` (${c.dbs})` :""}
+                                  + Play
                                 </button>
                               );
                             })()}
@@ -7651,9 +7666,9 @@ function BobaChecklist({ userRole, user }) {
                               return (
                                 <button onClick={()=>{ if(!wouldExceed) setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); }}
                                   disabled={wouldExceed}
-                                  title={wouldExceed?`Adds ${c.dbs} DBS — would exceed ${DBS_CAP} cap`:""}
+                                  title={wouldExceed?`Would exceed ${DBS_CAP} DBS cap`:""}
                                   style={{ background:"#0a0f1a", border:"1px solid #7B9CFF44", color:wouldExceed?"#333":"#7B9CFF", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:wouldExceed?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                                  + BPL{c.dbs?` (${c.dbs})`:""}
+                                  + BPL
                                 </button>
                               );
                             })()}
@@ -7727,9 +7742,9 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
-                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
-                                {c.dbs && <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, marginTop:2 }}>💰 {c.dbs} DBS</div>}
+                                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.playName||c.hero}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
                                 style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
@@ -7751,9 +7766,9 @@ function BobaChecklist({ userRole, user }) {
                               <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>B{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
-                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3 }}>{c.playAbility}</div>}
-                                {c.dbs && <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, marginTop:2 }}>💰 {c.dbs} DBS</div>}
+                                <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.playName||c.hero}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
                                 style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
