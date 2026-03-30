@@ -6370,13 +6370,13 @@ function BobaChecklist({ userRole, user }) {
       }
 
       // Write in batches of 400
-      setDbsStatus({ msg:`Writing ${writes.length} cards to Firestore...`, ok:null });
-      for (let i = 0; i < writes.length; i += 400) {
-        const chunk = writes.slice(i, i + 400);
+      setDbsStatus({ msg:`Writing ${batch.length} cards to Firestore...`, ok:null });
+      for (let i = 0; i < batch.length; i += 400) {
+        const chunk = batch.slice(i, i + 400);
         await Promise.all(chunk.map(({ id, update }) =>
           setDoc(doc(db, "boba_checklist", id), update, { merge: true })
         ));
-        setDbsStatus({ msg:`Writing... ${Math.min(i+400, writes.length)}/${writes.length}`, ok:null });
+        setDbsStatus({ msg:`Writing... ${Math.min(i+400, batch.length)}/${batch.length}`, ok:null });
       }
 
       // Bust cache and reload cards so DBS shows immediately
