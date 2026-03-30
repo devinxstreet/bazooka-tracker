@@ -7343,7 +7343,21 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ imageBase64: base64, mediaType: "image/jpeg" }),
       });
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(()=>"unknown error");
+        console.error("scan-card API error:", resp.status, errText);
+        setPhotoScan({ status:"error", message:`API error ${resp.status}` });
+        return;
+      }
+
       const data = await resp.json();
+      if (data.error) {
+        console.error("scan-card returned error:", data.error);
+        setPhotoScan({ status:"error", message: data.error });
+        return;
+      }
+
       if (!data.cardNum && !data.hero) {
         setPhotoScan({ status:"nomatch", card:null });
         setTimeout(() => setPhotoScan(null), 4000);
@@ -8292,10 +8306,11 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               {photoScan?.status === "error" && (
                 <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>⚠️</div>
-                  <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:12 }}>Scan failed</div>
-                  <label style={{ background:"#1a1a1a", color:"#888", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:8 }}>Scan failed</div>
+                  {photoScan.message && <div style={{ fontSize:11, color:"#555", marginBottom:12, fontFamily:"monospace" }}>{photoScan.message}</div>}
+                  <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
                     Try Again
-                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files?.[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
                   </label>
                 </div>
               )}
