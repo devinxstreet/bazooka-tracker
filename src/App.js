@@ -10455,6 +10455,19 @@ function PublicCardDatabase() {
         sellerUid:offer.sellerUid, sellerName:offer.sellerName||"",
         buyerUid:offer.buyerUid, buyerName:offer.buyerName||"",
       });
+      // 7. Switch to Messages tab and open the thread
+      showToast("Deal accepted! Opening chat to coordinate payment...");
+      setActiveTab("messages");
+      setActiveThread({
+        id:threadId, memberUids:[offer.sellerUid,offer.buyerUid],
+        sellerUid:offer.sellerUid, sellerName:offer.sellerName||"Seller",
+        buyerUid:offer.buyerUid, buyerName:offer.buyerName||"Buyer",
+        cardName:offer.cardName, cardImage:offer.cardImage||null,
+        agreedPrice:offer.offerAmount||0, status:"active",
+        lastMessage:"Deal accepted! Coordinate payment details here.",
+        lastMessageAt:now, lastSenderUid:"system",
+        lastReadBy:{[offer.sellerUid]:now}, createdAt:now,
+      });
     }
   }
 
