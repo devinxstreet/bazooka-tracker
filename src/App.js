@@ -5919,6 +5919,9 @@ function PublicDeckBuilder() {
   const [deckFilterWeap, setDeckFilterWeap] = useState("");
   const [deckFilterHero, setDeckFilterHero] = useState("");
   const [deckFilterPower, setDeckFilterPower] = useState("");
+  const [deckFilterPowers, setDeckFilterPowers] = useState(new Set());
+  const [deckFilterSet,    setDeckFilterSet]    = useState("");
+  const [deckFilterTreat,  setDeckFilterTreat]  = useState("");
   const [deckSlotSort, setDeckSlotSort] = useState("added");
 
   useEffect(() => {
@@ -5988,7 +5991,9 @@ function PublicDeckBuilder() {
     if (deckSet.has(c.id)) return false;
     if (deckFilterWeap && c.weapon!==deckFilterWeap) return false;
     if (deckFilterHero && c.hero!==deckFilterHero) return false;
-    if (deckFilterPower && String(c.power||"")!==deckFilterPower) return false;
+    if (deckFilterPowers.size > 0 && !deckFilterPowers.has(String(c.power||""))) return false;
+    if (deckFilterSet && c.setName!==deckFilterSet) return false;
+    if (deckFilterTreat && c.treatment!==deckFilterTreat) return false;
     if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
@@ -6016,11 +6021,40 @@ function PublicDeckBuilder() {
         <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)", gap:14, alignItems:"start" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, card #..." style={{ ...S.inp, flex:1, minWidth:140 }}/>
-              <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}><option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}</select>
-              <select value={deckFilterPower} onChange={e=>setDeckFilterPower(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}><option value="">All Powers</option>{powers.map(p=><option key={p} value={p}>{p}{isSpec&&parseFloat(p)>160?" ⚠":""}</option>)}</select>
-              <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}><option value="">All Heroes</option>{heroes.map(h=><option key={h} value={h}>{h}</option>)}</select>
+              <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, card #, treatment..." style={{ ...S.inp, flex:1, minWidth:140 }}/>
+              <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                <option value="">All Weapons</option>
+                {[...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}>{w}</option>)}
+              </select>
+              <select value={deckFilterSet} onChange={e=>setDeckFilterSet(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterSet?"#7B9CFF":"#888" }}>
+                <option value="">All Sets</option>
+                {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              <select value={deckFilterTreat} onChange={e=>setDeckFilterTreat(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterTreat?"#FBBF24":"#888" }}>
+                <option value="">All Treatments</option>
+                {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                <option value="">All Heroes</option>
+                {[...new Set(cards.map(c=>c.hero).filter(Boolean))].sort().map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
               <span style={{ fontSize:11, color:"#555", alignSelf:"center" }}>{available.length} cards</span>
+            </div>
+            {/* Multi-select power chips */}
+            <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+              {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
+                const sel = deckFilterPowers.has(p);
+                const over = (isSpec||isApexMadness) && parseFloat(p)>160;
+                return (
+                  <button key={p} onClick={()=>setDeckFilterPowers(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n; })}
+                    style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"#111", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                    {p}{over?" ⚠":""}
+                  </button>
+                );
+              })}
+              {deckFilterPowers.size > 0 && (
+                <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear</button>
+              )}
             </div>
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
               {available.map((c,i)=>{
@@ -6816,6 +6850,9 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const [deckSlotSort,   setDeckSlotSort]   = useState("added");
   const [deckType,       setDeckType]       = useState("none");
   const [deckFilterPower, setDeckFilterPower] = useState("");
+  const [deckFilterPowers, setDeckFilterPowers] = useState(new Set()); // multi-select powers
+  const [deckFilterSet,    setDeckFilterSet]    = useState("");
+  const [deckFilterTreat,  setDeckFilterTreat]  = useState("");
   const [dbsImporting,   setDbsImporting]   = useState(false);
   const [dbsStatus,      setDbsStatus]      = useState(null); // {msg, ok}
   const DBS_CAP = 1000; // none | spec | apex
@@ -7456,7 +7493,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     setPhotoScan(null);
     setScanQty(1);
-    setTimeout(() => { if (scanInputRef.current) scanInputRef.current.click(); }, 300);
+    // Mobile: user must tap the scan area again — no programmatic click needed
   }
 
   async function toggleWant(cardId) {
@@ -8167,16 +8204,16 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             {/* Scan result / camera trigger area */}
             <div style={{ padding:"16px", flexShrink:0 }}>
               {!photoScan && (
-                <label style={{ display:"block", width:"100%", cursor:"pointer" }}>
-                  <div style={{ background:"#0a0a0a", border:"2px dashed #E8317A44", borderRadius:16, padding:"32px 16px", textAlign:"center" }}>
-                    <div style={{ fontSize:48, marginBottom:8 }}>📷</div>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Tap to scan a card</div>
-                    <div style={{ fontSize:12, color:"#555" }}>Point camera at a BoBA card</div>
-                  </div>
-                  <input ref={scanInputRef} type="file" accept="image/*" capture="environment"
-                    onChange={e=>{ const f=e.target.files[0]; if(f) scanCardPhoto(f); e.target.value=""; }}
-                    style={{ display:"none" }}/>
-                </label>
+                 <label style={{ display:"block", width:"100%", cursor:"pointer" }}>
+                   <div style={{ background:"#0a0a0a", border:"2px dashed #E8317A44", borderRadius:16, padding:"32px 16px", textAlign:"center" }}>
+                     <div style={{ fontSize:48, marginBottom:8 }}>📷</div>
+                     <div style={{ fontSize:16, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Tap to scan a card</div>
+                     <div style={{ fontSize:12, color:"#555" }}>Opens camera to identify the card</div>
+                   </div>
+                   <input type="file" accept="image/*" capture="environment"
+                     onChange={e=>{ const f=e.target.files?.[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }}
+                     style={{ position:"absolute", opacity:0, width:1, height:1, pointerEvents:"none" }}/>
+                 </label>
               )}
 
               {photoScan?.status === "scanning" && (
@@ -8227,10 +8264,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                         style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"10px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
                         ✓ Add {scanQty > 1 ? `${scanQty}×` : ""} to Collection
                       </button>
-                      <button onClick={()=>{ setPhotoScan(null); setScanQty(1); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
-                        style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      <label style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center" }}>
                         Retake
-                      </button>
+                        <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); setScanQty(1); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                      </label>
                       <button onClick={()=>{ setPhotoScan({ status:"nomatch", card:null, identified: photoScan.detected }); }}
                         style={{ background:"transparent", border:"none", color:"#E8317A", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", padding:"0 4px" }}>
                         Wrong card?
@@ -8245,10 +8282,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   <div style={{ fontSize:32, marginBottom:8 }}>❌</div>
                   <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Card not recognized</div>
                   {photoScan.identified?.hero && <div style={{ fontSize:12, color:"#555", marginBottom:12 }}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
-                  <button onClick={()=>{ setPhotoScan(null); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
-                    style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                  <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
                     Try Again
-                  </button>
+                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                  </label>
                 </div>
               )}
 
@@ -8256,10 +8293,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>⚠️</div>
                   <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:12 }}>Scan failed</div>
-                  <button onClick={()=>{ setPhotoScan(null); setTimeout(()=>{ if(scanInputRef.current) scanInputRef.current.click(); },200); }}
-                    style={{ background:"#1a1a1a", color:"#888", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  <label style={{ background:"#1a1a1a", color:"#888", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
                     Try Again
-                  </button>
+                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                  </label>
                 </div>
               )}
             </div>
@@ -8929,15 +8966,18 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           if (deckSet.has(c.id)) return false;
           if (deckFilterWeap && c.weapon !== deckFilterWeap) return false;
           if (deckFilterHero && c.hero !== deckFilterHero) return false;
-          if (deckFilterPower && String(c.power||"") !== deckFilterPower) return false;
+          if (deckFilterPowers.size > 0 && !deckFilterPowers.has(String(c.power||""))) return false;
+          if (deckFilterSet && c.setName !== deckFilterSet) return false;
+          if (deckFilterTreat && c.treatment !== deckFilterTreat) return false;
           if (deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
           return true;
         }).sort((a,b) => (parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-        const deckPowers = [...new Set(cardPool.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
-
-        const deckHeroes  = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
-        const deckWeapons = [...new Set(cardPool.map(c=>c.weapon).filter(Boolean))].sort();
+        const deckPowers   = [...new Set(cardPool.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
+        const deckSets     = [...new Set(cardPool.map(c=>c.setName).filter(Boolean))].sort();
+        const deckTreats   = [...new Set(cardPool.map(c=>c.treatment).filter(Boolean))].sort();
+        const deckHeroes   = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
+        const deckWeapons  = [...new Set(cardPool.map(c=>c.weapon).filter(Boolean))].sort();
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -9007,15 +9047,40 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     <option value="">All Weapons</option>
                     {deckWeapons.map(w=><option key={w} value={w}>{w}</option>)}
                   </select>
-                  <select value={deckFilterPower} onChange={e=>setDeckFilterPower(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterPower?(isSpec&&parseFloat(deckFilterPower)>160?"#E8317A":"#FBBF24"):"#888" }}>
-                    <option value="">All Powers</option>
-                    {deckPowers.map(p=><option key={p} value={p} style={{ color: isSpec&&parseFloat(p)>160?"#E8317A":"inherit" }}>{p}{isSpec&&parseFloat(p)>160?" ⚠":"" }</option>)}
+                  <select value={deckFilterSet} onChange={e=>setDeckFilterSet(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterSet?"#7B9CFF":"#888" }}>
+                    <option value="">All Sets</option>
+                    {deckSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={deckFilterTreat} onChange={e=>setDeckFilterTreat(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterTreat?"#FBBF24":"#888" }}>
+                    <option value="">All Treatments</option>
+                    {deckTreats.map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                   <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="">All Heroes</option>
                     {deckHeroes.map(h=><option key={h} value={h}>{h}</option>)}
                   </select>
                   <span style={{ fontSize:11, color:"#555" }}>{available.length} available</span>
+                </div>
+                {/* Multi-select power chips */}
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", paddingBottom:6 }}>
+                  {deckPowers.map(p => {
+                    const sel = deckFilterPowers.has(p);
+                    const over = (isSpec||isApexMadness) && parseFloat(p)>160;
+                    return (
+                      <button key={p} onClick={()=>{
+                        setDeckFilterPowers(prev => {
+                          const next = new Set(prev);
+                          if (next.has(p)) next.delete(p); else next.add(p);
+                          return next;
+                        });
+                      }} style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"#111", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                        {p}{over?" ⚠":""}
+                      </button>
+                    );
+                  })}
+                  {deckFilterPowers.size > 0 && (
+                    <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear</button>
+                  )}
                 </div>
 
                 {/* Available cards list */}
