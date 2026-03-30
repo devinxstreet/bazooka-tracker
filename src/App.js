@@ -6671,19 +6671,26 @@ function BobaChecklist({ userRole, user }) {
         const dbs     = parseFloat(rawDbs);
         if (!rawNum || isNaN(dbs)) { skipped++; continue; }
 
-        const norm    = normalizeNum(rawNum);
-        const matches = exactMap[norm] || [];
-
-        if (matches.length === 0) { skipped++; continue; }
+        const norm       = normalizeNum(rawNum);
+        const allMatches = exactMap[norm] || [];
+        if (allMatches.length === 0) { skipped++; continue; }
 
         const playName = nameIdx >= 0 ? (cols[nameIdx]||"").replace(/^"|"$/g,"").trim() : "";
         const playCost = costIdx >= 0 ? (cols[costIdx]||"").replace(/^"|"$/g,"").trim() : "";
-        const playText = textIdx >= 0 ? (cols[textIdx]||"").replace(/^"|"$/g,"").trim() : "";
+
+        // If multiple cards share the same card number, narrow by play name (hero field in checklist)
+        let matches = allMatches;
+        if (allMatches.length > 1 && playName) {
+          const nameNorm = playName.toLowerCase().replace(/[^a-z0-9]/g,"");
+          const byName = allMatches.filter(c =>
+            (c.hero||"").toLowerCase().replace(/[^a-z0-9]/g,"") === nameNorm
+          );
+          if (byName.length > 0) matches = byName;
+        }
 
         for (const match of matches) {
           const update = { dbs };
           if (playCost) update.playCost = playCost;
-          // Never overwrite playName or playAbility — checklist is source of truth
           batch.push({ id: match.id, update });
           updated++;
         }
