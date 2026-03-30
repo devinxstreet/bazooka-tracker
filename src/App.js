@@ -9746,7 +9746,12 @@ function PublicCardDatabase() {
   const [owned,         setOwned]         = useState({});
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
-  const [activeTab,     setActiveTab]     = useState("cards"); // cards|wants|deck|friends|team
+  const [activeTab,     setActiveTab]     = useState("cards"); // cards|wants|deck|playbook|friends|team
+
+  // ── Playbook state ──
+  const [pbCards,       setPbCards]       = useState([]);
+  const [pbSearch,      setPbSearch]      = useState("");
+  const [pbSort,        setPbSort]        = useState("name");
 
   // ── Cards/filter state ──
   const [search,        setSearch]        = useState("");
@@ -10256,6 +10261,7 @@ function PublicCardDatabase() {
           {tabBtn("cards","🃏 Cards",0)}
           {tabBtn("wants","🎯 Wants",Object.keys(wantList).length)}
           {tabBtn("deck","⚔️ Deck Builder",0)}
+          {tabBtn("playbook","📖 Playbook",0)}
           {user&&tabBtn("friends","👥 Friends",(friendReqs.length+teamInvites.length))}
           {user&&tabBtn("team","🏆 Team",0)}
         </div>
@@ -10417,6 +10423,163 @@ function PublicCardDatabase() {
           </div>
         </div>
       )}
+
+      {/* ── PLAYBOOK TAB ── */}
+      {activeTab==="playbook"&&(()=>{
+        const playCards = cards.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; });
+        const pbEntryIds = new Set(pbCards.map(e=>e.id));
+        const playCount  = pbCards.filter(e=>e.type==="play").length;
+        const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
+        const playFull   = playCount >= PUBLIC_PLAY_LIMIT;
+        const pbResolved = pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
+        const totalDbs   = pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+        const dbsLeft    = PUBLIC_DBS_CAP - totalDbs;
+        const dbsPct     = Math.min(totalDbs/PUBLIC_DBS_CAP*100,100);
+        const dbsOver    = totalDbs > PUBLIC_DBS_CAP;
+        const isPlay  = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="home team discount"; };
+        const isBonus = c => (c.treatment||"").toLowerCase()==="bonus plays";
+        const pbAvailable = playCards.filter(c=>{
+          if (pbEntryIds.has(c.id)) return false;
+          if (pbSearch && !`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
+          return true;
+        }).sort((a,b)=>{
+          if (pbSort==="dbs_desc") return (parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);
+          if (pbSort==="dbs_asc")  return (parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);
+          return (a.hero||"").localeCompare(b.hero||"");
+        });
+        return (
+          <div style={{maxWidth:1400,margin:"0 auto",padding:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:14,alignItems:"start"}}>
+              {/* Left: play picker */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play name or ability..." style={{...inp,flex:1}}/>
+                  <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
+                    <option value="name">Sort: Name</option>
+                    <option value="dbs_desc">DBS: High → Low</option>
+                    <option value="dbs_asc">DBS: Low → High</option>
+                  </select>
+                  <span style={{fontSize:11,color:"#555",alignSelf:"center"}}>{pbAvailable.length} plays</span>
+                </div>
+                <div style={{background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:10,overflow:"hidden",maxHeight:"calc(100vh - 280px)",overflowY:"auto"}}>
+                  {pbAvailable.length===0?<div style={{padding:32,textAlign:"center",color:"#333"}}>No plays found</div>:
+                    pbAvailable.map((c,i)=>{
+                      const wc=WEAPON_COLORS[c.weapon]||"#444";
+                      const wouldExceed = totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                      return (
+                        <div key={c.id} style={{borderBottom:"1px solid #111",background:i%2===0?"#0a0a0a":"#0d0d0d"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px"}}>
+                            {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
+                                <span style={{color:"#555"}}>#{c.cardNum}</span>
+                                {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
+                                {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
+                                {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
+                                {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
+                              </div>
+                              {c.playAbility&&<div style={{fontSize:10,color:"#888",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
+                            </div>
+                            <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                              {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:"#1a1a2e",border:"1px solid #E8317A44",color:(playFull||wouldExceed)?"#333":"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:(playFull||wouldExceed)?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
+                              {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:"#0a0f1a",border:"1px solid #7B9CFF44",color:wouldExceed?"#333":"#7B9CFF",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
+              {/* Right: playbook panel */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:16}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:10}}>📖 Playbook</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                    {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus Plays",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
+                      <div key={l} style={{background:"#0a0a0a",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
+                        <div style={{fontSize:10,color:"#555",marginTop:2}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{height:5,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:4}}>
+                      <div style={{width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`,height:"100%",borderRadius:3,background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)",transition:"width 0.3s"}}/>
+                    </div>
+                    <div style={{fontSize:10,color:"#555"}}>{PUBLIC_PLAY_LIMIT-playCount} play slots remaining</div>
+                  </div>
+                  <div style={{background:dbsOver?"#1a0a0a":"#0a0a0a",border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`,borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                      <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>💰 DBS</span>
+                      <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
+                    </div>
+                    <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden",marginBottom:6}}>
+                      <div style={{width:`${dbsPct}%`,height:"100%",borderRadius:4,background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)",transition:"width 0.3s"}}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
+                      <span style={{color:"#555"}}>Used: {Math.round(totalDbs)}</span>
+                      <span style={{color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"#4ade80",fontWeight:700}}>{dbsOver?`⚠️ Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</span>
+                    </div>
+                  </div>
+                </div>
+                {pbResolved.length>0&&(
+                  <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,overflow:"hidden"}}>
+                    {pbResolved.filter(e=>e.type==="play").length>0&&(
+                      <div>
+                        <div style={{padding:"10px 14px 6px",fontSize:10,fontWeight:700,color:"#E8317A",textTransform:"uppercase",letterSpacing:1}}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>
+                        {pbResolved.filter(e=>e.type==="play").map((e,i)=>{
+                          const c=e.card;
+                          return (
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",borderTop:"1px solid #111",background:i%2===0?"#0d0d0d":"#0a0a0a"}}>
+                              <div style={{fontSize:12,color:"#333",width:18,textAlign:"center",flexShrink:0}}>{i+1}</div>
+                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:28,height:37,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                                <div style={{display:"flex",gap:6,fontSize:10,marginTop:1}}>
+                                  {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24"}}>Cost: {c.playCost}</span>}
+                                  {c.dbs!==undefined&&<span style={{color:"#A855F7"}}>DBS: {c.dbs}</span>}
+                                </div>
+                              </div>
+                              <button onClick={()=>{const playArr=pbCards.filter(x=>x.type==="play");const target=playArr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {pbResolved.filter(e=>e.type==="bonus").length>0&&(
+                      <div>
+                        <div style={{padding:"10px 14px 6px",fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,borderTop:"1px solid #1a1a1a"}}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>
+                        {pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{
+                          const c=e.card;
+                          return (
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",borderTop:"1px solid #111",background:i%2===0?"#0d0d0d":"#0a0a0a"}}>
+                              <div style={{fontSize:12,color:"#333",width:18,flexShrink:0}}>B{i+1}</div>
+                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:28,height:37,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:800,color:"#7B9CFF"}}>{c.hero}</div>
+                                <div style={{display:"flex",gap:6,fontSize:10,marginTop:1}}>
+                                  {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24"}}>Cost: {c.playCost}</span>}
+                                  {c.dbs!==undefined&&<span style={{color:"#A855F7"}}>DBS: {c.dbs}</span>}
+                                </div>
+                              </div>
+                              <button onClick={()=>{const bonusArr=pbCards.filter(x=>x.type==="bonus");const target=bonusArr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{padding:"10px 14px"}}>
+                      <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{background:"transparent",border:"1px solid #E8317A22",color:"#E8317A",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>✕ Clear</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── FRIENDS TAB ── */}
       {activeTab==="friends"&&(
