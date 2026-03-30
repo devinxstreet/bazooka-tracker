@@ -10595,10 +10595,6 @@ function PublicCardDatabase() {
     return ()=>unsub();
   }, [activeThread?.id]);
 
-    if (user) setDoc(doc(db,"deal_threads",activeThread.id),{lastReadBy:{[user.uid]:new Date().toISOString()}},{merge:true});
-    return ()=>unsub();
-  }, [activeThread?.id]);
-
   async function sendMessage() {
     if (!newMsg.trim()||!activeThread||!user) return;
     const now = new Date().toISOString();
