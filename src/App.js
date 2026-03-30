@@ -3358,13 +3358,21 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             const dmega  = parseInt(recap[`prod_Double Mega`])||0;
             const misc   = parseInt(recap[`prod_Miscellaneous`])||0;
             const streamExpenses = [
-              parseFloat(recap.whatnotPromo)>0?`WN Promo: $${recap.whatnotPromo}`:"",
-              parseFloat(recap.coupons)>0?`Coupons: $${recap.coupons}`:"",
-              parseFloat(recap.magpros)>0?`MagPros: $${recap.magpros}`:"",
-              parseFloat(recap.packagingMaterial)>0?`Packaging: $${recap.packagingMaterial}`:"",
-              parseFloat(recap.topLoaders)>0?`Top Loaders: $${recap.topLoaders}`:"",
-              parseFloat(recap.chaserCards)>0?`Chasers: $${recap.chaserCards}`:"",
+              parseFloat(recap.whatnotPromo)>0?`WN Promo: $${parseFloat(recap.whatnotPromo).toFixed(2)}`:"",
+              parseFloat(recap.coupons)>0?`Coupons: $${parseFloat(recap.coupons).toFixed(2)}`:"",
+              (() => { const v=parseFloat(recap.magpros)||0; const q=parseInt(recap.magprosQty)||0; return v>0?`MagPros: $${v.toFixed(2)}`:q>0?`MagPros: ${q} units`:""; })(),
+              (() => { const v=parseFloat(recap.packagingMaterial)||0; const q=parseInt(recap.packagingQty)||0; return v>0?`Packaging: $${v.toFixed(2)}`:q>0?`Packaging: ${q} units`:""; })(),
+              (() => { const v=parseFloat(recap.topLoaders)||0; const q=parseInt(recap.topLoadersQty)||0; return v>0?`Top Loaders: $${v.toFixed(2)}`:q>0?`Top Loaders: ${q} units`:""; })(),
+              parseFloat(recap.chaserCards)>0?`Chasers: $${parseFloat(recap.chaserCards).toFixed(2)}`:"",
             ].filter(Boolean).join(", ") || "None";
+            const totalStreamExp = (
+              (parseFloat(recap.whatnotPromo)||0) +
+              (parseFloat(recap.coupons)||0) +
+              (parseFloat(recap.magpros)||0) +
+              (parseFloat(recap.packagingMaterial)||0) +
+              (parseFloat(recap.topLoaders)||0) +
+              (parseFloat(recap.chaserCards)||0)
+            ).toFixed(2);
             const formDate = date ? new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : "";
             const params = new URLSearchParams({
               [`entry.546325134`]:  "Bazooka Vault",
@@ -7869,31 +7877,31 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               {setsCollapsed ? "▶ Show sets" : "▼ Hide sets"}
             </button>
             {!setsCollapsed && (
-          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-            {imports.map(imp => {
-              const setCards = cards.filter(c => c.setName === imp.setName);
-              const setOwned = setCards.filter(c => owned[c.id]).length;
-              const setPct   = setCards.length > 0 ? Math.round(setOwned/setCards.length*100) : 0;
-              const isComplete = setPct === 100;
-              return (
-                <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:10, color:isComplete?"#4ade80":"#666", fontWeight:isComplete?700:400, width:220, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flexShrink:0 }}>
-                    {isComplete?"🌈 ":""}{imp.setName}
-                  </span>
-                  <div style={{ flex:1, height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
-                    <div style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s",
-                      background: isComplete
-                        ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
-                        : "linear-gradient(90deg,#E8317A,#7B2FF7)"
-                    }}/>
-                  </div>
-                  <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
-                    {setOwned}/{setCards.length} · {setPct}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                {imports.map(imp => {
+                  const setCards = cards.filter(c => c.setName === imp.setName);
+                  const setOwned = setCards.filter(c => owned[c.id]).length;
+                  const setPct   = setCards.length > 0 ? Math.round(setOwned/setCards.length*100) : 0;
+                  const isComplete = setPct === 100;
+                  return (
+                    <div key={imp.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:10, color:isComplete?"#4ade80":"#666", fontWeight:isComplete?700:400, width:220, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flexShrink:0 }}>
+                        {isComplete?"🌈 ":""}{imp.setName}
+                      </span>
+                      <div style={{ flex:1, height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                        <div style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s",
+                          background: isComplete
+                            ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
+                            : "linear-gradient(90deg,#E8317A,#7B2FF7)"
+                        }}/>
+                      </div>
+                      <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
+                        {setOwned}/{setCards.length} · {setPct}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
