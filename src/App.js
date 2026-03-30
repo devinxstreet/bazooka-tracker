@@ -9813,13 +9813,63 @@ function PublicQuote({ quoteId }) {
         <div style={{ background:"#111111", border:"2px solid #E8317A33", borderRadius:12, padding:"20px 24px", marginBottom:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>Bazooka's Offer</span>
-            <span style={{ fontSize:28, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
+            <span style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
           </div>
-          {offerPct && <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{offerPct}% of market value · {quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards</div>}
+          <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
         </div>
 
+        {/* ── RESPONSE AREA — right after the offer, impossible to miss ── */}
+        {!isExpired && !isClosed && !submitted && (quote.status === "pending" || !quote.status) && (
+          <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
+
+            {/* Payment method */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>How should Bazooka pay you?</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <select value={payment} onChange={e=>setPayment(e.target.value)}
+                  style={{ background:"#0a0a0a", border:`1px solid ${payment?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:payment?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+                  <option value="">Select method...</option>
+                  {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+                <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
+                  placeholder={payment==="Venmo"?"@yourhandle":payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":payment?"your info":"handle / account"}
+                  style={{ background:"#0a0a0a", border:`1px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+              </div>
+            </div>
+
+            {/* Big Accept button */}
+            <button onClick={()=>submitResponse("accepted")}
+              style={{ width:"100%", background:"#4ade80", color:"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
+              ✅ Accept Offer — ${offer.toFixed(2)}
+            </button>
+
+            {/* Counter offer */}
+            {quote.allowCounter && (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Or send a counter offer</div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input type="number" step="0.01" value={counterAmt} onChange={e=>setCounterAmt(e.target.value)}
+                    placeholder={`Your counter (e.g. $${(offer*1.1).toFixed(0)})`}
+                    style={{ flex:1, background:"#0a0a0a", border:"1px solid #FBBF2444", borderRadius:8, color:"#FBBF24", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+                  <button onClick={()=>submitResponse("countered")} disabled={!counterAmt}
+                    style={{ background:"#1a1400", border:"2px solid #FBBF24", color:"#FBBF24", borderRadius:8, padding:"10px 18px", fontSize:13, fontWeight:700, cursor:counterAmt?"pointer":"not-allowed", fontFamily:"inherit", opacity:counterAmt?1:0.4, whiteSpace:"nowrap" }}>
+                    🤝 Counter
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Decline — subtle */}
+            <button onClick={()=>{ if(window.confirm("Decline this offer?")) submitResponse("declined"); }}
+              style={{ width:"100%", background:"transparent", border:"1px solid #333", color:"#555", borderRadius:8, padding:"10px 0", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+              ❌ Decline this offer
+            </button>
+          </div>
+        )}
+
         {/* Ship-to */}
-        <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:16 }}>
+        <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:12 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Ship Cards To</div>
           <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
             Devin — Bazooka<br/>
@@ -9827,55 +9877,6 @@ function PublicQuote({ quoteId }) {
             Warsaw, IN 46582
           </div>
         </div>
-
-        {/* Response area */}
-        {!isExpired && !isClosed && quote.status === "pending" && !submitted && (
-          <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0", marginBottom:16 }}>Your Response</div>
-
-            <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
-              <button onClick={()=>submitResponse("accepted")}
-                style={{ flex:1, background:"#0a1a0a", border:"2px solid #4ade80", color:"#4ade80", borderRadius:10, padding:"14px 0", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                ✅ Accept Offer
-              </button>
-              <button onClick={()=>submitResponse("declined")}
-                style={{ flex:1, background:"#1a0a0a", border:"2px solid #E8317A44", color:"#E8317A", borderRadius:10, padding:"14px 0", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                ❌ Decline
-              </button>
-            </div>
-
-            {/* Payment info for acceptance */}
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Payment Method (fill before accepting)</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <select value={payment} onChange={e=>setPayment(e.target.value)}
-                  style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:7, color:payment?"#F0F0F0":"#555", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}>
-                  <option value="">Select payment...</option>
-                  {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
-                </select>
-                <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
-                  placeholder={payment==="Venmo"?"@handle":payment==="PayPal"?"username/email":payment==="Zelle"?"email or phone":"handle or info"}
-                  style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}/>
-              </div>
-            </div>
-
-            {/* Counter offer */}
-            {quote.allowCounter && (
-              <div>
-                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Counter Offer</div>
-                <div style={{ display:"flex", gap:8 }}>
-                  <input type="number" step="0.01" value={counterAmt} onChange={e=>setCounterAmt(e.target.value)}
-                    placeholder={`Enter your counter (e.g. ${(offer*1.1).toFixed(2)})`}
-                    style={{ flex:1, background:"#0a0a0a", border:"1px solid #FBBF2444", borderRadius:7, color:"#FBBF24", padding:"8px 12px", fontSize:12, fontFamily:"inherit", outline:"none" }}/>
-                  <button onClick={()=>submitResponse("countered")} disabled={!counterAmt}
-                    style={{ background:"#1a1400", border:"2px solid #FBBF24", color:"#FBBF24", borderRadius:8, padding:"8px 20px", fontSize:12, fontWeight:700, cursor:counterAmt?"pointer":"not-allowed", fontFamily:"inherit", opacity:counterAmt?1:0.4 }}>
-                    🤝 Send Counter
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {submitted && (
           <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:12, padding:"20px", textAlign:"center" }}>
@@ -10203,9 +10204,7 @@ export default function App() {
     { id:"showcase",   label:"Showcase",     icon:"✨", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
-  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
-
-  // Public routes
+  // ── PUBLIC ROUTES — no auth required, check FIRST ──
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
 
@@ -10218,6 +10217,9 @@ export default function App() {
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
+
+  // Auth gate — only for the main app
+  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
   if (!user) return <LoginScreen />;
 
