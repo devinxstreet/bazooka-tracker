@@ -7345,9 +7345,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       });
 
       if (!resp.ok) {
-        const errText = await resp.text().catch(()=>"unknown error");
-        console.error("scan-card API error:", resp.status, errText);
-        setPhotoScan({ status:"error", message:`API error ${resp.status}` });
+        const errData = await resp.json().catch(()=>({ error: `HTTP ${resp.status}` }));
+        const msg = errData.details ? `${errData.error}: ${errData.details.slice(0,120)}` : errData.error || `HTTP ${resp.status}`;
+        console.error("scan-card API error:", resp.status, errData);
+        setPhotoScan({ status:"error", message: msg });
         return;
       }
 
