@@ -258,6 +258,69 @@ function GlobalStyles() {
       .boba-flip-card > div { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
       .boba-card-flip { transform-style: preserve-3d; transition: transform 0.5s ease; }
       .boba-card-flip:hover { transform: rotateY(180deg); }
+
+      /* ── MOBILE RESPONSIVE ── */
+      @media (max-width: 768px) {
+        /* Nav */
+        .nav-tabs-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .nav-tabs-row::-webkit-scrollbar { display: none; }
+        .nav-tab-label { display: none !important; }
+        .nav-tab-icon { display: block !important; }
+        .nav-header-title { font-size: 18px !important; }
+
+        /* Layout */
+        .tab-content { padding: 10px !important; }
+        .mobile-stack { flex-direction: column !important; }
+        .mobile-stack-reverse { flex-direction: column-reverse !important; }
+        .mobile-full { width: 100% !important; min-width: 0 !important; }
+        .mobile-hide { display: none !important; }
+        .mobile-2col { grid-template-columns: 1fr 1fr !important; }
+        .mobile-1col { grid-template-columns: 1fr !important; }
+
+        /* Cards grid — 2 columns on mobile */
+        .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+
+        /* Filter bars wrap nicely */
+        .filter-bar { flex-wrap: wrap !important; gap: 6px !important; }
+        .filter-bar select, .filter-bar input { font-size: 13px !important; padding: 8px 10px !important; }
+
+        /* Bigger tap targets */
+        button, label[style], .nav-tab { min-height: 36px; }
+        .boba-owned-btn { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+        /* Stats grids — 2 col */
+        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
+
+        /* Tables — horizontal scroll */
+        .mobile-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+        .mobile-scroll-x table { min-width: 500px; }
+
+        /* Lot comp */
+        .lot-comp-grid { grid-template-columns: 1fr !important; }
+        .seller-intel-panel { display: none !important; }
+
+        /* Checklist header buttons wrap */
+        .checklist-actions { flex-wrap: wrap !important; gap: 4px !important; }
+        .checklist-action-btn { font-size: 10px !important; padding: 4px 8px !important; }
+
+        /* View mode toggles scroll */
+        .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
+        .view-mode-row::-webkit-scrollbar { display: none; }
+
+        /* Modals fill screen */
+        .modal-card { max-width: 100% !important; margin: 0 !important; border-radius: 0 !important; min-height: 100vh !important; }
+
+        /* Lot comp card row — stack fields */
+        .lot-row-grid { grid-template-columns: 1fr !important; }
+      }
+
+      @media (max-width: 480px) {
+        .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
+        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
+        .nav-header-title { font-size: 16px !important; }
+        .tab-content { padding: 8px !important; }
+      }
+
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -613,7 +676,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <div style={{ ...S.card, border:"2px solid #333333" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
               <SectionLabel t="Financial Overview" />
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions">
                 {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
                   <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
                 ))}
@@ -1503,7 +1566,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
       })()}
 
       {compMode==="builder" && <>
-        <div style={{ display:"grid", gridTemplateColumns: seller.name ? "1fr 300px" : "1fr", gap:14, alignItems:"start" }}>
+        <div className="lot-comp-grid" style={{ display:"grid", gridTemplateColumns: seller.name ? "1fr 300px" : "1fr", gap:14, alignItems:"start" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         {loadedCompId && (
           <div id="comp-builder-top" style={{ background: loadedCompHadCards ? "#D6F4E3" : "#FFF9DB", border: `1.5px solid ${loadedCompHadCards ? "#2E7D52" : "#92400e"}`, borderRadius:10, padding:"12px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -7638,7 +7701,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
           {pct > 0 && <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700 }}>{pct}%</span>}
           <div style={{ flex:1 }}/>
           {/* View toggles */}
-          <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:3, flexWrap:"wrap" }} className="view-mode-row">
             {[["cards","🃏 Cards"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
@@ -8437,7 +8500,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
                   </select>
                 )}
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }} className="boba-card-grid">
                 {weaponStatsFiltered.map(({w,total,owned:o,pct:p})=>{
                   const wc = WEAPON_COLORS[w]||"#444";
                   return (
@@ -9808,15 +9871,20 @@ export default function App() {
       <div style={{ background:"#000000", padding:"0 20px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px rgba(232,49,122,0.2)" }}>
         <div style={{ maxWidth:1400, margin:"0 auto", display:"flex", alignItems:"center", gap:20 }}>
           <div style={{ padding:"13px 0", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span className="nav-bazooka" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
-            <span style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
+            <span className="nav-bazooka nav-header-title" style={{ fontSize:20, fontWeight:900, color:"#E8317A", letterSpacing:2 }}>BAZOOKA</span>
+            <span className="mobile-hide" style={{ fontSize:10, color:"#999999", borderLeft:"1px solid #333333", paddingLeft:10, textTransform:"uppercase", letterSpacing:1 }}>Dashboard</span>
           </div>
-          <nav style={{ display:"flex", gap:2, flex:1 }}>
+          <nav className="nav-tabs-row" style={{ display:"flex", gap:2, flex:1 }}>
             {TABS.map(t => {
               const pendingQuotes = t.id==="comp" ? quotes.filter(q=>!q.notified&&["accepted","declined","countered"].includes(q.status)).length : 0;
+              // Split emoji icon from text label
+              const match = t.label.match(/^(\S+)\s+(.+)$/);
+              const icon = match ? match[1] : t.label;
+              const text = match ? match[2] : "";
               return (
-                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab" style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", position:"relative" }}>
-                  {t.label}
+                <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab" style={{ background:tab===t.id?"#1a1a2e":"transparent", border:"none", color:tab===t.id?"#E8317A":"#888888", padding:"10px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:400, fontFamily:"inherit", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", position:"relative", whiteSpace:"nowrap" }}>
+                  <span className="nav-tab-icon" style={{ display:"none" }}>{icon}</span>
+                  <span className="nav-tab-label">{t.label}</span>
                   {pendingQuotes > 0 && <span style={{ position:"absolute", top:4, right:4, background:"#E8317A", color:"#fff", borderRadius:"50%", width:16, height:16, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingQuotes}</span>}
                 </button>
               );
