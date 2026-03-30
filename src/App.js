@@ -2243,7 +2243,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool }) {
+function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -6695,7 +6695,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   );
 }
 
-function BobaChecklist({ userRole, user, onScanUpdate }) {
+function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
   const [cards,        setCards]        = useState([]);
@@ -7682,6 +7682,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
     setPendingFile(null);
     setSetNameInput("");
     setNewSetMode(false);
+    if (onChecklistUpdated) onChecklistUpdated();
   }
 
   async function handleDeleteImport(imp) {
@@ -7694,6 +7695,7 @@ function BobaChecklist({ userRole, user, onScanUpdate }) {
     imp.cardIds.forEach(id=>delete nextOwned[id]);
     await setDoc(doc(db,"boba_owned",ownedDocId), nextOwned);
     await deleteDoc(doc(db,"boba_imports",imp.id));
+    if (onChecklistUpdated) onChecklistUpdated();
   }
 
   async function handleRenameSet(imp, newName) {
@@ -9414,6 +9416,31 @@ export default function App() {
   const [breaks,    setBreaks]    = useState([]);
   const [comps,     setComps]     = useState([]);
   const [bobaCards, setBobaCards] = useState([]);
+  const BOBA_CACHE_KEY = "boba_checklist_cache";
+  const BOBA_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+  // Load bobaCards at startup — used by Lot Comp, Inventory, Scan, everywhere
+  useEffect(() => {
+    async function loadBobaCards() {
+      try {
+        const raw = localStorage.getItem(BOBA_CACHE_KEY);
+        if (raw) {
+          const { cards: cc, ts } = JSON.parse(raw);
+          if (cc?.length > 0 && Date.now() - ts < BOBA_CACHE_TTL) {
+            setBobaCards(cc);
+            return;
+          }
+        }
+      } catch(e) {}
+      try {
+        const snap = await getDocs(collection(db, "boba_checklist"));
+        const cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setBobaCards(cards);
+        try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({ cards, ts: Date.now() })); } catch(e) {}
+      } catch(e) {}
+    }
+    loadBobaCards();
+  }, []);
   const [toast,        setToast]        = useState(null);
   const [activeScan,   setActiveScan]   = useState(null); // {type, current, total, status}
   const [lotTracking,  setLotTracking]  = useState({});
@@ -9448,20 +9475,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [gOpen]);
 
-  useEffect(() => {
-    if (tab !== "comp" || bobaCards.length > 0) return;
-    const CACHE_KEY = "boba_checklist_cache";
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const { cards: cc } = JSON.parse(raw);
-        if (cc && cc.length > 0) { setBobaCards(cc); return; }
-      }
-    } catch(e) {}
-    getDocs(collection(db, "boba_checklist")).then(snap => {
-      setBobaCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-  }, [tab]);
+  
 
   useEffect(() => {
     if (!user) return;
@@ -10000,13 +10014,19 @@ export default function App() {
       <div key={tab} className="tab-content" style={{ maxWidth:1400, margin:"0 auto", padding:"16px 20px", overflowX:"hidden" }}>
         {tab==="dashboard"   && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"        && (CAN_VIEW_LOT_COMP.includes(userRole.role) ? <LotComp onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={userRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams}/>}
+        {tab==="inventory"   && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={userRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"     && (CAN_LOG_BREAKS.includes(userRole.role) ? <Streams inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={userRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/> : <AccessDenied msg="Break Log access is restricted." />)}
         {tab==="buyers"      && <BuyersCRM buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteImport} userRole={userRole} streams={streams} onClearAll={async()=>{ if(!window.confirm(`Delete ALL ${buyers.length} buyers and ${csvImports.length} import records? This cannot be undone.`)) return; await Promise.all(buyers.map(b=>deleteDoc(doc(db,"buyers",b.id)))); await Promise.all(csvImports.map(i=>deleteDoc(doc(db,"csv_imports",i.id)))); showToast("🗑 All buyer data cleared"); }}/>}
         {tab==="performance" && <Performance breaks={breaks} user={effectiveUser} userRole={userRole} streams={streams}/>}
         {/* BobaChecklist stays mounted always so scans survive tab switching */}
         <div style={{ display: tab==="checklist" ? "block" : "none" }}>
-          <BobaChecklist userRole={userRole} user={effectiveUser} onScanUpdate={setActiveScan}/>
+          <BobaChecklist userRole={userRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={async ()=>{
+            try { localStorage.removeItem(BOBA_CACHE_KEY); } catch(e) {}
+            const snap = await getDocs(collection(db,"boba_checklist"));
+            const cards = snap.docs.map(d=>({id:d.id,...d.data()}));
+            setBobaCards(cards);
+            try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({cards, ts:Date.now()})); } catch(e) {}
+          }}/>
         </div>
         {tab==="showcase"    && <BobaShowcase uid={effectiveUser?.uid} />}
       </div>
