@@ -6,9 +6,6 @@
     "api/scan-card.js": {
       "maxDuration": 60,
       "memory": 1024
-    },
-    "api/athlete-sports.js": {
-      "maxDuration": 30
     }
   }
 }
