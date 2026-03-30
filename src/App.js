@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
@@ -10490,11 +10490,9 @@ function PublicCardDatabase() {
         lastMessageAt:now, lastSenderUid:"system",
         lastReadBy:{[offer.sellerUid]:now}, createdAt:now,
       });
-      await setDoc(doc(db,"thread_messages",uid()),{
-        threadId:threadId,
-        text:"\u2705 Deal agreed! "+offer.cardName+" for $"+(offer.offerAmount||0).toFixed(2)+(offer.paymentInfo?" | Payment: "+offer.paymentInfo:"")+" | Card added to buyer's collection automatically.",
-        senderUid:"system", senderName:"System", sentAt:now,
-      });
+      await setDoc(doc(db,"deal_threads",threadId),{
+        messages: arrayUnion({id:uid(),text:"\u2705 Deal agreed! "+offer.cardName+" for $"+(offer.offerAmount||0).toFixed(2)+(offer.paymentInfo?" | Payment: "+offer.paymentInfo:"")+" | Card added to buyer's collection automatically.",senderUid:"system",senderName:"System",sentAt:now}),
+      },{merge:true});
       // 6. Log sale
       await setDoc(doc(db,"market_sales",uid()),{
         id:uid(), listingId:offer.listingId||"",
@@ -10585,10 +10583,18 @@ function PublicCardDatabase() {
   useEffect(() => {
     if (!activeThread) { setThreadMsgs([]); return; }
     const unsub = onSnapshot(
-      query(collection(db,"thread_messages"), where("threadId","==",activeThread.id), orderBy("sentAt","asc")),
-      snap => setThreadMsgs(snap.docs.map(d=>({...d.data(),id:d.id})))
+      doc(db,"deal_threads",activeThread.id),
+      snap => {
+        if (snap.exists()) {
+          const msgs = (snap.data().messages||[]).slice().sort((a,b)=>a.sentAt>b.sentAt?1:-1);
+          setThreadMsgs(msgs);
+        }
+      }
     );
-    // Mark as read
+    if (user) setDoc(doc(db,"deal_threads",activeThread.id),{lastReadBy:{[user.uid]:new Date().toISOString()}},{merge:true});
+    return ()=>unsub();
+  }, [activeThread?.id]);
+
     if (user) setDoc(doc(db,"deal_threads",activeThread.id),{lastReadBy:{[user.uid]:new Date().toISOString()}},{merge:true});
     return ()=>unsub();
   }, [activeThread?.id]);
@@ -10596,12 +10602,10 @@ function PublicCardDatabase() {
   async function sendMessage() {
     if (!newMsg.trim()||!activeThread||!user) return;
     const now = new Date().toISOString();
-    const msgId = uid();
-    await setDoc(doc(db,"thread_messages",msgId),{threadId:activeThread.id,
-      text:newMsg.trim(), senderUid:user.uid, senderName:user.displayName||user.email, sentAt:now,
-    });
+    const msg = {id:uid(), text:newMsg.trim(), senderUid:user.uid, senderName:user.displayName||user.email, sentAt:now};
     await setDoc(doc(db,"deal_threads",activeThread.id),{
-      lastMessage:newMsg.trim(), lastMessageAt:now, lastSenderUid:user.uid,
+      messages: arrayUnion(msg),
+      lastMessage:msg.text, lastMessageAt:now, lastSenderUid:user.uid,
       lastReadBy:{[user.uid]:now},
     },{merge:true});
     setNewMsg("");
