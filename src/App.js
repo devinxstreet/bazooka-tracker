@@ -3470,46 +3470,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   );
 }
 
-function USHeatMap({ stateData, stateColor, selectedState, setSelectedState }) {
-  const [svgContent, setSvgContent] = useState(null);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    // Use the public domain US states SVG from Wikipedia via a CORS-friendly CDN
-    fetch("https://cdn.jsdelivr.net/gh/newamericafoundation/newamerica-maps@master/svg/us-states.svg")
-      .then(r => r.text())
-      .then(text => setSvgContent(text))
-      .catch(() => setSvgContent("error"));
-  }, []);
-
-  useEffect(() => {
-    if (!svgContent || svgContent === "error" || !containerRef.current) return;
-    const svg = containerRef.current.querySelector("svg");
-    if (!svg) return;
-    // Style each state path
-    svg.querySelectorAll("path[id], path[data-name]").forEach(path => {
-      const id = (path.getAttribute("id") || path.getAttribute("data-name") || "").toUpperCase().trim();
-      if (!id || id.length !== 2) return;
-      path.style.fill = stateColor(id);
-      path.style.stroke = "#2a2a2a";
-      path.style.strokeWidth = selectedState === id ? "3" : "0.5";
-      path.style.cursor = "pointer";
-      path.style.transition = "fill 0.2s";
-      path.onclick = () => setSelectedState(selectedState === id ? null : id);
-    });
-    svg.style.width = "100%";
-    svg.style.height = "auto";
-    svg.style.display = "block";
-  }, [svgContent, stateData, selectedState]);
-
-  if (!svgContent) return <div style={{ height:300, display:"flex", alignItems:"center", justifyContent:"center", color:"#555", fontSize:13 }}>Loading map...</div>;
-  if (svgContent === "error") return <div style={{ height:200, display:"flex", alignItems:"center", justifyContent:"center", color:"#555", fontSize:13 }}>Could not load map</div>;
-
-  return (
-    <div ref={containerRef} style={{ background:"#0a0a0a", borderRadius:8, overflow:"hidden" }}
-      dangerouslySetInnerHTML={{ __html: svgContent }}/>
-  );
-}
 
 function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
@@ -3599,6 +3559,14 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
           </div>
         ))}
       </div>
+      {isAdmin && buyers.length > 0 && (
+        <div style={{ display:"flex", justifyContent:"flex-end" }}>
+          <button onClick={()=>{ if(onClearAll) onClearAll(); }}
+            style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            🗑 Clear All Buyers & Imports
+          </button>
+        </div>
+      )}
 
       {/* Analytics tabs */}
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
@@ -3714,7 +3682,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
                 <span>More buyers</span>
                 <span style={{ marginLeft:"auto", color:"#333" }}>Click a state to see buyers</span>
               </div>
-              <USHeatMap stateData={stateData} stateColor={stateColor} selectedState={selectedState} setSelectedState={setSelectedState} />
+
               {selectedState && (() => {
                 const stateBuyers = buyers.filter(b=>(b.state||"").toUpperCase()===selectedState);
                 const d = stateData[selectedState];
