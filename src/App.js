@@ -6200,7 +6200,8 @@ function BobaChecklist({ userRole, user }) {
   const [pbSearch,       setPbSearch]       = useState("");
   const [pbOwnedOnly,    setPbOwnedOnly]    = useState(false);
   const [pbSaving,       setPbSaving]       = useState(false);
-  const [pbSort,         setPbSort]         = useState("name"); // name | dbs_asc | dbs_desc
+  const [pbSort,         setPbSort]         = useState("name");
+  const [pbTreatFilter,  setPbTreatFilter]  = useState(""); // name | dbs_asc | dbs_desc
   const PLAY_LIMIT = 30;
   const DECK_SIZE = 60;
   const PAGE_SIZE = 100;
@@ -6308,14 +6309,14 @@ function BobaChecklist({ userRole, user }) {
     setPbLoadId(pb.id);
     setPbName(pb.name);
     setPbCards(pb.entries||[]);
-    setPbSearch("");
+    setPbSearch(""); setPbTreatFilter("");
   }
 
   function newPlaybook() {
     setPbLoadId(null);
     setPbName("My Playbook");
     setPbCards([]);
-    setPbSearch("");
+    setPbSearch(""); setPbTreatFilter("");
   }
 
   async function scanPdfForCards(file, setName, treatment, weapon) {
@@ -7939,6 +7940,7 @@ function BobaChecklist({ userRole, user }) {
         const pbPool   = pbOwnedOnly ? allPlays.filter(c=>ownedSet.has(c.id)) : allPlays;
         const available = pbPool.filter(c => {
           if (pbEntryIds.has(c.id)) return false;
+          if (pbTreatFilter && (c.treatment||"").toLowerCase() !== pbTreatFilter.toLowerCase()) return false;
           if (pbSearch && !`${c.hero} ${c.cardNum} ${c.treatment} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase())) return false;
           return true;
         }).sort((a,b) => {
@@ -8007,6 +8009,12 @@ function BobaChecklist({ userRole, user }) {
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)}
                     placeholder="Search hero, play ability..."
                     style={{ ...S.inp, flex:1 }}/>
+                  <select value={pbTreatFilter} onChange={e=>setPbTreatFilter(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+                    <option value="">All Types</option>
+                    <option value="Plays">⚔️ Plays</option>
+                    <option value="Bonus Plays">⭐ Bonus Plays</option>
+                    <option value="Home Team Discount">🌭 Home Team Discount</option>
+                  </select>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="name">Sort: Name</option>
                     <option value="dbs_desc">DBS: High → Low</option>
