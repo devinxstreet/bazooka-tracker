@@ -42,9 +42,9 @@ const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
 const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"];
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
-const fmt = n => isNaN(n) || n === "" || n === null ? "—" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmt = n => isNaN(n) || n === "" || n === null ? "--" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
-// -- useCountUp hook — animates numbers from 0 to target ----------
+// -- useCountUp hook -- animates numbers from 0 to target ----------
 function useCountUp(target, duration=600) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -130,7 +130,7 @@ function Badge({ children, bg="#F3F4F6", color="#374151" }) {
 }
 function ZoneBadge({ pct }) {
   const z = getZone(pct);
-  if (!z) return <span style={{ color:"#D1D5DB", fontSize:11 }}>—</span>;
+  if (!z) return <span style={{ color:"#D1D5DB", fontSize:11 }}>--</span>;
   const cls = pct >= 0.70 ? "zone-red" : pct >= 0.65 ? "zone-yellow" : "";
   return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} · {(pct*100).toFixed(1)}%</span>;
 }
@@ -399,7 +399,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <div style={{ fontSize:14, fontWeight:800, color:cfg.color, marginBottom:4 }}>{cfg.title}</div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
                   {q.status==="accepted" && q.sellerPayment && (
-                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>💳 Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
+                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>💳 Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` -- ${q.sellerHandle}` : ""}</div>
                   )}
                 </div>
               </div>
@@ -592,7 +592,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet — add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?9:6}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?9:6}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -711,7 +711,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totZion     = periodStreams.reduce((s,r)=>s+(parseFloat(r.zionRevenue)||0),0);
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
-        // Card usage costs by type — join breaks with inventory costs
+        // Card usage costs by type -- join breaks with inventory costs
         const periodStreamIds = new Set(periodStreams.map(s=>s.id));
         const periodBreaks = breaks.filter(b => b.streamId && periodStreamIds.has(b.streamId));
         const cardCostByType = {};
@@ -739,7 +739,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 { l:"Top Loaders",      v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",          c:"#7B9CFF" },
                 { l:"Chaser Cards",     v:`$${totChaser.toFixed(2)}`,   sub:"",                                           c:"#E8317A" },
                 { l:"Coupons Given",    v:`$${totCoupons.toFixed(2)}`,  sub:"",                                           c:"#FBBF24" },
-                { l:"🟢 Zion Cases",     v:totZion>0?`$${totZion.toFixed(2)}`:"—", sub:totZion>0?`~${Math.round(totZion/3)} units sold`:"Bazooka-only", c:"#4ade80" },
+                { l:"🟢 Zion Cases",     v:totZion>0?`$${totZion.toFixed(2)}`:"--", sub:totZion>0?`~${Math.round(totZion/3)} units sold`:"Bazooka-only", c:"#4ade80" },
               ].map(({l,v,sub,c}) => (
                 <div key={l} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid #2a2a2a" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -969,7 +969,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div key={b} style={{ ...S.card, border:`1.5px solid ${bc.border}44`, background:bc.bg+"44", position:"relative" }}>
                 {isYou && <div style={{ position:"absolute", top:10, right:10, fontSize:10, fontWeight:700, color:bc.text, background:bc.bg, border:`1px solid ${bc.border}`, borderRadius:10, padding:"2px 8px" }}>You</div>}
                 <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
-                {[["Cards logged out",bBreaks.length],["Added to inventory",bInv.length],["Last break",last?new Date(last.dateAdded).toLocaleDateString():"—"]].map(([l,v]) => (
+                {[["Cards logged out",bBreaks.length],["Added to inventory",bInv.length],["Last break",last?new Date(last.dateAdded).toLocaleDateString():"--"]].map(([l,v]) => (
                   <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #333333" }}>
                     <span style={{ fontSize:11, color:"#AAAAAA" }}>{l}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:bc.text }}>{v}</span>
@@ -981,7 +981,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         </div>
       </div>
 
-      {/* Historical Data — Admin only */}
+      {/* Historical Data -- Admin only */}
       {canSeeFinancials && (() => {
 
         function startEdit(h) {
@@ -1011,7 +1011,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             </div>
             {showHist && (
               <>
-                <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:14 }}>{editingId ? `Editing ${editingId} — update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
+                <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:14 }}>{editingId ? `Editing ${editingId} -- update fields and save.` : "Enter monthly summary data for historical periods. These feed into YTD totals and projections on the dashboard."}</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
                   <div>
                     <label style={S.lbl}>Month (YYYY-MM)</label>
@@ -1052,10 +1052,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
-                          <td style={{ ...S.td, color:"#E8317A" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"—"}</td>
+                          <td style={{ ...S.td, color:"#E8317A" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"--"}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
-                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"—"}</td>
-                          <td style={{ ...S.td, color:"#AAAAAA" }}>{h.notes||"—"}</td>
+                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"--"}</td>
+                          <td style={{ ...S.td, color:"#AAAAAA" }}>{h.notes||"--"}</td>
                           <td style={S.td}>
                             <div style={{ display:"flex", gap:6 }}>
                               <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
@@ -1142,7 +1142,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
       seller:seller.name, contact:seller.contact, date:seller.date||new Date().toLocaleDateString(),
       source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle, totalCards, totalMarket:totalMkt,
       offer:dispOffer, blendedPct:totalMkt>0?dispOffer/totalMkt:0,
-      zone:lotZone?.label||"—", status,
+      zone:lotZone?.label||"--", status,
       cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 }))
     });
   }
@@ -1171,7 +1171,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           <div style={{ fontSize:11, color:"#AAAAAA", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ padding:"14px 24px", borderBottom:"1px solid #333333", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#111111" }}>
-          <div><span style={{ color:"#AAAAAA", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"—"}</strong></div>
+          <div><span style={{ color:"#AAAAAA", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"--"}</strong></div>
           <div style={{ textAlign:"right" }}><span style={{ color:"#AAAAAA", fontSize:11 }}>Date: </span><strong>{seller.date||new Date().toLocaleDateString()}</strong></div>
         </div>
         <div style={{ padding:"8px 24px 0" }}>
@@ -1196,7 +1196,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           </table>
         </div>
         <div style={{ padding:"16px 24px", borderTop:"2px solid #333333", marginTop:8 }}>
-          {/* Notes — rendered read-only in the quote */}
+          {/* Notes -- rendered read-only in the quote */}
           {custNote.trim() && (
             <div style={{ marginBottom:14, padding:"12px 16px", background:"#111111", border:"1px solid #2a2a2a", borderLeft:"3px solid #E8317A", borderRadius:8 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Notes</div>
@@ -1217,13 +1217,13 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           <div style={{ marginTop:14, padding:"12px 16px", background:"#111111", border:"1px solid #2a2a2a", borderRadius:8 }}>
             <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
             <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
-              Devin — Bazooka<br/>
+              Devin -- Bazooka<br/>
               425 Prosperity Dr<br/>
               Warsaw, IN 46582
             </div>
           </div>
 
-          {/* Payment section — shows when payment method + handle entered */}
+          {/* Payment section -- shows when payment method + handle entered */}
           {seller.payment && seller.paymentHandle && (() => {
             const handle = seller.paymentHandle.trim();
             const amt    = dispOffer > 0 ? dispOffer.toFixed(2) : "";
@@ -1262,7 +1262,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             return (
               <div style={{ marginTop:14, padding:"14px 16px", background:"#111111", border:`2px solid ${cfg.color}33`, borderRadius:10 }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:10 }}>
-                  Payment — <span style={{ color:cfg.color }}>{seller.payment}</span>
+                  Payment -- <span style={{ color:cfg.color }}>{seller.payment}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1306,13 +1306,13 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12 }}>
           {[
             { z:"🟢 Green",  p:"Under 65%", a:"Buy independently",          bg:"#0a1a0a", c:"#4ade80" },
-            { z:"🟡 Yellow", p:"65–70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
+            { z:"🟡 Yellow", p:"65-70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
             { z:"🔴 Red",    p:"Over 70%",  a:"Pass or get approval",        bg:"#FEE2E2", c:"#991b1b" },
           ].map(({z,p,a,bg,c}) => (
             <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7 }}>
               <span style={{ fontWeight:800, color:c, fontSize:12, whiteSpace:"nowrap" }}>{z}</span>
               <span style={{ color:c, fontSize:11, whiteSpace:"nowrap" }}>{p}</span>
-              <span style={{ color:"#AAAAAA", fontSize:11 }}>— {a}</span>
+              <span style={{ color:"#AAAAAA", fontSize:11 }}>-- {a}</span>
             </div>
           ))}
         </div>
@@ -1335,7 +1335,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                 { l:"Calculated Offer",   v:`$${quickCalcOffer.toFixed(2)}`, c:"#166534" },
               ] : []),
               { l:"Your Offer",  v:`$${quickOfferAmt.toFixed(2)}`,  c:"#6B2D8B" },
-              { l:"Lot Zone",    v:quickZone?quickZone.label:"—",   c:quickZone?.color||"#9CA3AF" },
+              { l:"Lot Zone",    v:quickZone?quickZone.label:"--",   c:quickZone?.color||"#9CA3AF" },
             ].map(({l,v,c}) => (
               <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px", textAlign:"center" }}>
                 <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
@@ -1383,7 +1383,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                           <div style={{ fontSize:11, color:"#666" }}>
                             {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
                             {q.status==="countered" && <> · Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
-                            {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` — ${q.sellerHandle}`:""}</strong></>}
+                            {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
                             &nbsp;· {daysLeft}d left
                           </div>
                           {/* View tracking */}
@@ -1430,7 +1430,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                 <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
                                   <div style={{ background:"#1a1a1a", border:`1px solid ${zone.c}44`, borderRadius:7, padding:"5px 10px", fontSize:11 }}>
                                     <span style={{ color:"#666" }}>Your counter: </span>
-                                    <strong style={{ color:zone.c }}>{pct?pct.toFixed(1)+"%":"—"}</strong>
+                                    <strong style={{ color:zone.c }}>{pct?pct.toFixed(1)+"%":"--"}</strong>
                                     <span style={{ color:"#555", marginLeft:4 }}>{zone.l}</span>
                                   </div>
                                   {origPct && <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
@@ -1449,7 +1449,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                           <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">❌ Decline</Btn>
                           {q.status==="countered" && (
                             <Btn onClick={async()=>{
-                              // Accept their counter — update offer to their counter amount
+                              // Accept their counter -- update offer to their counter amount
                               if(onBazookaCounter) {
                                 await setDoc(doc(db,"quotes",q.id),{ status:"pending", currentOffer:parseFloat(q.sellerCounter), history:[...(q.history||[]),{type:"bazooka_accepted_counter",amount:parseFloat(q.sellerCounter),timestamp:new Date().toISOString()}], notified:false },{ merge:true });
                                 showToast?.(`✅ Accepted counter at $${parseFloat(q.sellerCounter).toFixed(2)}`);
@@ -1459,7 +1459,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                         </div>
                       )}
 
-                      {/* Accepted — import prompt */}
+                      {/* Accepted -- import prompt */}
                       {q.status==="accepted" && (
                         <div style={{ borderTop:"1px solid #333", paddingTop:10, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
                           <span style={{ fontSize:12, color:"#4ade80" }}>🎉 Seller accepted! Ready to import into inventory.</span>
@@ -1493,7 +1493,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>Saved by</span>
-                          <span style={{ fontWeight:700, fontSize:12, color:"#F0F0F0" }}>{c.savedBy||"—"}</span>
+                          <span style={{ fontWeight:700, fontSize:12, color:"#F0F0F0" }}>{c.savedBy||"--"}</span>
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
                           <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>{savedAt}</span>
@@ -1511,7 +1511,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#E8317A"}}>${(c.offer||0).toFixed(2)}</strong></span>
                         <span style={{ fontSize:12, color:"#AAAAAA" }}>Blended: <strong style={{color:z?.color||"#F0F0F0"}}>{((c.blendedPct||0)*100).toFixed(1)}%</strong></span>
                       </>}
-                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#F0F0F0"}}>{c.source||"—"}</strong></span>
+                      <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#F0F0F0"}}>{c.source||"--"}</strong></span>
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>
                         {c.cards&&c.cards.length>0 ? <span style={{color:"#E8317A",fontWeight:700}}>✓ {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#AAAAAA",fontWeight:700}}>⚠ No card details</span>}
                       </span>
@@ -1533,7 +1533,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               <span style={{ fontSize:18 }}>{loadedCompHadCards ? "✅" : "⚠️"}</span>
               <div>
                 <div style={{ fontWeight:700, fontSize:13, color: loadedCompHadCards ? "#166534" : "#92400e" }}>
-                  {loadedCompHadCards ? "Comp loaded — ready to edit and import" : "Comp loaded — no card data saved"}
+                  {loadedCompHadCards ? "Comp loaded -- ready to edit and import" : "Comp loaded -- no card data saved"}
                 </div>
                 <div style={{ fontSize:11, color:"#AAAAAA", marginTop:2 }}>
                   {loadedCompHadCards ? "All seller info, cards, and offer amount restored. Hit Accept & Import to add to inventory." : "Seller info and offer restored, but this comp was saved without per-card details. Add cards manually below."}
@@ -1657,7 +1657,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             <div>
               <label style={S.lbl}>Zone</label>
               <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`1.5px solid ${lotZone?.color||"#D1D5DB"}`, color:lotZone?.color||"#9CA3AF", fontWeight:700 }}>
-                {lotZone ? lotZone.label : totalMkt > 0 ? "—" : "Add cards first"}
+                {lotZone ? lotZone.label : totalMkt > 0 ? "--" : "Add cards first"}
               </div>
             </div>
           </div>
@@ -1685,14 +1685,14 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                           {POOL_TYPES.includes(r.cardType) ? (
-                            // Pool type — show dropdown if pools exist, otherwise free text
+                            // Pool type -- show dropdown if pools exist, otherwise free text
                             cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
                               <select
                                 value={r.name}
                                 onChange={e=>upd(r.id,"name",e.target.value)}
                                 style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
                               >
-                                <option value="">— Select Pool —</option>
+                                <option value="">-- Select Pool --</option>
                                 {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
                                   <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
                                 ))}
@@ -1702,7 +1702,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                               <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
                             )
                           ) : (
-                            // Individual type — BoBA checklist autocomplete
+                            // Individual type -- BoBA checklist autocomplete
                             <>
                               <div style={{ position:"relative", flex:1 }}>
                                 <input
@@ -1743,7 +1743,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                       <div style={{ padding:"4px 10px", fontSize:10, color:"#555", borderBottom:"1px solid #111" }}>{hits.length} match{hits.length!==1?"es":""}</div>
                                       {hits.map(c => {
                                         const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
-                                        const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" — ");
+                                        const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" -- ");
                                         return (
                                           <div key={c.id}
                                             onMouseDown={() => {
@@ -1753,7 +1753,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                             }}
                                             style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", cursor:"pointer", borderBottom:"1px solid #111" }}
                                             className="inv-row">
-                                            {/* Card image — large on hover via title tooltip, small inline */}
+                                            {/* Card image -- large on hover via title tooltip, small inline */}
                                             <div style={{ position:"relative", flexShrink:0 }}>
                                               {c.imageUrl
                                                 ? <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4 }}/>
@@ -1804,7 +1804,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
-                      <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>—</span>}</td>
+                      <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
                   );
@@ -1822,10 +1822,10 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534"}}>${dispOffer.toFixed(2)} ({(dispPct*100).toFixed(1)}%)</strong></span>
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Est. Margin: <strong style={{color:"#E8317A"}}>${(totalMkt-dispOffer).toFixed(2)}</strong></span>
               <span style={{ fontSize:12, color:"#AAAAAA" }}>Market Value: <strong style={{color:"#AAAAAA"}}>${totalMkt.toFixed(2)}</strong></span>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Per Card: <strong style={{color:"#E8317A"}}>${totalCards>0?(dispOffer/totalCards).toFixed(2):"—"}</strong></span>
+              <span style={{ fontSize:12, color:"#AAAAAA" }}>Per Card: <strong style={{color:"#E8317A"}}>${totalCards>0?(dispOffer/totalCards).toFixed(2):"--"}</strong></span>
             </div>
           )}
-          {/* Pay button — appears when payment method + handle are filled */}
+          {/* Pay button -- appears when payment method + handle are filled */}
           {seller.payment && seller.paymentHandle && (() => {
             const handle      = seller.paymentHandle.trim();
             const cleanHandle = handle.replace(/^@/,"");
@@ -1836,7 +1836,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               PayPal:     { color:"#003087", bg:"#E8EEFF", label:"Send via PayPal",   hint:handle,            href:`https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}` },
               Zelle:      { color:"#6D1ED4", bg:"#F3EEFF", label:"Open Zelle",        hint:handle,            href:null },
               "Cash App": { color:"#00C244", bg:"#E6FFF0", label:"Send via Cash App", hint:`$${cleanHandle}`, href:`https://cash.app/$${cleanHandle}${amt?"/"+amt:""}` },
-              Cash:       { color:"#E8317A", bg:"#D6F4E3", label:"Cash Payment",      hint:`$${amt||"—"} cash`, href:null },
+              Cash:       { color:"#E8317A", bg:"#D6F4E3", label:"Cash Payment",      hint:`$${amt||"--"} cash`, href:null },
             };
             const cfg = PCFG[seller.payment];
             if (!cfg) return null;
@@ -1905,17 +1905,17 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           <div style={{ borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
-              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active — overrides your offer</span>}
+              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active -- overrides your offer</span>}
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
               <div><label style={S.lbl}>Seller's Counter ($)</label><input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={{ ...S.inp, border:(counterAmt!=null&&counterAmt>0)?"2px solid #E8317A":S.inp.border }}/></div>
               <div><label style={S.lbl}>Counter Zone</label><div style={{ ...S.inp, background:counterZone?.bg||"#F9FAFB", border:`1.5px solid ${counterZone?.color||"#E5E7EB"}`, color:counterZone?.color||"#9CA3AF", fontWeight:700 }}>{counterZone?counterZone.label:totalMkt>0?"Enter counter":"Add cards first"}</div></div>
-              <div><label style={S.lbl}>Counter Buy %</label><div style={{ ...S.inp, color:(counterAmt!=null&&counterAmt>0)?(counterZone?.color||"#6B2D8B"):"#9CA3AF", fontWeight:700 }}>{(counterAmt!=null&&counterAmt>0)&&totalMkt>0?`${((counterAmt/totalMkt)*100).toFixed(1)}%`:"—"}</div></div>
-              <div><label style={S.lbl}>vs Your Offer</label><div style={{ ...S.inp, color:(counterAmt!=null&&counterAmt>(offerAmt!=null&&offerAmt>0?offerAmt:calcOffer))?"#991b1b":"#166534", fontWeight:700 }}>{(counterAmt!=null&&counterAmt>0)&&calcOffer>0?`$${Math.abs(counterAmt-(offerAmt>0?offerAmt:calcOffer)).toFixed(2)} ${counterAmt>(offerAmt!=null&&offerAmt>0?offerAmt:calcOffer)?"over":"under"}`:"—"}</div></div>
+              <div><label style={S.lbl}>Counter Buy %</label><div style={{ ...S.inp, color:(counterAmt!=null&&counterAmt>0)?(counterZone?.color||"#6B2D8B"):"#9CA3AF", fontWeight:700 }}>{(counterAmt!=null&&counterAmt>0)&&totalMkt>0?`${((counterAmt/totalMkt)*100).toFixed(1)}%`:"--"}</div></div>
+              <div><label style={S.lbl}>vs Your Offer</label><div style={{ ...S.inp, color:(counterAmt!=null&&counterAmt>(offerAmt!=null&&offerAmt>0?offerAmt:calcOffer))?"#991b1b":"#166534", fontWeight:700 }}>{(counterAmt!=null&&counterAmt>0)&&calcOffer>0?`$${Math.abs(counterAmt-(offerAmt>0?offerAmt:calcOffer)).toFixed(2)} ${counterAmt>(offerAmt!=null&&offerAmt>0?offerAmt:calcOffer)?"over":"under"}`:"--"}</div></div>
             </div>
             {(counterAmt!=null&&counterAmt>0) && totalMkt > 0 && (
               <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#F0F0F0"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#F0F0F0"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> — card values and zones updated</span>
+                <span style={{ fontSize:12, color:"#AAAAAA" }}>Active offer: <strong style={{color:"#F0F0F0"}}>${counterAmt.toFixed(2)}</strong> at <strong style={{color:counterZone?.color||"#F0F0F0"}}>{((counterAmt/totalMkt)*100).toFixed(1)}%</strong> -- card values and zones updated</span>
                 <button onClick={()=>setCounterOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, fontWeight:700, textDecoration:"underline" }}>Clear</button>
               </div>
             )}
@@ -1923,7 +1923,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
         </div>
         </div>{/* end left column */}
 
-        {/* Seller Intelligence Panel — right column */}
+        {/* Seller Intelligence Panel -- right column */}
         {seller.name && (() => {
           const sellerComps = comps.filter(c => (c.seller||"").toLowerCase() === seller.name.toLowerCase());
           if (sellerComps.length === 0) return (
@@ -1947,7 +1947,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             <div style={{ display:"flex", flexDirection:"column", gap:10, position:"sticky", top:80 }}>
               <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
                 <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", marginBottom:2 }}>{seller.name}</div>
-                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"—"}</div>
+                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"--"}</div>
                 {seller.contact && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:4 }}>{seller.contact}</div>}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -1955,7 +1955,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                   { l:"Total Paid",   v:`$${Math.round(totalPaid).toLocaleString()}`,      c:"#4ade80" },
                   { l:"Avg % of Mkt", v:`${Math.round(avgPct*100)}%`,                      c:statColor(avgPct) },
                   { l:"Avg Lot Size", v:`${Math.round(avgLotSize)} cards`,                 c:"#7B9CFF" },
-                  { l:"Accept Rate",  v:sellerComps.length>0?`${Math.round(accepted/sellerComps.length*100)}%`:"—", c:"#4ade80" },
+                  { l:"Accept Rate",  v:sellerComps.length>0?`${Math.round(accepted/sellerComps.length*100)}%`:"--", c:"#4ade80" },
                 ].map(({l,v,c})=>(
                   <div key={l} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -1978,8 +1978,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                   {sorted.map((c,i)=>{ const p=c.totalMarket>0?c.offer/c.totalMarket:0; const sc={accepted:"#4ade80",declined:"#E8317A",countered:"#FBBF24",pending:"#555"}; return (
                     <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid #1a1a1a", background:i%2===0?"#0d0d0d":"#111" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                        <span style={{ fontSize:11, color:"#555" }}>{c.date||"—"}</span>
-                        <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"—"}</span>
+                        <span style={{ fontSize:11, color:"#555" }}>{c.date||"--"}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"--"}</span>
                       </div>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
@@ -2068,7 +2068,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
             <div>
               <label style={S.lbl}>Pool</label>
               <select value={logForm.poolId} onChange={e=>setLogForm(p=>({...p,poolId:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                <option value="">— Select Pool —</option>
+                <option value="">-- Select Pool --</option>
                 {cardPools.map(p=>{
                   const avail=(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0);
                   return <option key={p.id} value={p.id}>{p.cardName} ({avail} avail)</option>;
@@ -2110,7 +2110,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
             <div>
               <label style={S.lbl}>Pool</label>
               <select value={addForm.poolId} onChange={e=>setAddForm(p=>({...p,poolId:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                <option value="">— Select Pool —</option>
+                <option value="">-- Select Pool --</option>
                 {cardPools.map(p=><option key={p.id} value={p.id}>{p.cardName} (currently {parseInt(p.totalQty)||0})</option>)}
               </select>
             </div>
@@ -2234,7 +2234,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       {cardPools.length === 0 && !editing && (
         <div style={{ ...S.card, textAlign:"center", padding:"60px 40px", color:"#555" }}>
           <div style={{ fontSize:32, marginBottom:12 }}>🗃</div>
-          <div>No card pools yet — click <strong style={{color:"#E8317A"}}>+ New Pool</strong> to create your first pool</div>
+          <div>No card pools yet -- click <strong style={{color:"#E8317A"}}>+ New Pool</strong> to create your first pool</div>
         </div>
       )}
     </div>
@@ -2297,7 +2297,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
           const lots = {};
           inventory.forEach(c => {
             const key = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
-            if (!lots[key]) lots[key] = { key, seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"—", payment:c.payment||"—", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"—" };
+            if (!lots[key]) lots[key] = { key, seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"--", payment:c.payment||"--", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"--" };
             lots[key].cards.push(c);
           });
           const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
@@ -2434,7 +2434,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                   )}
                                   {tracking.lastEvent && (
                                     <span style={{ fontSize:12, color:"#AAAAAA" }}>
-                                      📍 {tracking.lastLocation && <strong style={{color:"#F0F0F0"}}>{tracking.lastLocation} — </strong>}{tracking.lastEvent}
+                                      📍 {tracking.lastLocation && <strong style={{color:"#F0F0F0"}}>{tracking.lastLocation} -- </strong>}{tracking.lastEvent}
                                     </span>
                                   )}
 
@@ -2562,7 +2562,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                 </tr>
               </thead>
               <tbody>
-                {filtered.length===0 ? <EmptyRow msg="No cards yet — accept a lot comp to add cards." cols={12}/> :
+                {filtered.length===0 ? <EmptyRow msg="No cards yet -- accept a lot comp to add cards." cols={12}/> :
                   filtered.map((c,i) => {
                     const used  = usedIds.has(c.id);
                     const isSel = selected.has(c.id);
@@ -2583,12 +2583,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                           <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(c.marketValue||0).toFixed(2)}</td>
                           <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>${(c.costPerCard||0).toFixed(2)}</td>
                           <td style={{ ...S.td, color:"#AAAAAA" }}>${(c.lotTotalPaid||0).toFixed(2)}</td>
-                          <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.payment||"—"}</td>
+                          <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.payment||"--"}</td>
                         </>}
-                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.source||"—"}</td>
-                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.seller||"—"}</td>
-                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:11 }}>{c.date||"—"}</td>
-                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.addedBy||"—"}</td>
+                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.source||"--"}</td>
+                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.seller||"--"}</td>
+                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:11 }}>{c.date||"--"}</td>
+                        <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{c.addedBy||"--"}</td>
                         <td style={S.td}>{used
                           ? <Badge bg="#FEE2E2" color="#991b1b">Used</Badge>
                           : c.cardStatus==="in_transit"
@@ -2607,7 +2607,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                   onKeyDown={e=>{
                                     if (e.key==="Enter") {
                                       const newCost = parseFloat(editCostVal)||0;
-                                      onRemove(c.id); // we'll need a save handler — see note below
+                                      onRemove(c.id); // we'll need a save handler -- see note below
                                       setEditCostId(null);
                                     }
                                     if (e.key==="Escape") setEditCostId(null);
@@ -2936,7 +2936,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
                     if (streamDate) { csvJustLoaded.current = true; setDate(streamDate); }
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} — now fill in Whatnot fees & other expenses.` });
+                    setCsvMsg({ type:"success", text:`✅ Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} -- now fill in Whatnot fees & other expenses.` });
                     setTimeout(()=>setCsvMsg(null), 8000);
 
                     // Parse buyers for CRM
@@ -3018,7 +3018,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div>
             <label style={S.lbl}>Session Type</label>
             <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
-              <option value="">— Select —</option>
+              <option value="">-- Select --</option>
               <option value="day">☀️ Day Break (Mon-Thurs)</option>
               <option value="night">🌙 Night Break (Mon-Thurs)</option>
               <option value="weekend">📅 Weekend Break (Fri-Sun)</option>
@@ -3056,17 +3056,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           ))}
         </div>
 
-        {/* Zion Cases Revenue — auto-filled, read-only, Bazooka only */}
+        {/* Zion Cases Revenue -- auto-filled, read-only, Bazooka only */}
         {parseFloat(recap.zionRevenue||0) > 0 && (
           <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>🟢 Zion Cases Revenue — Bazooka Only</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>🟢 Zion Cases Revenue -- Bazooka Only</div>
               <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-detected from CSV · Not included in IMC gross</div>
             </div>
             <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>${parseFloat(recap.zionRevenue||0).toFixed(2)}</div>
           </div>
         )}
-        {/* Chaser Cards — picker + manual override */}
+        {/* Chaser Cards -- picker + manual override */}
         <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>🏆 Cards Used as Chasers</label>
@@ -3136,7 +3136,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               );
             })()}
           </div>
-          {/* Supply qty fields — auto-calc from cost per unit */}
+          {/* Supply qty fields -- auto-calc from cost per unit */}
           <div style={{ display:"contents" }}>
               {[
                 { qtyKey:"magprosQty",   dollarKey:"magpros",           label:"MagPros",             supplyKey:"supply_magpros"   },
@@ -3175,7 +3175,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
             <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
-            <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break — flat 35% commission</span>
+            <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break -- flat 35% commission</span>
           </div>
           {canSeeFinancials && (
             <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
@@ -3298,7 +3298,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const collabAmt = rc.bazNet * (parseFloat(recap.collabPct)/100);
                   return (
                     <div style={{ marginBottom:10, padding:"8px 14px", background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab — {recap.collabPartner} ({recap.collabPct}%)</span>
+                      <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab -- {recap.collabPartner} ({recap.collabPct}%)</span>
                       <span style={{ fontSize:14, fontWeight:900, color:"#7B9CFF" }}>− {fmt(collabAmt)}</span>
                     </div>
                   );
@@ -3306,7 +3306,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {parseFloat(recap.zionRevenue||0) > 0 && (
                   <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <div>
-                      <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>🟢 Zion Cases — Bazooka Only</span>
+                      <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>🟢 Zion Cases -- Bazooka Only</span>
                       <span style={{ fontSize:10, color:"#555", marginLeft:8 }}>not in IMC split</span>
                     </div>
                     <span style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt(parseFloat(recap.zionRevenue||0))}</span>
@@ -3419,7 +3419,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
           {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#AAAAAA" }}>⚠ Unsaved changes</span>}
         </div>
-        {/* IMC Form URL setting — Admin only */}
+        {/* IMC Form URL setting -- Admin only */}
         {userRole?.role === "Admin" && (
           <div style={{ marginTop:12, display:"flex", gap:8, alignItems:"center" }}>
             <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>IMC Form URL:</span>
@@ -3471,7 +3471,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               </div>
             </div>
             {myStreams.length === 0
-              ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet — save a stream recap above to get started</div>
+              ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet -- save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead>
@@ -3511,13 +3511,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.commAmt)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
-                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "—"}</td>
+                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "--"}</td>
                         {PRODUCT_TYPES.map(pt => {
                           const qty = parseInt(s[`prod_${pt}`])||0;
                           const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
                           return (
                             <td key={pt} style={{ ...S.td, color: qty>0?PT_COLORS[pt]:"#D1D5DB", fontWeight:qty>0?700:400, textAlign:"center" }}>
-                              {qty>0 ? qty : "—"}
+                              {qty>0 ? qty : "--"}
                             </td>
                           );
                         })}
@@ -3652,9 +3652,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
                       <td style={{ ...S.td, fontWeight:700 }}>{b.cardName}</td>
                       <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{b.cardType}</Badge></td>
-                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.usage||"—"}</td>
-                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.loggedBy||"—"}</td>
-                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.notes||"—"}</td>
+                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.usage||"--"}</td>
+                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.loggedBy||"--"}</td>
+                      <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.notes||"--"}</td>
                       <td style={S.td}>
                         <button onClick={()=>{ if(window.confirm(`Remove "${b.cardName}" from break log? This will make the card available again.`)) onDeleteBreak(b.id); }} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }} title="Remove from break log">✕</button>
                       </td>
@@ -3805,7 +3805,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr><td colSpan={7} style={{ ...S.td, textAlign:"center", color:"#333", padding:32 }}>
-                      {buyers.length === 0 ? "No buyers yet — import a CSV from the Streams tab" : "No buyers match your search"}
+                      {buyers.length === 0 ? "No buyers yet -- import a CSV from the Streams tab" : "No buyers match your search"}
                     </td></tr>
                   ) : filtered.map((b,i) => {
                     const avgOrder = b.orderCount > 0 ? (b.totalSpend||0)/b.orderCount : 0;
@@ -3820,12 +3820,12 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
                             <span style={{ color:"#7B9CFF", fontWeight:700 }}>@{b.username}</span>
                           </div>
                         </td>
-                        <td style={{ ...S.td, color:"#F0F0F0" }}>{b.fullName||"—"}</td>
-                        <td style={{ ...S.td, color:"#888" }}>{loc||"—"}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0" }}>{b.fullName||"--"}</td>
+                        <td style={{ ...S.td, color:"#888" }}>{loc||"--"}</td>
                         <td style={{ ...S.td, color:"#F0F0F0", textAlign:"center" }}>{b.orderCount||0}</td>
                         <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>{fmt(b.totalSpend)}</td>
                         <td style={{ ...S.td, color:"#888" }}>{fmt(avgOrder)}</td>
-                        <td style={{ ...S.td, color:"#555" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "—"}</td>
+                        <td style={{ ...S.td, color:"#555" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "--"}</td>
                       </tr>
                     );
                   })}
@@ -3840,13 +3840,13 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
                   {[
-                    { l:"Full Name",    v:selected.fullName||"—" },
-                    { l:"Location",     v:[selected.city,selected.state,selected.zip].filter(Boolean).join(", ")||"—" },
+                    { l:"Full Name",    v:selected.fullName||"--" },
+                    { l:"Location",     v:[selected.city,selected.state,selected.zip].filter(Boolean).join(", ")||"--" },
                     { l:"Total Spend",  v:fmt(selected.totalSpend), c:"#4ade80" },
                     { l:"Orders",       v:selected.orderCount||0 },
                     { l:"Coupons Used", v:selected.couponCount||0 },
-                    { l:"First Seen",   v:selected.firstSeen ? new Date(selected.firstSeen).toLocaleDateString() : "—" },
-                    { l:"Last Seen",    v:selected.lastSeen  ? new Date(selected.lastSeen).toLocaleDateString()  : "—" },
+                    { l:"First Seen",   v:selected.firstSeen ? new Date(selected.firstSeen).toLocaleDateString() : "--" },
+                    { l:"Last Seen",    v:selected.lastSeen  ? new Date(selected.lastSeen).toLocaleDateString()  : "--" },
                     { l:"Streams",      v:(selected.streams||[]).length },
                   ].map(({l,v,c})=>(
                     <div key={l} style={{ background:"#111", borderRadius:7, padding:"8px 10px" }}>
@@ -3932,7 +3932,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
         )}
       </div>
 
-      {/* CSV Imports — collapsible */}
+      {/* CSV Imports -- collapsible */}
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <button onClick={()=>setShowImports(p=>!p)}
           style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:"transparent", border:"none", color:"#F0F0F0", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>
@@ -4166,11 +4166,11 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                 { l:"Total Cards Used",     v:stats.all.length,                                          c:bc.text },
                 { l:"This Month",           v:stats.month.length,                                        c:bc.text },
                 { l:"📦 Boxes This Month",  v:stats.breakerBoxTotal||0,                                  c:stats.breakerBoxTotal>0?"#6B2D8B":"#9CA3AF" },
-                { l:"💰 Gross This Month",  v:stats.breakerGross>0?fmt(stats.breakerGross):"—",          c:stats.breakerGross>0?"#E8317A":"#9CA3AF" },
+                { l:"💰 Gross This Month",  v:stats.breakerGross>0?fmt(stats.breakerGross):"--",          c:stats.breakerGross>0?"#E8317A":"#9CA3AF" },
                 { l:"🌱 New Buyers",        v:stats.breakerNewBuyers||0,                                 c:stats.breakerNewBuyers>0?"#166534":"#9CA3AF" },
                 { l:"Top Card Type",        v:stats.topType.replace(" Cards",""),                        c:CC[stats.topType]?.text||bc.text },
-                { l:"📈 Avg Market Multiple", v:stats.breakerAvgMM?`${stats.breakerAvgMM.toFixed(2)}x`:"—", c:stats.breakerAvgMM>=1.6?"#166534":stats.breakerAvgMM>=1.5?"#92400e":"#9CA3AF" },
-                { l:"Active Streak",        v:stats.streak>0?`${stats.streak}d`:"—",                    c:stats.streak>0?"#E8317A":"#9CA3AF" },
+                { l:"📈 Avg Market Multiple", v:stats.breakerAvgMM?`${stats.breakerAvgMM.toFixed(2)}x`:"--", c:stats.breakerAvgMM>=1.6?"#166534":stats.breakerAvgMM>=1.5?"#92400e":"#9CA3AF" },
+                { l:"Active Streak",        v:stats.streak>0?`${stats.streak}d`:"--",                    c:stats.streak>0?"#E8317A":"#9CA3AF" },
               ].map(({l,v,c}) => (
                 <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
@@ -4394,7 +4394,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         );
       })()}
 
-      {/* SKU Pricing — Admin only */}
+      {/* SKU Pricing -- Admin only */}
       {canEdit && (
         <div style={{ ...S.card, border:"2px solid #333333" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: skuEditing ? 14 : 0 }}>
@@ -4431,7 +4431,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         </div>
       )}
 
-      {/* Supply Cost Config — Admin only */}
+      {/* Supply Cost Config -- Admin only */}
       {canEdit && (
         <div style={{ ...S.card, border:"2px solid #6B2D8B22" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: supplyEditing ? 14 : 0 }}>
@@ -4528,7 +4528,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
       <div style={S.card}>
         <SectionLabel t="Shipment History" />
         {shipments.length === 0
-          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet — add one above</div>
+          ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No shipments yet -- add one above</div>
           : (
             <table style={{ width:"100%", borderCollapse:"collapse" }}>
               <thead><tr>{["Date","Product","Qty","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -4540,7 +4540,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                       <td style={S.td}>{s.date}</td>
                       <td style={S.td}><span style={{ background:pc.bg, color:pc.text, borderRadius:5, padding:"2px 9px", fontSize:11, fontWeight:700 }}>{s.productType}</span></td>
                       <td style={{ ...S.td, fontWeight:700, color:"#E8317A", fontSize:15 }}>+{s.qty}</td>
-                      <td style={{ ...S.td, color:"#AAAAAA" }}>{s.notes||"—"}</td>
+                      <td style={{ ...S.td, color:"#AAAAAA" }}>{s.notes||"--"}</td>
                       <td style={S.td}>
                         {canEdit && (
                           <div style={{ display:"flex", gap:6 }}>
@@ -4572,7 +4572,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                     <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
                     {PRODUCT_TYPES.map(pt => (
                       <td key={pt} style={{ ...S.td, color:(parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
-                        {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "—"}
+                        {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "--"}
                       </td>
                     ))}
                     <td style={S.td}>
@@ -4621,7 +4621,7 @@ function Sellers({ inventory, breaks, userRole }) {
     s.cards++;
     s.spent += c.costPerCard || 0;
     const lotKey = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
-    if (!s.lots[lotKey]) s.lots[lotKey] = { key:lotKey, date:c.date||"—", cards:[], lotPaid:c.lotTotalPaid||0, source:c.source||"—", payment:c.payment||"—" };
+    if (!s.lots[lotKey]) s.lots[lotKey] = { key:lotKey, date:c.date||"--", cards:[], lotPaid:c.lotTotalPaid||0, source:c.source||"--", payment:c.payment||"--" };
     s.lots[lotKey].cards.push(c);
     if (c.source) s.sources[c.source] = (s.sources[c.source]||0) + 1;
     if (c.payment) s.payments[c.payment] = (s.payments[c.payment]||0) + 1;
@@ -4632,8 +4632,8 @@ function Sellers({ inventory, breaks, userRole }) {
     ...s,
     lotCount:      Object.keys(s.lots).length,
     lotList:       Object.values(s.lots).sort((a,b) => new Date(b.date)-new Date(a.date)),
-    topSource:     Object.entries(s.sources).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—",
-    topPayment:    Object.entries(s.payments).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—",
+    topSource:     Object.entries(s.sources).sort((a,b)=>b[1]-a[1])[0]?.[0] || "--",
+    topPayment:    Object.entries(s.payments).sort((a,b)=>b[1]-a[1])[0]?.[0] || "--",
   }));
 
   const filtered = sellers
@@ -4665,9 +4665,9 @@ function Sellers({ inventory, breaks, userRole }) {
           <div>
             <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{s.name}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>
-              {s.topSource !== "—" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
-              {s.topSource !== "—" && " · "}
-              Last purchase {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}
+              {s.topSource !== "--" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
+              {s.topSource !== "--" && " · "}
+              Last purchase {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "--"}
             </div>
           </div>
         </div>
@@ -4761,7 +4761,7 @@ function Sellers({ inventory, breaks, userRole }) {
       {filtered.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
-            <div>No customers yet — start importing lots from Lot Comp</div>
+            <div>No customers yet -- start importing lots from Lot Comp</div>
           </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {filtered.map((s,i) => {
@@ -4783,9 +4783,9 @@ function Sellers({ inventory, breaks, userRole }) {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:3 }}>{s.name}</div>
                     <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                      {s.topSource !== "—" && <span style={{ fontSize:11, color:srcColor, fontWeight:700 }}>{s.topSource}</span>}
-                      {s.topPayment !== "—" && <span style={{ fontSize:11, color:"#AAAAAA" }}>{s.topPayment}</span>}
-                      <span style={{ fontSize:11, color:"#AAAAAA" }}>Last: {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "—"}</span>
+                      {s.topSource !== "--" && <span style={{ fontSize:11, color:srcColor, fontWeight:700 }}>{s.topSource}</span>}
+                      {s.topPayment !== "--" && <span style={{ fontSize:11, color:"#AAAAAA" }}>{s.topPayment}</span>}
+                      <span style={{ fontSize:11, color:"#AAAAAA" }}>Last: {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "--"}</span>
                     </div>
                   </div>
 
@@ -4820,7 +4820,7 @@ function Sellers({ inventory, breaks, userRole }) {
         return (
           <div style={{ ...S.card, marginTop:14 }}>
             <SectionLabel t="📈 SKU Market Price History" />
-            <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Price per box at time of each stream — frozen at save</div>
+            <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Price per box at time of each stream -- frozen at save</div>
             <div style={{ position:"relative", height:260 }}>
               <canvas id="skuPriceChart" style={{ width:"100%", height:"100%" }}/>
             </div>
@@ -4859,7 +4859,7 @@ function SkuPriceChart({ streams }) {
       type:"line", data:{ labels, datasets },
       options:{
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ labels:{ color:"#888", font:{ size:11 }}}, tooltip:{ callbacks:{ label: c => c.dataset.label+": $"+(c.parsed.y?.toFixed(2)||"—") }}},
+        plugins:{ legend:{ labels:{ color:"#888", font:{ size:11 }}}, tooltip:{ callbacks:{ label: c => c.dataset.label+": $"+(c.parsed.y?.toFixed(2)||"--") }}},
         scales:{
           x:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"#888", font:{ size:10 }, maxTicksLimit:12 }},
           y:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"#888", font:{ size:11 }, callback: v => "$"+v }, beginAtZero:false }
@@ -4944,14 +4944,14 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                 return (
                   <div key={p.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px auto auto", gap:8, alignItems:"center" }}>
                     <select value={p.type} onChange={e=>updateProduct(p.id,"type",e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
-                      <option value="">— Select Product —</option>
+                      <option value="">-- Select Product --</option>
                       {PRODUCT_TYPES.map(pt=>(
                         <option key={pt} value={pt}>{pt}{skuPrices[pt]?` ($${parseFloat(skuPrices[pt]).toFixed(2)}/box)`:" (no price set)"}</option>
                       ))}
                     </select>
                     <input type="number" min="1" value={p.qty} onChange={e=>updateProduct(p.id,"qty",e.target.value)} placeholder="Qty" style={{ ...S.inp, textAlign:"center" }}/>
                     <div style={{ fontSize:13, fontWeight:700, color:subtotal>0?"#E8317A":"#333", whiteSpace:"nowrap", minWidth:80, textAlign:"right" }}>
-                      {subtotal>0?`$${subtotal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"—"}
+                      {subtotal>0?`$${subtotal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"--"}
                     </div>
                     {products.length > 1 && <button onClick={()=>removeProduct(p.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>✕</button>}
                   </div>
@@ -5062,7 +5062,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
           <div style={{ ...S.card, background:"#0a0f1a", border:"1px solid #7B9CFF33", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>🚨 Break-Even Spot Price (1.0x)</div>
-              <div style={{ fontSize:12, color:"#666" }}>At this price you're just recovering market value — no profit</div>
+              <div style={{ fontSize:12, color:"#666" }}>At this price you're just recovering market value -- no profit</div>
             </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:28, fontWeight:900, color:"#7B9CFF" }}>${breakEvenSpot.toFixed(2)}</div>
@@ -5239,7 +5239,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     ? streams
     : streams.filter(s => s.breaker === myBreaker);
 
-  // Period filter — available to everyone
+  // Period filter -- available to everyone
   const [period,        setPeriod]        = useState("all");
   const [customFrom,    setCustomFrom]    = useState("");
   const [customTo,      setCustomTo]      = useState("");
@@ -5300,7 +5300,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     setEditing(null); setForm(EMPTY);
   }
 
-  // CSV import — parse Whatnot export
+  // CSV import -- parse Whatnot export
   function handleCSV(e) {
     const file = e.target.files[0]; if (!file) return;
     setCsvError("");
@@ -5368,7 +5368,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`− Your Expenses (13.5% of stream costs)`, v:"− "+fmt(c.repExp),                 c:"#991b1b", indent:true  },
               ...(isAdmin ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0),        c:"#166534", indent:true  }] : []),
               { l:"= Commission Base",                    v:fmt(c.bazNet - c.repExp),               c:"#7B9CFF", indent:false, bold:true },
-              { l:`× Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" — BIN flat":s.marketMultiple?" — "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
+              { l:`× Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
@@ -5559,8 +5559,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
             const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.reimb+=c.imcExpReimb; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,reimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
-              ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
-              : stubFrom && stubTo ? `${stubFrom} – ${stubTo}` : "Select dates";
+              ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
+              : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
 
             function printStub() {
               const adminPDF = stubAdminView;
@@ -5590,7 +5590,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   </tr>`;
               }).join("");
 
-              w.document.write(`<!DOCTYPE html><html><head><title>Bazooka Pay Stub — ${targetBreaker}</title>
+              w.document.write(`<!DOCTYPE html><html><head><title>Bazooka Pay Stub -- ${targetBreaker}</title>
                 <style>
                   * { box-sizing:border-box; margin:0; padding:0; font-family:'Trebuchet MS',sans-serif; }
                   body { background:#fff; color:#111; padding:40px; }
@@ -5676,7 +5676,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div>
                     <label style={S.lbl}>Period</label>
                     <select value={stubPeriod} onChange={e=>setStubPeriod(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
-                      <option value="week">This Week (Mon–Sun)</option>
+                      <option value="week">This Week (Mon-Sun)</option>
                       <option value="custom">Custom Range</option>
                     </select>
                   </div>
@@ -5851,7 +5851,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
 
 
-      {/* Breaker filter — admin only */}
+      {/* Breaker filter -- admin only */}
       {isAdmin && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {["all", ...BREAKERS].map(b => (
@@ -6116,13 +6116,13 @@ function PublicDeckBuilder() {
             </div>
             <div style={{ ...S.card }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                <span style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>Deck Slots — {empty>0?<span style={{ color:"#FBBF24" }}>{empty} empty</span>:<span style={{ color:"#4ade80" }}>Full! ✅</span>}</span>
+                <span style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>Deck Slots -- {empty>0?<span style={{ color:"#FBBF24" }}>{empty} empty</span>:<span style={{ color:"#4ade80" }}>Full! ✅</span>}</span>
                 <select value={deckSlotSort} onChange={e=>setDeckSlotSort(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:10, padding:"3px 8px", cursor:"pointer" }}>
                   <option value="added">Order Added</option><option value="power">Power ↓</option><option value="name">Name A→Z</option><option value="weapon">Weapon</option>
                 </select>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
-                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444"; return (<div key={i} title={`${c.hero} — ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
+                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
               </div>
               {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>✕ Clear</button>}
             </div>
@@ -6336,7 +6336,7 @@ function BobaShowcase({ uid }) {
           return;
         }
 
-        // 3. No cache — fetch all, filter to image-only
+        // 3. No cache -- fetch all, filter to image-only
         const cardSnap = await getDocs(collection(db, "boba_checklist"));
         const allImageCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: allImageCards, ts: Date.now() })); } catch(e) {}
@@ -6473,7 +6473,7 @@ function BobaShowcase({ uid }) {
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:16, padding:"28px", boxShadow:"0 24px 80px rgba(0,0,0,0.7)" }}>
               {pageCards[0] && (
                 <div style={{ fontSize:11, color:"#333", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:20 }}>
-                  {pageCards[0].setName} — Page {page+1} of {totalPages}
+                  {pageCards[0].setName} -- Page {page+1} of {totalPages}
                 </div>
               )}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }}>
@@ -6873,7 +6873,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
 
   useEffect(() => {
-    // Cards are static after import — use localStorage cache for instant load
+    // Cards are static after import -- use localStorage cache for instant load
     const CACHE_KEY = "boba_checklist_cache_v2";
     try {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -6915,7 +6915,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     return ()=>{ u2(); u3(); u4(); u5(); uWants(); };
   }, []);
 
-  // Infinite scroll — load more when user scrolls near bottom
+  // Infinite scroll -- load more when user scrolls near bottom
   useEffect(() => {
     if (viewMode !== "cards") return;
     function onScroll() {
@@ -7066,7 +7066,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       const heroName = identified.hero ? identified.hero.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim() : null;
 
       // 1. Card number + set name (most reliable)
-      // Normalize card nums — strip spaces/dashes for comparison: "ALT-4" == "ALT4" == "ALT 4"
+      // Normalize card nums -- strip spaces/dashes for comparison: "ALT-4" == "ALT4" == "ALT 4"
       function normalizeCardNum(n) { return String(n||"").toLowerCase().replace(/[\s\-]/g,""); }
       const identifiedNum = normalizeCardNum(identified.cardNum);
 
@@ -7104,10 +7104,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         );
       }
 
-      if (!match) { console.log(`Page ${pageNum}: no match — cardNum="${identified.cardNum}" hero="${identified.hero}"`); return; }
+      if (!match) { console.log(`Page ${pageNum}: no match -- cardNum="${identified.cardNum}" hero="${identified.hero}"`); return; }
       console.log(`Page ${pageNum}: matched ${match.hero} #${match.cardNum}`);
 
-      // Render high quality version for storage — 3.5x scale, PNG lossless
+      // Render high quality version for storage -- 3.5x scale, PNG lossless
       const hiCanvas = document.createElement("canvas");
       const hiViewport = page.getViewport({ scale: 3.5 });
       hiCanvas.width = hiViewport.width;
@@ -7134,7 +7134,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       }
       await Promise.all(batch);
       completed = Math.min(i + BATCH_SIZE - 1, total);
-      _setScanProgress({ current:completed, total, status:`Scanning pages ${i}–${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
+      _setScanProgress({ current:completed, total, status:`Scanning pages ${i}-${Math.min(i+BATCH_SIZE-1,total)} of ${total}...` });
     }
 
     __setScanProgress({ current:total, total, status:"✅ Scan complete!" });
@@ -7365,7 +7365,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         return;
       }
 
-      // Match against checklist — prioritize card number, then strict hero+weapon
+      // Match against checklist -- prioritize card number, then strict hero+weapon
       const identifiedNum = (data.cardNum||"").replace(/[\s\-]/g,"").toLowerCase();
       const heroName  = (data.hero||"").trim().toLowerCase();
       const weapon    = (data.weapon||"").trim().toLowerCase();
@@ -7381,7 +7381,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         return aF === bF && aF.length > 2;
       }
 
-      // Visual tiebreaker — score how well a treatment's fingerprint matches detected hints
+      // Visual tiebreaker -- score how well a treatment's fingerprint matches detected hints
       function visualScore(treatment, detectedHints) {
         if (!detectedHints || !treatment) return 0;
         const fingerprints = treatmentVisuals.current[treatment] || [];
@@ -7398,7 +7398,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       const visualHints = data.visualHints || null;
 
       let match = null;
-      // 1. Card number + hero + weapon (all three agree — most reliable)
+      // 1. Card number + hero + weapon (all three agree -- most reliable)
       if (identifiedNum && heroName) {
         match = cards.find(c =>
           normNum(c.cardNum)===identifiedNum &&
@@ -7418,7 +7418,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           c.weapon?.toLowerCase()===weapon
         );
       }
-      // 4. Hero + weapon — use visual score to break ties between treatments
+      // 4. Hero + weapon -- use visual score to break ties between treatments
       if (!match && heroName && weapon) {
         const cands = cards.filter(c => heroMatch(c.hero, heroName) && c.weapon?.toLowerCase()===weapon);
         if (cands.length === 1) {
@@ -7438,16 +7438,16 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             if (scored[0].score > 0 && scored[0].score > scored[1]?.score) {
               match = scored[0].card;
             }
-            // Otherwise leave as null — show no-match so user retakes
+            // Otherwise leave as null -- show no-match so user retakes
           }
         }
       }
-      // 5. Card number alone — only if hero also matches loosely (prevent wrong-number matches)
+      // 5. Card number alone -- only if hero also matches loosely (prevent wrong-number matches)
       if (!match && identifiedNum) {
         const byNum = cards.find(c => normNum(c.cardNum)===identifiedNum);
         if (byNum && (!heroName || heroMatch(byNum.hero, heroName))) match = byNum;
       }
-      // 6. Hero only — only if exactly one card matches
+      // 6. Hero only -- only if exactly one card matches
       if (!match && heroName) {
         const cands = cards.filter(c => heroMatch(c.hero, heroName));
         if (cands.length === 1) match = cands[0];
@@ -7459,8 +7459,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         return;
       }
 
-      // In modal mode — show match for user to confirm qty before adding
-      // In header mode — auto-add 1 and show toast
+      // In modal mode -- show match for user to confirm qty before adding
+      // In header mode -- auto-add 1 and show toast
       if (scanModal) {
         setScanQty(1);
         // Pass detected data too so user can see what Vision read
@@ -7489,7 +7489,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     await setDoc(doc(db,"boba_owned",ownedDocId), next);
     setScanSession(prev => [{ card:match, qty:q, addedAt:new Date().toISOString() }, ...prev]);
 
-    // Save visual fingerprint for this treatment — builds accuracy over time
+    // Save visual fingerprint for this treatment -- builds accuracy over time
     const hints = photoScan.detected?.visualHints;
     if (hints && match.treatment) {
       const treatKey = match.treatment;
@@ -7508,7 +7508,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     setPhotoScan(null);
     setScanQty(1);
-    // Mobile: user must tap the scan area again — no programmatic click needed
+    // Mobile: user must tap the scan area again -- no programmatic click needed
   }
 
   async function toggleWant(cardId) {
@@ -7656,7 +7656,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
     try {
       const text = await file.text();
 
-      // RFC 4180 compliant CSV parser — handles quoted fields with embedded newlines/commas
+      // RFC 4180 compliant CSV parser -- handles quoted fields with embedded newlines/commas
       function parseCSV(str) {
         const rows = [];
         let row = [], cur = "", inQ = false, i = 0;
@@ -7743,7 +7743,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const prefix = prefixMatch ? prefixMatch[1].toLowerCase() : "";
         const prefixSet = PREFIX_TO_SET[prefix] || "";
 
-        // Narrow by set — CSV Set column first, then prefix map as fallback
+        // Narrow by set -- CSV Set column first, then prefix map as fallback
         const resolvedSet = csvSet || prefixSet;
         let matches = allMatches;
         if (allMatches.length > 1 && resolvedSet) {
@@ -7942,7 +7942,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
-          {/* Action buttons — compact */}
+          {/* Action buttons -- compact */}
           <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
             {isAdmin && (
               <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -7963,7 +7963,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   }} style={{ display:"none" }}/>
               </label>
             )}
-            {/* Camera scan — opens modal on click */}
+            {/* Camera scan -- opens modal on click */}
             <button title="Scan cards into your collection"
               onClick={()=>{ setScanModal(true); setScanSession([]); setPhotoScan(null); }}
               style={{ background:"#1a0a1a", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -7991,7 +7991,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
                 setCards(fresh);
                 try { localStorage.setItem("boba_checklist_cache_v2", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
-                setDbsStatus({ msg:`✅ Wiped ${playcards.length} play cards — re-import DBS CSV now`, ok:true });
+                setDbsStatus({ msg:`✅ Wiped ${playcards.length} play cards -- re-import DBS CSV now`, ok:true });
                 setTimeout(()=>setDbsStatus(null),8000);
               }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                 🧹 Wipe DBS Data
@@ -8031,7 +8031,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             )}
           </div>
         </div>
-        {/* Row 2: per-set progress bars — collapsible */}
+        {/* Row 2: per-set progress bars -- collapsible */}
         {imports.length > 0 && (
           <div>
             <button onClick={()=>setSetsCollapsed(p=>!p)}
@@ -8086,7 +8086,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 onChange={e=>setImgImportSet(e.target.value)}
                 autoFocus
                 style={{ width:"100%", background:"#0a0a0a", border:"1.5px solid #2a2a2a", borderRadius:8, color:imgImportSet?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-                <option value="">— No set filter (filename / Vision only) —</option>
+                <option value="">-- No set filter (filename / Vision only) --</option>
                 {sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
               {imgImportSet && (
@@ -8321,7 +8321,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             {scanSession.length > 0 && (
               <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column", borderTop:"1px solid #1a1a1a" }}>
                 <div style={{ padding:"10px 16px 6px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, flexShrink:0 }}>
-                  This Session — {scanSession.reduce((s,e)=>s+e.qty,0)} cards added
+                  This Session -- {scanSession.reduce((s,e)=>s+e.qty,0)} cards added
                 </div>
                 <div style={{ flex:1, overflowY:"auto", padding:"0 16px 16px" }}>
                   {scanSession.map((entry, i) => {
@@ -8360,7 +8360,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         <div style={{ ...S.card, border:`1.5px solid ${photoScan.status==="matched"?"#4ade8044":"#E8317A44"}`, background:photoScan.status==="matched"?"#0a1a0a":"#1a0a0a", display:"flex", alignItems:"center", gap:12 }}>
           {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>✅</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} · #{photoScan.card?.cardNum}</div></div></>}
           {photoScan.status==="nomatch" && <><span style={{ fontSize:28 }}>❌</span><div><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found</div>{photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"}</div>}</div></>}
-          {photoScan.status==="error" && <><span style={{ fontSize:28 }}>⚠️</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed — try again</div></>}
+          {photoScan.status==="error" && <><span style={{ fontSize:28 }}>⚠️</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed -- try again</div></>}
         </div>
       )}
 
@@ -8392,7 +8392,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     style={{ ...S.inp, flex:1, cursor:"pointer", color:setNameInput?"#F0F0F0":"#555" }}
                     autoFocus
                   >
-                    <option value="">— Select existing set —</option>
+                    <option value="">-- Select existing set --</option>
                     {existingSets.map(s=><option key={s} value={s}>{s}</option>)}
                     <option value="__new__">+ Create new set...</option>
                   </select>
@@ -8528,7 +8528,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
             {/* Filter */}
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-              {/* Set selector — dropdown */}
+              {/* Set selector -- dropdown */}
               {availableSets.length > 0 && (
                 <select value={rainbowSetFilter} onChange={e=>setRainbowSetFilter(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer" }}>
                   <option value="">🌈 All Sets</option>
@@ -8555,7 +8555,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 });
                 return (
                   <div key={hero} style={{ background:"#111111", border:`1.5px solid ${complete?"#ffffff22":ownedCount>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
-                    {/* Hero row — click to expand */}
+                    {/* Hero row -- click to expand */}
                     <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
                       <div style={{ flex:1 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: Object.keys(bySets).length > 1 && !rainbowSetFilter ? 6 : 8 }}>
@@ -8564,7 +8564,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                           </span>
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                             <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedCount>0?"#FBBF24":"#555" }}>
-                              {ownedCount}/{total} cards{complete ? " — RAINBOW! 🌈" : ""}
+                              {ownedCount}/{total} cards{complete ? " -- RAINBOW! 🌈" : ""}
                             </span>
                             <span style={{ color:"#444", fontSize:12 }}>{isExpanded?"▲":"▼"}</span>
                           </div>
@@ -8597,7 +8597,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                       </div>
                     </div>
 
-                    {/* Expanded — fan out all cards */}
+                    {/* Expanded -- fan out all cards */}
                     {isExpanded && (
                       <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 14px", background:"#0a0a0a" }}>
                         <div style={{ display:"flex", gap:4, marginBottom:10 }}>
@@ -8752,7 +8752,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const heroZero = [...new Set(cards.map(c=>c.hero))].filter(h => !cards.some(c=>c.hero===h && owned[c.id])).length;
         // Heroes complete
         const heroComplete = [...new Set(cards.map(c=>c.hero))].filter(h => cards.filter(c=>c.hero===h).every(c=>owned[c.id])).length;
-        // Collection value estimate (power as proxy — not real $)
+        // Collection value estimate (power as proxy -- not real $)
         const collectionPower = cards.filter(c=>owned[c.id]).reduce((s,c)=>s+(parseFloat(c.power)||0)*( owned[c.id]||1),0);
 
         return (
@@ -8860,7 +8860,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🎯 Want List — {Object.keys(wantList).length} cards flagged</div>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🎯 Want List -- {Object.keys(wantList).length} cards flagged</div>
               <div style={{ display:"flex", gap:8 }}>
                 {wantedCards.length > 0 && <button onClick={exportWantList} style={{ background:"#1a0f00", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤 Export Want List</button>}
               </div>
@@ -8973,7 +8973,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         });
         const weaponEntries = Object.entries(weaponBreak).sort((a,b)=>b[1]-a[1]);
 
-        // Card pool: all cards or owned only — exclude plays (PL/BPL)
+        // Card pool: all cards or owned only -- exclude plays (PL/BPL)
         const cardPool = (deckOwnedOnly ? cards.filter(c => ownedSet.has(c.id)) : cards)
           .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
 
@@ -9103,7 +9103,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", minHeight:300, maxHeight:"calc(100vh - 280px)", overflowY:"auto" }}>
                   {available.length === 0 ? (
                     <div style={{ padding:"32px", textAlign:"center", color:"#333", fontSize:13 }}>
-                      {Object.keys(owned).length === 0 ? "No owned cards — mark cards as owned in the Checklist first" : "No cards match your filters"}
+                      {Object.keys(owned).length === 0 ? "No owned cards -- mark cards as owned in the Checklist first" : "No cards match your filters"}
                     </div>
                   ) : available.map((c,i) => {
                     const wc = WEAPON_COLORS[c.weapon]||"#444";
@@ -9164,7 +9164,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {hasRules && (
                     <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:10, fontSize:10, color:"#555", lineHeight:1.8 }}>
                       {isSpec        && <div style={{ color:"#FBBF24" }}>⚡ Max power: 160</div>}
-                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ Core deck: 115–160 power only</div>}
+                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ Core deck: 115-160 power only</div>}
                       {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ 10 core cards per treatment unlocks 1 apex card (&gt;160) of that treatment</div>}
                       <div>⚡ No duplicates (same hero + pose + power + weapon)</div>
                       <div>⚡ Max 6 cards per power level</div>
@@ -9277,7 +9277,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 <div style={{ ...S.card }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
                     <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>
-                      Deck Slots — {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
+                      Deck Slots -- {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
                     </div>
                     <select value={deckSlotSort} onChange={e=>setDeckSlotSort(e.target.value)}
                       style={{ ...S.inp, width:"auto", fontSize:10, padding:"3px 8px", cursor:"pointer" }}>
@@ -9300,7 +9300,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                       if (c) {
                         const wc = WEAPON_COLORS[c.weapon]||"#444";
                         return (
-                          <div key={i} title={`${c.hero} — ${c.weapon||""} ${c.power||""}`}
+                          <div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`}
                             onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))}
                             style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>
                             {c.imageUrl
@@ -9338,7 +9338,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const bonusCount = pbCards.filter(e=>e.type==="bonus").length;
         const playFull   = playCount >= PLAY_LIMIT;
 
-        // DBS tracking — cap applies to plays + BPL combined
+        // DBS tracking -- cap applies to plays + BPL combined
         const pbResolvedAll = pbCards.map(e=>({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card);
         const totalDbs   = pbResolvedAll.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0), 0);
         const dbsLeft    = DBS_CAP - totalDbs;
@@ -9444,7 +9444,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
                   {available.length === 0 ? (
                     <div style={{ padding:"32px", textAlign:"center", color:"#333", fontSize:13 }}>
-                      {allPlays.length === 0 ? "No Play cards found — make sure your CSV has a Treatment or Play Ability column" : "No cards match your search"}
+                      {allPlays.length === 0 ? "No Play cards found -- make sure your CSV has a Treatment or Play Ability column" : "No cards match your search"}
                     </div>
                   ) : available.map((c,i) => {
                     const isOwned = ownedSet.has(c.id);
@@ -9456,7 +9456,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
                               <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</span>
-                              {!pbOwnedOnly && <span style={{ fontSize:10, fontWeight:700, color:isOwned?"#4ade80":"#333" }}>{isOwned?"✓":"—"}</span>}
+                              {!pbOwnedOnly && <span style={{ fontSize:10, fontWeight:700, color:isOwned?"#4ade80":"#333" }}>{isOwned?"✓":"--"}</span>}
                             </div>
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
                               <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
@@ -9650,7 +9650,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
             <SectionLabel t={`Imported Sets (${imports.length})`} />
             {cards.length > 0 && imports.length === 0 && (
-              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record — use Rename below or re-import</div>
+              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record -- use Rename below or re-import</div>
             )}
           </div>
           {imports.length === 0 ? (
@@ -9658,7 +9658,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               <div style={{ fontSize:12, color:"#555" }}>
                 No import records found.
                 {cards.length > 0 && (
-                  <span style={{ color:"#FBBF24", marginLeft:8 }}>{cards.length.toLocaleString()} cards in Firestore from a previous import — clear them and re-import below.</span>
+                  <span style={{ color:"#FBBF24", marginLeft:8 }}>{cards.length.toLocaleString()} cards in Firestore from a previous import -- clear them and re-import below.</span>
                 )}
               </div>
               {cards.length > 0 && (
@@ -9903,7 +9903,7 @@ function PublicCardDatabase() {
       onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
         snap => setMarketNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
-      // Want notifications — someone listed a card I want
+      // Want notifications -- someone listed a card I want
       onSnapshot(query(collection(db,"market_notifs"), where("toUid","==",uid2), where("read","==",false)),
         snap => setWantNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
@@ -10040,7 +10040,7 @@ function PublicCardDatabase() {
     if(email===user.email?.toLowerCase()){setAddStatus({ok:false,msg:"That's you!"});return;}
     if(friends.find(f=>f.toEmail?.toLowerCase()===email||f.fromEmail?.toLowerCase()===email)){setAddStatus({ok:false,msg:"Already friends"});return;}
     const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",email)));
-    if(profSnap.empty){setAddStatus({ok:false,msg:"No account found with that email — they need to sign in at /cards first"});return;}
+    if(profSnap.empty){setAddStatus({ok:false,msg:"No account found with that email -- they need to sign in at /cards first"});return;}
     const toProfile=profSnap.docs[0].data(), toUid=profSnap.docs[0].id;
     const existSnap=await getDocs(query(collection(db,"friend_requests"),where("from","==",user.uid),where("to","==",toUid)));
     if(!existSnap.empty){setAddStatus({ok:false,msg:"Request already sent"});return;}
@@ -10394,12 +10394,12 @@ function PublicCardDatabase() {
                           </div>
                         ))}
                       </div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Last sale: <span style={{color:"#4ade80",fontWeight:700}}>${(exact.last?.price||0).toFixed(2)}</span> on {exact.last?.soldDate||"—"}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Last sale: <span style={{color:"#4ade80",fontWeight:700}}>${(exact.last?.price||0).toFixed(2)}</span> on {exact.last?.soldDate||"--"}</div>
                       {/* Sales list */}
                       <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
                         {exactSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,8).map((s,i)=>(
                           <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>{s.soldDate||"—"}</span>
+                            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>{s.soldDate||"--"}</span>
                             <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</span>
                           </div>
                         ))}
@@ -10408,7 +10408,7 @@ function PublicCardDatabase() {
                   ):(
                     <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"24px",textAlign:"center",color:"rgba(255,255,255,0.3)"}}>
                       <div style={{fontSize:14,marginBottom:4}}>No exact sales yet on this platform</div>
-                      <div style={{fontSize:11}}>Be the first — list this card in the Market tab</div>
+                      <div style={{fontSize:11}}>Be the first -- list this card in the Market tab</div>
                     </div>
                   )}
                 </div>
@@ -10434,7 +10434,7 @@ function PublicCardDatabase() {
                           <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} · {s.cardPower}⚡</div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"—"}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
                             </div>
                             <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
                           </div>
@@ -10453,7 +10453,7 @@ function PublicCardDatabase() {
                   <div style={{fontSize:24}}>🛒</div>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon — eBay sold listings will appear here for real-world comps</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon -- eBay sold listings will appear here for real-world comps</div>
                   </div>
                   <div style={{marginLeft:"auto",fontSize:10,background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>COMING SOON</div>
                 </div>
@@ -10535,7 +10535,7 @@ function PublicCardDatabase() {
                   onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.3)"}>
                   <div style={{fontSize:56,marginBottom:12}}>📷</div>
                   <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera — identify any BoBA card instantly</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
                 </div>
                 <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
@@ -10748,7 +10748,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
-                  {/* Comp button — bottom left of every card */}
+                  {/* Comp button -- bottom left of every card */}
                   <button onClick={e=>{e.stopPropagation();setCompCard(c);}} title="View price comps"
                     style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.75)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:6,padding:"3px 7px",fontSize:10,cursor:"pointer",backdropFilter:"blur(6px)",color:"#7B9CFF",fontWeight:700,zIndex:10}}>
                     📊 Comp
@@ -11238,7 +11238,7 @@ function PublicCardDatabase() {
                                   </div>
                                 ))}
                               </div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.sales.length} sale{entry.sales.length!==1?"s":""} · Last: {last?.date||"—"}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.sales.length} sale{entry.sales.length!==1?"s":""} · Last: {last?.date||"--"}</div>
                             </div>
                           );
                         })}
@@ -11260,7 +11260,7 @@ function PublicCardDatabase() {
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
                             <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{s.soldDate||"—"}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{s.soldDate||"--"}</div>
                           </div>
                         </div>
                       );
@@ -11326,7 +11326,7 @@ function PublicCardDatabase() {
 
                 <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
                   <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Friends ({friends.length})</div>
-                  {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet — add someone above!</div>:
+                  {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet -- add someone above!</div>:
                     friends.map(f=>(
                       <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
                         <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>👤</div>
@@ -11383,7 +11383,7 @@ function PublicCardDatabase() {
               </div>
             ):(
               <>
-                {/* Create team form — only show if no teams */}
+                {/* Create team form -- only show if no teams */}
                 {teams.filter(t=>t.status!=="deleted").length===0&&(
                   <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
                     <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Create Your Team</div>
@@ -11675,7 +11675,7 @@ function PublicQuote({ quoteId }) {
 
         {/* Seller info */}
         <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:12, display:"grid", gridTemplateColumns:"1fr 1fr" }}>
-          <div><span style={{ color:"#555", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#F0F0F0" }}>{quote.seller?.name || "—"}</strong></div>
+          <div><span style={{ color:"#555", fontSize:11 }}>Prepared for: </span><strong style={{ color:"#F0F0F0" }}>{quote.seller?.name || "--"}</strong></div>
           <div style={{ textAlign:"right" }}><span style={{ color:"#555", fontSize:11 }}>Date: </span><strong style={{ color:"#F0F0F0" }}>{quote.seller?.date || new Date(quote.createdAt).toLocaleDateString()}</strong></div>
         </div>
 
@@ -11726,7 +11726,7 @@ function PublicQuote({ quoteId }) {
           <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
         </div>
 
-        {/* -- RESPONSE AREA — right after the offer, impossible to miss -- */}
+        {/* -- RESPONSE AREA -- right after the offer, impossible to miss -- */}
         {!isExpired && !isClosed && !submitted && (quote.status === "pending" || !quote.status) && (
           <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
@@ -11749,7 +11749,7 @@ function PublicQuote({ quoteId }) {
             {/* Big Accept button */}
             <button onClick={()=>submitResponse("accepted")}
               style={{ width:"100%", background:"#4ade80", color:"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
-              ✅ Accept Offer — ${offer.toFixed(2)}
+              ✅ Accept Offer -- ${offer.toFixed(2)}
             </button>
 
             {/* Counter offer */}
@@ -11768,7 +11768,7 @@ function PublicQuote({ quoteId }) {
               </div>
             )}
 
-            {/* Decline — subtle */}
+            {/* Decline -- subtle */}
             <button onClick={()=>{ if(window.confirm("Decline this offer?")) submitResponse("declined"); }}
               style={{ width:"100%", background:"transparent", border:"1px solid #333", color:"#555", borderRadius:8, padding:"10px 0", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
               ❌ Decline this offer
@@ -11780,7 +11780,7 @@ function PublicQuote({ quoteId }) {
         <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:12 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Ship Cards To</div>
           <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
-            Devin — Bazooka<br/>
+            Devin -- Bazooka<br/>
             425 Prosperity Dr<br/>
             Warsaw, IN 46582
           </div>
@@ -11908,7 +11908,7 @@ export default function App() {
     for (const card of cards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString(), cardStatus:"in_transit" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added — marked In Transit until delivered`);
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added -- marked In Transit until delivered`);
     setTab("inventory");
   }
 
@@ -12059,7 +12059,7 @@ export default function App() {
   }
 
   async function handleUpsertBuyers(buyerList, streamId, filename) {
-    // Merge buyers — accumulate spend and orders
+    // Merge buyers -- accumulate spend and orders
     const existing = [...buyers];
     const updates = {};
     buyerList.forEach(b => {
@@ -12120,7 +12120,7 @@ export default function App() {
     { id:"showcase",   label:"Showcase",     icon:"✨", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
-  // -- PUBLIC ROUTES — no auth required, check FIRST --
+  // -- PUBLIC ROUTES -- no auth required, check FIRST --
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
 
@@ -12134,7 +12134,7 @@ export default function App() {
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
 
-  // Auth gate — only for the main app
+  // Auth gate -- only for the main app
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
   if (!user) return <LoginScreen />;
@@ -12177,7 +12177,7 @@ export default function App() {
                       <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"#111":"#0d0d0d" }} className="inv-row">
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div>
-                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"—"} · {c.source||"—"} · {c.date||"—"}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} · {c.source||"--"} · {c.date||"--"}</div>
                         </div>
                         <span style={{ background:cc.bg, color:cc.text, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{c.cardType}</span>
                         <span style={{ background:st.bg, color:st.c, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{st.l}</span>
@@ -12225,7 +12225,7 @@ export default function App() {
           {/* View As */}
           {userRole.role === "Admin" && (
             <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:7, color:"#888", padding:"4px 8px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }} className="mobile-hide">
-              <option value="">— Real Role —</option>
+              <option value="">-- Real Role --</option>
               {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
             </select>
           )}
