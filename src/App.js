@@ -10327,7 +10327,7 @@ function PublicCardDatabase() {
   async function submitOffer() {
     if(!user||!offerModal||!offerAmt)return;
     const offId=uid();
-    await setDoc(doc(db,"market_offers",offId),{id:offId,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,sellerUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
+    await setDoc(doc(db,"market_offers",offId),{id:offId,cardId:offerModal.cardId||offerModal.id,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,cardTreatment:offerModal.cardTreatment||"",cardWeapon:offerModal.cardWeapon||"",setName:offerModal.setName||"",sellerUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
@@ -10364,11 +10364,19 @@ function PublicCardDatabase() {
         await Promise.all(othersSnap.docs.filter(d=>d.id!==offer.id).map(d=>setDoc(doc(db,"market_offers",d.id),{status:"declined",notified:true,respondedAt:now},{merge:true})));
       } catch(e){ console.warn("Auto-decline failed:",e); }
       // 3. Decrement seller owned qty by 1
+      // Resolve cardId -- older offer docs may not have it, fall back to listing
+      let cardId = offer.cardId;
+      if (!cardId) {
+        try {
+          const listSnap = await getDoc(doc(db,"marketplace",offer.listingId));
+          if (listSnap.exists()) cardId = listSnap.data().cardId;
+        } catch(e){}
+      }
       try {
         const sellerSnap = await getDoc(doc(db,"boba_owned",offer.sellerUid));
-        if (sellerSnap.exists()&&offer.cardId) {
-          const so=sellerSnap.data(); const newQty=(so[offer.cardId]||1)-1;
-          const next={...so}; if(newQty<=0) delete next[offer.cardId]; else next[offer.cardId]=newQty;
+        if (sellerSnap.exists()&&cardId) {
+          const so=sellerSnap.data(); const newQty=(so[cardId]||1)-1;
+          const next={...so}; if(newQty<=0) delete next[cardId]; else next[cardId]=newQty;
           await setDoc(doc(db,"boba_owned",offer.sellerUid),next);
           if(user?.uid===offer.sellerUid) setOwned(next);
         }
@@ -10377,10 +10385,12 @@ function PublicCardDatabase() {
       try {
         const buyerSnap = await getDoc(doc(db,"boba_owned",offer.buyerUid));
         const bo=buyerSnap.exists()?buyerSnap.data():{};
-        if(offer.cardId) {
-          const next={...bo,[offer.cardId]:(bo[offer.cardId]||0)+1};
+        if(cardId) {
+          const next={...bo,[cardId]:(bo[cardId]||0)+1};
           await setDoc(doc(db,"boba_owned",offer.buyerUid),next);
           if(user?.uid===offer.buyerUid) setOwned(next);
+        } else {
+          console.warn("respondOffer: no cardId found, buyer collection not updated");
         }
       } catch(e){ console.warn("Buyer collection failed:",e); }
       // 5. Create deal thread
