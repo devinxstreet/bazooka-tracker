@@ -1334,36 +1334,29 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               <div style={{ fontSize:11, color:"#333", textAlign:"center" }}>No previous history with {seller.name}</div>
             </div>
           );
-
-          const totalPaid     = sellerComps.reduce((s,c)=>s+(parseFloat(c.offer)||0),0);
-          const totalMktVal   = sellerComps.reduce((s,c)=>s+(parseFloat(c.totalMarket)||0),0);
-          const avgPct        = totalMktVal > 0 ? totalPaid/totalMktVal : 0;
-          const accepted      = sellerComps.filter(c=>c.status==="accepted").length;
-          const declined      = sellerComps.filter(c=>c.status==="declined").length;
-          const pending       = sellerComps.filter(c=>c.status==="pending").length;
-          const avgLotSize    = sellerComps.length > 0 ? sellerComps.reduce((s,c)=>s+(c.totalCards||0),0)/sellerComps.length : 0;
-          const sorted        = [...sellerComps].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-          const lastComp      = sorted[0];
-          const counterCount  = sellerComps.filter(c=>c.status==="countered").length;
-
-          const statColor = pct => pct > 0.65 ? "#E8317A" : pct > 0.55 ? "#FBBF24" : "#4ade80";
-
+          const totalPaid   = sellerComps.reduce((s,c)=>s+(parseFloat(c.offer)||0),0);
+          const totalMktVal = sellerComps.reduce((s,c)=>s+(parseFloat(c.totalMarket)||0),0);
+          const avgPct      = totalMktVal > 0 ? totalPaid/totalMktVal : 0;
+          const accepted    = sellerComps.filter(c=>c.status==="accepted").length;
+          const declined    = sellerComps.filter(c=>c.status==="declined").length;
+          const pending     = sellerComps.filter(c=>c.status==="pending").length;
+          const counterCount= sellerComps.filter(c=>c.status==="countered").length;
+          const avgLotSize  = sellerComps.reduce((s,c)=>s+(c.totalCards||0),0)/sellerComps.length;
+          const sorted      = [...sellerComps].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+          const statColor   = p => p > 0.65 ? "#E8317A" : p > 0.55 ? "#FBBF24" : "#4ade80";
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:10, position:"sticky", top:80 }}>
-              {/* Header */}
               <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
                 <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", marginBottom:2 }}>{seller.name}</div>
-                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":" "} · Last: {lastComp?.date||"—"}</div>
+                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"—"}</div>
                 {seller.contact && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:4 }}>{seller.contact}</div>}
               </div>
-
-              {/* Key stats */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                 {[
                   { l:"Total Paid",   v:`$${Math.round(totalPaid).toLocaleString()}`,   c:"#4ade80" },
                   { l:"Avg % of Mkt", v:`${Math.round(avgPct*100)}%`,                   c:statColor(avgPct) },
                   { l:"Avg Lot Size", v:`${Math.round(avgLotSize)} cards`,               c:"#7B9CFF" },
-                  { l:"Accept Rate",  v:sellerComps.length>0?`${Math.round(accepted/sellerComps.length*100)}%`:"—", c:"#4ade80" },
+                  { l:"Accept Rate",  v:`${Math.round(accepted/sellerComps.length*100)}%`, c:"#4ade80" },
                 ].map(({l,v,c})=>(
                   <div key={l} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -1371,44 +1364,30 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                   </div>
                 ))}
               </div>
-
-              {/* Status breakdown */}
               <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Outcomes</div>
-                {[
-                  { l:"✅ Accepted", v:accepted, c:"#4ade80" },
-                  { l:"❌ Declined", v:declined, c:"#E8317A" },
-                  { l:"🤝 Countered", v:counterCount, c:"#FBBF24" },
-                  { l:"⏳ Pending",  v:pending, c:"#555" },
-                ].filter(x=>x.v>0).map(({l,v,c})=>(
+                {[{l:"✅ Accepted",v:accepted,c:"#4ade80"},{l:"❌ Declined",v:declined,c:"#E8317A"},{l:"🤝 Countered",v:counterCount,c:"#FBBF24"},{l:"⏳ Pending",v:pending,c:"#555"}].filter(x=>x.v>0).map(({l,v,c})=>(
                   <div key={l} style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                     <span style={{ fontSize:12, color:"#888" }}>{l}</span>
                     <span style={{ fontSize:12, fontWeight:700, color:c }}>{v}</span>
                   </div>
                 ))}
               </div>
-
-              {/* Deal history */}
               <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
                 <div style={{ padding:"10px 14px 6px", fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Deal History</div>
                 <div style={{ maxHeight:280, overflowY:"auto" }}>
-                  {sorted.map((c,i)=>{
-                    const pct = c.totalMarket>0 ? c.offer/c.totalMarket : 0;
-                    const statusColors = { accepted:"#4ade80", declined:"#E8317A", countered:"#FBBF24", pending:"#555" };
-                    return (
-                      <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid #1a1a1a", background:i%2===0?"#0d0d0d":"#111" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
-                          <span style={{ fontSize:11, color:"#555" }}>{c.date||"—"}</span>
-                          <span style={{ fontSize:10, fontWeight:700, color:statusColors[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"—"}</span>
-                        </div>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                          <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
-                          <span style={{ fontSize:12, fontWeight:700, color:statColor(pct) }}>${Math.round(c.offer||0).toLocaleString()} ({Math.round(pct*100)}%)</span>
-                        </div>
-                        {c.zone && <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{c.zone}</div>}
+                  {sorted.map((c,i)=>{ const p=c.totalMarket>0?c.offer/c.totalMarket:0; const sc={accepted:"#4ade80",declined:"#E8317A",countered:"#FBBF24",pending:"#555"}; return (
+                    <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid #1a1a1a", background:i%2===0?"#0d0d0d":"#111" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+                        <span style={{ fontSize:11, color:"#555" }}>{c.date||"—"}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"—"}</span>
                       </div>
-                    );
-                  })}
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:statColor(p) }}>${Math.round(c.offer||0).toLocaleString()} ({Math.round(p*100)}%)</span>
+                      </div>
+                    </div>
+                  );})}
                 </div>
               </div>
             </div>
