@@ -10411,7 +10411,6 @@ function PublicCardDatabase() {
       });
     }
   }
-  }
 
   async function counterOffer(offer, counterAmount) {
     if (!counterAmount || isNaN(parseFloat(counterAmount))) return;
