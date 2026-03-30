@@ -9971,6 +9971,7 @@ function PublicCardDatabase() {
   const [counterSent,   setCounterSent]   = useState(false);
   const [negHistory,    setNegHistory]    = useState([]);
   const [wantNotifs,    setWantNotifs]    = useState([]);
+  const [trackingInputs, setTrackingInputs] = useState({}); // {saleId: {num,carrier}}
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
@@ -10325,10 +10326,10 @@ function PublicCardDatabase() {
   }
   async function unsellListing(sale) {
     if(!window.confirm("Reverse this sale? The listing will reopen and the card will be removed from the buyer's collection.")) return;
+    // Reopen the listing
     try {
-      // Reopen the listing
-      await setDoc(doc(db,"marketplace",sale.listingId||""),{status:"active",soldAt:null,soldTo:null,soldFor:null},{merge:true});
-    } catch(e){}
+      if(sale.listingId) await setDoc(doc(db,"marketplace",sale.listingId),{status:"active",soldAt:null,soldTo:null,soldFor:null},{merge:true});
+    } catch(e){ console.warn("Listing reopen failed:",e); }
     // Remove from buyer collection
     try {
       if(sale.cardId&&sale.buyerUid) {
@@ -10346,19 +10347,27 @@ function PublicCardDatabase() {
       if(sale.cardId&&sale.sellerUid) {
         const sellerSnap=await getDoc(doc(db,"boba_owned",sale.sellerUid));
         const so=sellerSnap.exists()?sellerSnap.data():{};
-        const newQty=(so[sale.cardId]||0)+1;
-        const next={...so,[sale.cardId]:newQty};
+        const next={...so,[sale.cardId]:(so[sale.cardId]||0)+1};
         await setDoc(doc(db,"boba_owned",sale.sellerUid),next);
         if(user?.uid===sale.sellerUid) setOwned(next);
       }
     } catch(e){ console.warn("Seller restore failed:",e); }
-    // Delete the market_sales entry
+    // Delete the sale doc by ID
     try {
-      // Find and delete the sale doc - market_sales uses uid() as key so query by soldAt+sellerUid
-      const saleSnap=await getDocs(query(collection(db,"market_sales"),where("sellerUid","==",sale.sellerUid),where("soldAt","==",sale.soldAt)));
-      await Promise.all(saleSnap.docs.map(d=>deleteDoc(doc(db,"market_sales",d.id))));
+      if(sale.id) {
+        await deleteDoc(doc(db,"market_sales",sale.id));
+      } else {
+        // fallback: query by soldAt+sellerUid
+        const saleSnap=await getDocs(query(collection(db,"market_sales"),where("sellerUid","==",sale.sellerUid),where("soldAt","==",sale.soldAt)));
+        await Promise.all(saleSnap.docs.map(d=>deleteDoc(doc(db,"market_sales",d.id))));
+      }
     } catch(e){ console.warn("Sale doc delete failed:",e); }
     showToast("Sale reversed.");
+  }
+
+  async function saveTracking(saleId, trackingNum, carrier) {
+    await setDoc(doc(db,"market_sales",saleId),{trackingNumber:trackingNum,carrier:carrier||"",shippedAt:new Date().toISOString()},{merge:true});
+    showToast("Tracking saved!");
   }
   async function submitOffer() {
     if(!user||!offerModal||!offerAmt)return;
@@ -10447,6 +10456,7 @@ function PublicCardDatabase() {
       });
       // 6. Log sale
       await setDoc(doc(db,"market_sales",uid()),{
+        id:uid(), listingId:offer.listingId||"",
         cardId:offer.cardId||"", cardName:offer.cardName,
         cardTreatment:offer.cardTreatment||"", cardWeapon:offer.cardWeapon||"",
         cardPower:offer.cardPower||"", cardImage:offer.cardImage||null,
@@ -11585,6 +11595,7 @@ function PublicCardDatabase() {
             {user&&marketSales.filter(s=>s.sellerUid===user.uid).length>0&&(()=>{
               const mySales=marketSales.filter(s=>s.sellerUid===user.uid);
               const totalRevenue=mySales.reduce((acc,s)=>acc+(s.price||0),0);
+              const CARRIERS=["USPS","UPS","FedEx","DHL","Other"];
               return (
                 <div style={{marginBottom:24}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -11593,20 +11604,92 @@ function PublicCardDatabase() {
                     <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#4ade80"}}>{"$"}{totalRevenue.toFixed(2)} total</span>
                   </div>
                   <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:16,overflow:"hidden"}}>
-                    {mySales.map((s,i)=>(
-                      <div key={s.soldAt+i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<mySales.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} sold to {s.buyerName||"buyer"}</div>
+                    {mySales.map((s,i)=>{
+                      const ti=trackingInputs[s.id]||{num:s.trackingNumber||"",carrier:s.carrier||"USPS"};
+                      const hasTracking=s.trackingNumber;
+                      return (
+                        <div key={s.soldAt+i} style={{borderBottom:i<mySales.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px"}}>
+                            {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} to {s.buyerName||"buyer"}</div>
+                              {hasTracking&&(
+                                <div style={{fontSize:10,color:"#7B9CFF",marginTop:2}}>
+                                  {s.carrier||"USPS"}: {s.trackingNumber}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
+                              <button onClick={e=>{e.stopPropagation();unsellListing(s);}} style={{marginTop:4,background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.4)",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Reverse</button>
+                            </div>
+                          </div>
+                          {/* Tracking input row */}
+                          {s.id&&(
+                            <div style={{display:"flex",gap:6,padding:"0 16px 10px",alignItems:"center"}}>
+                              <select value={ti.carrier} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,carrier:e.target.value}}))}
+                                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 6px",fontSize:11,color:"rgba(255,255,255,0.5)",fontFamily:"inherit",cursor:"pointer"}}>
+                                {CARRIERS.map(c=><option key={c} value={c}>{c}</option>)}
+                              </select>
+                              <input value={ti.num} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,num:e.target.value}}))}
+                                placeholder={hasTracking?"Update tracking #":"Add tracking #"}
+                                style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
+                              <button onClick={()=>saveTracking(s.id,ti.num,ti.carrier)}
+                                disabled={!ti.num.trim()}
+                                style={{background:ti.num.trim()?"rgba(123,156,255,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(ti.num.trim()?"rgba(123,156,255,0.3)":"rgba(255,255,255,0.06)"),color:ti.num.trim()?"#7B9CFF":"rgba(255,255,255,0.2)",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:ti.num.trim()?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                {hasTracking?"Update":"Save"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div style={{textAlign:"right",flexShrink:0}}>
-                          <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
-                          <button onClick={e=>{e.stopPropagation();unsellListing(s);}} style={{marginTop:4,background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.4)",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Reverse</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Bought / Purchases */}
+            {user&&marketSales.filter(s=>s.buyerUid===user.uid).length>0&&(()=>{
+              const myBuys=marketSales.filter(s=>s.buyerUid===user.uid);
+              const totalSpent=myBuys.reduce((acc,s)=>acc+(s.price||0),0);
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF"}}>{"\uD83D\uDCE6 Purchased"}</div>
+                    <span style={{background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#7B9CFF"}}>{myBuys.length} card{myBuys.length!==1?"s":""}</span>
+                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#7B9CFF"}}>{"$"}{totalSpent.toFixed(2)} spent</span>
+                  </div>
+                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(123,156,255,0.1)",borderRadius:16,overflow:"hidden"}}>
+                    {myBuys.map((s,i)=>{
+                      const shipped=s.trackingNumber;
+                      return (
+                        <div key={s.soldAt+"b"+i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<myBuys.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                          {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {s.sellerName||"seller"} {"\u00B7"} {s.soldDate||"--"}</div>
+                            {shipped?(
+                              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                                <span style={{fontSize:10,fontWeight:700,color:"#4ade80"}}>{"\u2705 Shipped"}</span>
+                                <span style={{fontSize:10,color:"#7B9CFF"}}>{s.carrier||""} {s.trackingNumber}</span>
+                              </div>
+                            ):(
+                              <div style={{fontSize:10,color:"rgba(251,191,36,0.6)",marginTop:2}}>{"\u23F3 Awaiting shipment"}</div>
+                            )}
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:15,fontWeight:900,color:"#7B9CFF"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                            {shipped&&(
+                              <a href={"https://www.google.com/search?q="+encodeURIComponent((s.carrier||"")+" "+s.trackingNumber+" tracking")} target="_blank" rel="noreferrer"
+                                style={{fontSize:10,color:"#7B9CFF",textDecoration:"none",display:"block",marginTop:2}}>Track {"\u2192"}</a>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
