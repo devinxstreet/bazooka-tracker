@@ -3358,9 +3358,30 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             const streamExpenses = [
               parseFloat(recap.whatnotPromo)>0?`WN Promo: $${parseFloat(recap.whatnotPromo).toFixed(2)}`:"",
               parseFloat(recap.coupons)>0?`Coupons: $${parseFloat(recap.coupons).toFixed(2)}`:"",
-              (() => { const v=parseFloat(recap.magpros)||0; const q=parseInt(recap.magprosQty)||0; return v>0?`MagPros: $${v.toFixed(2)}`:q>0?`MagPros: ${q} units`:""; })(),
-              (() => { const v=parseFloat(recap.packagingMaterial)||0; const q=parseInt(recap.packagingQty)||0; return v>0?`Packaging: $${v.toFixed(2)}`:q>0?`Packaging: ${q} units`:""; })(),
-              (() => { const v=parseFloat(recap.topLoaders)||0; const q=parseInt(recap.topLoadersQty)||0; return v>0?`Top Loaders: $${v.toFixed(2)}`:q>0?`Top Loaders: ${q} units`:""; })(),
+              (() => {
+                const v = parseFloat(recap.magpros)||0;
+                const q = parseInt(recap.magprosQty)||0;
+                const price = parseFloat(recap.streamSkuPrices?.supply_magpros ?? skuPrices?.supply_magpros)||0;
+                const calc = q > 0 && price > 0 ? q * price : 0;
+                const final = v > 0 ? v : calc;
+                return final > 0 ? `MagPros: $${final.toFixed(2)}` : "";
+              })(),
+              (() => {
+                const v = parseFloat(recap.packagingMaterial)||0;
+                const q = parseInt(recap.packagingQty)||0;
+                const price = parseFloat(recap.streamSkuPrices?.supply_packaging ?? skuPrices?.supply_packaging)||0;
+                const calc = q > 0 && price > 0 ? q * price : 0;
+                const final = v > 0 ? v : calc;
+                return final > 0 ? `Packaging: $${final.toFixed(2)}` : "";
+              })(),
+              (() => {
+                const v = parseFloat(recap.topLoaders)||0;
+                const q = parseInt(recap.topLoadersQty)||0;
+                const price = parseFloat(recap.streamSkuPrices?.supply_topLoaders ?? skuPrices?.supply_topLoaders)||0;
+                const calc = q > 0 && price > 0 ? q * price : 0;
+                const final = v > 0 ? v : calc;
+                return final > 0 ? `Top Loaders: $${final.toFixed(2)}` : "";
+              })(),
               parseFloat(recap.chaserCards)>0?`Chasers: $${parseFloat(recap.chaserCards).toFixed(2)}`:"",
             ].filter(Boolean).join(", ") || "None";
             const totalStreamExp = (
@@ -4313,7 +4334,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
           </div>
         );
         const COLORS = { "Double Mega":"#E8317A", "Hobby":"#7B9CFF", "Jumbo":"#4ade80", "Miscellaneous":"#FBBF24" };
-        const [activePt, setActivePt] = React.useState(PRODUCT_TYPES.find(pt => history[pt].length >= 1) || PRODUCT_TYPES[0]);
+        const [activePt, setActivePt] = useState(PRODUCT_TYPES.find(pt => history[pt].length >= 1) || PRODUCT_TYPES[0]);
         const pts = history[activePt] || [];
         const color = COLORS[activePt] || "#E8317A";
         const minP = Math.min(...pts.map(p=>p.price));
@@ -4812,15 +4833,15 @@ function Sellers({ inventory, breaks, userRole }) {
 }
 
 function SkuPriceChart({ streams }) {
-  const [loaded, setLoaded] = React.useState(!!window.Chart);
-  React.useEffect(() => {
+  const [loaded, setLoaded] = useState(!!window.Chart);
+  useEffect(() => {
     if (window.Chart) { setLoaded(true); return; }
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
     s.onload = () => setLoaded(true);
     document.head.appendChild(s);
   }, []);
-  React.useEffect(() => {
+  useEffect(() => {
     if (!loaded || !window.Chart) return;
     const el = document.getElementById("skuPriceChart");
     if (!el) return;
@@ -10104,7 +10125,7 @@ export default function App() {
   async function handleDeleteProductUsage(id) { await deleteDoc(doc(db,"product_usage",id)); }
 
   async function handleSaveSkuPrices(prices) {
-    await setDoc(doc(db,"config","skuPrices"), prices);
+    await setDoc(doc(db,"config","skuPrices"), prices, { merge:true });
     // Save snapshot to price history
     const histId = uid();
     await setDoc(doc(db,"sku_price_history",histId), { id:histId, date:new Date().toISOString().split("T")[0], prices, savedAt:new Date().toISOString() });
