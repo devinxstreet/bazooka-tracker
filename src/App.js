@@ -174,7 +174,7 @@ function EmptyRow({ msg, cols=10 }) {
 function AccessDenied({ msg }) {
   return (
     <div style={{ ...S.card, textAlign:"center", padding:"60px 40px" }}>
-      <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
+      <div style={{ fontSize:40, marginBottom:12 }}>{"🔒"}</div>
       <div style={{ fontSize:18, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>Access Restricted</div>
       <div style={{ fontSize:13, color:"#AAAAAA" }}>{msg}</div>
     </div>
@@ -399,13 +399,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <div style={{ fontSize:14, fontWeight:800, color:cfg.color, marginBottom:4 }}>{cfg.title}</div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
                   {q.status==="accepted" && q.sellerPayment && (
-                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>💳 Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` -- ${q.sellerHandle}` : ""}</div>
+                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>{"💳"} Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` -- ${q.sellerHandle}` : ""}</div>
                   )}
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>View Quote ↗</a>
-                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid #333", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✓ Dismiss</button>
+                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>View Quote {"↗"}</a>
+                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid #333", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"✓"} Dismiss</button>
               </div>
             </div>
           </div>
@@ -416,7 +416,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {myStubs.length > 0 && myStubs.map(stub => (
         <div key={stub.id} style={{ background:"linear-gradient(135deg,#0a1a0a,#111)", border:"2px solid #4ade80", borderRadius:14, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ fontSize:32 }}>💵</div>
+            <div style={{ fontSize:32 }}>{"💵"}</div>
             <div>
               <div style={{ fontSize:14, fontWeight:800, color:"#4ade80", marginBottom:4 }}>New Pay Stub from Bazooka!</div>
               <div style={{ fontSize:12, color:"#888" }}>
@@ -435,7 +435,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <button onClick={()=>setViewStub(viewStub===stub.id?null:stub.id)} style={{ background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {viewStub===stub.id ? "▲ Hide" : "👁 View Details"}
               </button>
-              <button onClick={()=>{ if(onDismissPayStub) onDismissPayStub(stub.id); }} style={{ background:"transparent", border:"1px solid #555", color:"#888", borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✓ Dismiss</button>
+              <button onClick={()=>{ if(onDismissPayStub) onDismissPayStub(stub.id); }} style={{ background:"transparent", border:"1px solid #555", color:"#888", borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"✓"} Dismiss</button>
             </div>
           </div>
           {viewStub===stub.id && (
@@ -579,7 +579,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
                 <SectionLabel t={config.label} />
-                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18 }}>✕</button>
+                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18 }}>{"✕"}</button>
               </div>
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -606,7 +606,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
-                                <td style={{ ...S.td, color:"#E8317A" }}>− {fmt(c.commAmt)}</td>
+                                <td style={{ ...S.td, color:"#E8317A" }}>{"−"} {fmt(c.commAmt)}</td>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>+ {fmt(c.imcExpReimb||0)}</td>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
                               </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
@@ -620,7 +620,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                       <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>− {fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{"−"} {fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>+ {fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcExpReimb||0),0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
                       </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
@@ -795,7 +795,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
-                📈 Year-End Projections
+                {"📈"} Year-End Projections
               </div>
               <span style={{ fontSize:11, color:"#AAAAAA" }}>
                 {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
@@ -852,7 +852,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         </div>
         {alerts.length > 0 && (
           <div style={{ marginBottom:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>🚨 Restock Needed</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{"🚨"} Restock Needed</div>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {alerts.map(ct => {
                 const avail = stats[ct].total - stats[ct].used;
@@ -880,7 +880,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"#AAAAAA" }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#111111", padding:"2px 8px", borderRadius:5 }}>🚚 {transit} in transit</span>}
+                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#111111", padding:"2px 8px", borderRadius:5 }}>{"🚚"} {transit} in transit</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
                       {days >= 999 ? "No usage yet" : `~${days}d runway`}
                     </span>
@@ -1039,7 +1039,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <Btn onClick={saveHist} disabled={!histForm.yearMonth||!histForm.grossRevenue} variant="green">{editingId ? "💾 Save" : "+ Add"}</Btn>
-                    {editingId && <Btn onClick={cancelEdit} variant="ghost">✕</Btn>}
+                    {editingId && <Btn onClick={cancelEdit} variant="ghost">{"✕"}</Btn>}
                   </div>
                 </div>
                 {historicalData.length > 0 && (
@@ -1054,12 +1054,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30)}</td>
                           <td style={{ ...S.td, color:"#E8317A" }}>{h.imcReimb?fmt(parseFloat(h.imcReimb)):"--"}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt((parseFloat(h.netRevenue)||0)*0.30 + (parseFloat(h.imcReimb)||0))}</td>
-                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>0?`🌱 ${h.newBuyers}`:"--"}</td>
+                          <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{h.newBuyers>0?`{"🌱"} ${h.newBuyers}`:"--"}</td>
                           <td style={{ ...S.td, color:"#AAAAAA" }}>{h.notes||"--"}</td>
                           <td style={S.td}>
                             <div style={{ display:"flex", gap:6 }}>
-                              <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
-                              <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+                              <button onClick={()=>startEdit(h)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"✏️"}</button>
+                              <button onClick={()=>{ if(window.confirm("Delete this historical entry?")) onDeleteHistorical(h.id); }} style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"}</button>
                             </div>
                           </td>
                         </tr>
@@ -1164,7 +1164,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
 
   if (custView) return (
     <div>
-      <div style={{ marginBottom:14 }}><Btn onClick={()=>setCustView(false)} variant="ghost">← Back to Builder</Btn></div>
+      <div style={{ marginBottom:14 }}><Btn onClick={()=>setCustView(false)} variant="ghost">{"←"} Back to Builder</Btn></div>
       <div style={{ background:"#111111", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
         <div style={{ background:"#000000", padding:"28px 32px", textAlign:"center" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#F0F0F0", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
@@ -1275,7 +1275,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                   {cfg.href
                     ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
                         <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
-                          {cfg.icon} {cfg.label} →
+                          {cfg.icon} {cfg.label} {"→"}
                         </a>
                         {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
                       </div>
@@ -1389,19 +1389,19 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                           {/* View tracking */}
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
                             {(q.viewCount||0) === 0
-                              ? <span style={{ fontSize:11, color:"#444" }}>👁 Not opened yet</span>
+                              ? <span style={{ fontSize:11, color:"#444" }}>{"👁"} Not opened yet</span>
                               : <span style={{ fontSize:11, color:(q.viewCount||0)>=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
-                                  👁 Opened {q.viewCount} time{q.viewCount!==1?"s":""}
+                                  {"👁"} Opened {q.viewCount} time{q.viewCount!==1?"s":""}
                                   {q.lastViewedAt && <span style={{color:"#555",fontWeight:400}}> &middot; Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
-                                  {(q.viewCount||0)>=5 && <span style={{color:"#FBBF24",marginLeft:6}}>🔥 Interested!</span>}
+                                  {(q.viewCount||0)>=5 && <span style={{color:"#FBBF24",marginLeft:6}}>{"🔥"} Interested!</span>}
                                 </span>
                             }
                           </div>
                         </div>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                          <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>📋 Copy Link</button>
-                          <a href={quoteUrl} target="_blank" rel="noreferrer" style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, textDecoration:"none" }}>View ↗</a>
-                          {onCloseQuote && <button onClick={()=>{ if(window.confirm("Close this quote? The seller's link will show as expired.")) onCloseQuote(q.id); }} style={{ background:"none", border:"1px solid #333", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🔒 Close</button>}
+                          <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"📋"} Copy Link</button>
+                          <a href={quoteUrl} target="_blank" rel="noreferrer" style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, textDecoration:"none" }}>View {"↗"}</a>
+                          {onCloseQuote && <button onClick={()=>{ if(window.confirm("Close this quote? The seller's link will show as expired.")) onCloseQuote(q.id); }} style={{ background:"none", border:"1px solid #333", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"🔒"} Close</button>}
                         </div>
                       </div>
 
@@ -1445,16 +1445,16 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                               );
                             })()}
                           </div>
-                          <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">🤝 Send Counter</Btn>
-                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">❌ Decline</Btn>
+                          <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">{"🤝"} Send Counter</Btn>
+                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">{"❌"} Decline</Btn>
                           {q.status==="countered" && (
                             <Btn onClick={async()=>{
                               // Accept their counter -- update offer to their counter amount
                               if(onBazookaCounter) {
                                 await setDoc(doc(db,"quotes",q.id),{ status:"pending", currentOffer:parseFloat(q.sellerCounter), history:[...(q.history||[]),{type:"bazooka_accepted_counter",amount:parseFloat(q.sellerCounter),timestamp:new Date().toISOString()}], notified:false },{ merge:true });
-                                showToast?.(`✅ Accepted counter at $${parseFloat(q.sellerCounter).toFixed(2)}`);
+                                showToast?.(`{"✅"} Accepted counter at $${parseFloat(q.sellerCounter).toFixed(2)}`);
                               }
-                            }} variant="green">✅ Accept Their Counter</Btn>
+                            }} variant="green">{"✅"} Accept Their Counter</Btn>
                           )}
                         </div>
                       )}
@@ -1462,8 +1462,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       {/* Accepted -- import prompt */}
                       {q.status==="accepted" && (
                         <div style={{ borderTop:"1px solid #333", paddingTop:10, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-                          <span style={{ fontSize:12, color:"#4ade80" }}>🎉 Seller accepted! Ready to import into inventory.</span>
-                          <button onClick={()=>{ loadComp({ seller:q.seller?.name, contact:q.seller?.contact, date:q.seller?.date, source:q.seller?.source, payment:q.sellerPayment, paymentHandle:q.sellerHandle, cards:q.cards, offer:parseFloat(q.currentOffer||q.dispOffer), id:q.id }); setCompMode("builder"); }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📥 Load into Builder & Import</button>
+                          <span style={{ fontSize:12, color:"#4ade80" }}>{"🎉"} Seller accepted! Ready to import into inventory.</span>
+                          <button onClick={()=>{ loadComp({ seller:q.seller?.name, contact:q.seller?.contact, date:q.seller?.date, source:q.seller?.source, payment:q.sellerPayment, paymentHandle:q.sellerHandle, cards:q.cards, offer:parseFloat(q.currentOffer||q.dispOffer), id:q.id }); setCompMode("builder"); }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📥"} Load into Builder & Import</button>
                         </div>
                       )}
                     </div>
@@ -1500,8 +1500,8 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-                        <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📥 Load into Builder</button>
-                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm(`Delete this comp from history?\n\nSaved by: ${c.savedBy||"Unknown"}\nSeller: ${c.seller||"Unknown"}\n\nThis action will be logged.`)) onDeleteComp(c.id); }} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
+                        <button onClick={()=>loadComp(c)} style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📥"} Load into Builder</button>
+                        {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>{ if(window.confirm(`Delete this comp from history?\n\nSaved by: ${c.savedBy||"Unknown"}\nSeller: ${c.seller||"Unknown"}\n\nThis action will be logged.`)) onDeleteComp(c.id); }} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"}</button>}
                       </div>
                     </div>
                     <div style={{ display:"flex", gap:16, flexWrap:"wrap", paddingTop:8, borderTop:"1px solid #FFF0F5" }}>
@@ -1513,7 +1513,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                       </>}
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>Source: <strong style={{color:"#F0F0F0"}}>{c.source||"--"}</strong></span>
                       <span style={{ fontSize:12, color:"#AAAAAA" }}>
-                        {c.cards&&c.cards.length>0 ? <span style={{color:"#E8317A",fontWeight:700}}>✓ {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#AAAAAA",fontWeight:700}}>⚠ No card details</span>}
+                        {c.cards&&c.cards.length>0 ? <span style={{color:"#E8317A",fontWeight:700}}>{"✓"} {c.cards.length} card{c.cards.length!==1?"s":""} saved</span> : <span style={{color:"#AAAAAA",fontWeight:700}}>{"⚠"} No card details</span>}
                       </span>
                     </div>
                   </div>
@@ -1540,7 +1540,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                 </div>
               </div>
             </div>
-            <button onClick={()=>setLoadedCompId(null)} style={{ background:"transparent", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>
+            <button onClick={()=>setLoadedCompId(null)} style={{ background:"transparent", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18, lineHeight:1 }}>{"✕"}</button>
           </div>
         )}
         <div id="comp-builder-top" style={S.card}>
@@ -1784,7 +1784,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
                                   rel="noreferrer"
                                   title="Search on 130point"
                                   style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
-                                >🔍</a>
+                                >{"🔍"}</a>
                               )}
                             </>
                           )}
@@ -1843,23 +1843,23 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
             return (
               <div style={{ marginBottom:16, padding:"14px 16px", background:cfg.bg, border:`2px solid ${cfg.color}33`, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>💸 Send Payment</div>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>{"💸"} Send Payment</div>
                   <div style={{ fontWeight:800, fontSize:16, color:cfg.color }}>{cfg.hint}</div>
                   {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>}
                 </div>
                 {cfg.href
                   ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} →</a>
+                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} {"→"}</a>
                       {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
                     </div>
-                  : <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} → ${cfg.hint}`}</div>
+                  : <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} {"→"} ${cfg.hint}`}</div>
                 }
               </div>
             );
           })()}
 
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
-            <Btn onClick={()=>setCustView(true)} variant="ghost">👁 Customer View</Btn>
+            <Btn onClick={()=>setCustView(true)} variant="ghost">{"👁"} Customer View</Btn>
             <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"6px 12px", cursor:"pointer" }} onClick={()=>setAllowCounter(p=>!p)}>
               <div style={{ width:32, height:18, borderRadius:9, background:allowCounter?"#E8317A":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
                 <div style={{ position:"absolute", top:2, left:allowCounter?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
@@ -1879,18 +1879,18 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
               navigator.clipboard?.writeText(link);
               setQuoteCopied(true);
               setTimeout(()=>setQuoteCopied(false), 3000);
-            }} variant="ghost" disabled={included.length===0}>🔗 Share Quote</Btn>
+            }} variant="ghost" disabled={included.length===0}>{"🔗"} Share Quote</Btn>
             {quoteLink && (
               <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"6px 12px", flex:1 }}>
                 <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{quoteCopied ? "✅ Copied!" : "🔗"}</span>
                 <span style={{ fontSize:11, color:"#888", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{quoteLink}</span>
                 <button onClick={()=>{ navigator.clipboard?.writeText(quoteLink); setQuoteCopied(true); setTimeout(()=>setQuoteCopied(false),3000); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#888", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit", whiteSpace:"nowrap" }}>Copy</button>
-                <a href={quoteLink} target="_blank" rel="noreferrer" style={{ color:"#E8317A", fontSize:11, textDecoration:"none", whiteSpace:"nowrap" }}>Open ↗</a>
+                <a href={quoteLink} target="_blank" rel="noreferrer" style={{ color:"#E8317A", fontSize:11, textDecoration:"none", whiteSpace:"nowrap" }}>Open {"↗"}</a>
               </div>
             )}
-            <Btn onClick={()=>saveComp("saved")} variant="ghost">💾 Save Comp</Btn>
-            <Btn onClick={()=>saveComp("passed")} variant="ghost">❌ Pass on Lot</Btn>
-            <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green">✅ Accept & Import {totalCards} card{totalCards!==1?"s":""}</Btn>
+            <Btn onClick={()=>saveComp("saved")} variant="ghost">{"💾"} Save Comp</Btn>
+            <Btn onClick={()=>saveComp("passed")} variant="ghost">{"❌"} Pass on Lot</Btn>
+            <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green">{"✅"} Accept & Import {totalCards} card{totalCards!==1?"s":""}</Btn>
           </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ ...S.lbl, color:"#E8317A" }}>Notes for Seller (shown on Customer View)</label>
@@ -1905,7 +1905,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           <div style={{ borderTop:"1px solid #F0D0DC", paddingTop:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1.5 }}>Counter Offer Calculator</div>
-              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>⚠ Counter is active -- overrides your offer</span>}
+              {(counterAmt!=null&&counterAmt>0) && <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{"⚠"} Counter is active -- overrides your offer</span>}
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
               <div><label style={S.lbl}>Seller's Counter ($)</label><input type="number" value={counterOffer} onChange={e=>setCounterOffer(e.target.value)} placeholder="0.00" style={{ ...S.inp, border:(counterAmt!=null&&counterAmt>0)?"2px solid #E8317A":S.inp.border }}/></div>
@@ -1928,7 +1928,7 @@ function LotComp({ onAccept, onSaveComp, onDeleteComp, comps, user, userRole, on
           const sellerComps = comps.filter(c => (c.seller||"").toLowerCase() === seller.name.toLowerCase());
           if (sellerComps.length === 0) return (
             <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"20px 16px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, minHeight:160, color:"#333", position:"sticky", top:80 }}>
-              <div style={{ fontSize:24 }}>🆕</div>
+              <div style={{ fontSize:24 }}>{"🆕"}</div>
               <div style={{ fontSize:12, fontWeight:700, color:"#555" }}>New seller</div>
               <div style={{ fontSize:11, color:"#333", textAlign:"center" }}>No previous history with {seller.name}</div>
             </div>
@@ -2055,9 +2055,9 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       {/* Action buttons */}
       <div style={{ display:"flex", gap:8 }}>
         <Btn onClick={startNew} variant="green">+ New Pool</Btn>
-        <Btn onClick={()=>setShowLog(p=>!p)} variant="ghost">📤 Log Out Cards</Btn>
-        <Btn onClick={()=>setShowAdd(p=>!p)} variant="ghost">📥 Add to Pool</Btn>
-        {isAdmin && cardPools.length > 0 && <Btn onClick={async()=>{ if(window.confirm(`Reset ALL ${cardPools.length} pools to 0? This clears all totals and used qtys.`)) { for(const p of cardPools) await onSavePool({...p, totalQty:0, usedQty:0}); }}} variant="ghost" style={{ color:"#FBBF24", border:"1px solid #FBBF2444" }}>↺ Reset All</Btn>}
+        <Btn onClick={()=>setShowLog(p=>!p)} variant="ghost">{"📤"} Log Out Cards</Btn>
+        <Btn onClick={()=>setShowAdd(p=>!p)} variant="ghost">{"📥"} Add to Pool</Btn>
+        {isAdmin && cardPools.length > 0 && <Btn onClick={async()=>{ if(window.confirm(`Reset ALL ${cardPools.length} pools to 0? This clears all totals and used qtys.`)) { for(const p of cardPools) await onSavePool({...p, totalQty:0, usedQty:0}); }}} variant="ghost" style={{ color:"#FBBF24", border:"1px solid #FBBF2444" }}>{"↺"} Reset All</Btn>}
       </div>
 
       {/* Log Out form */}
@@ -2097,7 +2097,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
               await onLogPoolOut(logForm.poolId, parseInt(logForm.qty), logForm.breaker, logForm.date, logForm.usage);
               setLogForm(p=>({...p,qty:""}));
               setShowLog(false);
-            }} variant="green" disabled={!logForm.poolId||!logForm.qty}>✅ Log Out</Btn>
+            }} variant="green" disabled={!logForm.poolId||!logForm.qty}>{"✅"} Log Out</Btn>
           </div>
         </div>
       )}
@@ -2123,7 +2123,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
               await onAddToPool(addForm.poolId, parseInt(addForm.qty));
               setAddForm({poolId:"",qty:""});
               setShowAdd(false);
-            }} variant="green" disabled={!addForm.poolId||!addForm.qty}>✅ Add</Btn>
+            }} variant="green" disabled={!addForm.poolId||!addForm.qty}>{"✅"} Add</Btn>
           </div>
         </div>
       )}
@@ -2163,7 +2163,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
             </div>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>💾 Save Pool</Btn>
+            <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>{"💾"} Save Pool</Btn>
             <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
           </div>
         </div>
@@ -2218,9 +2218,9 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
                           <div style={{ fontSize:9, color:"#555", marginTop:3, textAlign:"center" }}>{pct.toFixed(0)}% left</div>
                         </div>
                         <div style={{ display:"flex", gap:6 }}>
-                          {isAdmin && <button onClick={async()=>{ if(window.confirm(`Reset ${p.cardName} to 0? This clears total and used qty.`)) { await onSavePool({ ...p, totalQty:0, usedQty:0 }); }}} style={{ background:"none", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Reset qty to 0">↺ Reset</button>}
-                          {isAdmin && <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>}
-                          {isAdmin && <button onClick={()=>{ if(window.confirm(`Delete ${p.cardName} pool?`)) onDeletePool(p.id); }} style={{ background:"none", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>}
+                          {isAdmin && <button onClick={async()=>{ if(window.confirm(`Reset ${p.cardName} to 0? This clears total and used qty.`)) { await onSavePool({ ...p, totalQty:0, usedQty:0 }); }}} style={{ background:"none", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Reset qty to 0">{"↺"} Reset</button>}
+                          {isAdmin && <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"✏️"}</button>}
+                          {isAdmin && <button onClick={()=>{ if(window.confirm(`Delete ${p.cardName} pool?`)) onDeletePool(p.id); }} style={{ background:"none", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"}</button>}
                         </div>
                       </div>
                     );
@@ -2233,7 +2233,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
 
       {cardPools.length === 0 && !editing && (
         <div style={{ ...S.card, textAlign:"center", padding:"60px 40px", color:"#555" }}>
-          <div style={{ fontSize:32, marginBottom:12 }}>🗃</div>
+          <div style={{ fontSize:32, marginBottom:12 }}>{"🗃"}</div>
           <div>No card pools yet -- click <strong style={{color:"#E8317A"}}>+ New Pool</strong> to create your first pool</div>
         </div>
       )}
@@ -2335,7 +2335,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:12 }}>
               {orphanedNotes.length > 0 && CAN_DELETE.includes(userRole?.role) && (
                 <div style={{ marginBottom:12, padding:"10px 16px", background:"#111111", border:"1.5px solid #92400e33", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>⚠ {orphanedNotes.length} note{orphanedNotes.length!==1?"s":""} from previous lots couldn't be matched automatically.</span>
+                  <span style={{ fontSize:12, color:"#AAAAAA" }}>{"⚠"} {orphanedNotes.length} note{orphanedNotes.length!==1?"s":""} from previous lots couldn't be matched automatically.</span>
                   <button onClick={migrateNotes} style={{ background:"#92400e", color:"#fff", border:"none", borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Fix Now</button>
                 </div>
               )}
@@ -2362,14 +2362,14 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                 <button
                                   onClick={() => onDeleteLot(lot.key, lot.cards.map(c=>c.id))}
                                   style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                                  title="Delete entire lot">🗑 Delete Lot</button>
+                                  title="Delete entire lot">{"🗑"} Delete Lot</button>
                               )}
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Total: <strong style={{color:"#F0F0F0"}}>{lot.cards.length}</strong></span>
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Available: <strong style={{color:"#E8317A"}}>{availInLot}</strong></span>
-                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#AAAAAA" }}>In Transit: <strong style={{color:"#F0F0F0"}}>🚚 {transitInLot}</strong></span>}
+                            {transitInLot > 0 && <span style={{ fontSize:12, color:"#AAAAAA" }}>In Transit: <strong style={{color:"#F0F0F0"}}>{"🚚"} {transitInLot}</strong></span>}
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Used: <strong style={{color:"#E8317A"}}>{usedInLot}</strong></span>
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Added by: <strong style={{color:"#F0F0F0"}}>{lot.addedBy}</strong></span>
                           </div>
@@ -2384,7 +2384,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                             <div>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom: (tracking.eta||tracking.lastEvent||tracking.lastEvent) ? 8 : 0 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                                  <span style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>📦 Tracking</span>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{"📦"} Tracking</span>
                                   {tracking.trackingNum || tracking.status
                                     ? <>
                                         {tracking.status && <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33`, borderRadius:5, padding:"2px 10px", fontSize:12, fontWeight:700 }}>{tracking.status}</span>}
@@ -2398,7 +2398,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                               DHL:   `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${num}`,
                                             };
                                             const url = CURL[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent((tracking.carrier||'')+" tracking "+num)}`;
-                                            return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} ↗</a>;
+                                            return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} {"↗"}</a>;
                                           })()}
                                         {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>&middot; checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
                                       </>
@@ -2410,13 +2410,13 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                     <button
                                       onClick={() => onSaveLotTracking(lot.key, { ...tracking, status:"Delivered" })}
                                       style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                                    >✅ Mark Delivered</button>
+                                    >{"✅"} Mark Delivered</button>
                                   )}
                                   {tracking.status === "Delivered" && (
                                     <button
                                       onClick={() => onSaveLotTracking(lot.key, { ...tracking, status:"In Transit" })}
                                       style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                                    >↩ Undo Delivered</button>
+                                    >{"↩"} Undo Delivered</button>
                                   )}
                                   <button
                                     onClick={() => { setTrackingEdit(lot.key); setTrackingForm({ carrier:tracking.carrier||"", trackingNum:tracking.trackingNum||"", status:tracking.status||"", eta:tracking.eta||"", notes:tracking.notes||"" }); }}
@@ -2429,12 +2429,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                 <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 12px", background:"#111111", borderRadius:7, marginTop:4 }}>
                                   {tracking.eta && (
                                     <span style={{ fontSize:12, color:"#AAAAAA" }}>
-                                      📅 Est. Delivery: <strong style={{ color: tracking.status==="Delivered" ? "#166534" : "#1B4F8A" }}>{tracking.eta}</strong>
+                                      {"📅"} Est. Delivery: <strong style={{ color: tracking.status==="Delivered" ? "#166534" : "#1B4F8A" }}>{tracking.eta}</strong>
                                     </span>
                                   )}
                                   {tracking.lastEvent && (
                                     <span style={{ fontSize:12, color:"#AAAAAA" }}>
-                                      📍 {tracking.lastLocation && <strong style={{color:"#F0F0F0"}}>{tracking.lastLocation} -- </strong>}{tracking.lastEvent}
+                                      {"📍"} {tracking.lastLocation && <strong style={{color:"#F0F0F0"}}>{tracking.lastLocation} -- </strong>}{tracking.lastEvent}
                                     </span>
                                   )}
 
@@ -2443,7 +2443,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                             </div>
                           ) : (
                             <div>
-                              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>📦 Edit Tracking</div>
+                              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>{"📦"} Edit Tracking</div>
                               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
                                 <div>
                                   <label style={S.lbl}>Carrier</label>
@@ -2470,7 +2470,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                 <button
                                   onClick={() => { onSaveLotTracking(lot.key, trackingForm); setTrackingEdit(null); }}
                                   style={{ background:"#166534", color:"#fff", border:"1.5px solid #14532d", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-                                >💾 Save Tracking</button>
+                                >{"💾"} Save Tracking</button>
 
                                 <button
                                   onClick={() => setTrackingEdit(null)}
@@ -2498,7 +2498,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
           return (
             <div style={{ marginTop:12 }}>
               {agingCards.length===0
-                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>🎉 No aging cards!</div>
+                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>{"🎉"} No aging cards!</div>
                 : agingCards.map(c => {
                     const d   = Math.floor((new Date()-new Date(c.dateAdded))/86400000);
                     const cc  = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
@@ -2534,12 +2534,12 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
             </select>
             <select value={sortInv} onChange={e=>setSortInv(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
               <option value="date">Sort: Date Added</option>
-              <option value="name">Sort: Name A→Z</option>
+              <option value="name">Sort: Name A{"→"}Z</option>
               <option value="type">Sort: Type</option>
-              <option value="mv_desc">Sort: MV High→Low</option>
-              <option value="mv_asc">Sort: MV Low→High</option>
-              <option value="cost_desc">Sort: Cost High→Low</option>
-              <option value="cost_asc">Sort: Cost Low→High</option>
+              <option value="mv_desc">Sort: MV High{"→"}Low</option>
+              <option value="mv_asc">Sort: MV Low{"→"}High</option>
+              <option value="cost_desc">Sort: Cost High{"→"}Low</option>
+              <option value="cost_asc">Sort: Cost Low{"→"}High</option>
             </select>
             <div style={{ display:"flex", gap:4 }}>
               {[["available","✅ Available"],["in_transit","🚚 In Transit"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
@@ -2548,7 +2548,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
             </div>
             <span style={{ color:"#AAAAAA", fontSize:12 }}>{filtered.length} cards</span>
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
-              <button onClick={handleBulkDelete} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete {selected.size} selected</button>
+              <button onClick={handleBulkDelete} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"} Delete {selected.size} selected</button>
             )}
           </div>
         </div>
@@ -2575,7 +2575,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                         <td style={{ ...S.td, fontWeight:700 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             {c.cardName}
-                            {isAging && <span style={{ background:"#1a1400", color:"#AAAAAA", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>⏰ {daysIn}d</span>}
+                            {isAging && <span style={{ background:"#1a1400", color:"#AAAAAA", border:"1px solid #FDE68A", borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{"⏰"} {daysIn}d</span>}
                           </div>
                         </td>
                         <td style={S.td}><Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge></td>
@@ -2592,7 +2592,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                         <td style={S.td}>{used
                           ? <Badge bg="#FEE2E2" color="#991b1b">Used</Badge>
                           : c.cardStatus==="in_transit"
-                            ? <Badge bg="#EEF0FB" color="#2C3E7A">🚚 In Transit</Badge>
+                            ? <Badge bg="#EEF0FB" color="#2C3E7A">{"🚚"} In Transit</Badge>
                             : <Badge bg="#D6F4E3" color="#166534">Available</Badge>
                         }</td>
                         <td style={S.td}>
@@ -2617,16 +2617,16 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                                   const newCost = parseFloat(editCostVal)||0;
                                   await onSaveCardCost(c.id, newCost);
                                   setEditCostId(null);
-                                }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
-                                <button onClick={()=>setEditCostId(null)} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:13 }}>✕</button>
+                                }} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"✓"}</button>
+                                <button onClick={()=>setEditCostId(null)} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:13 }}>{"✕"}</button>
                               </>
                             ) : (
                               <>
-                                {canSeeFinancials && <button onClick={()=>{ setEditCostId(c.id); setEditCostVal((c.costPerCard||0).toFixed(2)); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit cost">✏️</button>}
-                                {!usedIds.has(c.id) && <button onClick={()=>setLogOutCard(c)} style={{ background:"#1a0a0f", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>📤 Log Out</button>}
-                                {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14 }}>✕</button>}
+                                {canSeeFinancials && <button onClick={()=>{ setEditCostId(c.id); setEditCostVal((c.costPerCard||0).toFixed(2)); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 7px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit cost">{"✏️"}</button>}
+                                {!usedIds.has(c.id) && <button onClick={()=>setLogOutCard(c)} style={{ background:"#1a0a0f", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{"📤"} Log Out</button>}
+                                {CAN_DELETE.includes(userRole?.role) && <button onClick={()=>onRemove(c.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14 }}>{"✕"}</button>}
                                 {usedIds.has(c.id) && onPutBack && CAN_DELETE.includes(userRole?.role) && (
-                                  <button onClick={()=>{ if(window.confirm(`Put "${c.cardName}" back in inventory?`)) onPutBack(c.id); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>↩ Put Back</button>
+                                  <button onClick={()=>{ if(window.confirm(`Put "${c.cardName}" back in inventory?`)) onPutBack(c.id); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8033", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{"↩"} Put Back</button>
                                 )}
                               </>
                             )}
@@ -2645,7 +2645,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
       {logOutCard && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setLogOutCard(null)}>
           <div style={{ background:"#111111", border:"1.5px solid #E8317A44", borderRadius:14, padding:"24px", width:380, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:4 }}>📤 Log Out Card</div>
+            <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:4 }}>{"📤"} Log Out Card</div>
             <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>{logOutCard.cardName} &middot; {logOutCard.cardType}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               <div>
@@ -2673,7 +2673,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
                 const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:logOutCard.cardType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
                 if (onAdd) await onAdd(entry);
                 setLogOutCard(null);
-              }} variant="green">✅ Log Out</Btn>
+              }} variant="green">{"✅"} Log Out</Btn>
               <Btn onClick={()=>setLogOutCard(null)} variant="ghost">Cancel</Btn>
             </div>
           </div>
@@ -2869,12 +2869,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
           <div style={{ background:"#1a1400", border:"1px solid #FBBF2444", borderRadius:8, padding:"8px 14px", fontSize:12, color:"#FBBF24", fontWeight:600, marginBottom:8 }}>
-            ⚠️ Select your breaker first, then import the CSV
+            {"⚠️"} Select your breaker first, then import the CSV
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             {/* Whatnot CSV Import */}
             <label style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1.5px solid #E8317A44", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, color:"#E8317A", cursor:"pointer", whiteSpace:"nowrap" }}>
-              📥 Whatnot CSV
+              {"📥"} Whatnot CSV
               <input type="file" accept=".csv" style={{ display:"none" }} onChange={e => {
                 const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
@@ -2984,14 +2984,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {editingStreamId && existingStream && (
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
-                  ✏️ Editing: {existingStream.breaker} &middot; {existingStream.date}
+                  {"✏️"} Editing: {existingStream.breaker} &middot; {existingStream.date}
                 </span>
                 <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
                   Start new instead
                 </button>
               </div>
             )}
-            {recapSaved && <span style={{ background:"#111111", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>✅ Saved</span>}
+            {recapSaved && <span style={{ background:"#111111", color:"#E8317A", border:"1px solid #2E7D5222", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>{"✅"} Saved</span>}
           </div>
         </div>
 
@@ -2999,7 +2999,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {csvMsg && (
           <div style={{ marginBottom:12, padding:"10px 14px", background:csvMsg.type==="success"?"#0a1a0a":"#1a0a0a", border:`1px solid ${csvMsg.type==="success"?"#4ade8033":"#E8317A33"}`, borderRadius:8, fontSize:12, color:csvMsg.type==="success"?"#4ade80":"#E8317A", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span>{csvMsg.text}</span>
-            <button onClick={()=>setCsvMsg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, marginLeft:10 }}>✕</button>
+            <button onClick={()=>setCsvMsg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, marginLeft:10 }}>{"✕"}</button>
           </div>
         )}
 
@@ -3019,10 +3019,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <label style={S.lbl}>Session Type</label>
             <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
               <option value="">-- Select --</option>
-              <option value="day">☀️ Day Break (Mon-Thurs)</option>
-              <option value="night">🌙 Night Break (Mon-Thurs)</option>
-              <option value="weekend">📅 Weekend Break (Fri-Sun)</option>
-              <option value="event">🎉 Event</option>
+              <option value="day">{"☀️"} Day Break (Mon-Thurs)</option>
+              <option value="night">{"🌙"} Night Break (Mon-Thurs)</option>
+              <option value="weekend">{"📅"} Weekend Break (Fri-Sun)</option>
+              <option value="event">{"🎉"} Event</option>
             </select>
           </div>
           <div>
@@ -3036,7 +3036,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             })()}
           </div>
           <div>
-            <label style={{ ...S.lbl, color:"#E8317A" }}>🌱 New Buyers</label>
+            <label style={{ ...S.lbl, color:"#E8317A" }}>{"🌱"} New Buyers</label>
             <input type="number" min="0" step="1" value={recap.newBuyers||""} onChange={e=>rf("newBuyers")(e.target.value)} placeholder="0" style={{ ...S.inp, color:"#E8317A" }}/>
           </div>
         </div>
@@ -3060,7 +3060,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {parseFloat(recap.zionRevenue||0) > 0 && (
           <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>🟢 Zion Cases Revenue -- Bazooka Only</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>{"🟢"} Zion Cases Revenue -- Bazooka Only</div>
               <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-detected from CSV &middot; Not included in IMC gross</div>
             </div>
             <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>${parseFloat(recap.zionRevenue||0).toFixed(2)}</div>
@@ -3069,7 +3069,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Chaser Cards -- picker + manual override */}
         <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>🏆 Cards Used as Chasers</label>
+              <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>{"🏆"} Cards Used as Chasers</label>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <label style={{ fontSize:11, color:"#AAAAAA" }}>Manual override ($)</label>
                 <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:90, color:"#AAAAAA", padding:"4px 8px" }}/>
@@ -3095,7 +3095,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                             placeholder="Search cards..."
                             style={{ ...S.inp, padding:"5px 10px", fontSize:12, flex:1 }}
                           />
-                          {chaserSearch && <button onClick={()=>setChaserSearch("")} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:14, flexShrink:0 }}>✕</button>}
+                          {chaserSearch && <button onClick={()=>setChaserSearch("")} style={{ background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:14, flexShrink:0 }}>{"✕"}</button>}
                           <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>{visibleCards.length} card{visibleCards.length!==1?"s":""}</span>
                         </div>
                         <div style={{ maxHeight:200, overflowY:"auto", border:"1px solid #2a2a2a", borderRadius:8, background:"#111111" }}>
@@ -3127,9 +3127,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   {selectedChasers.length > 0 && (
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
                       <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:700 }}>
-                        ✅ {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected &middot; auto-cost: ${totalCost.toFixed(2)}
+                        {"✅"} {selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected &middot; auto-cost: ${totalCost.toFixed(2)}
                       </span>
-                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>✕ Clear</button>
+                      <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>{"✕"} Clear</button>
                     </div>
                   )}
                 </div>
@@ -3179,7 +3179,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
           {canSeeFinancials && (
             <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
-              <label style={{ fontSize:12, color:"#E8317A", fontWeight:700, whiteSpace:"nowrap" }}>🔧 Override Commission %</label>
+              <label style={{ fontSize:12, color:"#E8317A", fontWeight:700, whiteSpace:"nowrap" }}>{"🔧"} Override Commission %</label>
               <input
                 type="number" min="0" max="100" step="1"
                 value={recap.commissionOverride||""}
@@ -3188,7 +3188,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 style={{ ...S.inp, width:80, color:"#E8317A", textAlign:"center" }}
               />
               {recap.commissionOverride !== "" && (
-                <button onClick={()=>rf("commissionOverride")("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
+                <button onClick={()=>rf("commissionOverride")("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:14, padding:0 }}>{"✕"}</button>
               )}
               <span style={{ fontSize:11, color:"#AAAAAA" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
             </div>
@@ -3199,7 +3199,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <input type="checkbox" checked={!!recap.collabPartner} onChange={e=>{ if(!e.target.checked){ rf("collabPartner")(""); rf("collabPct")(""); } else rf("collabPartner")("_"); }} style={{ width:15, height:15 }}/>
-            <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab Stream</span>
+            <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>{"🤝"} Collab Stream</span>
             {!!recap.collabPartner && (
               <>
                 <input value={recap.collabPartner === "_" ? "" : recap.collabPartner} onChange={e=>rf("collabPartner")(e.target.value||"_")} placeholder="Partner name / channel" style={{ ...S.inp, flex:1, fontSize:12 }}/>
@@ -3224,7 +3224,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
         {/* Product used this stream */}
         <div style={{ marginBottom:14 }}>
-          <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>📦 Product Used This Stream</label>
+          <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>{"📦"} Product Used This Stream</label>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
             {PRODUCT_TYPES.map(pt => {
               const globalPrice = parseFloat(skuPrices[pt]) || 0;
@@ -3268,7 +3268,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   </div>
                   {qty > 0 && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>MV: ${mktVal.toFixed(0)}</div>}
                   {streamPrice !== undefined && streamPrice !== String(globalPrice) && (
-                    <div style={{ fontSize:9, color:"#FBBF24", marginTop:1 }}>⚠ overriding global ${globalPrice}</div>
+                    <div style={{ fontSize:9, color:"#FBBF24", marginTop:1 }}>{"⚠"} overriding global ${globalPrice}</div>
                   )}
                 </div>
               );
@@ -3298,15 +3298,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const collabAmt = rc.bazNet * (parseFloat(recap.collabPct)/100);
                   return (
                     <div style={{ marginBottom:10, padding:"8px 14px", background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🤝 Collab -- {recap.collabPartner} ({recap.collabPct}%)</span>
-                      <span style={{ fontSize:14, fontWeight:900, color:"#7B9CFF" }}>− {fmt(collabAmt)}</span>
+                      <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>{"🤝"} Collab -- {recap.collabPartner} ({recap.collabPct}%)</span>
+                      <span style={{ fontSize:14, fontWeight:900, color:"#7B9CFF" }}>{"−"} {fmt(collabAmt)}</span>
                     </div>
                   );
                 })()}
                 {parseFloat(recap.zionRevenue||0) > 0 && (
                   <div style={{ marginTop:8, padding:"8px 14px", background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <div>
-                      <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>🟢 Zion Cases -- Bazooka Only</span>
+                      <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{"🟢"} Zion Cases -- Bazooka Only</span>
                       <span style={{ fontSize:10, color:"#555", marginLeft:8 }}>not in IMC split</span>
                     </div>
                     <span style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt(parseFloat(recap.zionRevenue||0))}</span>
@@ -3408,7 +3408,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             const imcUrl = `${formBase}?usp=pp_url&entry.emailAddress=devin%40bazookabreaks.com&${params.toString()}`;
             return (
               <a href={imcUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#1a0a0f", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
-                📋 Submit to IMC ↗
+                {"📋"} Submit to IMC {"↗"}
               </a>
             );
           })()}
@@ -3417,7 +3417,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               + New Stream
             </Btn>
           )}
-          {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#AAAAAA" }}>⚠ Unsaved changes</span>}
+          {existingStream && !recapSaved && <span style={{ fontSize:11, color:"#AAAAAA" }}>{"⚠"} Unsaved changes</span>}
         </div>
         {/* IMC Form URL setting -- Admin only */}
         {userRole?.role === "Admin" && (
@@ -3465,7 +3465,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       setStreamBulkSel(new Set());
                     }
                   }} style={{ background:"#1a0a0a", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    🗑 Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
+                    {"🗑"} Delete {streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
                   </button>
                 )}
               </div>
@@ -3511,7 +3511,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.commAmt)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
-                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `🌱 ${s.newBuyers}` : "--"}</td>
+                        <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `{"🌱"} ${s.newBuyers}` : "--"}</td>
                         {PRODUCT_TYPES.map(pt => {
                           const qty = parseInt(s[`prod_${pt}`])||0;
                           const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
@@ -3525,7 +3525,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                           <button
                             onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); } }}}
                             style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
-                          >🗑</button>
+                          >{"🗑"}</button>
                         </td>
                       </tr>
                     );
@@ -3597,7 +3597,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 );
               })}
             </div>
-            {bulkSel.size>0 && <Btn onClick={handleBulkLog} disabled={!breaker} variant="green">✅ Log Out {bulkSel.size} Card{bulkSel.size!==1?"s":""}</Btn>}
+            {bulkSel.size>0 && <Btn onClick={handleBulkLog} disabled={!breaker} variant="green">{"✅"} Log Out {bulkSel.size} Card{bulkSel.size!==1?"s":""}</Btn>}
           </div>
         )}
       </div>
@@ -3626,7 +3626,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <SectionLabel t="Break History"/>
             {histSel.size > 0 && (
               <button onClick={handleBulkDeleteHist} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>
-                🗑 Remove {histSel.size} selected
+                {"🗑"} Remove {histSel.size} selected
               </button>
             )}
           </div>
@@ -3656,7 +3656,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.loggedBy||"--"}</td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontSize:12 }}>{b.notes||"--"}</td>
                       <td style={S.td}>
-                        <button onClick={()=>{ if(window.confirm(`Remove "${b.cardName}" from break log? This will make the card available again.`)) onDeleteBreak(b.id); }} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }} title="Remove from break log">✕</button>
+                        <button onClick={()=>{ if(window.confirm(`Remove "${b.cardName}" from break log? This will make the card available again.`)) onDeleteBreak(b.id); }} style={{ background:"none", border:"none", color:"#D1D5DB", cursor:"pointer", fontSize:14, padding:2 }} title="Remove from break log">{"✕"}</button>
                       </td>
                     </tr>
                   );
@@ -3764,7 +3764,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
         <div style={{ display:"flex", justifyContent:"flex-end" }}>
           <button onClick={()=>{ if(onClearAll) onClearAll(); }}
             style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-            🗑 Clear All Buyers & Imports
+            {"🗑"} Clear All Buyers & Imports
           </button>
         </div>
       )}
@@ -3836,7 +3836,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
               <div style={{ borderTop:"1px solid #1a1a1a", padding:"14px 16px", background:"#0a0a0a" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ fontSize:14, fontWeight:800, color:"#7B9CFF" }}>@{selected.username}</div>
-                  <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>×</button>
+                  <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"×"}</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
                   {[
@@ -3894,7 +3894,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
                         <span style={{ fontSize:14, fontWeight:800, color:"#E8317A" }}>{selectedState}</span>
                         <span style={{ fontSize:12, color:"#555", marginLeft:8 }}>{d?.buyers||0} buyer{d?.buyers!==1?"s":""} &middot; {fmt(d?.revenue||0)}</span>
                       </div>
-                      <button onClick={()=>setSelectedState(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>×</button>
+                      <button onClick={()=>setSelectedState(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"×"}</button>
                     </div>
                     <div style={{ maxHeight:260, overflowY:"auto" }}>
                       {stateBuyers.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map((b,i)=>(
@@ -3936,12 +3936,12 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <button onClick={()=>setShowImports(p=>!p)}
           style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:"transparent", border:"none", color:"#F0F0F0", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>
-          <span>📥 CSV Imports ({csvImports.length})</span>
+          <span>{"📥"} CSV Imports ({csvImports.length})</span>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             {isAdmin && buyers.length > 0 && (
               <span onClick={e => { e.stopPropagation(); if(onClearAll) onClearAll(); }}
                 style={{ fontSize:11, color:"#E8317A", border:"1px solid #E8317A33", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontWeight:700 }}>
-                🗑 Clear All
+                {"🗑"} Clear All
               </span>
             )}
             <span style={{ color:"#555", fontSize:11 }}>{showImports?"▲ collapse":"▼ expand"}</span>
@@ -4060,7 +4060,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
     return { all, month, byType, byDay, last7, streak, topType, breakerBoxes, breakerBoxTotal, breakerGross, breakerNewBuyers, breakerAvgMM };
   }
 
-  if (visibleBreakers.length===0) return <div style={{ ...S.card, textAlign:"center", padding:"60px" }}><div style={{ fontSize:32, marginBottom:12 }}>📈</div><div style={{ color:"#AAAAAA" }}>Your account isn't linked to a streamer profile.</div></div>;
+  if (visibleBreakers.length===0) return <div style={{ ...S.card, textAlign:"center", padding:"60px" }}><div style={{ fontSize:32, marginBottom:12 }}>{"📈"}</div><div style={{ color:"#AAAAAA" }}>Your account isn't linked to a streamer profile.</div></div>;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -4073,7 +4073,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
         {perfPeriod==="custom" && (
           <>
             <input type="date" value={perfFrom} onChange={e=>setPerfFrom(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:12 }}/>
-            <span style={{ color:"#555", fontSize:12 }}>→</span>
+            <span style={{ color:"#555", fontSize:12 }}>{"→"}</span>
             <input type="date" value={perfTo} onChange={e=>setPerfTo(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:12 }}/>
           </>
         )}
@@ -4122,7 +4122,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                   </div>
                   <span style={{ fontSize:12, fontWeight:700, color:bc.text, minWidth:24 }}>{bTotal} boxes</span>
                   <span style={{ fontSize:11, color:"#E8317A", minWidth:60 }}>{fmt(bGross)}</span>
-                  <span style={{ fontSize:11, color:"#E8317A", minWidth:30 }}>🌱 {bBuyers}</span>
+                  <span style={{ fontSize:11, color:"#E8317A", minWidth:30 }}>{"🌱"} {bBuyers}</span>
                 </div>
               );
             })}
@@ -4156,7 +4156,7 @@ function Performance({ breaks, user, userRole, streams=[] }) {
                 <div style={{ fontSize:11, color:"#AAAAAA" }}>{stats.all.length} total cards logged</div>
               </div>
               {stats.streak>0 && <div style={{ marginLeft:"auto", background:bc.bg, border:`1.5px solid ${bc.border}`, borderRadius:10, padding:"6px 14px", textAlign:"center" }}>
-                <div style={{ fontSize:18, fontWeight:900, color:bc.text }}>🔥 {stats.streak}</div>
+                <div style={{ fontSize:18, fontWeight:900, color:bc.text }}>{"🔥"} {stats.streak}</div>
                 <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Day Streak</div>
               </div>}
             </div>
@@ -4330,7 +4330,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         const hasData = PRODUCT_TYPES.some(pt => history[pt].length >= 1);
         if (!hasData) return (
           <div style={{ ...S.card, border:"1px solid #2a2a2a", textAlign:"center", color:"#555", fontSize:12, padding:"20px" }}>
-            📈 SKU price history will appear here once SKU prices have been saved
+            {"📈"} SKU price history will appear here once SKU prices have been saved
           </div>
         );
         const COLORS = { "Double Mega":"#E8317A", "Hobby":"#7B9CFF", "Jumbo":"#4ade80", "Miscellaneous":"#FBBF24" };
@@ -4425,7 +4425,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                   </div>
                 ))}
               </div>
-              <Btn onClick={async()=>{ await onSaveSkuPrices(skuForm); setSkuEditing(false); }} variant="green">💾 Save SKU Prices</Btn>
+              <Btn onClick={async()=>{ await onSaveSkuPrices(skuForm); setSkuEditing(false); }} variant="green">{"💾"} Save SKU Prices</Btn>
             </>
           )}
         </div>
@@ -4462,7 +4462,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                   </div>
                 ))}
               </div>
-              <Btn onClick={async()=>{ await onSaveSkuPrices({...skuPrices,...supplyForm}); setSupplyEditing(false); }} variant="green">💾 Save Supply Costs</Btn>
+              <Btn onClick={async()=>{ await onSaveSkuPrices({...skuPrices,...supplyForm}); setSupplyEditing(false); }} variant="green">{"💾"} Save Supply Costs</Btn>
             </>
           )}
         </div>
@@ -4481,12 +4481,12 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               <div style={{ fontSize:36, fontWeight:900, color: out?"#991b1b":low?"#92400e":pc.text, marginBottom:4 }}>{s.current}</div>
               <div style={{ fontSize:10, color:"#AAAAAA" }}>in stock</div>
               <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8 }}>
-                <span style={{ fontSize:10, color:"#AAAAAA" }}>↑ {s.received} rcvd</span>
-                <span style={{ fontSize:10, color:"#AAAAAA" }}>↓ {s.used} used</span>
+                <span style={{ fontSize:10, color:"#AAAAAA" }}>{"↑"} {s.received} rcvd</span>
+                <span style={{ fontSize:10, color:"#AAAAAA" }}>{"↓"} {s.used} used</span>
               </div>
               {skuPrices[pt] && <div style={{ marginTop:6, fontSize:10, color:pc.text, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}/unit</div>}
-              {out  && <div style={{ marginTop:8, background:"#111111", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>🚨 Out of Stock</div>}
-              {!out && low && <div style={{ marginTop:8, background:"#111111", color:"#AAAAAA", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>⚠ Low Stock</div>}
+              {out  && <div style={{ marginTop:8, background:"#111111", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{"🚨"} Out of Stock</div>}
+              {!out && low && <div style={{ marginTop:8, background:"#111111", color:"#AAAAAA", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{"⚠"} Low Stock</div>}
             </div>
           );
         })}
@@ -4501,7 +4501,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               <div style={{ ...S.card, border:"2px solid #333333" }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
                   <SectionLabel t={editId ? "Edit Shipment" : "Add Shipment"} />
-                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18 }}>✕</button>
+                  <button onClick={cancelForm} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18 }}>{"✕"}</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr", gap:12, marginBottom:14 }}>
                   <div><label style={S.lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={S.inp}/></div>
@@ -4515,7 +4515,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                   <div><label style={S.lbl}>Notes (optional)</label><input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="e.g. Special edition, damaged box..." style={S.inp}/></div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
-                  <Btn onClick={handleSave} disabled={!form.productType||!form.qty||!form.date} variant="green">💾 {editId?"Update":"Save"} Shipment</Btn>
+                  <Btn onClick={handleSave} disabled={!form.productType||!form.qty||!form.date} variant="green">{"💾"} {editId?"Update":"Save"} Shipment</Btn>
                   <Btn onClick={cancelForm} variant="ghost">Cancel</Btn>
                 </div>
               </div>
@@ -4544,8 +4544,8 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                       <td style={S.td}>
                         {canEdit && (
                           <div style={{ display:"flex", gap:6 }}>
-                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>✏️</button>
-                            <button onClick={()=>{ if(window.confirm("Delete this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"1px solid #FCA5A5", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#E8317A" }}>🗑</button>
+                            <button onClick={()=>openEdit(s)} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"✏️"}</button>
+                            <button onClick={()=>{ if(window.confirm("Delete this shipment?")) onDeleteShipment(s.id); }} style={{ background:"none", border:"1px solid #FCA5A5", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", color:"#E8317A" }}>{"🗑"}</button>
                           </div>
                         )}
                       </td>
@@ -4580,7 +4580,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                         <button
                           onClick={()=>{ if(window.confirm("Delete this usage entry? Stock will be restored.")) onDeleteProductUsage(u.id); }}
                           style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
-                        >🗑</button>
+                        >{"🗑"}</button>
                       )}
                     </td>
                   </tr>
@@ -4661,7 +4661,7 @@ function Sellers({ inventory, breaks, userRole }) {
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         {/* Back + header */}
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={()=>setSelectedSeller(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
+          <button onClick={()=>setSelectedSeller(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"←"} Back</button>
           <div>
             <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{s.name}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>
@@ -4760,7 +4760,7 @@ function Sellers({ inventory, breaks, userRole }) {
 
       {filtered.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px", color:"#D1D5DB" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
+            <div style={{ fontSize:32, marginBottom:12 }}>{"👥"}</div>
             <div>No customers yet -- start importing lots from Lot Comp</div>
           </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -4805,7 +4805,7 @@ function Sellers({ inventory, breaks, userRole }) {
                         <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Spent</div>
                       </div>
                     )}
-                    <div style={{ color:"#D1D5DB", fontSize:18 }}>›</div>
+                    <div style={{ color:"#D1D5DB", fontSize:18 }}>{"›"}</div>
                   </div>
                 </div>
               );
@@ -4953,7 +4953,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                     <div style={{ fontSize:13, fontWeight:700, color:subtotal>0?"#E8317A":"#333", whiteSpace:"nowrap", minWidth:80, textAlign:"right" }}>
                       {subtotal>0?`$${subtotal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"--"}
                     </div>
-                    {products.length > 1 && <button onClick={()=>removeProduct(p.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>✕</button>}
+                    {products.length > 1 && <button onClick={()=>removeProduct(p.id)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"✕"}</button>}
                   </div>
                 );
               })}
@@ -5002,7 +5002,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
             <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} &middot; {targetPct}% of Market Value</div>
             <div style={{ fontSize:13, color:"#888", marginBottom:6 }}>Price per spot to hit your target</div>
             <div style={{ fontSize:56, fontWeight:900, color:zone.c, letterSpacing:-1 }}>${spotPrice.toFixed(2)}</div>
-            <div style={{ fontSize:13, color:"#666", marginTop:6 }}>{numSpots} spots × ${spotPrice.toFixed(2)} = <strong style={{color:"#F0F0F0"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
+            <div style={{ fontSize:13, color:"#666", marginTop:6 }}>{numSpots} spots {"×"} ${spotPrice.toFixed(2)} = <strong style={{color:"#F0F0F0"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
           </div>
 
           {/* Financial breakdown */}
@@ -5061,7 +5061,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
           {/* Break-even callout */}
           <div style={{ ...S.card, background:"#0a0f1a", border:"1px solid #7B9CFF33", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>🚨 Break-Even Spot Price (1.0x)</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{"🚨"} Break-Even Spot Price (1.0x)</div>
               <div style={{ fontSize:12, color:"#666" }}>At this price you're just recovering market value -- no profit</div>
             </div>
             <div style={{ textAlign:"right" }}>
@@ -5074,8 +5074,8 @@ function BreakPlanner({ skuPrices={}, userRole }) {
 
       {totalMktVal === 0 && (
         <div style={{ ...S.card, textAlign:"center", padding:"60px 40px", color:"#555" }}>
-          <div style={{ fontSize:32, marginBottom:12 }}>🧮</div>
-          <div style={{ fontSize:14 }}>Select a product and set your prices in Inventory → Product Tracking to get started</div>
+          <div style={{ fontSize:32, marginBottom:12 }}>{"🧮"}</div>
+          <div style={{ fontSize:14 }}>Select a product and set your prices in Inventory {"→"} Product Tracking to get started</div>
         </div>
       )}
     </div>
@@ -5121,7 +5121,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
     <div style={{ background:"#0d0d0d", border:"1px solid #222", borderRadius:10, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:32, height:32, borderRadius:"50%", background:"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>💵</div>
+          <div style={{ width:32, height:32, borderRadius:"50%", background:"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>{"💵"}</div>
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontWeight:800, fontSize:13, color:"#F0F0F0" }}>{stub.breaker}</span>
@@ -5140,7 +5140,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
           </div>
           <div style={{ display:"flex", gap:6 }}>
             <button onClick={()=>setExpanded(p=>!p)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{expanded?"▲ Hide":"▼ View"}</button>
-            <button onClick={()=>{ if(window.confirm(`Delete pay stub for ${stub.breaker}?\n\nThis removes it from their dashboard too.`)) onDeletePayStub(stub.id); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+            <button onClick={()=>{ if(window.confirm(`Delete pay stub for ${stub.breaker}?\n\nThis removes it from their dashboard too.`)) onDeletePayStub(stub.id); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"}</button>
           </div>
         </div>
       </div>
@@ -5341,13 +5341,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={()=>setViewStream(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Back</button>
+          <button onClick={()=>setViewStream(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"←"} Back</button>
           <div>
             <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} &middot; ${(c.rate*100).toFixed(0)}% commission`}</span>
-              {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🌱 {s.newBuyers} new buyers</span>}
+              {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{"🌱"} {s.newBuyers} new buyers</span>}
             </div>
           </div>
 
@@ -5368,7 +5368,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`− Your Expenses (13.5% of stream costs)`, v:"− "+fmt(c.repExp),                 c:"#991b1b", indent:true  },
               ...(isAdmin ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0),        c:"#166534", indent:true  }] : []),
               { l:"= Commission Base",                    v:fmt(c.bazNet - c.repExp),               c:"#7B9CFF", indent:false, bold:true },
-              { l:`× Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`× ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
+              { l:`× Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`{"×"} ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
@@ -5377,17 +5377,17 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             ))}
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:10 }} className="save-flash">
-            <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>💵 Commission Earned</span>
+            <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"💵"} Commission Earned</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt)}</span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
-            <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>🏦 Bazooka True Net</span>
+            <span style={{ fontWeight:800, fontSize:16, color:"#E8317A" }}>{"🏦"} Bazooka True Net</span>
             <span style={{ fontWeight:900, fontSize:28, color:"#E8317A" }}>{fmt(c.bazTrueNet)}</span>
           </div>
           )}
           {s.marketMultiple && !s.binOnly && (
-            <div style={{ marginTop:10, fontSize:12, color:"#AAAAAA", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
+            <div style={{ marginTop:10, fontSize:12, color:"#AAAAAA", textAlign:"right" }}>Market multiple: {s.marketMultiple}x {"→"} {(c.rate*100).toFixed(0)}% rate</div>
           )}
           {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#111111", borderRadius:7, fontSize:12, color:"#AAAAAA", fontStyle:"italic" }}>{s.notes}</div>}
         </div>
@@ -5401,11 +5401,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={cancelEdit} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>← Cancel</button>
+          <button onClick={cancelEdit} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"←"} Cancel</button>
           <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0" }}>{editing==="new"?"New Stream":"Edit Stream"}</div>
           {importing && (
             <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1.5px solid #E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              📂 Select Whatnot CSV
+              {"📂"} Select Whatnot CSV
               <input type="file" accept=".csv" onChange={handleCSV} style={{ display:"none" }}/>
             </label>
           )}
@@ -5491,7 +5491,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         )}
 
         <div style={{ display:"flex", gap:10 }}>
-          <Btn onClick={handleSave} disabled={!form.date||!form.breaker} variant="green">💾 Save Stream</Btn>
+          <Btn onClick={handleSave} disabled={!form.date||!form.breaker} variant="green">{"💾"} Save Stream</Btn>
           <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
         </div>
       </div>
@@ -5508,7 +5508,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStub?14:0 }}>
             <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
               <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1 }}/>
-              💵 Pay Stub Generator
+              {"💵"} Pay Stub Generator
             </div>
             <button onClick={()=>setShowStub(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {showStub ? "▲ Hide" : "▼ Generate"}
@@ -5618,7 +5618,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   .footer { text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
                   .print-btn { background:#E8317A; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; }
                 </style></head><body>
-                <button class="no-print print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+                <button class="no-print print-btn" onclick="window.print()">{"🖨"} Print / Save as PDF</button>
                 <div class="header">
                   <div>
                     <div class="logo">BAZOOKA</div>
@@ -5630,12 +5630,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div>Streams: <strong>${stubStreams.length}</strong></div>
                   </div>
                 </div>
-                <div class="breaker-badge">🎯 ${targetBreaker}</div>
+                <div class="breaker-badge">{"🎯"} ${targetBreaker}</div>
                 ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
                 <table>
                   <thead><tr>
                     ${adminPDF
-                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
+                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">{"−"} Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
                       : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
                     }
                   </tr></thead>
@@ -5656,7 +5656,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   </div>
                 </div>
                 <div class="payout">
-                  <div class="payout-label">💵 Commission Earned This Period</div>
+                  <div class="payout-label">{"💵"} Commission Earned This Period</div>
                   <div class="payout-amt">${fmt(totals.comm)}</div>
                 </div>`}
                 <div class="footer">Bazooka Breaks, LLC &nbsp;&middot;&nbsp; This document is confidential and intended for the named recipient only.</div>
@@ -5690,7 +5690,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <input type="date" value={stubTo} onChange={e=>setStubTo(e.target.value)} style={S.inp}/>
                     </div>
                   </>}
-                  <Btn onClick={()=>{ printStub(); }} variant="ghost">👁 Preview PDF</Btn>
+                  <Btn onClick={()=>{ printStub(); }} variant="ghost">{"👁"} Preview PDF</Btn>
                   <Btn onClick={async()=>{
                     printStub();
                     try {
@@ -5705,7 +5705,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
-                  }} variant="green" disabled={stubStreams.length===0}>📤 Send to {targetBreaker}</Btn>
+                  }} variant="green" disabled={stubStreams.length===0}>{"📤"} Send to {targetBreaker}</Btn>
                   <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px" }}>
                     <span style={{ fontSize:11, color:"#666" }}>PDF View:</span>
                     <button onClick={()=>setStubAdminView(false)} style={{ background:!stubAdminView?"#E8317A":"transparent", color:!stubAdminView?"#fff":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Rep</button>
@@ -5781,7 +5781,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showStubHist ? 14 : 0 }}>
             <div style={{ fontSize:10, fontWeight:800, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
               <div style={{ width:14, height:2, background:"#AAAAAA", borderRadius:1 }}/>
-              📋 Statement History ({payStubs.length})
+              {"📋"} Statement History ({payStubs.length})
             </div>
             <button onClick={()=>setShowStubHist(p=>!p)} style={{ background:"transparent", border:"1.5px solid #333", color:"#888", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {showStubHist?"▲ Hide":"▼ Show"}
@@ -5869,7 +5869,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {/* Stream list */}
       {filteredStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>💵</div>
+            <div style={{ fontSize:32, marginBottom:12 }}>{"💵"}</div>
             <div style={{ color:"#AAAAAA" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
@@ -5886,14 +5886,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
                   {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
-                  {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
+                  {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>{"🌱"} {s.newBuyers} new</span>}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{fmt(c.commAmt)}</div>
                     <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
                   </div>
-                  <span style={{ color:"#D1D5DB", fontSize:18 }}>›</span>
+                  <span style={{ color:"#D1D5DB", fontSize:18 }}>{"›"}</span>
                 </div>
               </div>
             );
@@ -6006,11 +6006,11 @@ function PublicDeckBuilder() {
     <div style={{ background:"#0a0a0a", minHeight:"100vh", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0", padding:20 }}>
       <div style={{ maxWidth:1400, margin:"0 auto" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-          <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>← Back</a>
-          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>⚔️ Deck Builder</div>
+          <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>{"←"} Back</a>
+          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{"⚔️"} Deck Builder</div>
           <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{ ...S.inp, width:"auto", fontWeight:700, color:deckType==="spec"?"#FBBF24":deckType==="apex"?"#A855F7":"#888" }}>
             <option value="none">No Restrictions</option>
-            <option value="spec">Spec Deck (≤160 power)</option>
+            <option value="spec">Spec Deck ({"≤"}160 power)</option>
             <option value="apex">Apex Deck</option>
             <option value="apexmadness">Apex Madness</option>
           </select>
@@ -6053,7 +6053,7 @@ function PublicDeckBuilder() {
                 );
               })}
               {deckFilterPowers.size > 0 && (
-                <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear</button>
+                <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"✕"} Clear</button>
               )}
             </div>
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
@@ -6084,7 +6084,7 @@ function PublicDeckBuilder() {
 
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ ...S.card }}>
-              <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Stats</div>
+              <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>{"⚔️"} Stats</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 {[{l:"Cards",v:`${inDeck.length}/${PUBLIC_DECK_SIZE}`,c:inDeck.length===PUBLIC_DECK_SIZE?"#4ade80":"#FBBF24"},{l:"Total Power",v:Math.round(totalPower).toLocaleString(),c:"#E8317A"},{l:"Heroes",v:heroCover.size,c:"#7B9CFF"},{l:"Avg Power",v:inDeck.length>0?Math.round(totalPower/inDeck.length):0,c:"#FBBF24"}].map(({l,v,c})=>(
                   <div key={l} style={{ background:"#111", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
@@ -6116,15 +6116,15 @@ function PublicDeckBuilder() {
             </div>
             <div style={{ ...S.card }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                <span style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>Deck Slots -- {empty>0?<span style={{ color:"#FBBF24" }}>{empty} empty</span>:<span style={{ color:"#4ade80" }}>Full! ✅</span>}</span>
+                <span style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>Deck Slots -- {empty>0?<span style={{ color:"#FBBF24" }}>{empty} empty</span>:<span style={{ color:"#4ade80" }}>Full! {"✅"}</span>}</span>
                 <select value={deckSlotSort} onChange={e=>setDeckSlotSort(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:10, padding:"3px 8px", cursor:"pointer" }}>
-                  <option value="added">Order Added</option><option value="power">Power ↓</option><option value="name">Name A→Z</option><option value="weapon">Weapon</option>
+                  <option value="added">Order Added</option><option value="power">Power {"↓"}</option><option value="name">Name A{"→"}Z</option><option value="weapon">Weapon</option>
                 </select>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
                 {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
               </div>
-              {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>✕ Clear</button>}
+              {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"✕"} Clear</button>}
             </div>
           </div>
         </div>
@@ -6194,8 +6194,8 @@ function PublicPlaybookBuilder() {
     <div style={{ background:"#0a0a0a", minHeight:"100vh", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0", padding:20 }}>
       <div style={{ maxWidth:1400, margin:"0 auto" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-          <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>← Back</a>
-          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>📖 Playbook Builder</div>
+          <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>{"←"} Back</a>
+          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{"📖"} Playbook Builder</div>
           <span style={{ fontSize:12, color:playFull?"#E8317A":"#4ade80", fontWeight:700 }}>{playCount}/{PUBLIC_PLAY_LIMIT} plays</span>
           {bonusCount>0 && <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>&middot; {bonusCount} BPL</span>}
           <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save playbooks</span>
@@ -6207,8 +6207,8 @@ function PublicPlaybookBuilder() {
               <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play name or ability..." style={{ ...S.inp, flex:1 }}/>
               <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                 <option value="name">Sort: Name</option>
-                <option value="dbs_desc">DBS: High → Low</option>
-                <option value="dbs_asc">DBS: Low → High</option>
+                <option value="dbs_desc">DBS: High {"→"} Low</option>
+                <option value="dbs_asc">DBS: Low {"→"} High</option>
               </select>
               <span style={{ fontSize:11, color:"#555", alignSelf:"center" }}>{available.length} plays</span>
             </div>
@@ -6245,7 +6245,7 @@ function PublicPlaybookBuilder() {
 
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ ...S.card }}>
-              <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>📖 Playbook</div>
+              <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>{"📖"} Playbook</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus Plays",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
                   <div key={l} style={{ background:"#111", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
@@ -6262,7 +6262,7 @@ function PublicPlaybookBuilder() {
               </div>
               <div style={{ background:dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-                  <span style={{ fontSize:11, fontWeight:800, color:dbsOver?"#E8317A":"#A855F7" }}>💰 DBS</span>
+                  <span style={{ fontSize:11, fontWeight:800, color:dbsOver?"#E8317A":"#A855F7" }}>{"💰"} DBS</span>
                   <span style={{ fontSize:11, fontWeight:700, color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
                 </div>
                 <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
@@ -6276,9 +6276,9 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button></div>); })}</div>}
-                <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>✕ Clear</button></div>
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"⚔️"} Plays ({pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"×"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>{"⭐"} Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"#333", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"×"}</button></div>); })}</div>}
+                <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"✕"} Clear</button></div>
               </div>
             )}
           </div>
@@ -6381,7 +6381,7 @@ function BobaShowcase({ uid }) {
   if (loading) return (
     <div style={{ minHeight:"100vh", background:"#000", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Trebuchet MS',sans-serif" }}>
       <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:48, marginBottom:16 }}>🃏</div>
+        <div style={{ fontSize:48, marginBottom:16 }}>{"🃏"}</div>
         <div style={{ color:"#E8317A", fontWeight:700, fontSize:16 }}>Loading Showcase...</div>
       </div>
     </div>
@@ -6428,9 +6428,9 @@ function BobaShowcase({ uid }) {
             </select>
             <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{ background:"#111", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               <option value="set">Sort: Set</option>
-              <option value="power">Sort: Power ↓</option>
+              <option value="power">Sort: Power {"↓"}</option>
               <option value="rarity">Sort: Rarity</option>
-              <option value="hero">Sort: Hero A→Z</option>
+              <option value="hero">Sort: Hero A{"→"}Z</option>
             </select>
             <div style={{ flex:1 }}/>
             <span style={{ fontSize:11, color:"#333" }}>{filtered.length} cards &middot; {totalPages} pages</span>
@@ -6441,7 +6441,7 @@ function BobaShowcase({ uid }) {
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"32px" }}>
         {ownedCards.length === 0 ? (
           <div style={{ textAlign:"center", padding:"100px 0", color:"#333" }}>
-            <div style={{ fontSize:56, marginBottom:20 }}>🃏</div>
+            <div style={{ fontSize:56, marginBottom:20 }}>{"🃏"}</div>
             <div style={{ fontSize:18, fontWeight:900, color:"#555" }}>No cards yet</div>
             <div style={{ fontSize:13, marginTop:8, color:"#333" }}>Mark cards as owned in the BoBA Checklist to populate your showcase.</div>
           </div>
@@ -6450,7 +6450,7 @@ function BobaShowcase({ uid }) {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
               <button onClick={()=>goPage(page-1)} disabled={page===0}
                 style={{ background:"transparent", border:"1px solid #2a2a2a", color:page===0?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page===0?"default":"pointer", fontFamily:"inherit" }}>
-                ← Prev
+                {"←"} Prev
               </button>
               <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                 {Array.from({ length: Math.min(totalPages, 9) }).map((_, i) => {
@@ -6462,11 +6462,11 @@ function BobaShowcase({ uid }) {
                     </button>
                   );
                 })}
-                {totalPages > 9 && <span style={{ color:"#333", fontSize:11 }}>…{totalPages}</span>}
+                {totalPages > 9 && <span style={{ color:"#333", fontSize:11 }}>{"…"}{totalPages}</span>}
               </div>
               <button onClick={()=>goPage(page+1)} disabled={page>=totalPages-1}
                 style={{ background:"transparent", border:"1px solid #2a2a2a", color:page>=totalPages-1?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page>=totalPages-1?"default":"pointer", fontFamily:"inherit" }}>
-                Next →
+                Next {"→"}
               </button>
             </div>
 
@@ -6527,15 +6527,15 @@ function BobaShowcase({ uid }) {
                   <div style={{ fontSize:56, fontWeight:900, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#E8317A", lineHeight:1 }}>{spotlight.power}</div>
                 </div>
               )}
-              {spotlight.athlete && <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>🏅 Inspired by {spotlight.athlete}</div>}
+              {spotlight.athlete && <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>{"🏅"} Inspired by {spotlight.athlete}</div>}
               {spotlight.variation && <div style={{ fontSize:12, color:"#333", marginBottom:16 }}>{spotlight.variation}</div>}
               <div style={{ display:"flex", gap:10, marginTop:8 }}>
                 <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i>0) setSpotlight(filtered[i-1]); }} disabled={filtered.indexOf(spotlight)===0}
-                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>← Prev</button>
+                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"←"} Prev</button>
                 <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i<filtered.length-1) setSpotlight(filtered[i+1]); }} disabled={filtered.indexOf(spotlight)===filtered.length-1}
-                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Next →</button>
+                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Next {"→"}</button>
                 <button onClick={()=>setSpotlight(null)}
-                  style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>✕ Close</button>
+                  style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>{"✕"} Close</button>
               </div>
             </div>
           </div>
@@ -6729,7 +6729,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 
   const QtyControls = () => (
     <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
-      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>{"−"}</button>
       <span style={{ fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#555", minWidth:16, textAlign:"center" }}>{qty}</span>
       <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
     </div>
@@ -6744,7 +6744,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
-            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>✅</div>}
+            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"✅"}</div>}
           </div>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
@@ -6758,7 +6758,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                 {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                 {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
               </div>
-              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>🏅 Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
+              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{"🏅"} Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
@@ -6782,7 +6782,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
         {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
-      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>🏅 Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
+      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>{"🏅"} Inspired by {c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -7288,7 +7288,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const imageUrl = await getDownloadURL(storageRef);
         await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
         matched++;
-        console.log(`✅ ${file.name} → ${match.hero} #${match.cardNum} (${match.setName})`);
+        console.log(`{"✅"} ${file.name} {"→"} ${match.hero} #${match.cardNum} (${match.setName})`);
 
       } catch(e) {
         console.error(`Error scanning ${file.name}:`, e);
@@ -7930,7 +7930,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       <div style={{ ...S.card, padding:"12px 16px" }}>
         {/* Row 1: title + stats + view toggles */}
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: imports.length > 0 ? 10 : 0, flexWrap:"wrap" }}>
-          <span style={{ fontSize:16, fontWeight:900, color:"#F0F0F0" }}>🃏 BoBA</span>
+          <span style={{ fontSize:16, fontWeight:900, color:"#F0F0F0" }}>{"🃏"} BoBA</span>
           <span style={{ fontSize:11, color:"#555" }}>{totalCards.toLocaleString()} cards</span>
           {totalOwned > 0 && <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{totalOwned} owned</span>}
           {totalCollection > totalOwned && <span style={{ fontSize:11, color:"#7B9CFF" }}>{totalCollection} copies</span>}
@@ -7946,13 +7946,13 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
             {isAdmin && (
               <label style={{ background:"#1A1A2E", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                📂 Import Cards
+                {"📂"} Import Cards
                 <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display:"none" }}/>
               </label>
             )}
             {isAdmin && (
               <label title="Import .webp/.jpg/.png card images directly" style={{ background:"#0a1a0a", color:"#4ade80", border:"1px solid #4ade8044", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:imgScanProgress?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:imgScanProgress?0.5:1 }}>
-                🖼 Import Images
+                {"🖼"} Import Images
                 <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple disabled={!!imgScanProgress}
                   onChange={e=>{
                     const files = e.target.files;
@@ -7967,7 +7967,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             <button title="Scan cards into your collection"
               onClick={()=>{ setScanModal(true); setScanSession([]); setPhotoScan(null); }}
               style={{ background:"#1a0a1a", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              📷 Scan Card
+              {"📷"} Scan Card
             </button>
             {isAdmin && (
               <label title="Import DBS salary values (CSV: card_num, dbs)" style={{ background:"#1a0f1a", color:"#A855F7", border:"1px solid #A855F744", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1 }}>
@@ -7994,7 +7994,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 setDbsStatus({ msg:`✅ Wiped ${playcards.length} play cards -- re-import DBS CSV now`, ok:true });
                 setTimeout(()=>setDbsStatus(null),8000);
               }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                🧹 Wipe DBS Data
+                {"🧹"} Wipe DBS Data
               </button>
             )}
             {dbsStatus && (
@@ -8015,19 +8015,19 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   alert("No data found in the shared collection.");
                 }
               }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                ↑ Restore My Collection
+                {"↑"} Restore My Collection
               </button>
             )}
             <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              📥 Collection
+              {"📥"} Collection
               <input type="file" accept=".csv" onChange={e=>{ const f=e.target.files[0]; if(f) importCollectionCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
             </label>
-            <button onClick={downloadTemplate} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📋</button>
+            <button onClick={downloadTemplate} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📋"}</button>
             {totalOwned > 0 && (
-              <button onClick={exportCollection} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤</button>
+              <button onClick={exportCollection} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📤"}</button>
             )}
             {totalOwned > 0 && (
-              <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards?`)) return; await setDoc(doc(db,"boba_owned",ownedDocId),{}); setOwned({}); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              <button onClick={async()=>{ if(!window.confirm(`Clear all ${totalOwned} owned cards?`)) return; await setDoc(doc(db,"boba_owned",ownedDocId),{}); setOwned({}); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✕"}</button>
             )}
           </div>
         </div>
@@ -8121,10 +8121,10 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       {collectionImportResult && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setCollectionImportResult(null)}>
           <div style={{ background:"#111111", border:"1.5px solid #7B9CFF44", borderRadius:14, padding:"24px", width:420, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:12 }}>📥 Import Complete</div>
-            <div style={{ fontSize:13, color:"#4ade80", marginBottom:4 }}>✅ {collectionImportResult.matched} cards matched & imported</div>
+            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:12 }}>{"📥"} Import Complete</div>
+            <div style={{ fontSize:13, color:"#4ade80", marginBottom:4 }}>{"✅"} {collectionImportResult.matched} cards matched & imported</div>
             {collectionImportResult.skipped > 0 && (
-              <div style={{ fontSize:13, color:"#E8317A", marginBottom:8 }}>⚠️ {collectionImportResult.skipped} rows skipped (no match found)</div>
+              <div style={{ fontSize:13, color:"#E8317A", marginBottom:8 }}>{"⚠️"} {collectionImportResult.skipped} rows skipped (no match found)</div>
             )}
             {collectionImportResult.skippedRows.length > 0 && (
               <div style={{ maxHeight:120, overflowY:"auto", background:"#0a0a0a", borderRadius:6, padding:"8px 10px", fontSize:10, color:"#666", marginBottom:12 }}>
@@ -8140,7 +8140,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       {pendingScan && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setPendingScan(null)}>
           <div style={{ background:"#111111", border:"1.5px solid #7B9CFF44", borderRadius:14, padding:"24px", width:420, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:4 }}>🔍 Scan PDF: {pendingScan.file.name}</div>
+            <div style={{ fontWeight:800, fontSize:15, color:"#7B9CFF", marginBottom:4 }}>{"🔍"} Scan PDF: {pendingScan.file.name}</div>
             <div style={{ fontSize:12, color:"#555", marginBottom:16 }}>Tell Claude what's in this PDF so it only needs to match hero names</div>
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               <div>
@@ -8164,7 +8164,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 : "Select treatment and weapon to narrow matching"}
             </div>
             <div style={{ display:"flex", gap:8, marginTop:16 }}>
-              <button onClick={()=>{ if(!pendingScan.treatment||!pendingScan.weapon){ alert("Please select both treatment and weapon"); return; } scanPdfForCards(pendingScan.file, pendingScan.setName, pendingScan.treatment, pendingScan.weapon); setPendingScan(null); }} style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🔍 Start Scan</button>
+              <button onClick={()=>{ if(!pendingScan.treatment||!pendingScan.weapon){ alert("Please select both treatment and weapon"); return; } scanPdfForCards(pendingScan.file, pendingScan.setName, pendingScan.treatment, pendingScan.weapon); setPendingScan(null); }} style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1.5px solid #7B9CFF", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"🔍"} Start Scan</button>
               <button onClick={()=>setPendingScan(null)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:8, padding:"8px 18px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
             </div>
           </div>
@@ -8175,7 +8175,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       {scanProgress && (
         <div style={{ ...S.card, border:"1.5px solid #7B9CFF44", background:"#0a0f1a" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-            <div style={{ fontWeight:700, color:"#7B9CFF", fontSize:14 }}>🔍 Scanning: {scanPdf}</div>
+            <div style={{ fontWeight:700, color:"#7B9CFF", fontSize:14 }}>{"🔍"} Scanning: {scanPdf}</div>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={()=>{ scanPausedRef.current=!scanPausedRef.current; setScanPaused(p=>!p); }} style={{ background:"#1a1a2e", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {scanPaused ? "▶ Resume" : "⏸ Pause"}
@@ -8201,7 +8201,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           {/* Header bar */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>📷 Scan Mode</span>
+              <span style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>{"📷"} Scan Mode</span>
               {scanSession.length > 0 && (
                 <span style={{ fontSize:12, background:"#E8317A22", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>
                   {scanSession.length} added
@@ -8221,7 +8221,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               {!photoScan && (
                  <label style={{ display:"block", width:"100%", cursor:"pointer" }}>
                    <div style={{ background:"#0a0a0a", border:"2px dashed #E8317A44", borderRadius:16, padding:"32px 16px", textAlign:"center" }}>
-                     <div style={{ fontSize:48, marginBottom:8 }}>📷</div>
+                     <div style={{ fontSize:48, marginBottom:8 }}>{"📷"}</div>
                      <div style={{ fontSize:16, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Tap to scan a card</div>
                      <div style={{ fontSize:12, color:"#555" }}>Opens camera to identify the card</div>
                    </div>
@@ -8270,14 +8270,14 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     <div style={{ padding:"12px 14px", borderTop:"1px solid #1a2a1a", display:"flex", alignItems:"center", gap:10 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:0, background:"#111", borderRadius:8, border:"1px solid #2a2a2a", overflow:"hidden" }}>
                         <button onClick={()=>setScanQty(q=>Math.max(1,q-1))}
-                          style={{ background:"none", border:"none", color:"#888", fontSize:18, fontWeight:700, width:40, height:40, cursor:"pointer", fontFamily:"inherit" }}>−</button>
+                          style={{ background:"none", border:"none", color:"#888", fontSize:18, fontWeight:700, width:40, height:40, cursor:"pointer", fontFamily:"inherit" }}>{"−"}</button>
                         <span style={{ fontSize:16, fontWeight:900, color:"#F0F0F0", minWidth:32, textAlign:"center" }}>{scanQty}</span>
                         <button onClick={()=>setScanQty(q=>q+1)}
                           style={{ background:"none", border:"none", color:"#888", fontSize:18, fontWeight:700, width:40, height:40, cursor:"pointer", fontFamily:"inherit" }}>+</button>
                       </div>
                       <button onClick={()=>confirmScanAdd(scanQty)}
                         style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"10px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
-                        ✓ Add {scanQty > 1 ? `${scanQty}×` : ""} to Collection
+                        {"✓"} Add {scanQty > 1 ? `${scanQty}{"×"}` : ""} to Collection
                       </button>
                       <label style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center" }}>
                         Retake
@@ -8294,7 +8294,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
               {photoScan?.status === "nomatch" && (
                 <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
-                  <div style={{ fontSize:32, marginBottom:8 }}>❌</div>
+                  <div style={{ fontSize:32, marginBottom:8 }}>{"❌"}</div>
                   <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Card not recognized</div>
                   {photoScan.identified?.hero && <div style={{ fontSize:12, color:"#555", marginBottom:12 }}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
                   <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
@@ -8306,7 +8306,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
               {photoScan?.status === "error" && (
                 <div style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
-                  <div style={{ fontSize:32, marginBottom:8 }}>⚠️</div>
+                  <div style={{ fontSize:32, marginBottom:8 }}>{"⚠️"}</div>
                   <div style={{ fontSize:15, fontWeight:800, color:"#E8317A", marginBottom:8 }}>Scan failed</div>
                   {photoScan.message && <div style={{ fontSize:11, color:"#555", marginBottom:12, fontFamily:"monospace" }}>{photoScan.message}</div>}
                   <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
@@ -8358,15 +8358,15 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       {/* Non-modal photoScan toast (used when not in modal) */}
       {!scanModal && photoScan && photoScan.status !== "scanning" && (
         <div style={{ ...S.card, border:`1.5px solid ${photoScan.status==="matched"?"#4ade8044":"#E8317A44"}`, background:photoScan.status==="matched"?"#0a1a0a":"#1a0a0a", display:"flex", alignItems:"center", gap:12 }}>
-          {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>✅</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} &middot; #{photoScan.card?.cardNum}</div></div></>}
-          {photoScan.status==="nomatch" && <><span style={{ fontSize:28 }}>❌</span><div><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found</div>{photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"}</div>}</div></>}
-          {photoScan.status==="error" && <><span style={{ fontSize:28 }}>⚠️</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed -- try again</div></>}
+          {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>{"✅"}</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} &middot; #{photoScan.card?.cardNum}</div></div></>}
+          {photoScan.status==="nomatch" && <><span style={{ fontSize:28 }}>{"❌"}</span><div><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found</div>{photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"}</div>}</div></>}
+          {photoScan.status==="error" && <><span style={{ fontSize:28 }}>{"⚠️"}</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed -- try again</div></>}
         </div>
       )}
 
       {imgScanProgress && (
         <div style={{ ...S.card, border:"1.5px solid #4ade8044", background:"#0a1a0a" }}>
-          <div style={{ fontWeight:700, color:"#4ade80", fontSize:14, marginBottom:10 }}>🖼 Scanning Images...</div>
+          <div style={{ fontWeight:700, color:"#4ade80", fontSize:14, marginBottom:10 }}>{"🖼"} Scanning Images...</div>
           <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
             <div style={{ width:`${imgScanProgress.total > 0 ? Math.round(imgScanProgress.current/imgScanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#4ade80,#7B9CFF)", borderRadius:4, transition:"width 0.3s" }}/>
           </div>
@@ -8382,7 +8382,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         const existingSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
         return (
           <div style={{ ...S.card, border:"1.5px solid #E8317A44", background:"#0a0005" }}>
-            <div style={{ fontWeight:700, color:"#F0F0F0", marginBottom:10 }}>📂 {pendingFile.name}</div>
+            <div style={{ fontWeight:700, color:"#F0F0F0", marginBottom:10 }}>{"📂"} {pendingFile.name}</div>
             <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
               {!newSetMode && existingSets.length > 0 ? (
                 <>
@@ -8402,7 +8402,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {existingSets.length > 0 && (
                     <button onClick={()=>{ setNewSetMode(false); setSetNameInput(""); }}
                       style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"6px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                      ← Existing
+                      {"←"} Existing
                     </button>
                   )}
                   <input
@@ -8452,9 +8452,9 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         </select>
         <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
           <option value="cardNum">Sort: Card #</option>
-          <option value="hero">Sort: Hero A→Z</option>
-          <option value="power_desc">Sort: Power High→Low</option>
-          <option value="power_asc">Sort: Power Low→High</option>
+          <option value="hero">Sort: Hero A{"→"}Z</option>
+          <option value="power_desc">Sort: Power High{"→"}Low</option>
+          <option value="power_asc">Sort: Power Low{"→"}High</option>
           <option value="treatment">Sort: Treatment</option>
           <option value="weapon">Sort: Weapon</option>
           <option value="owned">Sort: Owned First</option>
@@ -8531,7 +8531,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               {/* Set selector -- dropdown */}
               {availableSets.length > 0 && (
                 <select value={rainbowSetFilter} onChange={e=>setRainbowSetFilter(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer" }}>
-                  <option value="">🌈 All Sets</option>
+                  <option value="">{"🌈"} All Sets</option>
                   {availableSets.map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               )}
@@ -8579,7 +8579,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                                 <div key={setName} style={{ display:"flex", alignItems:"center", gap:4, background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>
                                   <span style={{ fontSize:10, color:"#555" }}>{setName}:</span>
                                   <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
-                                  {sd.owned===sd.total && <span style={{ fontSize:10 }}>🌈</span>}
+                                  {sd.owned===sd.total && <span style={{ fontSize:10 }}>{"🌈"}</span>}
                                 </div>
                               );
                             })}
@@ -8613,8 +8613,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                         </div>
                         {/* Toggle all for hero */}
                         <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
-                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✅"} Mark All Owned</button>
+                          <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✕"} Clear All</button>
                         </div>
                       </div>
                     )}
@@ -8692,8 +8692,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Mark All Owned</button>
-                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear All</button>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>next[c.id]=true); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✅"} Mark All Owned</button>
+                        <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; tcards.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",ownedDocId),next); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✕"} Clear All</button>
                       </div>
                     </div>
                   )}
@@ -8827,8 +8827,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             {haveList.length > 0 && (
               <div style={{ ...S.card }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                  <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🔄 Tradeable Extras ({haveList.length} cards)</div>
-                  <button onClick={exportHaveList} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤 Export Have List</button>
+                  <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{"🔄"} Tradeable Extras ({haveList.length} cards)</div>
+                  <button onClick={exportHaveList} style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📤"} Export Have List</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                   {haveList.sort((a,b)=>(owned[b.id]||0)-(owned[a.id]||0)).map(c=>{
@@ -8840,7 +8840,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                           <div style={{ fontSize:10, color:"#555" }}>#{c.cardNum} &middot; <span style={{color:wc2}}>{c.weapon}</span></div>
                         </div>
                         <div style={{ textAlign:"right" }}>
-                          <div style={{ fontSize:14, fontWeight:900, color:"#4ade80" }}>×{owned[c.id]||0}</div>
+                          <div style={{ fontSize:14, fontWeight:900, color:"#4ade80" }}>{"×"}{owned[c.id]||0}</div>
                           <div style={{ fontSize:10, color:"#FBBF24" }}>+{(owned[c.id]||0)-1} extra</div>
                         </div>
                       </div>
@@ -8860,9 +8860,9 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🎯 Want List -- {Object.keys(wantList).length} cards flagged</div>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{"🎯"} Want List -- {Object.keys(wantList).length} cards flagged</div>
               <div style={{ display:"flex", gap:8 }}>
-                {wantedCards.length > 0 && <button onClick={exportWantList} style={{ background:"#1a0f00", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📤 Export Want List</button>}
+                {wantedCards.length > 0 && <button onClick={exportWantList} style={{ background:"#1a0f00", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📤"} Export Want List</button>}
               </div>
             </div>
             {wantedCards.length === 0 && wantedOwned.length === 0 && (
@@ -8872,7 +8872,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             )}
             {wantedCards.length > 0 && (
               <div style={{ ...S.card }}>
-                <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:8 }}>🎯 Still Need ({wantedCards.length})</div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:8 }}>{"🎯"} Still Need ({wantedCards.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                   {wantedCards.map(c => {
                     const isOwned2 = !!owned[c.id];
@@ -8883,7 +8883,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
             )}
             {wantedOwned.length > 0 && (
               <div style={{ ...S.card }}>
-                <div style={{ fontSize:12, fontWeight:700, color:"#4ade80", marginBottom:8 }}>✅ Got It! ({wantedOwned.length})</div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#4ade80", marginBottom:8 }}>{"✅"} Got It! ({wantedOwned.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                   {wantedOwned.map(c => {
                     const isOwned2 = !!owned[c.id];
@@ -9008,7 +9008,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   style={{ ...S.inp, width:"auto", fontWeight:700, cursor:"pointer",
                     color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7": deckType==="apexmadness"?"#E8317A":"#888" }}>
                   <option value="none">No Restrictions</option>
-                  <option value="spec">Spec Deck (≤160 power)</option>
+                  <option value="spec">Spec Deck ({"≤"}160 power)</option>
                   <option value="apex">Apex Deck (no power limit)</option>
                   <option value="apexmadness">Apex Madness</option>
                 </select>
@@ -9033,7 +9033,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                       <button onClick={()=>loadDeck(d)} style={{ background:"none", border:"none", color:deckLoadId===d.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         {d.name} <span style={{ color:"#555", fontWeight:400 }}>({d.cardCount})</span>
                       </button>
-                      <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+                      <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>{"×"}</button>
                     </div>
                   ))}
                 </div>
@@ -9095,7 +9095,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     );
                   })}
                   {deckFilterPowers.size > 0 && (
-                    <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕ Clear</button>
+                    <button onClick={()=>setDeckFilterPowers(new Set())} style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"✕"} Clear</button>
                   )}
                 </div>
 
@@ -9145,7 +9145,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
 
                   <div style={{ ...S.card }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>⚔️ Deck Stats
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>{"⚔️"} Deck Stats
                     {deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":"#A855F7", fontWeight:700 }}>
                       {deckType==="spec"?"SPEC":deckType==="apexmadness"?"APEX MADNESS":"APEX"}
                     </span>}
@@ -9153,9 +9153,9 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {/* Rule violations */}
                   {deckViolations.length > 0 && (
                     <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"8px 10px", marginBottom:10 }}>
-                      <div style={{ fontSize:10, color:"#E8317A", fontWeight:700, marginBottom:4 }}>⚠️ {deckViolations.length} Rule Violation{deckViolations.length!==1?"s":""}</div>
+                      <div style={{ fontSize:10, color:"#E8317A", fontWeight:700, marginBottom:4 }}>{"⚠️"} {deckViolations.length} Rule Violation{deckViolations.length!==1?"s":""}</div>
                       {deckViolations.slice(0,3).map(c=>(
-                        <div key={c.id} style={{ fontSize:10, color:"#888" }}>• {c.hero} #{c.cardNum} ({c.power})</div>
+                        <div key={c.id} style={{ fontSize:10, color:"#888" }}>{"•"} {c.hero} #{c.cardNum} ({c.power})</div>
                       ))}
                       {deckViolations.length > 3 && <div style={{ fontSize:10, color:"#555" }}>...and {deckViolations.length-3} more</div>}
                     </div>
@@ -9163,11 +9163,11 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {/* Rules summary */}
                   {hasRules && (
                     <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:10, fontSize:10, color:"#555", lineHeight:1.8 }}>
-                      {isSpec        && <div style={{ color:"#FBBF24" }}>⚡ Max power: 160</div>}
-                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ Core deck: 115-160 power only</div>}
-                      {isApexMadness && <div style={{ color:"#A855F7" }}>⚡ 10 core cards per treatment unlocks 1 apex card (&gt;160) of that treatment</div>}
-                      <div>⚡ No duplicates (same hero + pose + power + weapon)</div>
-                      <div>⚡ Max 6 cards per power level</div>
+                      {isSpec        && <div style={{ color:"#FBBF24" }}>{"⚡"} Max power: 160</div>}
+                      {isApexMadness && <div style={{ color:"#A855F7" }}>{"⚡"} Core deck: 115-160 power only</div>}
+                      {isApexMadness && <div style={{ color:"#A855F7" }}>{"⚡"} 10 core cards per treatment unlocks 1 apex card (&gt;160) of that treatment</div>}
+                      <div>{"⚡"} No duplicates (same hero + pose + power + weapon)</div>
+                      <div>{"⚡"} Max 6 cards per power level</div>
                     </div>
                   )}
 
@@ -9277,13 +9277,13 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 <div style={{ ...S.card }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
                     <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>
-                      Deck Slots -- {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! ✅</span>}
+                      Deck Slots -- {empty > 0 ? <span style={{ color:"#FBBF24" }}>{empty} empty</span> : <span style={{ color:"#4ade80" }}>Full! {"✅"}</span>}
                     </div>
                     <select value={deckSlotSort} onChange={e=>setDeckSlotSort(e.target.value)}
                       style={{ ...S.inp, width:"auto", fontSize:10, padding:"3px 8px", cursor:"pointer" }}>
                       <option value="added">Order Added</option>
-                      <option value="power">Power ↓</option>
-                      <option value="name">Name A→Z</option>
+                      <option value="power">Power {"↓"}</option>
+                      <option value="name">Name A{"→"}Z</option>
                       <option value="weapon">Weapon</option>
                     </select>
                   </div>
@@ -9321,7 +9321,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {inDeck.length > 0 && (
                     <button onClick={()=>{ if(window.confirm("Clear all cards from deck?")) setDeckCards([]); }}
                       style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
-                      ✕ Clear Deck
+                      {"✕"} Clear Deck
                     </button>
                   )}
                 </div>
@@ -9398,7 +9398,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                       <button onClick={()=>loadPlaybook(pb)} style={{ background:"none", border:"none", color:pbLoadId===pb.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         {pb.name} <span style={{ color:"#555", fontWeight:400 }}>({pb.playCount}P{pb.bonusCount>0?` +${pb.bonusCount}B`:""})</span>
                       </button>
-                      <button onClick={()=>deletePlaybook(pb.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+                      <button onClick={()=>deletePlaybook(pb.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px" }}>{"×"}</button>
                     </div>
                   ))}
                 </div>
@@ -9429,14 +9429,14 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   </select>
                   <select value={pbTreatFilter} onChange={e=>setPbTreatFilter(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="">All Types</option>
-                    <option value="Plays">⚔️ Plays</option>
-                    <option value="Bonus Plays">⭐ Bonus Plays</option>
-                    <option value="Home Team Discount">🌭 Home Team Discount</option>
+                    <option value="Plays">{"⚔️"} Plays</option>
+                    <option value="Bonus Plays">{"⭐"} Bonus Plays</option>
+                    <option value="Home Team Discount">{"🌭"} Home Team Discount</option>
                   </select>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                     <option value="name">Sort: Name</option>
-                    <option value="dbs_desc">DBS: High → Low</option>
-                    <option value="dbs_asc">DBS: Low → High</option>
+                    <option value="dbs_desc">DBS: High {"→"} Low</option>
+                    <option value="dbs_asc">DBS: Low {"→"} High</option>
                   </select>
                   <span style={{ fontSize:11, color:"#555" }}>{available.length} plays available</span>
                 </div>
@@ -9503,7 +9503,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
                 {/* Stats */}
                 <div style={{ ...S.card }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>📖 Playbook</div>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:10 }}>{"📖"} Playbook</div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                     {[
                       { l:"Plays", v:`${playCount}/${PLAY_LIMIT}`, c:playFull?"#E8317A":"#4ade80" },
@@ -9525,7 +9525,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   {/* DBS cap */}
                   <div style={{ background: dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
-                      <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>💰 DBS</span>
+                      <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>{"💰"} DBS</span>
                       <span style={{ fontSize:11, fontWeight:700, color: dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>
                         {Math.round(totalDbs)} / {DBS_CAP}
                       </span>
@@ -9550,7 +9550,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     {pbResolved.filter(e=>e.type==="play").length > 0 && (
                       <div>
                         <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>
-                          ⚔️ Plays ({pbResolved.filter(e=>e.type==="play").length})
+                          {"⚔️"} Plays ({pbResolved.filter(e=>e.type==="play").length})
                         </div>
                         {pbResolved.filter(e=>e.type==="play").map((e,i) => {
                           const c = e.card;
@@ -9565,7 +9565,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
-                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
+                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"×"}</button>
                             </div>
                           );
                         })}
@@ -9575,7 +9575,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     {pbResolved.filter(e=>e.type==="bonus").length > 0 && (
                       <div>
                         <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid #1a1a1a" }}>
-                          ⭐ Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})
+                          {"⭐"} Bonus Plays ({pbResolved.filter(e=>e.type==="bonus").length})
                         </div>
                         {pbResolved.filter(e=>e.type==="bonus").map((e,i) => {
                           const c = e.card;
@@ -9589,7 +9589,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                                 {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
-                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>×</button>
+                                style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"×"}</button>
                             </div>
                           );
                         })}
@@ -9598,7 +9598,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     <div style={{ padding:"10px 14px" }}>
                       <button onClick={()=>{ if(window.confirm("Clear entire playbook?")) setPbCards([]); }}
                         style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
-                        ✕ Clear Playbook
+                        {"✕"} Clear Playbook
                       </button>
                     </div>
                   </div>
@@ -9650,7 +9650,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
             <SectionLabel t={`Imported Sets (${imports.length})`} />
             {cards.length > 0 && imports.length === 0 && (
-              <div style={{ fontSize:11, color:"#FBBF24" }}>⚠ Cards found but no import record -- use Rename below or re-import</div>
+              <div style={{ fontSize:11, color:"#FBBF24" }}>{"⚠"} Cards found but no import record -- use Rename below or re-import</div>
             )}
           </div>
           {imports.length === 0 ? (
@@ -9673,7 +9673,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                   setOwned({});
                   try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
                 }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  🗑 Clear All Cards
+                  {"🗑"} Clear All Cards
                 </button>
               )}
             </div>
@@ -9687,8 +9687,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                         <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
                           onKeyDown={e=>{ if(e.key==="Enter") handleRenameSet(imp,renameVal); if(e.key==="Escape") setRenamingId(null); }}
                           style={{ ...S.inp, flex:1, fontSize:13, padding:"4px 8px" }}/>
-                        <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓</button>
-                        <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
+                        <button onClick={()=>handleRenameSet(imp,renameVal)} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✓"}</button>
+                        <button onClick={()=>setRenamingId(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>{"✕"}</button>
                       </div>
                     ) : (
                       <>
@@ -9698,14 +9698,14 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                     )}
                   </div>
                   <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                    <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️ Rename</button>
+                    <button onClick={()=>{ setRenamingId(imp.id); setRenameVal(imp.setName); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✏️"} Rename</button>
                     {!scanPdf && (
                       <label style={{ background:"#0a0f1a", color:"#7B9CFF", border:"1px solid #7B9CFF44", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                        🔍 Scan PDF
+                        {"🔍"} Scan PDF
                         <input type="file" accept=".pdf" onChange={e=>{ const f=e.target.files[0]; if(f) setPendingScan({ file:f, setName:imp.setName }); e.target.value=""; }} style={{ display:"none" }}/>
                       </label>
                     )}
-                    <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>
+                    <button onClick={()=>handleDeleteImport(imp)} style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"🗑"} Delete</button>
                   </div>
                 </div>
               ))}
@@ -9724,7 +9724,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
                 await setDoc(doc(db,"boba_owned",ownedDocId), {});
                 setOwned({});
               }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                🗑 Clear All & Restart
+                {"🗑"} Clear All & Restart
               </button>
             </div>
           )}
@@ -10293,7 +10293,7 @@ function PublicCardDatabase() {
         {/* Vault inner ring */}
         <div style={{position:"absolute",inset:8,borderRadius:"50%",border:"2px solid rgba(123,156,255,0.1)",borderBottomColor:"#7B9CFF",animation:"spin 2s linear infinite reverse"}}/>
         {/* Vault center */}
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>🔐</div>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{"🔐"}</div>
       </div>
       <div style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:4}}>Bazooka Vault</div>
       <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Loading...</div>
@@ -10365,23 +10365,23 @@ function PublicCardDatabase() {
               <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
                 {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:64,height:85,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 8px 24px ${wc}44`}}/>:<div style={{width:64,height:85,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0}}/>}
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:`${wc}`,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>📊 Card Comp</div>
+                  <div style={{fontSize:11,color:`${wc}`,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>{"📊"} Card Comp</div>
                   <div style={{fontSize:20,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                     <span style={{background:`${wc}22`,color:wc,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700}}>{c.weapon}</span>
                     <span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.treatment}</span>
-                    {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}⚡</span>}
+                    {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}{"⚡"}</span>}
                     {c.setName&&<span style={{background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"2px 8px",fontSize:10}}>{c.setName}</span>}
                   </div>
                 </div>
-                <button onClick={()=>setCompCard(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:22,padding:0,alignSelf:"flex-start",lineHeight:1}}>×</button>
+                <button onClick={()=>setCompCard(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:22,padding:0,alignSelf:"flex-start",lineHeight:1}}>{"×"}</button>
               </div>
 
               <div style={{padding:24}}>
                 {/* Exact match comps */}
                 <div style={{marginBottom:24}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>✅ Exact Match Sales</div>
+                    <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>{"✅"} Exact Match Sales</div>
                     <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same card, same treatment, same power</span>
                   </div>
                   {exact?(
@@ -10416,7 +10416,7 @@ function PublicCardDatabase() {
                 {/* Similar cards */}
                 <div style={{marginBottom:24}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>🔍 Similar Card Sales</div>
+                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>{"🔍"} Similar Card Sales</div>
                     <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same hero, similar treatment or power</span>
                   </div>
                   {near?(
@@ -10433,7 +10433,7 @@ function PublicCardDatabase() {
                         {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
                           <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
                             <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} &middot; {s.cardPower}⚡</div>
+                              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} &middot; {s.cardPower}{"⚡"}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
                             </div>
                             <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
@@ -10450,7 +10450,7 @@ function PublicCardDatabase() {
 
                 {/* eBay placeholder */}
                 <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{fontSize:24}}>🛒</div>
+                  <div style={{fontSize:24}}>{"🛒"}</div>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
                     <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon -- eBay sold listings will appear here for real-world comps</div>
@@ -10467,7 +10467,7 @@ function PublicCardDatabase() {
       {signingIn&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setSigningIn(false)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a0a12)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:24,padding:40,textAlign:"center",maxWidth:380,boxShadow:"0 40px 120px rgba(232,49,122,0.2)",animation:"floatUp 0.4s ease"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:48,marginBottom:16}}>🃏</div>
+            <div style={{fontSize:48,marginBottom:16}}>{"🃏"}</div>
             <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0",marginBottom:8}}>Join the Community</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",marginBottom:28,lineHeight:1.6}}>Track your collection, scan cards, build decks, and connect with BoBA collectors worldwide.</div>
             <button onClick={signInGoogle} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"14px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",width:"100%",boxShadow:"0 8px 32px rgba(232,49,122,0.4)",transition:"transform 0.2s,box-shadow 0.2s"}}
@@ -10483,8 +10483,8 @@ function PublicCardDatabase() {
       {listModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>💰 List for Sale/Trade</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} &middot; {listModal.treatment} &middot; {listModal.power}⚡</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"💰"} List for Sale/Trade</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} &middot; {listModal.treatment} &middot; {listModal.power}{"⚡"}</div>
             <div style={{display:"flex",gap:6,marginBottom:16}}>
               {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setListType(v)} style={{flex:1,background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:`1.5px solid ${listType===v?"#4ade80":"rgba(255,255,255,0.1)"}`,color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
@@ -10504,7 +10504,7 @@ function PublicCardDatabase() {
       {offerModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setOfferModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(251,191,36,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>🤝 Make an Offer</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"🤝"} Make an Offer</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{offerModal.cardName} &middot; listed by {offerModal.sellerName}</div>
             <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:20}}>Asking: ${(offerModal.askingPrice||0).toFixed(2)}</div>
             <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="Your offer ($)" type="number" step="0.01" style={{...inp,width:"100%",marginBottom:10,borderColor:"rgba(251,191,36,0.3)"}}/>
@@ -10522,7 +10522,7 @@ function PublicCardDatabase() {
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>📷 Scan Mode</span>
+              <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{"📷"} Scan Mode</span>
               {scanSession.length>0&&<span style={{fontSize:12,background:"rgba(232,49,122,0.15)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.3)",borderRadius:20,padding:"3px 12px",fontWeight:700}}>{scanSession.length} added</span>}
             </div>
             <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>Done</button>
@@ -10533,7 +10533,7 @@ function PublicCardDatabase() {
                 <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.05),rgba(123,47,247,0.05))",border:"2px dashed rgba(232,49,122,0.3)",borderRadius:20,padding:"50px 20px",textAlign:"center",transition:"all 0.2s"}}
                   onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.6)"}
                   onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.3)"}>
-                  <div style={{fontSize:56,marginBottom:12}}>📷</div>
+                  <div style={{fontSize:56,marginBottom:12}}>{"📷"}</div>
                   <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
                 </div>
@@ -10557,14 +10557,14 @@ function PublicCardDatabase() {
                       <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} &middot; {c.setName}</div>
-                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}⚡</div>
+                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}{"⚡"}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
-                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>−</button>
+                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>{"−"}</button>
                     <span style={{fontSize:20,fontWeight:900,minWidth:40,textAlign:"center"}}>{scanQty}</span>
                     <button onClick={()=>setScanQty(q=>q+1)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>+</button>
-                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>✅ Add {scanQty}</button>
+                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>{"✅"} Add {scanQty}</button>
                   </div>
                   <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
                 </div>
@@ -10572,7 +10572,7 @@ function PublicCardDatabase() {
             })()}
             {photoScan?.status==="nomatch"&&(
               <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
-                <div style={{fontSize:36,marginBottom:10}}>❌</div>
+                <div style={{fontSize:36,marginBottom:10}}>{"❌"}</div>
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:12}}>Card not recognized</div>
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
                   Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
@@ -10581,7 +10581,7 @@ function PublicCardDatabase() {
             )}
             {photoScan?.status==="error"&&(
               <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
-                <div style={{fontSize:36,marginBottom:10}}>⚠️</div>
+                <div style={{fontSize:36,marginBottom:10}}>{"⚠️"}</div>
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
                 {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
@@ -10594,8 +10594,8 @@ function PublicCardDatabase() {
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Added this session</div>
                 {scanSession.slice(0,5).map((s,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                    <span style={{fontSize:20}}>✅</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} &middot; {s.card.power}⚡</div></div>
+                    <span style={{fontSize:20}}>{"✅"}</span>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} &middot; {s.card.power}{"⚡"}</div></div>
                     <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
                   </div>
                 ))}
@@ -10646,7 +10646,7 @@ function PublicCardDatabase() {
                   <button onClick={()=>setScanModal(true)} style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s"}}
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
-                    📷 Scan
+                    {"📷"} Scan
                   </button>
                   <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
                 </>
@@ -10680,7 +10680,7 @@ function PublicCardDatabase() {
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap"}}>
             {marketNotifs.map(n=>(
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:12,padding:"8px 14px"}}>
-                <span style={{fontSize:14}}>🤝</span>
+                <span style={{fontSize:14}}>{"🤝"}</span>
                 <span style={{fontSize:12,color:"#FBBF24",fontWeight:700}}>{n.buyerName} offered <strong>${(n.offerAmount||0).toFixed(2)}</strong> for {n.cardName}</span>
                 <button onClick={()=>respondOffer(n,"accepted")} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
                 <button onClick={()=>respondOffer(n,"declined")} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
@@ -10694,14 +10694,14 @@ function PublicCardDatabase() {
       {wantNotifs.length>0&&(
         <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.05))",borderBottom:"1px solid rgba(232,49,122,0.15)",padding:"10px 24px"}}>
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>🎯 Cards on your want list are now available:</span>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>{"🎯"} Cards on your want list are now available:</span>
             {wantNotifs.map(n=>(
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px 12px"}}>
                 {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
                 <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>{n.cardName}</span>
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>by {n.sellerName} &middot; ${(n.askingPrice||0).toFixed(2)}</span>
                 <button onClick={()=>{setActiveTab("market");setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
-                <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>×</button>
+                <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>{"×"}</button>
               </div>
             ))}
           </div>
@@ -10727,8 +10727,8 @@ function PublicCardDatabase() {
               </select>
               <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
-                <option value="hero">Hero A→Z</option>
-                <option value="power">Power ↓</option>
+                <option value="hero">Hero A{"→"}Z</option>
+                <option value="power">Power {"↓"}</option>
                 <option value="setName">Set</option>
               </select>
               {user&&(
@@ -10751,7 +10751,7 @@ function PublicCardDatabase() {
                   {/* Comp button -- bottom left of every card */}
                   <button onClick={e=>{e.stopPropagation();setCompCard(c);}} title="View price comps"
                     style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.75)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:6,padding:"3px 7px",fontSize:10,cursor:"pointer",backdropFilter:"blur(6px)",color:"#7B9CFF",fontWeight:700,zIndex:10}}>
-                    📊 Comp
+                    {"📊"} Comp
                   </button>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
@@ -10767,7 +10767,7 @@ function PublicCardDatabase() {
                   {/* Card dim when private */}
                   {privateCards[c.id]&&privacyAnim!==c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.4)",pointerEvents:"none",zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"flex-end",padding:6}}>
-                      <span style={{fontSize:14,filter:"drop-shadow(0 1px 3px rgba(0,0,0,0.8))"}}>🔒</span>
+                      <span style={{fontSize:14,filter:"drop-shadow(0 1px 3px rgba(0,0,0,0.8))"}}>{"🔒"}</span>
                     </div>
                   )}
                   {/* Private toggle + list button on owned cards */}
@@ -10784,7 +10784,7 @@ function PublicCardDatabase() {
                       </button>
                       <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
                         style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
-                        💰
+                        {"💰"}
                       </button>
                     </div>
                   )}
@@ -10800,7 +10800,7 @@ function PublicCardDatabase() {
           <div>
             {Object.keys(wantList).length===0?(
               <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                <div style={{fontSize:48,marginBottom:16}}>🎯</div>
+                <div style={{fontSize:48,marginBottom:16}}>{"🎯"}</div>
                 <div style={{fontSize:16,fontWeight:700}}>No cards on your want list</div>
                 <div style={{fontSize:13,marginTop:8}}>Flip a card in the Cards tab and tap + Want</div>
               </div>
@@ -10825,7 +10825,7 @@ function PublicCardDatabase() {
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
                   <option value="none">No Restrictions</option>
-                  <option value="spec">Spec Deck (≤160)</option>
+                  <option value="spec">Spec Deck ({"≤"}160)</option>
                   <option value="apex">Apex Deck</option>
                   <option value="apexmadness">Apex Madness</option>
                 </select>
@@ -10846,7 +10846,7 @@ function PublicCardDatabase() {
                   return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
                     style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" ⚠":""}</button>;
                 })}
-                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>}
+                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"✕"}</button>}
               </div>
               <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
@@ -10874,7 +10874,7 @@ function PublicCardDatabase() {
             </div>
             <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>⚔️ {deckName}</div>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"⚔️"} {deckName}</div>
                 <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
               </div>
               {isAM&&inDeck.length>0&&(
@@ -10906,7 +10906,7 @@ function PublicCardDatabase() {
               {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.5)",borderRadius:10,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.15)";e.currentTarget.style.color="rgba(232,49,122,0.5)";}}>
-                ✕ Clear deck
+                {"✕"} Clear deck
               </button>}
             </div>
           </div>
@@ -10931,9 +10931,9 @@ function PublicCardDatabase() {
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
-                    <option value="name">Name A→Z</option>
-                    <option value="dbs_desc">DBS High→Low</option>
-                    <option value="dbs_asc">DBS Low→High</option>
+                    <option value="name">Name A{"→"}Z</option>
+                    <option value="dbs_desc">DBS High{"→"}Low</option>
+                    <option value="dbs_asc">DBS Low{"→"}High</option>
                   </select>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
@@ -10964,7 +10964,7 @@ function PublicCardDatabase() {
                 </div>
               </div>
               <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>📖 Playbook</div>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"📖"} Playbook</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                   {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
                     <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
@@ -10981,7 +10981,7 @@ function PublicCardDatabase() {
                 </div>
                 <div style={{background:dbsOver?"rgba(232,49,122,0.05)":"rgba(0,0,0,0.3)",border:`1px solid ${dbsOver?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.05)"}`,borderRadius:10,padding:"12px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                    <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>💰 DBS Budget</span>
+                    <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>{"💰"} DBS Budget</span>
                     <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
                   </div>
                   <div style={{height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden",marginBottom:6}}>
@@ -11007,14 +11007,14 @@ function PublicCardDatabase() {
                                   <div style={{fontSize:11,fontWeight:700,color:color}}>{c.hero}</div>
                                   {c.dbs&&<div style={{fontSize:10,color:"#A855F7"}}>DBS: {c.dbs}</div>}
                                 </div>
-                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>×</button>
+                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>{"×"}</button>
                               </div>
                             );
                           })}
                         </div>
                       );
                     })}
-                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>✕ Clear</button>
+                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>{"✕"} Clear</button>
                   </div>
                 )}
               </div>
@@ -11036,12 +11036,12 @@ function PublicCardDatabase() {
                         {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} &middot; {l.cardPower}⚡</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} &middot; {l.cardPower}{"⚡"}</div>
                           <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
                           <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
                         </div>
                       </div>
-                      {l.offerCount>0&&<div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:8}}>🤝 {l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
+                      {l.offerCount>0&&<div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:8}}>{"🤝"} {l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
                       <button onClick={()=>removeListing(l.id)} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.5)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Remove Listing</button>
                     </div>
                   ))}
@@ -11056,9 +11056,9 @@ function PublicCardDatabase() {
               </div>
               {listings.length===0?(
                 <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                  <div style={{fontSize:48,marginBottom:16}}>💰</div>
+                  <div style={{fontSize:48,marginBottom:16}}>{"💰"}</div>
                   <div style={{fontSize:16,fontWeight:700}}>No cards listed yet</div>
-                  <div style={{fontSize:13,marginTop:8}}>List your owned cards from the Cards tab using the 💰 button</div>
+                  <div style={{fontSize:13,marginTop:8}}>List your owned cards from the Cards tab using the {"💰"} button</div>
                 </div>
               ):(
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
@@ -11072,7 +11072,7 @@ function PublicCardDatabase() {
                             <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
                             <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}⚡ &middot; {l.setName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}{"⚡"} &middot; {l.setName}</div>
                           </div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -11089,7 +11089,7 @@ function PublicCardDatabase() {
                         <button style={{width:"100%",background:`linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))`,border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
                           onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.25),rgba(245,158,11,0.2))";e.currentTarget.style.boxShadow="0 4px 16px rgba(251,191,36,0.2)";}}
                           onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))";e.currentTarget.style.boxShadow="";}}>
-                          🤝 Make Offer
+                          {"🤝"} Make Offer
                         </button>
                       </div>
                     );
@@ -11105,7 +11105,7 @@ function PublicCardDatabase() {
           <div style={{maxWidth:800,margin:"0 auto"}}>
             {!user?(
               <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>💬</div>
+                <div style={{fontSize:48,marginBottom:16}}>{"💬"}</div>
                 <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to view messages</button>
               </div>
             ):activeThread?(
@@ -11113,7 +11113,7 @@ function PublicCardDatabase() {
               <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
                 {/* Header */}
                 <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.3)"}}>
-                  <button onClick={()=>setActiveThread(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>←</button>
+                  <button onClick={()=>setActiveThread(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>{"←"}</button>
                   {activeThread.cardImage&&<img src={activeThread.cardImage} alt="" style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{activeThread.cardName}</div>
@@ -11122,9 +11122,9 @@ function PublicCardDatabase() {
                     </div>
                   </div>
                   {activeThread.status==="active"&&activeThread.sellerUid===user.uid&&(
-                    <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Mark Complete</button>
+                    <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"✅"} Mark Complete</button>
                   )}
-                  {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>✅ Completed</span>}
+                  {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>{"✅"} Completed</span>}
                 </div>
                 {/* Messages */}
                 <div style={{height:400,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}} id="msg-scroll">
@@ -11159,10 +11159,10 @@ function PublicCardDatabase() {
             ):(
               // -- Thread list --
               <div>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>💬 Deal Messages</div>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>{"💬"} Deal Messages</div>
                 {threads.length===0?(
                   <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                    <div style={{fontSize:48,marginBottom:16}}>💬</div>
+                    <div style={{fontSize:48,marginBottom:16}}>{"💬"}</div>
                     <div style={{fontSize:14,fontWeight:700}}>No deal threads yet</div>
                     <div style={{fontSize:12,marginTop:8}}>When you accept or make an offer, a chat thread opens here to coordinate payment</div>
                   </div>
@@ -11176,11 +11176,11 @@ function PublicCardDatabase() {
                           style={{display:"flex",alignItems:"center",gap:14,background:isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:"14px 18px",cursor:"pointer",transition:"all 0.15s",backdropFilter:"blur(10px)"}}
                           onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.borderColor="rgba(255,255,255,0.12)";}}
                           onMouseLeave={e=>{e.currentTarget.style.background=isUnread?"rgba(232,49,122,0.06)":"rgba(255,255,255,0.02)";e.currentTarget.style.borderColor=isUnread?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.06)";}}>
-                          {t.cardImage?<img src={t.cardImage} alt={t.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🃏</div>}
+                          {t.cardImage?<img src={t.cardImage} alt={t.cardName} style={{width:40,height:54,objectFit:"cover",borderRadius:7,flexShrink:0}}/>:<div style={{width:40,height:54,background:"rgba(255,255,255,0.04)",borderRadius:7,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{"🃏"}</div>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                               <div style={{fontSize:14,fontWeight:isUnread?800:600,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.cardName}</div>
-                              {t.status==="completed"&&<span style={{fontSize:10,color:"#4ade80",fontWeight:700,flexShrink:0}}>✅ Done</span>}
+                              {t.status==="completed"&&<span style={{fontSize:10,color:"#4ade80",fontWeight:700,flexShrink:0}}>{"✅"} Done</span>}
                               {isUnread&&<span style={{width:8,height:8,borderRadius:"50%",background:"#E8317A",flexShrink:0,boxShadow:"0 0 8px rgba(232,49,122,0.8)"}}/>}
                             </div>
                             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:3}}>with {otherName} &middot; ${(t.agreedPrice||0).toFixed(2)}</div>
@@ -11199,7 +11199,7 @@ function PublicCardDatabase() {
               {/* Recent Sales / Price History */}
               {marketSales.length>0&&(
                 <div style={{marginTop:32}}>
-                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>📈 Recent Sales</div>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>{"📈"} Recent Sales</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}}>Price history from completed deals on this platform</div>
                   {/* Summary by card */}
                   {(()=>{
@@ -11227,7 +11227,7 @@ function PublicCardDatabase() {
                                   <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.cardName}</div>
                                   <div style={{fontSize:10,color:wc,fontWeight:700}}>{entry.weapon}</div>
                                   <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.treatment}</div>
-                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.power}⚡</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{entry.power}{"⚡"}</div>
                                 </div>
                               </div>
                               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
@@ -11256,7 +11256,7 @@ function PublicCardDatabase() {
                           {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:28,height:37,objectFit:"cover",borderRadius:5,flexShrink:0}}/>:<div style={{width:28,height:37,background:"rgba(255,255,255,0.04)",borderRadius:5,flexShrink:0}}/>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} &middot; <span style={{color:wc}}>{s.cardWeapon}</span> &middot; {s.cardPower}⚡</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} &middot; <span style={{color:wc}}>{s.cardWeapon}</span> &middot; {s.cardPower}{"⚡"}</div>
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
                             <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</div>
@@ -11277,13 +11277,13 @@ function PublicCardDatabase() {
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
               <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>👥</div>
+                <div style={{fontSize:48,marginBottom:16}}>{"👥"}</div>
                 <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)"}}>Sign in to add friends</button>
               </div>
             ):(
               <>
                 <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
-                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>➕ Add Friend</div>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>{"➕"} Add Friend</div>
                   <div style={{display:"flex",gap:8}}>
                     <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google sign-in email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
                     <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
@@ -11293,11 +11293,11 @@ function PublicCardDatabase() {
 
                 {friendReqs.length>0&&(
                   <div style={{background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>📬 Requests ({friendReqs.length})</div>
+                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>{"📬"} Requests ({friendReqs.length})</div>
                     {friendReqs.map(r=>(
                       <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{r.fromEmail}</div></div>
-                        <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Accept</button>
+                        <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"✅"} Accept</button>
                         <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
                       </div>
                     ))}
@@ -11306,11 +11306,11 @@ function PublicCardDatabase() {
 
                 {teamInvites.length>0&&(
                   <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Team Invites ({teamInvites.length})</div>
+                    <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"🏆"} Team Invites ({teamInvites.length})</div>
                     {teamInvites.map(inv=>(
                       <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{inv.teamName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {inv.fromName}</div></div>
-                        <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.3)",color:"#A855F7",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Join</button>
+                        <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.3)",color:"#A855F7",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"✅"} Join</button>
                         <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
                       </div>
                     ))}
@@ -11320,7 +11320,7 @@ function PublicCardDatabase() {
                 {sentReqs.length>0&&(
                   <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:12}}>
                     <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Pending sent</div>
-                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>⏳ {r.toEmail}</div>)}
+                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{"⏳"} {r.toEmail}</div>)}
                   </div>
                 )}
 
@@ -11329,7 +11329,7 @@ function PublicCardDatabase() {
                   {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet -- add someone above!</div>:
                     friends.map(f=>(
                       <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>👤</div>
+                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>{"👤"}</div>
                         <div style={{flex:1}}>
                           <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
@@ -11359,8 +11359,8 @@ function PublicCardDatabase() {
                               <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
                               <div style={{fontSize:10,color:wc,fontWeight:700}}>{c.weapon}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{c.treatment}</div>
-                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}⚡</div>
-                              {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>×{fo[c.id]}</div>}
+                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}{"⚡"}</div>
+                              {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>{"×"}{fo[c.id]}</div>}
                             </div>
                           );
                         })}
@@ -11378,7 +11378,7 @@ function PublicCardDatabase() {
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
               <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>🏆</div>
+                <div style={{fontSize:48,marginBottom:16}}>{"🏆"}</div>
                 <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
               </div>
             ):(
@@ -11386,7 +11386,7 @@ function PublicCardDatabase() {
                 {/* Create team form -- only show if no teams */}
                 {teams.filter(t=>t.status!=="deleted").length===0&&(
                   <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>🏆 Create Your Team</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"🏆"} Create Your Team</div>
                     <div style={{display:"flex",gap:8}}>
                       <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
                       <button onClick={createTeam} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(168,85,247,0.3)"}}>Create</button>
@@ -11444,12 +11444,12 @@ function PublicCardDatabase() {
                         onMouseEnter={e=>{if(isDraggable)e.currentTarget.style.borderColor=`${borderColor}88`;}}
                         onMouseLeave={e=>{e.currentTarget.style.borderColor=isMe?`${borderColor}44`:"rgba(255,255,255,0.06)";}}>
                         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                          {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👤</div>}
+                          {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"👤"}</div>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
                           </div>
-                          {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>⠿</span>}
+                          {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"⠿"}</span>}
                         </div>
                         {apexCards.length>0&&(
                           <div>
@@ -11464,10 +11464,10 @@ function PublicCardDatabase() {
                         {isOwner&&m.uid!==user.uid&&(
                           <div style={{display:"flex",gap:6,marginTop:10}}>
                             {slot==="starter"&&bench.length<2&&(
-                              <button onClick={()=>moveTeamMember(team,m.uid,"to_bench")} style={{fontSize:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",color:"#7B9CFF",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>→ Bench</button>
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_bench")} style={{fontSize:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",color:"#7B9CFF",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"→"} Bench</button>
                             )}
                             {slot==="bench"&&starters.length<4&&(
-                              <button onClick={()=>moveTeamMember(team,m.uid,"to_starter")} style={{fontSize:10,background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.2)",color:"#A855F7",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>→ Starter</button>
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_starter")} style={{fontSize:10,background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.2)",color:"#A855F7",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"→"} Starter</button>
                             )}
                           </div>
                         )}
@@ -11536,7 +11536,7 @@ function PublicCardDatabase() {
                               <button onClick={()=>deleteTeam(team)} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
                                 onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,49,122,0.15)";e.currentTarget.style.color="#E8317A";}}
                                 onMouseLeave={e=>{e.currentTarget.style.background="rgba(232,49,122,0.08)";e.currentTarget.style.color="rgba(232,49,122,0.6)";}}>
-                                🗑 Delete Team
+                                {"🗑"} Delete Team
                               </button>
                             )}
                           </div>
@@ -11554,13 +11554,13 @@ function PublicCardDatabase() {
                       {allMembers.length>1&&(
                         conflicts.length===0?(
                           <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
-                            <div style={{fontSize:24,marginBottom:8}}>✅</div>
+                            <div style={{fontSize:24,marginBottom:8}}>{"✅"}</div>
                             <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
                             <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
                           </div>
                         ):(
                           <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
-                            <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>⚠️ {conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
+                            <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>{"⚠️"} {conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
                             {conflicts.map(({card,members:mems},i)=>{
                               const wc=WEAPON_COLORS[card.weapon]||"#444";
                               return (
@@ -11569,7 +11569,7 @@ function PublicCardDatabase() {
                                     {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
                                   <div style={{flex:1}}>
-                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} &middot; {card.power}⚡ &middot; {card.treatment}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} &middot; {card.power}{"⚡"} &middot; {card.treatment}</div>
                                     <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
                                 </div>
@@ -11669,7 +11669,7 @@ function PublicQuote({ quoteId }) {
         {/* Status badge */}
         {quote.status && quote.status !== "pending" && (
           <div style={{ marginBottom:16, textAlign:"center" }}>
-            {{ accepted:<span style={{background:"#0a1a0a",color:"#4ade80",border:"1px solid #4ade8044",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>✅ You accepted this offer</span>, declined:<span style={{background:"#1a0a0a",color:"#E8317A",border:"1px solid #E8317A44",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>❌ You declined this offer</span>, countered:<span style={{background:"#1a1400",color:"#FBBF24",border:"1px solid #FBBF2444",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>🤝 Counter offer sent</span> }[quote.status]}
+            {{ accepted:<span style={{background:"#0a1a0a",color:"#4ade80",border:"1px solid #4ade8044",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>{"✅"} You accepted this offer</span>, declined:<span style={{background:"#1a0a0a",color:"#E8317A",border:"1px solid #E8317A44",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>{"❌"} You declined this offer</span>, countered:<span style={{background:"#1a1400",color:"#FBBF24",border:"1px solid #FBBF2444",borderRadius:20,padding:"6px 20px",fontSize:13,fontWeight:700}}>{"🤝"} Counter offer sent</span> }[quote.status]}
           </div>
         )}
 
@@ -11749,7 +11749,7 @@ function PublicQuote({ quoteId }) {
             {/* Big Accept button */}
             <button onClick={()=>submitResponse("accepted")}
               style={{ width:"100%", background:"#4ade80", color:"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
-              ✅ Accept Offer -- ${offer.toFixed(2)}
+              {"✅"} Accept Offer -- ${offer.toFixed(2)}
             </button>
 
             {/* Counter offer */}
@@ -11762,7 +11762,7 @@ function PublicQuote({ quoteId }) {
                     style={{ flex:1, background:"#0a0a0a", border:"1px solid #FBBF2444", borderRadius:8, color:"#FBBF24", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
                   <button onClick={()=>submitResponse("countered")} disabled={!counterAmt}
                     style={{ background:"#1a1400", border:"2px solid #FBBF24", color:"#FBBF24", borderRadius:8, padding:"10px 18px", fontSize:13, fontWeight:700, cursor:counterAmt?"pointer":"not-allowed", fontFamily:"inherit", opacity:counterAmt?1:0.4, whiteSpace:"nowrap" }}>
-                    🤝 Counter
+                    {"🤝"} Counter
                   </button>
                 </div>
               </div>
@@ -11771,7 +11771,7 @@ function PublicQuote({ quoteId }) {
             {/* Decline -- subtle */}
             <button onClick={()=>{ if(window.confirm("Decline this offer?")) submitResponse("declined"); }}
               style={{ width:"100%", background:"transparent", border:"1px solid #333", color:"#555", borderRadius:8, padding:"10px 0", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-              ❌ Decline this offer
+              {"❌"} Decline this offer
             </button>
           </div>
         )}
@@ -11788,7 +11788,7 @@ function PublicQuote({ quoteId }) {
 
         {submitted && (
           <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:12, padding:"20px", textAlign:"center" }}>
-            <div style={{ fontSize:28, marginBottom:8 }}>✅</div>
+            <div style={{ fontSize:28, marginBottom:8 }}>{"✅"}</div>
             <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>Response sent!</div>
             <div style={{ fontSize:12, color:"#555", marginTop:6 }}>Bazooka Breaks will be in touch soon.</div>
           </div>
@@ -11908,7 +11908,7 @@ export default function App() {
     for (const card of cards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString(), cardStatus:"in_transit" });
     }
-    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added -- marked In Transit until delivered`);
+    showToast(`{"✅"} ${cards.length} card${cards.length!==1?"s":""} added -- marked In Transit until delivered`);
     setTab("inventory");
   }
 
@@ -11916,7 +11916,7 @@ export default function App() {
 
   async function handleBulkRemove(ids) {
     await Promise.all(ids.map(id => deleteDoc(doc(db,"inventory",id))));
-    showToast(`🗑 ${ids.length} card${ids.length!==1?"s":""} deleted`);
+    showToast(`{"🗑"} ${ids.length} card${ids.length!==1?"s":""} deleted`);
   }
 
   async function handleSaveCardCost(id, cost) {
@@ -11929,12 +11929,12 @@ export default function App() {
 
   async function handleAddBreak(entry) {
     await setDoc(doc(db,"breaks",entry.id), { ...entry });
-    showToast(`✅ ${entry.cardName} logged out`);
+    showToast(`{"✅"} ${entry.cardName} logged out`);
   }
 
   async function handleBulkAddBreak(entries) {
     await Promise.all(entries.map(e => setDoc(doc(db,"breaks",e.id), e)));
-    showToast(`✅ ${entries.length} cards logged out`);
+    showToast(`{"✅"} ${entries.length} cards logged out`);
   }
 
   async function handleDeleteBreak(id) { await deleteDoc(doc(db,"breaks",id)); }
@@ -12024,14 +12024,14 @@ export default function App() {
     // Log a break entry for tracking
     const breakId = uid();
     await setDoc(doc(db,"breaks",breakId), { id:breakId, date, breaker, inventoryId:poolId, cardName:pool.cardName, cardType:pool.cardType, usage, notes:`Pool log: ${qty} units`, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", isPoolLog:true, qty });
-    showToast(`✅ Logged ${qty} ${pool.cardName}`);
+    showToast(`{"✅"} Logged ${qty} ${pool.cardName}`);
   }
 
   async function handleAddToPool(poolId, qty) {
     const pool = cardPools.find(p=>p.id===poolId);
     if (!pool) return;
     await setDoc(doc(db,"card_pools",poolId), { totalQty:(parseInt(pool.totalQty)||0)+qty }, { merge:true });
-    showToast(`✅ Added ${qty} to ${pool.cardName}`);
+    showToast(`{"✅"} Added ${qty} to ${pool.cardName}`);
   }
 
   async function handleSaveHistorical(entry) {
@@ -12047,7 +12047,7 @@ export default function App() {
   async function handleSavePayStub(stub) {
     const id = uid();
     await setDoc(doc(db,"pay_stubs",id), { ...stub, id, createdAt:new Date().toISOString(), createdBy:user?.displayName||"Admin", read:false });
-    showToast(`📤 Pay stub sent to ${stub.breaker}`);
+    showToast(`{"📤"} Pay stub sent to ${stub.breaker}`);
   }
 
   async function handleDismissPayStub(id) { await setDoc(doc(db,"pay_stubs",id), { read:true }, { merge:true }); }
@@ -12085,7 +12085,7 @@ export default function App() {
     // Save CSV import record
     const impId = uid();
     await setDoc(doc(db,"csv_imports",impId), { id:impId, streamId, filename, importedAt:new Date().toISOString(), rowCount:buyerList.length });
-    showToast(`✅ ${buyerList.length} buyers imported`);
+    showToast(`{"✅"} ${buyerList.length} buyers imported`);
   }
 
   async function handleClearAllBuyers() {
@@ -12163,7 +12163,7 @@ export default function App() {
             <div style={{ background:"#111111", borderRadius:14, width:"100%", maxWidth:620, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1.5px solid #2a2a2a", overflow:"hidden" }}
               onClick={e=>e.stopPropagation()}>
               <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid #1a1a1a" }}>
-                <span style={{ fontSize:20 }}>🔍</span>
+                <span style={{ fontSize:20 }}>{"🔍"}</span>
                 <input autoFocus value={gSearch} onChange={e=>setGSearch(e.target.value)} placeholder="Search inventory by name, seller, type, status..." style={{ flex:1, background:"transparent", border:"none", color:"#F0F0F0", fontSize:15, fontFamily:"inherit", outline:"none" }}/>
                 <span style={{ fontSize:11, color:"#444" }}>ESC to close</span>
               </div>
@@ -12201,7 +12201,7 @@ export default function App() {
       {/* Active scan indicator (when scanning from non-BoBA tab) */}
       {activeScan && tab !== "checklist" && (
         <div style={{ position:"fixed", bottom:24, left:24, background:"#1a0a1a", border:"1.5px solid #E8317A44", borderRadius:12, padding:"10px 16px", fontSize:12, fontWeight:700, color:"#E8317A", zIndex:998 }}>
-          📷 Scan mode active
+          {"📷"} Scan mode active
         </div>
       )}
 
@@ -12216,7 +12216,7 @@ export default function App() {
           <div style={{ flex:1 }}/>
           {/* Global search */}
           <button onClick={()=>setGOpen(p=>!p)} style={{ display:"flex", alignItems:"center", gap:8, background:"#111111", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#555", fontSize:12 }}>
-            <span>🔍</span>
+            <span>{"🔍"}</span>
             <span className="mobile-hide">Search</span>
             <kbd style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10, color:"#444" }} className="mobile-hide">/</kbd>
           </button>
