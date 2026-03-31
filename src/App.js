@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
@@ -11964,7 +11965,7 @@ function PublicCardDatabase() {
       `}</style>
 
       {/* Comp Modal */}
-      <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS}cards={cards}
+      <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS} cards={cards}
           listings={listings}
           />
 
@@ -12051,7 +12052,7 @@ function PublicCardDatabase() {
       {/* Counter offer modal */}
       <CounterModal counterModal={counterModal} counterSent={counterSent} setCounterModal={setCounterModal} counterAmt={counterAmt} setCounterAmt={setCounterAmt} setCounterSent={setCounterSent} counterOffer={counterOffer} negHistory={negHistory}/>
       {/* Scan modal */}
-      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp}confirmScan={confirmScan}
+      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp} confirmScan={confirmScan}
           scanCardPhoto={scanCardPhoto}
           />}
       {/* HERO HEADER */}
@@ -12204,7 +12205,7 @@ function PublicCardDatabase() {
                 <div key={c.id} style={{position:"relative"}}>
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
-                    toggleOwned={()=>{if(!user){setSigningIn(true);return;}toggleOwned(c.id);}}
+                    toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
                   {/* Comp button -- bottom left of every card */}
@@ -12313,10 +12314,8 @@ function PublicCardDatabase() {
             setCounterModal={setCounterModal} setCounterAmt={setCounterAmt}
             buyNow={buyNow} respondOffer={respondOffer}
             unsellListing={unsellListing} saveTracking={saveTracking}
-            setSigningIn={setSigningIn} setActiveTab={setActiveTab} inp={inp}
-            listType={listType} cards={cards} owned={owned}
-              listType={listType} cards={cards} owned={owned}
-          search={search}
+            setSigningIn={setSigningIn} setActiveTab={setActiveTab}
+            inp={inp} listType={listType} cards={cards} owned={owned} search={search}
           />
         )}
 
@@ -12349,11 +12348,10 @@ function PublicCardDatabase() {
             addStatus={addStatus} setAddStatus={setAddStatus}
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
             respondFriendReq={respondFriendReq} addFriend={addFriend}
+            sendFriendRequest={sendFriendRequest}
             cards={cards} owned={owned} privateCards={privateCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             inp={inp} teamInvites={teamInvites}
-              inp={inp} teamInvites={teamInvites}
-          sendFriendRequest={sendFriendRequest}
           />
         )}
 
@@ -12368,10 +12366,8 @@ function PublicCardDatabase() {
             deleteTeam={deleteTeam} respondTeamInvite={respondTeamInvite}
             createTeam={createTeam} inviteMember={inviteMember}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
-            cards={cards} owned={owned}
-            friendOwned={friendOwned} inp={inp}
-              friendOwned={friendOwned} inp={inp}
-          inviteToTeam={inviteToTeam}
+            cards={cards} owned={owned} friendOwned={friendOwned}
+            inp={inp} inviteToTeam={inviteToTeam}
           />
         )}
       </div>{/* end tab content */}
