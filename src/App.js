@@ -13082,6 +13082,10 @@ export default function App() {
                           <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div>
                           <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} &middot; {c.source||"--"} &middot; {c.date||"--"}</div>
                         </div>
+                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+                          {c.marketValue > 0 && <span style={{ fontSize:11, fontWeight:700, color:"#FBBF24" }}>${(c.marketValue||0).toFixed(2)} mkt</span>}
+                          {c.costPerCard > 0 && <span style={{ fontSize:11, fontWeight:700, color:"#4ade80" }}>${(c.costPerCard||0).toFixed(2)} cost</span>}
+                        </div>
                         <span style={{ background:cc.bg, color:cc.text, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{c.cardType}</span>
                         <span style={{ background:st.bg, color:st.c, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{st.l}</span>
                       </div>
