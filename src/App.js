@@ -360,14 +360,19 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [editingId,   setEditingId]   = useState(null);
   const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
+  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
+  // Count used by the usage type logged, not the inventory purchase type
+  const usedByType = {};
+  CARD_TYPES.forEach(ct => { usedByType[ct] = 0; });
+  breaks.forEach(b => { const ct = USAGE_TO_CT[b.usage] || b.cardType; if (ct && usedByType[ct] !== undefined) usedByType[ct]++; });
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, inTransit:0, invested:0, market:0 }; });
   inventory.forEach(c => {
     const s = stats[c.cardType]; if (!s) return;
     s.total++; s.invested += (c.costPerCard||0); s.market += (c.marketValue||0);
-    if (usedIds.has(c.id)) s.used++;
-    else if (c.cardStatus === "in_transit") s.inTransit++;
+    if (c.cardStatus === "in_transit" && !usedIds.has(c.id)) s.inTransit++;
   });
+  CARD_TYPES.forEach(ct => { stats[ct].used = usedByType[ct]; });
   const totInv      = Object.values(stats).reduce((a,b) => a+b.invested, 0);
   const totMkt      = Object.values(stats).reduce((a,b) => a+b.market, 0);
   const oPct        = totMkt > 0 ? totInv/totMkt : null;
@@ -379,7 +384,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const runway = {};
   CARD_TYPES.forEach(ct => {
     const avail = stats[ct].total - stats[ct].used - stats[ct].inTransit;
-    const ctBreaks = breaks.filter(b => b.cardType === ct);
+    const ctBreaks = breaks.filter(b => (USAGE_TO_CT[b.usage] || b.cardType) === ct);
     if (ctBreaks.length === 0) { runway[ct] = 999; return; }
     const earliest = ctBreaks.reduce((mn, b) => { const d = new Date(b.dateAdded||b.date); return d < mn ? d : mn; }, new Date());
     const days = Math.max(1, Math.floor((new Date() - earliest) / 86400000));
