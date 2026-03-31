@@ -13103,9 +13103,6 @@ export default function App() {
             {activeScan.total > 0 && <span style={{color:"#4ade80",fontWeight:700,flexShrink:0}}>{activeScan.current}/{activeScan.total}</span>}
           </div>
         </div>
-      )}d #E8317A44", borderRadius:12, padding:"10px 16px", fontSize:12, fontWeight:700, color:"#E8317A", zIndex:998 }}>
-          {"\uD83D\uDCF7 Scan mode active"}</div>
-      )}
 
       {/* Nav */}
       <div style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,zIndex:100}}>
