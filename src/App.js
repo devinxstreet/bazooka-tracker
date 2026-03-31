@@ -13211,15 +13211,15 @@ export default function App() {
                 ],
               })[t.id]||[];
                 return (
-                  <div key={t.id} style={{position:"relative"}} onMouseEnter={()=>setHoverTab(t.id)} onMouseLeave={()=>setHoverTab(null)}>
+                  <div key={t.id} style={{position:"relative"}} onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoverTab({id:t.id,x:r.left,y:r.bottom})}} onMouseLeave={()=>setTimeout(()=>setHoverTab(null),100)}>
                     <button onClick={()=>setTab(t.id)} className="dash-tab"
                       style={{background:tab===t.id?"rgba(232,49,122,0.15)":"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.45)",border:`1.5px solid ${tab===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",backdropFilter:"blur(10px)",transition:"all 0.15s ease",boxShadow:tab===t.id?"0 0 20px rgba(232,49,122,0.2)":"none",display:"flex",alignItems:"center",gap:5}}>
                       <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
                       <span className="nav-tab-label">{t.icon} {t.label}</span>
                       {menuItems.length>1&&<span style={{fontSize:9,opacity:0.5,marginLeft:2}}>{"\u25BE"}</span>}
                     </button>
-                    {hoverTab===t.id&&menuItems.length>1&&(
-                      <div style={{position:"absolute",top:"calc(100% - 2px)",left:0,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:99999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
+                    {hoverTab?.id===t.id&&menuItems.length>1&&(
+                      <div onMouseEnter={()=>{}} onMouseLeave={()=>setHoverTab(null)} style={{position:"fixed",top:`${hoverTab?.y??0}px`,left:`${hoverTab?.x??0}px`,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:99999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
                         {menuItems.map((item,idx)=>(
                           <button key={idx} onClick={item.action}
                             style={{display:"block",width:"100%",background:"transparent",border:"none",borderRadius:10,padding:"9px 14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
