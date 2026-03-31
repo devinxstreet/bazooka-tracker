@@ -10667,6 +10667,412 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   );
 }
 
+function OfferModal({ offerModal, offerSent, setOfferModal, offerAmt, setOfferAmt, offerNote, setOfferNote, setOfferSent, submitOffer, inp }) {
+  return (
+      {/* Offer modal */}
+      {offerModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+          onClick={()=>{if(offerSent){setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}}>
+          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            {offerSent?(
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Offer Sent!</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
+                  Your offer of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(offerAmt||0).toFixed(2)}</strong> on
+                </div>
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>
+                  {offerModal.cardName}
+                </div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
+                  has been sent to the seller. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
+                  {"You'll be notified when they respond."}
+                </div>
+                <button
+                  onClick={()=>{setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
+                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Done
+                </button>
+              </div>
+            ):(
+              <>
+                <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"\uD83E\uDD1D Make an Offer"}</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:16}}>{offerModal.cardName} {"\u00B7"} {offerModal.sellerName}</div>
+
+                {!offerModal?.isOBO&&<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Asking price</span>
+                    <span style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{"$"}{(offerModal.askingPrice||0).toFixed(2)}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:6}}>Quick offer</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {[100,95,90,85,80].map(pct=>{
+                      const qAmt=((offerModal.askingPrice||0)*pct/100).toFixed(2);
+                      const active=offerAmt===qAmt;
+                      return (
+                        <button key={pct} onClick={()=>setOfferAmt(qAmt)}
+                          style={{flex:1,background:active?"rgba(251,191,36,0.25)":"rgba(255,255,255,0.05)",
+                            border:"1px solid "+(active?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.08)"),
+                            borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,
+                            color:active?"#FBBF24":"rgba(255,255,255,0.5)",
+                            cursor:"pointer",fontFamily:"inherit"}}>
+                          {pct}{"%"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>}
+
+                <div style={{marginBottom:12}}>
+                  <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRight:"none",borderRadius:"10px 0 0 10px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
+                    <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="0.00" type="number" min="0" step="0.01"
+                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",borderRight:"none",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
+                    <span style={{
+                      background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",
+                      borderRadius:"0 10px 10px 0",padding:"10px 12px",fontSize:13,fontWeight:800,minWidth:52,textAlign:"center",
+                      color:"rgba(255,255,255,0.3)"}}>
+                      {offerModal?.isOBO||!offerModal?.askingPrice?"--":offerAmt&&!isNaN(parseFloat(offerAmt))?Math.round(parseFloat(offerAmt)/(offerModal.askingPrice||1)*100)+"%":"--"}
+                    </span>
+                  </div>
+                  {offerAmt&&!isNaN(parseFloat(offerAmt))&&!offerModal?.isOBO&&offerModal?.askingPrice>0&&(()=>{
+                    const oa=parseFloat(offerAmt);
+                    const ask=offerModal.askingPrice||0;
+                    const pct=ask>0?oa/ask*100:0;
+                    const savings=ask-oa;
+                    const barColor=pct>=95?"#4ade80":pct>=85?"#FBBF24":pct>=75?"#F97316":"#f87171";
+                    const verdict=pct>=100?"Full ask":pct>=95?"Strong offer":pct>=85?"Fair offer":pct>=75?"Low offer":"Very low";
+                    return (
+                      <div>
+                        <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:4,marginBottom:6,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:Math.min(pct,100)+"%",background:barColor,borderRadius:4,transition:"width 0.2s"}}/>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontSize:11,color:barColor,fontWeight:700}}>{verdict}</span>
+                          {savings>0&&<span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{"$"}{savings.toFixed(2)} off ask</span>}
+                          {savings<0&&<span style={{fontSize:11,color:"#f87171"}}>{"$"}{Math.abs(savings).toFixed(2)} over ask</span>}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message to seller (optional)" rows={2}
+                  style={{width:"100%",marginBottom:16,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#F0F0F0",fontFamily:"inherit",outline:"none",resize:"none"}}/>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={submitOffer} disabled={!offerAmt||isNaN(parseFloat(offerAmt))} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:offerAmt&&!isNaN(parseFloat(offerAmt))?1:0.4}}>Send Offer</button>
+                  <button onClick={()=>setOfferModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+  );
+}
+
+function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, setCounterAmt, setCounterSent, counterOffer, negHistory }) {
+  return (
+      {/* Counter offer modal */}
+      {counterModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+          onClick={()=>{if(counterSent){setCounterModal(null);setCounterAmt("");setCounterSent(false);}}}>
+          <div style={{background:"#0E0E14",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            {counterSent?(
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Counter Sent!</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
+                  Your counter of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(counterAmt||0).toFixed(2)}</strong> on
+                </div>
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>{counterModal.cardName}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
+                  has been sent. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
+                  {"You'll be notified when they respond."}
+                </div>
+                <button
+                  onClick={()=>{setCounterModal(null);setCounterAmt("");setCounterSent(false);}}
+                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Done
+                </button>
+              </div>
+            ):(
+              <>
+                <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
+                <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,maxHeight:160,overflowY:"auto"}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Negotiation history</div>
+                  {negHistory.length>0?negHistory.map((h,idx)=>{
+                    const isCounter=h.action==="counter";
+                    const isAccept=h.action==="accepted";
+                    const isDecline=h.action==="declined";
+                    const color=isAccept?"#4ade80":isDecline?"#f87171":isCounter?"#7B9CFF":"#FBBF24";
+                    const label=isAccept?"Accepted":isDecline?"Declined":isCounter?"Countered":"Offered";
+                    return (
+                      <div key={idx} style={{display:"flex",alignItems:"center",gap:8,marginBottom:idx<negHistory.length-1?6:0}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
+                        <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{h.fromName}</span>
+                        <span style={{fontSize:12,fontWeight:700,color:color}}>{label} ${(h.amount||0).toFixed(2)}</span>
+                      </div>
+                    );
+                  }):(
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:"#FBBF24",flexShrink:0}}/>
+                      <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{counterModal.buyerName||"Buyer"}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:"#FBBF24"}}>Offered ${(counterModal.offerAmount||0).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:8,fontWeight:700}}>Your counter amount</div>
+                  <div style={{display:"flex",alignItems:"center",gap:0}}>
+                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:"8px 0 0 8px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
+                    <input
+                      value={counterAmt}
+                      onChange={e=>setCounterAmt(e.target.value.replace(/[^0-9.]/g,""))}
+                      placeholder="0.00"
+                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button
+                    onClick={()=>counterOffer(counterModal,counterAmt)}
+                    disabled={!counterAmt||isNaN(parseFloat(counterAmt))}
+                    style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.8),rgba(245,158,11,0.8))",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:counterAmt&&!isNaN(parseFloat(counterAmt))?1:0.4}}>
+                    Send Counter
+                  </button>
+                  <button
+                    onClick={()=>setCounterModal(null)}
+                    style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+  );
+}
+
+function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp }) {
+  return (
+      {/* Scan modal */}
+      {scanModal&&(
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{"\uD83D\uDCF7 Scan Mode"}</span>
+              {scanSession.length>0&&<span style={{fontSize:12,background:"rgba(232,49,122,0.15)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.3)",borderRadius:20,padding:"3px 12px",fontWeight:700}}>{scanSession.length} added</span>}
+            </div>
+            <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>Done</button>
+          </div>
+          <div style={{flex:1,padding:20,overflowY:"auto"}}>
+            {!photoScan&&(
+              <label style={{display:"block",cursor:"pointer"}}>
+                <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.05),rgba(123,47,247,0.05))",border:"2px dashed rgba(232,49,122,0.3)",borderRadius:20,padding:"50px 20px",textAlign:"center",transition:"all 0.2s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.6)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.3)"}>
+                  <div style={{fontSize:56,marginBottom:12}}>{"\uD83D\uDCF7"}</div>
+                  <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
+                </div>
+                <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
+              </label>
+            )}
+            {photoScan?.status==="scanning"&&(
+              <div style={{textAlign:"center",padding:50}}>
+                <div style={{width:48,height:48,border:"3px solid rgba(123,156,255,0.2)",borderTopColor:"#7B9CFF",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/>
+                <div style={{fontSize:15,fontWeight:700,color:"#7B9CFF"}}>Reading card...</div>
+              </div>
+            )}
+            {photoScan?.status==="matched"&&photoScan.card&&(()=>{
+              const c=photoScan.card,wc=WEAPON_COLORS[c.weapon]||"#888";
+              return (
+                <div style={{background:`linear-gradient(135deg,rgba(10,26,10,0.8),rgba(0,0,0,0.8))`,border:`1.5px solid rgba(74,222,128,0.3)`,borderRadius:20,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
+                  <div style={{display:"flex",gap:14,marginBottom:16}}>
+                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:80,height:107,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}/>:<div style={{width:80,height:107,background:"#1a1a1a",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555"}}>{c.hero}</div>}
+                    <div>
+                      <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
+                      <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} &middot; {c.setName}</div>
+                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}\u26A1</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>{"\u2212"}</button>
+                    <span style={{fontSize:20,fontWeight:900,minWidth:40,textAlign:"center"}}>{scanQty}</span>
+                    <button onClick={()=>setScanQty(q=>q+1)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>{"\u2705 Add"}{scanQty}</button>
+                  </div>
+                  <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
+                </div>
+              );
+            })()}
+            {photoScan?.status==="nomatch"&&(
+              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
+                <div style={{fontSize:36,marginBottom:10}}>{"\u274C"}</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:12}}>Card not recognized</div>
+                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                </label>
+              </div>
+            )}
+            {photoScan?.status==="error"&&(
+              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
+                <div style={{fontSize:36,marginBottom:10}}>{"\u26A0\uFE0F"}</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
+                {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
+                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                </label>
+              </div>
+            )}
+            {scanSession.length>0&&(
+              <div style={{marginTop:20}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Added this session</div>
+                {scanSession.slice(0,5).map((s,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                    <span style={{fontSize:20}}>{"\u2705"}</span>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} &middot; {s.card.power}\u26A1</div></div>
+                    <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+  );
+}
+
+function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS }) {
+  if (!compCard) return null;
+  const c = compCard;
+  const wc = WEAPON_COLORS[c.weapon]||"#444";
+  const exactSales = marketSales.filter(s=>s.cardId===c.id);
+  const nearSales = marketSales.filter(s=>s.cardId!==c.id&&(
+  (s.cardName===c.hero&&s.cardTreatment===c.treatment)||
+  (s.cardName===c.hero&&s.cardWeapon===c.weapon&&s.cardPower===c.power)||
+  (s.cardName===c.hero&&s.cardTreatment===c.treatment&&s.cardPower!==c.power)
+  ));
+  function stats(sales) {
+  if(!sales.length) return null;
+  const prices = sales.map(s=>s.price).sort((a,b)=>a-b);
+  const avg = prices.reduce((a,b)=>a+b,0)/prices.length;
+  const last = sales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0)[0];
+  return { avg, high:Math.max(...prices), low:Math.min(...prices), count:prices.length, last };
+  }
+  const exact = stats(exactSales);
+  const near = stats(nearSales);
+  return (
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
+    <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+      {/* Header */}
+      <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
+        {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:64,height:85,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 8px 24px ${wc}44`}}/>:<div style={{width:64,height:85,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0}}/>}
+        <div style={{flex:1}}>
+          <div style={{fontSize:11,color:`${wc}`,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>{"\uD83D\uDCCA Card Comp"}</div>
+          <div style={{fontSize:20,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <span style={{background:`${wc}22`,color:wc,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700}}>{c.weapon}</span>
+            <span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.treatment}</span>
+            {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}\u26A1</span>}
+            {c.setName&&<span style={{background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"2px 8px",fontSize:10}}>{c.setName}</span>}
+          </div>
+        </div>
+        <button onClick={()=>setCompCard(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:22,padding:0,alignSelf:"flex-start",lineHeight:1}}>{"\u00D7"}</button>
+      </div>
+      <div style={{padding:24}}>
+        {/* Exact match comps */}
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>{"\u2705 Exact Match Sales"}</div>
+            <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same card, same treatment, same power</span>
+          </div>
+          {exact?(
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+                {[{l:"Avg Sale",v:`$${exact.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${exact.high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${exact.low.toFixed(2)}`,c:"#FBBF24"},{l:"# Sales",v:exact.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
+                  <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Last sale: <span style={{color:"#4ade80",fontWeight:700}}>${(exact.last?.price||0).toFixed(2)}</span> on {exact.last?.soldDate||"--"}</div>
+              {/* Sales list */}
+              <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
+                {exactSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,8).map((s,i)=>(
+                  <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>{s.soldDate||"--"}</span>
+                    <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ):(
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"24px",textAlign:"center",color:"rgba(255,255,255,0.3)"}}>
+              <div style={{fontSize:14,marginBottom:4}}>No exact sales yet on this platform</div>
+              <div style={{fontSize:11}}>Be the first -- list this card in the Market tab</div>
+            </div>
+          )}
+        </div>
+        {/* Similar cards */}
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>{"\uD83D\uDD0D Similar Card Sales"}</div>
+            <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same hero, similar treatment or power</span>
+          </div>
+          {near?(
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+                {[{l:"Avg",v:`$${near.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${near.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:near.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
+                  <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
+                {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
+                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} &middot; {s.cardPower}\u26A1</div>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
+                    </div>
+                    <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ):(
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"16px",textAlign:"center",color:"rgba(255,255,255,0.3)",fontSize:12}}>
+              No similar card sales yet
+            </div>
+          )}
+        </div>
+        {/* eBay placeholder */}
+        <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontSize:24}}>{"\uD83D\uDED2"}</div>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon -- eBay sold listings will appear here for real-world comps</div>
+          </div>
+          <div style={{marginLeft:"auto",fontSize:10,background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>COMING SOON</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -11564,131 +11970,7 @@ function PublicCardDatabase() {
       `}</style>
 
       {/* Comp Modal */}
-      {compCard&&(()=>{
-        const c = compCard;
-        const wc = WEAPON_COLORS[c.weapon]||"#444";
-        // Exact matches: same cardId
-        const exactSales = marketSales.filter(s=>s.cardId===c.id);
-        // Near matches: same hero + treatment, or same hero + weapon, excluding exact
-        const nearSales = marketSales.filter(s=>s.cardId!==c.id&&(
-          (s.cardName===c.hero&&s.cardTreatment===c.treatment)||
-          (s.cardName===c.hero&&s.cardWeapon===c.weapon&&s.cardPower===c.power)||
-          (s.cardName===c.hero&&s.cardTreatment===c.treatment&&s.cardPower!==c.power)
-        ));
-        // Stats helper
-        function stats(sales) {
-          if(!sales.length) return null;
-          const prices = sales.map(s=>s.price).sort((a,b)=>a-b);
-          const avg = prices.reduce((a,b)=>a+b,0)/prices.length;
-          const last = sales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0)[0];
-          return { avg, high:Math.max(...prices), low:Math.min(...prices), count:prices.length, last };
-        }
-        const exact = stats(exactSales);
-        const near = stats(nearSales);
-        return (
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
-            <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
-              {/* Header */}
-              <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
-                {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:64,height:85,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 8px 24px ${wc}44`}}/>:<div style={{width:64,height:85,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0}}/>}
-                <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:`${wc}`,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>{"\uD83D\uDCCA Card Comp"}</div>
-                  <div style={{fontSize:20,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <span style={{background:`${wc}22`,color:wc,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700}}>{c.weapon}</span>
-                    <span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.treatment}</span>
-                    {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}\u26A1</span>}
-                    {c.setName&&<span style={{background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"2px 8px",fontSize:10}}>{c.setName}</span>}
-                  </div>
-                </div>
-                <button onClick={()=>setCompCard(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:22,padding:0,alignSelf:"flex-start",lineHeight:1}}>{"\u00D7"}</button>
-              </div>
-
-              <div style={{padding:24}}>
-                {/* Exact match comps */}
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>{"\u2705 Exact Match Sales"}</div>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same card, same treatment, same power</span>
-                  </div>
-                  {exact?(
-                    <>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
-                        {[{l:"Avg Sale",v:`$${exact.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${exact.high.toFixed(2)}`,c:"#4ade80"},{l:"Low",v:`$${exact.low.toFixed(2)}`,c:"#FBBF24"},{l:"# Sales",v:exact.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
-                          <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
-                            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Last sale: <span style={{color:"#4ade80",fontWeight:700}}>${(exact.last?.price||0).toFixed(2)}</span> on {exact.last?.soldDate||"--"}</div>
-                      {/* Sales list */}
-                      <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
-                        {exactSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,8).map((s,i)=>(
-                          <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>{s.soldDate||"--"}</span>
-                            <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>${(s.price||0).toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ):(
-                    <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"24px",textAlign:"center",color:"rgba(255,255,255,0.3)"}}>
-                      <div style={{fontSize:14,marginBottom:4}}>No exact sales yet on this platform</div>
-                      <div style={{fontSize:11}}>Be the first -- list this card in the Market tab</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Similar cards */}
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>{"\uD83D\uDD0D Similar Card Sales"}</div>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Same hero, similar treatment or power</span>
-                  </div>
-                  {near?(
-                    <>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
-                        {[{l:"Avg",v:`$${near.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"High",v:`$${near.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:near.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
-                          <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
-                            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{background:"rgba(0,0,0,0.3)",borderRadius:12,overflow:"hidden"}}>
-                        {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
-                          <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} &middot; {s.cardPower}\u26A1</div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
-                            </div>
-                            <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ):(
-                    <div style={{background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,padding:"16px",textAlign:"center",color:"rgba(255,255,255,0.3)",fontSize:12}}>
-                      No similar card sales yet
-                    </div>
-                  )}
-                </div>
-
-                {/* eBay placeholder */}
-                <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{fontSize:24}}>{"\uD83D\uDED2"}</div>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon -- eBay sold listings will appear here for real-world comps</div>
-                  </div>
-                  <div style={{marginLeft:"auto",fontSize:10,background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>COMING SOON</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS}/>
 
       {/* Sign-in modal */}
       {signingIn&&(
@@ -11742,105 +12024,7 @@ function PublicCardDatabase() {
       )}
 
       {/* Offer modal */}
-      {offerModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-          onClick={()=>{if(offerSent){setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}}>
-          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            {offerSent?(
-              <div style={{textAlign:"center",padding:"20px 0"}}>
-                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Offer Sent!</div>
-                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
-                  Your offer of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(offerAmt||0).toFixed(2)}</strong> on
-                </div>
-                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>
-                  {offerModal.cardName}
-                </div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
-                  has been sent to the seller. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
-                  {"You'll be notified when they respond."}
-                </div>
-                <button
-                  onClick={()=>{setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
-                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                  Done
-                </button>
-              </div>
-            ):(
-              <>
-                <div style={{fontSize:18,fontWeight:900,color:"#FBBF24",marginBottom:4}}>{"\uD83E\uDD1D Make an Offer"}</div>
-                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:16}}>{offerModal.cardName} {"\u00B7"} {offerModal.sellerName}</div>
-
-                {!offerModal?.isOBO&&<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                    <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Asking price</span>
-                    <span style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>{"$"}{(offerModal.askingPrice||0).toFixed(2)}</span>
-                  </div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:6}}>Quick offer</div>
-                  <div style={{display:"flex",gap:6}}>
-                    {[100,95,90,85,80].map(pct=>{
-                      const qAmt=((offerModal.askingPrice||0)*pct/100).toFixed(2);
-                      const active=offerAmt===qAmt;
-                      return (
-                        <button key={pct} onClick={()=>setOfferAmt(qAmt)}
-                          style={{flex:1,background:active?"rgba(251,191,36,0.25)":"rgba(255,255,255,0.05)",
-                            border:"1px solid "+(active?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.08)"),
-                            borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,
-                            color:active?"#FBBF24":"rgba(255,255,255,0.5)",
-                            cursor:"pointer",fontFamily:"inherit"}}>
-                          {pct}{"%"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>}
-
-                <div style={{marginBottom:12}}>
-                  <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
-                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRight:"none",borderRadius:"10px 0 0 10px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
-                    <input value={offerAmt} onChange={e=>setOfferAmt(e.target.value)} placeholder="0.00" type="number" min="0" step="0.01"
-                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",borderRight:"none",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
-                    <span style={{
-                      background:"rgba(255,255,255,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderLeft:"none",
-                      borderRadius:"0 10px 10px 0",padding:"10px 12px",fontSize:13,fontWeight:800,minWidth:52,textAlign:"center",
-                      color:"rgba(255,255,255,0.3)"}}>
-                      {offerModal?.isOBO||!offerModal?.askingPrice?"--":offerAmt&&!isNaN(parseFloat(offerAmt))?Math.round(parseFloat(offerAmt)/(offerModal.askingPrice||1)*100)+"%":"--"}
-                    </span>
-                  </div>
-                  {offerAmt&&!isNaN(parseFloat(offerAmt))&&!offerModal?.isOBO&&offerModal?.askingPrice>0&&(()=>{
-                    const oa=parseFloat(offerAmt);
-                    const ask=offerModal.askingPrice||0;
-                    const pct=ask>0?oa/ask*100:0;
-                    const savings=ask-oa;
-                    const barColor=pct>=95?"#4ade80":pct>=85?"#FBBF24":pct>=75?"#F97316":"#f87171";
-                    const verdict=pct>=100?"Full ask":pct>=95?"Strong offer":pct>=85?"Fair offer":pct>=75?"Low offer":"Very low";
-                    return (
-                      <div>
-                        <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:4,marginBottom:6,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:Math.min(pct,100)+"%",background:barColor,borderRadius:4,transition:"width 0.2s"}}/>
-                        </div>
-                        <div style={{display:"flex",justifyContent:"space-between"}}>
-                          <span style={{fontSize:11,color:barColor,fontWeight:700}}>{verdict}</span>
-                          {savings>0&&<span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{"$"}{savings.toFixed(2)} off ask</span>}
-                          {savings<0&&<span style={{fontSize:11,color:"#f87171"}}>{"$"}{Math.abs(savings).toFixed(2)} over ask</span>}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <textarea value={offerNote} onChange={e=>setOfferNote(e.target.value)} placeholder="Message to seller (optional)" rows={2}
-                  style={{width:"100%",marginBottom:16,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#F0F0F0",fontFamily:"inherit",outline:"none",resize:"none"}}/>
-                <div style={{display:"flex",gap:10}}>
-                  <button onClick={submitOffer} disabled={!offerAmt||isNaN(parseFloat(offerAmt))} style={{flex:1,background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:offerAmt&&!isNaN(parseFloat(offerAmt))?1:0.4}}>Send Offer</button>
-                  <button onClick={()=>setOfferModal(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
+      <OfferModal offerModal={offerModal} offerSent={offerSent} setOfferModal={setOfferModal} offerAmt={offerAmt} setOfferAmt={setOfferAmt} offerNote={offerNote} setOfferNote={setOfferNote} setOfferSent={setOfferSent} submitOffer={submitOffer} inp={inp}/>
       {/* Payment info popup */}
       {paymentPopup&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPaymentPopup(null)}>
@@ -11869,175 +12053,9 @@ function PublicCardDatabase() {
 
 
       {/* Counter offer modal */}
-      {counterModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-          onClick={()=>{if(counterSent){setCounterModal(null);setCounterAmt("");setCounterSent(false);}}}>
-          <div style={{background:"#0E0E14",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            {counterSent?(
-              <div style={{textAlign:"center",padding:"20px 0"}}>
-                <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginBottom:8}}>Counter Sent!</div>
-                <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
-                  Your counter of <strong style={{color:"#FBBF24"}}>{"$"}{parseFloat(counterAmt||0).toFixed(2)}</strong> on
-                </div>
-                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>{counterModal.cardName}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:24}}>
-                  has been sent. {"\u2022"} {"\u2022"} {"\u2022"}<br/>
-                  {"You'll be notified when they respond."}
-                </div>
-                <button
-                  onClick={()=>{setCounterModal(null);setCounterAmt("");setCounterSent(false);}}
-                  style={{background:"linear-gradient(135deg,#FBBF24,#F59E0B)",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                  Done
-                </button>
-              </div>
-            ):(
-              <>
-                <div style={{fontSize:16,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Counter Offer</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>{counterModal.cardName}</div>
-                <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,maxHeight:160,overflowY:"auto"}}>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Negotiation history</div>
-                  {negHistory.length>0?negHistory.map((h,idx)=>{
-                    const isCounter=h.action==="counter";
-                    const isAccept=h.action==="accepted";
-                    const isDecline=h.action==="declined";
-                    const color=isAccept?"#4ade80":isDecline?"#f87171":isCounter?"#7B9CFF":"#FBBF24";
-                    const label=isAccept?"Accepted":isDecline?"Declined":isCounter?"Countered":"Offered";
-                    return (
-                      <div key={idx} style={{display:"flex",alignItems:"center",gap:8,marginBottom:idx<negHistory.length-1?6:0}}>
-                        <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
-                        <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{h.fromName}</span>
-                        <span style={{fontSize:12,fontWeight:700,color:color}}>{label} ${(h.amount||0).toFixed(2)}</span>
-                      </div>
-                    );
-                  }):(
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:6,height:6,borderRadius:"50%",background:"#FBBF24",flexShrink:0}}/>
-                      <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",flex:1}}>{counterModal.buyerName||"Buyer"}</span>
-                      <span style={{fontSize:12,fontWeight:700,color:"#FBBF24"}}>Offered ${(counterModal.offerAmount||0).toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-                <div style={{marginBottom:20}}>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:8,fontWeight:700}}>Your counter amount</div>
-                  <div style={{display:"flex",alignItems:"center",gap:0}}>
-                    <span style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:"8px 0 0 8px",padding:"10px 14px",fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>$</span>
-                    <input
-                      value={counterAmt}
-                      onChange={e=>setCounterAmt(e.target.value.replace(/[^0-9.]/g,""))}
-                      placeholder="0.00"
-                      style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderLeft:"none",borderRadius:"0 8px 8px 0",padding:"10px 14px",fontSize:15,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:10}}>
-                  <button
-                    onClick={()=>counterOffer(counterModal,counterAmt)}
-                    disabled={!counterAmt||isNaN(parseFloat(counterAmt))}
-                    style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.8),rgba(245,158,11,0.8))",color:"#000",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:counterAmt&&!isNaN(parseFloat(counterAmt))?1:0.4}}>
-                    Send Counter
-                  </button>
-                  <button
-                    onClick={()=>setCounterModal(null)}
-                    style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
+      <CounterModal counterModal={counterModal} counterSent={counterSent} setCounterModal={setCounterModal} counterAmt={counterAmt} setCounterAmt={setCounterAmt} setCounterSent={setCounterSent} counterOffer={counterOffer} negHistory={negHistory}/>
       {/* Scan modal */}
-      {scanModal&&(
-        <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{"\uD83D\uDCF7 Scan Mode"}</span>
-              {scanSession.length>0&&<span style={{fontSize:12,background:"rgba(232,49,122,0.15)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.3)",borderRadius:20,padding:"3px 12px",fontWeight:700}}>{scanSession.length} added</span>}
-            </div>
-            <button onClick={()=>{setScanModal(false);setPhotoScan(null);}} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>Done</button>
-          </div>
-          <div style={{flex:1,padding:20,overflowY:"auto"}}>
-            {!photoScan&&(
-              <label style={{display:"block",cursor:"pointer"}}>
-                <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.05),rgba(123,47,247,0.05))",border:"2px dashed rgba(232,49,122,0.3)",borderRadius:20,padding:"50px 20px",textAlign:"center",transition:"all 0.2s"}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.6)"}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(232,49,122,0.3)"}>
-                  <div style={{fontSize:56,marginBottom:12}}>{"\uD83D\uDCF7"}</div>
-                  <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
-                </div>
-                <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
-              </label>
-            )}
-            {photoScan?.status==="scanning"&&(
-              <div style={{textAlign:"center",padding:50}}>
-                <div style={{width:48,height:48,border:"3px solid rgba(123,156,255,0.2)",borderTopColor:"#7B9CFF",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/>
-                <div style={{fontSize:15,fontWeight:700,color:"#7B9CFF"}}>Reading card...</div>
-              </div>
-            )}
-            {photoScan?.status==="matched"&&photoScan.card&&(()=>{
-              const c=photoScan.card,wc=WEAPON_COLORS[c.weapon]||"#888";
-              return (
-                <div style={{background:`linear-gradient(135deg,rgba(10,26,10,0.8),rgba(0,0,0,0.8))`,border:`1.5px solid rgba(74,222,128,0.3)`,borderRadius:20,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
-                  <div style={{display:"flex",gap:14,marginBottom:16}}>
-                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:80,height:107,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}/>:<div style={{width:80,height:107,background:"#1a1a1a",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555"}}>{c.hero}</div>}
-                    <div>
-                      <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
-                      <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} &middot; {c.setName}</div>
-                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}\u26A1</div>
-                    </div>
-                  </div>
-                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
-                    <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>{"\u2212"}</button>
-                    <span style={{fontSize:20,fontWeight:900,minWidth:40,textAlign:"center"}}>{scanQty}</span>
-                    <button onClick={()=>setScanQty(q=>q+1)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>+</button>
-                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>{"\u2705 Add"}{scanQty}</button>
-                  </div>
-                  <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
-                </div>
-              );
-            })()}
-            {photoScan?.status==="nomatch"&&(
-              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
-                <div style={{fontSize:36,marginBottom:10}}>{"\u274C"}</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:12}}>Card not recognized</div>
-                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
-                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
-                </label>
-              </div>
-            )}
-            {photoScan?.status==="error"&&(
-              <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
-                <div style={{fontSize:36,marginBottom:10}}>{"\u26A0\uFE0F"}</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
-                {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
-                <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
-                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
-                </label>
-              </div>
-            )}
-            {scanSession.length>0&&(
-              <div style={{marginTop:20}}>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Added this session</div>
-                {scanSession.slice(0,5).map((s,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                    <span style={{fontSize:20}}>{"\u2705"}</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} &middot; {s.card.power}\u26A1</div></div>
-                    <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
+      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp}/>}
       {/* HERO HEADER */}
       <div style={{
         position:"relative", overflow:"hidden",
@@ -12350,6 +12368,7 @@ function PublicCardDatabase() {
       </div>{/* end tab content */}
     </div>
   );
+}
 }
 
 
