@@ -1707,6 +1707,13 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
             </div>
           )}
+          {(offerAmt != null && offerAmt > 0) && totalMkt === 0 && totalCards > 0 && (
+            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>${(dispOffer/totalCards).toFixed(2)}/card</span>
+              <span style={{ fontSize:12, color:"#AAAAAA" }}>equal split across {totalCards} cards (no market values entered)</span>
+              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear</button>
+            </div>
+          )}
         </div>
 
         <div style={S.card}>
@@ -1718,7 +1725,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
                   const qty = parseInt(r.qty)||1;
-                  const cz  = mv > 0 ? getZone(dispPct) : null;
+                  const perCardOffer = totalMkt > 0
+                    ? mv * dispPct
+                    : (totalCards > 0 ? dispOffer / totalCards : 0);
+                  const cz = totalMkt > 0 && mv > 0 ? getZone(dispPct) : (totalCards > 0 && dispOffer > 0 ? getZone(dispOffer / (totalCards * 5)) : null);
                   return (
                     <tr key={r.id} style={{ background:"#111111", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
@@ -1843,7 +1853,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F0F0F0", width:55 }}/></td>
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
+                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${perCardOffer.toFixed(2)}</td>
                       <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
