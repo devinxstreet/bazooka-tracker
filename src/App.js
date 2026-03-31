@@ -10359,7 +10359,6 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
               </>
             )}
           </div>
-        )}
   );
 }
 
