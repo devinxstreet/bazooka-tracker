@@ -738,14 +738,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const cardCostByType = {};
         const cardQtyByType  = {};
         CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
+        const usageToType = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "Chaser":"Chaser Cards", "Chaser Pull":"Chaser Cards", "First-Timer Pack":"Giveaway Cards" };
         periodBreaks.forEach(b => {
-          if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
+          const effectiveType = (b.usage && usageToType[b.usage]) || b.cardType;
+          if (!effectiveType || !CARD_TYPES.includes(effectiveType)) return;
           const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          if (b.cardType !== "Chaser Cards") { // Chaser cost comes from stream field (includes overrides)
-            cardCostByType[b.cardType] += cost;
+          if (effectiveType !== "Chaser Cards") {
+            cardCostByType[effectiveType] += cost;
           }
-          cardQtyByType[b.cardType] += 1;
+          cardQtyByType[effectiveType] += 1;
         });
         // Chaser Cards cost: use stream-level chaserCards field (captures manual overrides)
         cardCostByType["Chaser Cards"] = periodStreams.reduce((s,r)=>s+(parseFloat(r.chaserCards)||0),0);
@@ -13051,201 +13053,56 @@ export default function App() {
         const usedIds = new Set(breaks.map(b=>b.inventoryId));
         const q = gSearch.toLowerCase().trim();
         const results = q.length < 2 ? [] : inventory.filter(c => {
+          if (usedIds.has(c.id)) return false;
           return (
             c.cardName?.toLowerCase().includes(q) ||
             c.seller?.toLowerCase().includes(q) ||
             c.cardType?.toLowerCase().includes(q) ||
-            c.source?.toLowerCase().includes(q) ||
-            (usedIds.has(c.id) ? "used" : c.cardStatus==="in_transit" ? "in transit" : "available").includes(q)
+            c.source?.toLowerCase().includes(q)
           );
         });
-        const getStatus = c => usedIds.has(c.id) ? { l:"Used", bg:"#FEE2E2", c:"#991b1b" } : c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#EEF0FB", c:"#7B9CFF" } : { l:"Available", bg:"#0a1a0a", c:"#4ade80" };
+        const getStatus = c => c.cardStatus==="in_transit" ? { l:"In Transit", bg:"#FEF3C7", c:"#92400e" } : { l:"Available", bg:"#D1FAE5", c:"#065f46" };
         return (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:99999, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-start", paddingTop:80 }}
             onClick={()=>{ setGOpen(false); setGSearch(""); }}>
-            <div style={{ background:"#111111", borderRadius:14, width:"100%", maxWidth:620, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1.5px solid #2a2a2a", overflow:"hidden" }}
+            <div style={{ background:"#111111", borderRadius:14, width:"100%", maxWidth:640, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1px solid #222" }}
               onClick={e=>e.stopPropagation()}>
               <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid #1a1a1a" }}>
                 <span style={{ fontSize:20 }}>{"\uD83D\uDD0D"}</span>
-                <input autoFocus value={gSearch} onChange={e=>setGSearch(e.target.value)} placeholder="Search inventory by name, seller, type, status..." style={{ flex:1, background:"transparent", border:"none", color:"#F0F0F0", fontSize:15, fontFamily:"inherit", outline:"none" }}/>
+                <input autoFocus value={gSearch} onChange={e=>setGSearch(e.target.value)} placeholder="Search inventory..." style={{ flex:1, background:"transparent", border:"none", outline:"none", fontSize:15, color:"#F0F0F0", fontFamily:"inherit" }}
+                  onKeyDown={e=>{ if(e.key==="Escape"){setGOpen(false);setGSearch("");} }}/>
                 <span style={{ fontSize:11, color:"#444" }}>ESC to close</span>
               </div>
-              <div style={{ maxHeight:400, overflowY:"auto" }}>
-                {q.length < 2 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>Type at least 2 characters to search</div> :
-                  results.length === 0 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>No matches for "{gSearch}"</div> :
-                  results.slice(0,20).map((c,i) => {
+              <div style={{ maxHeight:440, overflowY:"auto" }}>
+                {q.length < 2 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>Type to search cards...</div> :
+                  results.length === 0 ? <div style={{ padding:"24px", textAlign:"center", color:"#555", fontSize:12 }}>No available cards found</div> :
+                  results.slice(0,25).map((c,i) => {
                     const st = getStatus(c);
                     const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
+                    const mktVal = parseFloat(c.marketValue)||0;
+                    const ownedPrice = parseFloat(c.cardCost||c.cost||c.purchasePrice)||0;
                     return (
-                      <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"#111":"#0d0d0d" }} className="inv-row">
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div>
-                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} &middot; {c.source||"--"} &middot; {c.date||"--"}</div>
+                      <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }}
+                        style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #1a1a1a", cursor:"pointer", transition:"background 0.1s" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#1a1a1a"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.cardName}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} {"\u00B7"} {c.source||"--"}</div>
                         </div>
-                        <span style={{ background:cc.bg, color:cc.text, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{c.cardType}</span>
-                        <span style={{ background:st.bg, color:st.c, fontSize:10, fontWeight:700, borderRadius:5, padding:"2px 7px" }}>{st.l}</span>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                          {mktVal > 0 && <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24" }} title="Market Value">{"$"}{mktVal.toFixed(2)}</span>}
+                          {ownedPrice > 0 && <span style={{ fontSize:12, fontWeight:700, color:"#4ade80" }} title="Our Cost">{"$"}{ownedPrice.toFixed(2)}</span>}
+                          <span style={{ background:cc.bg, color:cc.text, fontSize:10, fontWeight:700, borderRadius:4, padding:"2px 6px" }}>{c.cardType}</span>
+                          <span style={{ background:st.bg, color:st.c, fontSize:10, fontWeight:700, borderRadius:4, padding:"2px 6px" }}>{st.l}</span>
+                        </div>
                       </div>
                     );
                   })
                 }
               </div>
+              {results.length > 25 && <div style={{ padding:"10px 16px", textAlign:"center", fontSize:11, color:"#444", borderTop:"1px solid #1a1a1a" }}>{results.length - 25} more results</div>}
             </div>
           </div>
         );
       })()}
-
-      {/* Toast */}
-      {toast && (
-        <div className="toast" style={{ position:"fixed", bottom:24, right:24, background:"#111111", border:"1.5px solid #4ade80", borderRadius:12, padding:"12px 20px", fontSize:13, fontWeight:700, color:"#4ade80", zIndex:999, boxShadow:"0 8px 32px rgba(0,0,0,0.5)" }}>
-          {toast}
-        </div>
-      )}
-
-      {/* Active scan indicator (when scanning from non-BoBA tab) */}
-      {activeScan && activeScan.type === "images" && (
-        <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:12,padding:"16px 20px",minWidth:300,boxShadow:"0 8px 40px rgba(0,0,0,0.8)",fontFamily:"'Trebuchet MS',sans-serif"}}>
-          <div style={{fontWeight:700,color:"#4ade80",fontSize:13,marginBottom:10}}>{"\uD83D\uDDBC"} {activeScan.type==="images"?"Importing Images...":"Scan active"}</div>
-          {activeScan.total > 0 && (
-            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:8}}>
-              <div style={{width:`${Math.round(activeScan.current/activeScan.total*100)}%`,height:"100%",background:"linear-gradient(90deg,#4ade80,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
-            </div>
-          )}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
-            <span style={{color:"#888",flex:1,marginRight:8}}>{activeScan.status}</span>
-            {activeScan.total > 0 && <span style={{color:"#4ade80",fontWeight:700,flexShrink:0}}>{activeScan.current}/{activeScan.total}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Nav */}
-      <div style={{position:"sticky",top:0,zIndex:10000,isolation:"isolate"}}>
-        <style>{`
-          @keyframes dashGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-          @keyframes dashOrb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-10px) scale(1.05)}}
-          .dash-tab:hover{background:rgba(232,49,122,0.12)!important;color:rgba(255,255,255,0.9)!important;border-color:rgba(232,49,122,0.4)!important;transform:translateY(-1px)}
-        `}</style>
-
-        {/* Gradient header */}
-        <div style={{position:"relative",overflow:"visible",background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",backgroundSize:"400% 400%",animation:"dashGradient 12s ease infinite",borderBottom:"1px solid rgba(232,49,122,0.15)"}}>
-          {/* Glow orbs */}
-          <div style={{position:"absolute",top:-80,left:"15%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.12) 0%,transparent 70%)",animation:"dashOrb 8s ease-in-out infinite",pointerEvents:"none"}}/>
-          <div style={{position:"absolute",top:-60,right:"10%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.1) 0%,transparent 70%)",animation:"dashOrb 11s ease-in-out infinite reverse",pointerEvents:"none"}}/>
-
-          <div style={{maxWidth:1500,margin:"0 auto",padding:"20px 20px 0",position:"relative"}}>
-            {/* Top row: brand + controls */}
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
-                <div style={{width:32,height:32,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 16px rgba(232,49,122,0.3)",flexShrink:0}}>
-                  <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
-                </div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
-                  <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
-                </div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <button onClick={()=>setGOpen(p=>!p)}
-                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.color="rgba(255,255,255,0.5)"}}>
-                  <span style={{fontSize:13}}>{"\uD83D\uDD0D"}</span>
-                  <span className="mobile-hide">Search</span>
-                  <kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}} className="mobile-hide">K</kbd>
-                </button>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}} className="mobile-hide">{inventory.length} cards</span>
-                {userRole.role === "Admin" && (
-                  <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,color:"rgba(255,255,255,0.4)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
-                    <option value="">-- Real Role --</option>
-                    {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
-                  </select>
-                )}
-                <div style={{display:"flex",alignItems:"center",gap:8}} className="mobile-hide">
-                  <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.8)"}}>{user?.displayName?.split(" ")[0]}</span>
-                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,backdropFilter:"blur(10px)"}}>{effectiveRole.label}</span>
-                </div>
-                <button onClick={()=>signOut(auth)}
-                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Sign out</button>
-              </div>
-            </div>
-
-            {/* Tab bar - pill style like /cards */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
-              {ALL_TABS.map(t=>{
-                const menuItems = ({
-                "dashboard": [],
-                "comp": [
-                  {label:"\uD83D\uDCCB Builder",sub:"Full lot comp tool",action:()=>{setTab("comp");setCompMode("builder");setHoverTab(null);}},
-                  {label:"\u26A1 Quick Mode",sub:"Fast comp entry",action:()=>{setTab("comp");setCompMode("quick");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC2 History",sub:"Past comps & quotes",action:()=>{setTab("comp");setCompMode("history");setHoverTab(null);}},
-                ],
-                "inventory": [
-                  {label:"\uD83D\uDCE6 Cards",sub:"Card inventory",action:()=>{setTab("inventory");setInvTabDefault("cards");setHoverTab(null);}},
-                  {label:"\uD83D\uDDC3 Card Pools",sub:"Pool management",action:()=>{setTab("inventory");setInvTabDefault("pools");setHoverTab(null);}},
-                  {label:"\uD83D\uDDC2 Lot History",sub:"Past lots",action:()=>{setTab("inventory");setInvTabDefault("lots");setHoverTab(null);}},
-                  {label:"\uD83C\uDF81 Product",sub:"Product inventory",action:()=>{setTab("inventory");setInvTabDefault("product");setHoverTab(null);}},
-                ],
-                "streams": [
-                  {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
-                  {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
-                  {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
-                ],
-                "buyers": [
-                  {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
-                  {label:"\uD83D\uDDFA\uFE0F By State",sub:"Heatmap",action:()=>{setTab("buyers");setBuyerTabDefault("map");setHoverTab(null);}},
-                  {label:"\uD83D\uDD50 By Time Zone",sub:"Zone breakdown",action:()=>{setTab("buyers");setBuyerTabDefault("zones");setHoverTab(null);}},
-                ],
-                "performance": [
-                  {label:"\uD83D\uDCC5 This Month",sub:"Current month",action:()=>{setTab("performance");setPeriodDefault("month");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC6 This Quarter",sub:"Current quarter",action:()=>{setTab("performance");setPeriodDefault("quarter");setHoverTab(null);}},
-                  {label:"\uD83D\uDDD3 This Year",sub:"YTD",action:()=>{setTab("performance");setPeriodDefault("year");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA All Time",sub:"Full history",action:()=>{setTab("performance");setPeriodDefault("all");setHoverTab(null);}},
-                ],
-                "checklist": [
-                  {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
-                  {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistDefault("wants");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistDefault("stats");setHoverTab(null);}},
-                ],
-              })[t.id]||[];
-                return (
-                  <div key={t.id} style={{position:"relative"}} onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoverTab({id:t.id,x:r.left,y:r.bottom})}} onMouseLeave={()=>setTimeout(()=>setHoverTab(null),100)}>
-                    <button onClick={()=>setTab(t.id)} className="dash-tab"
-                      style={{background:tab===t.id?"rgba(232,49,122,0.15)":"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.45)",border:`1.5px solid ${tab===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",backdropFilter:"blur(10px)",transition:"all 0.15s ease",boxShadow:tab===t.id?"0 0 20px rgba(232,49,122,0.2)":"none",display:"flex",alignItems:"center",gap:5}}>
-                      <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
-                      <span className="nav-tab-label">{t.icon} {t.label}</span>
-                      {menuItems.length>1&&<span style={{fontSize:9,opacity:0.5,marginLeft:2}}>{"\u25BE"}</span>}
-                    </button>
-                    {hoverTab?.id===t.id&&menuItems.length>1&&(
-                      <div onMouseEnter={()=>{}} onMouseLeave={()=>setHoverTab(null)} style={{position:"fixed",top:`${hoverTab?.y??0}px`,left:`${hoverTab?.x??0}px`,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:99999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
-                        {menuItems.map((item,idx)=>(
-                          <button key={idx} onClick={item.action}
-                            style={{display:"block",width:"100%",background:"transparent",border:"none",borderRadius:10,padding:"9px 14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
-                            onMouseEnter={e=>e.currentTarget.style.background="rgba(232,49,122,0.1)"}
-                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{item.label}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{item.sub}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* Tab content */}
-      <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
-        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
-        {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
-        {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
-        {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
-        {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
-      </div>
-    </div>
-  );
-}
