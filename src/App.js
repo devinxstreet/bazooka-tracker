@@ -2897,8 +2897,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   }
 
   const sum = {};
+  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards" };
   BREAKERS.forEach(b => { sum[b]={total:0}; CARD_TYPES.forEach(ct=>{sum[b][ct]=0;}); });
-  breaks.forEach(b => { if(sum[b.breaker]){sum[b.breaker].total++; if(b.cardType)sum[b.breaker][b.cardType]++;} });
+  breaks.forEach(b => { if(sum[b.breaker]){ sum[b.breaker].total++; const ct=USAGE_TO_CT[b.usage]||b.cardType; if(ct)sum[b.breaker][ct]++; } });
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
