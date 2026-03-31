@@ -11501,6 +11501,13 @@ function PublicCardDatabase() {
   const [wantNotifs,    setWantNotifs]    = useState([]);
   const [trackingInputs, setTrackingInputs] = useState({}); // {saleId: {num,carrier}}
 
+  // -- Super Foil Tracker --
+  const [superClaims,     setSuperClaims]     = useState([]);
+  const [claimModal,      setClaimModal]      = useState(null);
+  const [claimPhoto,      setClaimPhoto]      = useState(null);
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+  const [claimSent,       setClaimSent]       = useState(false);
+
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
   const DECK_SIZE = 60;
@@ -11542,6 +11549,14 @@ function PublicCardDatabase() {
   }, [counterModal?.id]);
 
 
+
+  // -- Super claims (public, no auth needed) --
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"super_claims"), snap => {
+      setSuperClaims(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>unsub();
+  }, []);
 
   // -- Public marketplace (loads without login) --
   useEffect(() => {
@@ -12498,6 +12513,7 @@ function PublicCardDatabase() {
           {/* Tab bar */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:20}}>
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
+            {tabBtn("supers","\u2B50 Supers",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
             {tabBtn("playbook","\uD83D\uDCD6 Playbook",0)}
@@ -12556,6 +12572,225 @@ function PublicCardDatabase() {
 
       {/* TAB CONTENT */}
       <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
+
+        {/* SUPERS TAB */}
+        {activeTab==="supers"&&(()=>{
+          const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
+          const superCards = cards.filter(c => c.weapon === "Super" || (c.weapon||"").toUpperCase() === "SUPER");
+          const superSets = [...new Set(superCards.map(c => c.setName).filter(Boolean))].sort();
+          const claimMap = {};
+          superClaims.forEach(cl => { claimMap[cl.cardId] = cl; });
+          const pendingClaims = superClaims.filter(cl => cl.status === "pending");
+          const verifiedCount = superClaims.filter(cl => cl.status === "verified").length;
+          const totalSupers = superCards.length;
+
+          async function submitClaim(card, photoBase64) {
+            if (!user) { setSigningIn(true); return; }
+            setClaimSubmitting(true);
+            try {
+              const storageRef2 = ref(storage, `super_claims/${card.id}_${Date.now()}.jpg`);
+              const byteStr = atob(photoBase64.split(",")[1]);
+              const ab = new ArrayBuffer(byteStr.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+              await uploadBytes(storageRef2, new Blob([ab], { type: "image/jpeg" }));
+              const photoUrl = await getDownloadURL(storageRef2);
+              await setDoc(doc(db, "super_claims", card.id), {
+                cardId: card.id, cardName: card.hero, cardNum: card.cardNum,
+                setName: card.setName || "", cardImage: card.imageUrl || null,
+                userId: user.uid, userName: user.displayName || user.email,
+                photoUrl, status: "pending",
+                createdAt: new Date().toISOString(),
+              });
+              setClaimSent(true);
+            } catch(e) { alert("Upload failed: " + e.message); }
+            setClaimSubmitting(false);
+          }
+
+          async function adminVerify(claimId, approve, reason) {
+            await setDoc(doc(db, "super_claims", claimId), {
+              status: approve ? "verified" : "denied",
+              denialReason: reason || "",
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: user?.displayName || "Admin",
+            }, { merge: true });
+          }
+
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+              {/* Claim modal */}
+              {claimModal && (
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);} }}>
+                  <div style={{background:"#111",border:"2px solid #F59E0B",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
+                    {claimSent?(
+                      <div style={{textAlign:"center",padding:"20px 0"}}>
+                        <div style={{fontSize:52,marginBottom:16}}>⭐</div>
+                        <div style={{fontSize:20,fontWeight:900,color:"#F59E0B",marginBottom:8}}>Claim Submitted!</div>
+                        <div style={{fontSize:13,color:"#888",marginBottom:24}}>Your Super Foil claim is pending admin verification. You'll be notified once reviewed.</div>
+                        <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimSent(false);}} style={{background:"#F59E0B",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                      </div>
+                    ):(
+                      <>
+                        <div style={{fontSize:18,fontWeight:900,color:"#F59E0B",marginBottom:4}}>⭐ Claim Super Foil</div>
+                        <div style={{fontSize:13,color:"#888",marginBottom:16}}>{claimModal.hero} #{claimModal.cardNum} · {claimModal.setName}</div>
+                        <div style={{fontSize:12,color:"#555",marginBottom:16,lineHeight:1.6}}>Super Foils are 1/1 cards. Upload a clear photo as proof — an admin will verify before it counts on the tracker.</div>
+                        <label style={{display:"block",marginBottom:16}}>
+                          <div style={{background:claimPhoto?"#0a1a0a":"#0a0a0a",border:`2px dashed ${claimPhoto?"#F59E0B":"#2a2a2a"}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}}>
+                            {claimPhoto?(
+                              <img src={claimPhoto} alt="proof" style={{maxHeight:200,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
+                            ):(
+                              <>
+                                <div style={{fontSize:32,marginBottom:8}}>📸</div>
+                                <div style={{fontSize:13,fontWeight:700,color:"#F59E0B"}}>Tap to upload photo</div>
+                                <div style={{fontSize:11,color:"#555",marginTop:4}}>Clear photo of your Super Foil card</div>
+                              </>
+                            )}
+                          </div>
+                          <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                            onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>setClaimPhoto(ev.target.result);r.readAsDataURL(f);e.target.value="";}}/>
+                        </label>
+                        <div style={{display:"flex",gap:10}}>
+                          <button onClick={()=>{if(claimPhoto)submitClaim(claimModal,claimPhoto);}} disabled={!claimPhoto||claimSubmitting}
+                            style={{flex:1,background:claimPhoto?"#F59E0B":"#1a1a1a",color:claimPhoto?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:claimPhoto?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                            {claimSubmitting?"Submitting...":"Submit Claim"}
+                          </button>
+                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Admin verification queue */}
+              {isAdminUser && pendingClaims.length > 0 && (
+                <div style={{background:"#1a1400",border:"2px solid #F59E0B44",borderRadius:14,padding:20}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F59E0B",marginBottom:12}}>🔍 Pending Verification ({pendingClaims.length})</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {pendingClaims.map(cl=>(
+                      <div key={cl.id} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:10,padding:14,display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+                        <img src={cl.photoUrl} alt="proof" style={{width:80,height:107,objectFit:"cover",borderRadius:8,flexShrink:0,cursor:"pointer"}} onClick={()=>window.open(cl.photoUrl,"_blank")}/>
+                        <div style={{flex:1,minWidth:200}}>
+                          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>{cl.cardName} #{cl.cardNum}</div>
+                          <div style={{fontSize:11,color:"#888",marginBottom:4}}>{cl.setName} · claimed by <strong style={{color:"#F59E0B"}}>{cl.userName}</strong></div>
+                          <div style={{fontSize:10,color:"#555"}}>{new Date(cl.createdAt).toLocaleDateString()}</div>
+                        </div>
+                        <div style={{display:"flex",gap:8,flexShrink:0}}>
+                          <button onClick={()=>adminVerify(cl.id,true)} style={{background:"#0a1a0a",border:"1px solid #4ade80",color:"#4ade80",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Verify</button>
+                          <button onClick={()=>{const reason=prompt("Reason for denial (optional):");adminVerify(cl.id,false,reason||"");}} style={{background:"#1a0a0a",border:"1px solid #E8317A",color:"#E8317A",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>❌ Deny</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Community overview */}
+              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:20,padding:"24px 28px",backdropFilter:"blur(10px)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#F59E0B",textTransform:"uppercase",letterSpacing:3,marginBottom:6}}>⭐ Community Super Foil Hunt</div>
+                    <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>How many 1/1s have been pulled?</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,0.3)",marginTop:4}}>{totalSupers} total Super Foils · each is a unique 1/1</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:48,fontWeight:900,color:"#F59E0B",lineHeight:1}}>{verifiedCount}</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>of {totalSupers} verified</div>
+                  </div>
+                </div>
+                <div style={{height:12,background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",marginBottom:8}}>
+                  <div style={{height:"100%",width:`${totalSupers>0?(verifiedCount/totalSupers*100):0}%`,background:"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)",backgroundSize:"200% 100%",animation:"gradientShift 3s ease infinite",borderRadius:6,transition:"width 0.5s ease",boxShadow:"0 0 20px rgba(245,158,11,0.5)"}}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>0 found</span>
+                  <span style={{fontSize:12,fontWeight:700,color:"#F59E0B"}}>{totalSupers>0?(verifiedCount/totalSupers*100).toFixed(1):0}% of all Supers claimed</span>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{totalSupers} total</span>
+                </div>
+              </div>
+
+              {/* Per-set trackers */}
+              {superSets.map(setName=>{
+                const setSuperCards=superCards.filter(c=>c.setName===setName);
+                const setVerified=setSuperCards.filter(c=>claimMap[c.id]?.status==="verified");
+                const setPending=setSuperCards.filter(c=>claimMap[c.id]?.status==="pending");
+                const setUnclaimed=setSuperCards.filter(c=>!claimMap[c.id]);
+                const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
+                const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
+                return (
+                  <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
+                    <div style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                        <div>
+                          <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:3}}>
+                            {setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed
+                          </div>
+                        </div>
+                        <div style={{fontSize:28,fontWeight:900,color:"#F59E0B"}}>
+                          {setVerified.length}<span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/{setSuperCards.length}</span>
+                        </div>
+                      </div>
+                      <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
+                      </div>
+                    </div>
+                    <div style={{padding:"12px 24px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
+                      {setSuperCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
+                        const claim=claimMap[c.id];
+                        const isVerified=claim?.status==="verified";
+                        const isPending=claim?.status==="pending";
+                        const isDenied=claim?.status==="denied";
+                        const myOwned=owned?.[c.id];
+                        const myClaim=claim?.userId===user?.uid;
+                        return (
+                          <div key={c.id} style={{background:isVerified?"rgba(245,158,11,0.08)":"rgba(0,0,0,0.4)",border:`1.5px solid ${isVerified?"rgba(245,158,11,0.6)":isPending?"rgba(245,158,11,0.25)":"rgba(255,255,255,0.06)"}`,borderRadius:14,overflow:"hidden",backdropFilter:"blur(4px)"}}>
+                            {c.imageUrl&&(
+                              <div style={{position:"relative"}}>
+                                <img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block",opacity:isVerified?1:0.55,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":"grayscale(40%)"}}/>
+                                {isVerified&&<div style={{position:"absolute",top:6,right:6,background:"#F59E0B",color:"#000",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:800}}>✅ FOUND</div>}
+                                {isPending&&<div style={{position:"absolute",top:6,right:6,background:"rgba(26,20,0,0.9)",border:"1px solid #F59E0B",color:"#F59E0B",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:800}}>⏳ PENDING</div>}
+                                {!isVerified&&!isPending&&<div style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.75)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:700}}>UNCLAIMED</div>}
+                              </div>
+                            )}
+                            <div style={{padding:"10px 12px"}}>
+                              <div style={{fontSize:12,fontWeight:800,color:isVerified?"#F59E0B":"#F0F0F0",marginBottom:2}}>{c.hero}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:6}}>#{c.cardNum} · 1/1 Super</div>
+                              {isVerified&&<div style={{fontSize:11,fontWeight:700,color:"#F59E0B",marginBottom:6}}>🏆 {claim.userName}</div>}
+                              {isPending&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:6}}>⏳ {claim.userName}</div>}
+                              {isDenied&&myClaim&&<div style={{fontSize:10,color:"#E8317A",marginBottom:6}}>❌ Denied{claim.denialReason?`: ${claim.denialReason}`:""}</div>}
+                              {user&&myOwned&&!isVerified&&!isPending&&(
+                                <button onClick={()=>{setClaimModal(c);setClaimPhoto(null);setClaimSent(false);}}
+                                  style={{width:"100%",background:"linear-gradient(135deg,#F59E0B,#FBBF24)",color:"#000",border:"none",borderRadius:8,padding:"6px 0",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(245,158,11,0.3)"}}>
+                                  ⭐ Claim This Super
+                                </button>
+                              )}
+                              {!user&&!isVerified&&!isPending&&(
+                                <button onClick={()=>setSigningIn(true)}
+                                  style={{width:"100%",background:"rgba(245,158,11,0.1)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8,padding:"6px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                                  Sign in to claim
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {superCards.length===0&&(
+                <div style={{textAlign:"center",padding:"80px 0",color:"rgba(255,255,255,0.2)"}}>
+                  <div style={{fontSize:48,marginBottom:16}}>⭐</div>
+                  <div style={{fontSize:16,fontWeight:700}}>No Super Foil cards found yet</div>
+                  <div style={{fontSize:12,marginTop:8}}>Super Foil cards need weapon="Super" in the checklist</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* CARDS TAB */}
         {activeTab==="cards"&&(
