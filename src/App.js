@@ -13035,7 +13035,6 @@ function PublicCardDatabase() {
 
         {/* WANTS TAB */}
         {activeTab==="wants"&&(
-        {activeTab==="wants"&&(
           <div>
             {Object.keys(wantList).length===0?(
               <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
