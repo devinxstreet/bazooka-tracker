@@ -11591,6 +11591,7 @@ function PublicCardDatabase() {
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
+  }
 
   async function buyNow(listing) {
     if (!user) { setSigningIn(true); return; }
@@ -12373,7 +12374,6 @@ function PublicCardDatabase() {
       </div>{/* end tab content */}
     </div>
   );
-}
 }
 
 
