@@ -7205,20 +7205,23 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
         // -- Step 2: Vision API if filename didn't work --
         if (!match) {
           const base64 = await new Promise((res, rej) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.onload = () => {
-              URL.revokeObjectURL(url);
-              const MAX = 1200;
-              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-              const canvas = document.createElement("canvas");
-              canvas.width  = Math.round(img.width  * scale);
-              canvas.height = Math.round(img.height * scale);
-              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-              res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const img = new Image();
+              img.onload = () => {
+                const MAX = 1200;
+                const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                const canvas = document.createElement("canvas");
+                canvas.width  = Math.round(img.width  * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+              };
+              img.onerror = rej;
+              img.src = ev.target.result;
             };
-            img.onerror = rej;
-            img.src = url;
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
           });
 
           const resp = await fetch("/api/scan-card", {
@@ -7286,7 +7289,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
           }
         }
 
-        if (!match) { skipped++; console.log(`No match: ${file.name}`); continue; }
+        if (!match) { skipped++; console.log(`No match: ${file.name}`); _setImgScanProgress(p=>({...p, status:`No match for ${file.name} - skipping`})); continue; }
 
         // Upload original file (not re-compressed)
         const imgBlob = new Blob([await file.arrayBuffer()], { type: file.type || "image/webp" });
@@ -7300,6 +7303,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
       } catch(e) {
         console.error(`Error scanning ${file.name}:`, e);
+        _setImgScanProgress(p=>({...p, status:`Error on ${file.name}: ${e.message}`}));
         skipped++;
       }
     }
