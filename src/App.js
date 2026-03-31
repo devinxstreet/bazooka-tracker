@@ -13021,7 +13021,6 @@ export default function App() {
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin","Streamer"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
     { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"showcase",   label:"Showcase",     icon:"\u2728", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
@@ -13190,7 +13189,6 @@ export default function App() {
                 "streams": [
                   {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC4 Pay Stubs",sub:"Stub generator",action:()=>{setTab("streams");setStreamTabDefault("stubs");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                 ],
                 "buyers": [
@@ -13208,9 +13206,6 @@ export default function App() {
                   {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
                   {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistDefault("wants");setHoverTab(null);}},
                   {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistDefault("stats");setHoverTab(null);}},
-                ],
-                "showcase": [
-                  {label:"\u2728 My Showcase",sub:"Public collection",action:()=>{setTab("showcase");;setHoverTab(null);}},
                 ],
               })[t.id]||[];
                 return (
@@ -13250,7 +13245,6 @@ export default function App() {
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
-        {tab==="showcase"   && <BobaShowcase uid={effectiveUser?.uid} />}
       </div>
     </div>
   );
