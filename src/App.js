@@ -11514,6 +11514,7 @@ function PublicCardDatabase() {
   const [claimPhoto,      setClaimPhoto]      = useState(null);
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [claimSent,       setClaimSent]       = useState(false);
+  const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
@@ -12726,24 +12727,31 @@ function PublicCardDatabase() {
                 const setUnclaimed=setSuperCards.filter(c=>!claimMap[c.id]);
                 const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
                 const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
+                const isCollapsed=!!collapsedSuperSets[setName];
                 return (
                   <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
-                    <div style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div onClick={()=>setCollapsedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isCollapsed?0:12}}>
                         <div>
                           <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:3}}>
                             {setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed
                           </div>
                         </div>
-                        <div style={{fontSize:28,fontWeight:900,color:"#F59E0B"}}>
-                          {setVerified.length}<span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/{setSuperCards.length}</span>
+                        <div style={{display:"flex",alignItems:"center",gap:12}}>
+                          <div style={{fontSize:28,fontWeight:900,color:"#F59E0B"}}>
+                            {setVerified.length}<span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/{setSuperCards.length}</span>
+                          </div>
+                          <span style={{color:"rgba(255,255,255,0.3)",fontSize:14}}>{isCollapsed?"▼":"▲"}</span>
                         </div>
                       </div>
-                      <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
-                      </div>
+                      {!isCollapsed&&(
+                        <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
+                        </div>
+                      )}
                     </div>
+                    {!isCollapsed&&(
                     <div style={{padding:"12px 24px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
                       {setSuperCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap[c.id];
@@ -12791,6 +12799,7 @@ function PublicCardDatabase() {
                         );
                       })}
                     </div>
+                    )}
                   </div>
                 );
               })}
