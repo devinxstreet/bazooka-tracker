@@ -9879,7 +9879,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
   );
 }
 
-function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp }) {
+function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search}) {
   return (
           <div>
             {/* My listings */}
@@ -10149,7 +10149,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
   );
 }
 
-function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, inviteMember, WEAPON_COLORS, setSigningIn, cards, owned }) {
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, inviteMember, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -10362,7 +10362,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn }) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -10854,7 +10854,7 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
   );
 }
 
-function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp }) {
+function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto}) {
   if (!scanModal) return null;
   return (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
@@ -10945,7 +10945,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
   );
 }
 
-function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS }) {
+function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, listings}) {
   if (!compCard) return null;
   const c = compCard;
   const wc = WEAPON_COLORS[c.weapon]||"#444";
@@ -11963,7 +11963,9 @@ function PublicCardDatabase() {
       `}</style>
 
       {/* Comp Modal */}
-      <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS}/>
+      <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS}cards={cards}
+          listings={listings}
+          />
 
       {/* Sign-in modal */}
       {signingIn&&(
@@ -12048,7 +12050,9 @@ function PublicCardDatabase() {
       {/* Counter offer modal */}
       <CounterModal counterModal={counterModal} counterSent={counterSent} setCounterModal={setCounterModal} counterAmt={counterAmt} setCounterAmt={setCounterAmt} setCounterSent={setCounterSent} counterOffer={counterOffer} negHistory={negHistory}/>
       {/* Scan modal */}
-      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp}/>}
+      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp}confirmScan={confirmScan}
+          scanCardPhoto={scanCardPhoto}
+          />}
       {/* HERO HEADER */}
       <div style={{
         position:"relative", overflow:"hidden",
@@ -12309,6 +12313,9 @@ function PublicCardDatabase() {
             buyNow={buyNow} respondOffer={respondOffer}
             unsellListing={unsellListing} saveTracking={saveTracking}
             setSigningIn={setSigningIn} setActiveTab={setActiveTab} inp={inp}
+            listType={listType} cards={cards} owned={owned}
+              listType={listType} cards={cards} owned={owned}
+          search={search}
           />
         )}
 
@@ -12343,6 +12350,9 @@ function PublicCardDatabase() {
             respondFriendReq={respondFriendReq} addFriend={addFriend}
             cards={cards} owned={owned} privateCards={privateCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
+            inp={inp} teamInvites={teamInvites}
+              inp={inp} teamInvites={teamInvites}
+          sendFriendRequest={sendFriendRequest}
           />
         )}
 
@@ -12358,6 +12368,9 @@ function PublicCardDatabase() {
             createTeam={createTeam} inviteMember={inviteMember}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned}
+            friendOwned={friendOwned} inp={inp}
+              friendOwned={friendOwned} inp={inp}
+          inviteToTeam={inviteToTeam}
           />
         )}
       </div>{/* end tab content */}
