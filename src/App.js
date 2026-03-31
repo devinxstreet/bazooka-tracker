@@ -12779,6 +12779,12 @@ function PublicCardDatabase() {
                                   Sign in to claim
                                 </button>
                               )}
+                              {isAdminUser && claim && (
+                                <button onClick={async()=>{ if(window.confirm(`Remove the claim for ${c.hero} #${c.cardNum}? This cannot be undone.`)) { await deleteDoc(doc(db,"super_claims",c.id)); } }}
+                                  style={{width:"100%",marginTop:6,background:"rgba(232,49,122,0.08)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.2)",borderRadius:8,padding:"5px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                                  🗑️ Remove Claim
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
