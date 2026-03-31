@@ -9880,7 +9880,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
   );
 }
 
-function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search}) {
+function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing}) {
   return (
           <div>
             {/* My listings */}
@@ -10363,7 +10363,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -10465,7 +10465,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
   );
 }
 
-function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned }) {
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp }) {
   const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
   const pbEntryIds=new Set(pbCards.map(e=>e.id));
   const playCount=pbCards.filter(e=>e.type==="play").length;
@@ -10476,6 +10476,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
   const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
+  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
             <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -12340,6 +12341,7 @@ function PublicCardDatabase() {
             unsellListing={unsellListing} saveTracking={saveTracking}
             setSigningIn={setSigningIn} setActiveTab={setActiveTab}
             inp={inp} listType={listType} cards={cards} owned={owned} search={search}
+          removeListing={removeListing}
           />
         )}
 
@@ -12376,6 +12378,7 @@ function PublicCardDatabase() {
             cards={cards} owned={owned} privateCards={privateCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             inp={inp} teamInvites={teamInvites}
+          respondTeamInvite={respondTeamInvite}
           />
         )}
 
