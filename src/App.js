@@ -2759,7 +2759,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogBreaker, setStreamLogBreaker] = useState("");
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{} };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -2785,7 +2785,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", ...prodFields });
       setRecapSaved(true);
     } else {
       setRecap(EMPTY_RECAP);
@@ -2861,7 +2861,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     setRecapSaving(true);
     try {
       const streamId = existingStream?.id || uid();
-      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:streamId, breaker, date });
+      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, streamName:recap.streamName||"", id:streamId, breaker, date });
       // Log selected chaser cards out of inventory
       if (recap.chaserCardIds) {
         const cardIds = recap.chaserCardIds.split(",").filter(Boolean);
@@ -2989,9 +2989,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
                     setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
-                    if (streamDate) { csvJustLoaded.current = true; setDate(streamDate); }
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`\u2705 Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` &middot; Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` &middot; Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` &middot; ${skipped} cancelled skipped`:""}${streamDate?` &middot; Date: ${streamDate}`:""} -- now fill in Whatnot fees & other expenses.` });
+                    setCsvMsg({ type:"success", text:`\u2705 Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""} — enter the stream date manually then fill in fees & expenses.` });
                     setTimeout(()=>setCsvMsg(null), 8000);
 
                     // Parse buyers for CRM
@@ -3062,6 +3061,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
           <TextInput label="Date" type="date" value={date} onChange={setDate}/>
+          <div>
+            <label style={S.lbl}>Stream Name</label>
+            <input value={recap.streamName||""} onChange={e=>rf("streamName")(e.target.value)} placeholder="e.g. Friday Night Break #12" style={{ ...S.inp, color: recap.streamName?"#F0F0F0":"#9CA3AF" }}/>
+          </div>
           <div>
             <label style={S.lbl}>Break Type</label>
             <select value={recap.breakType} onChange={e=>rf("breakType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
