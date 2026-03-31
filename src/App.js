@@ -736,10 +736,29 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const cardCostByType = {};
         const cardQtyByType  = {};
         CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
+        const now2 = new Date();
         breaks.forEach(b => {
           if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
           const breakDate = b.date || (b.dateAdded ? b.dateAdded.split("T")[0] : null);
-          if (!breakDate || !inPeriod(breakDate)) return;
+          if (!breakDate) return;
+          const d = parseLocalDate(breakDate);
+          let inPrd = false;
+          if (financialPeriod==="week") {
+            const tDay=now2.getDay(), tDiff=tDay===0?6:tDay-1;
+            const wStart=new Date(now2); wStart.setDate(now2.getDate()-tDiff); wStart.setHours(0,0,0,0);
+            const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+            inPrd = d >= wStart && d <= wEnd;
+          } else if (financialPeriod==="month") {
+            inPrd = d.getMonth()===now2.getMonth() && d.getFullYear()===now2.getFullYear();
+          } else if (financialPeriod==="quarter") {
+            const q=Math.floor(now2.getMonth()/3);
+            inPrd = Math.floor(d.getMonth()/3)===q && d.getFullYear()===now2.getFullYear();
+          } else if (financialPeriod==="year") {
+            inPrd = d.getFullYear()===now2.getFullYear();
+          } else {
+            inPrd = true;
+          }
+          if (!inPrd) return;
           const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
           cardCostByType[b.cardType] += cost;
