@@ -6900,6 +6900,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const DECK_SIZE = 60;
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
+  // Super Foil Tracker
+  const [superClaims,     setSuperClaims]     = useState([]);
+  const [claimModal,      setClaimModal]      = useState(null); // card being claimed
+  const [claimPhoto,      setClaimPhoto]      = useState(null); // base64
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+  const [claimSent,       setClaimSent]       = useState(false);
 
   useEffect(() => {
     // Cards are static after import -- use localStorage cache for instant load
@@ -6941,7 +6947,10 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       const uid = user?.uid || "shared";
       setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
     });
-    return ()=>{ u2(); u3(); u4(); u5(); uWants(); };
+    const uSuper = onSnapshot(collection(db,"super_claims"), snap => {
+      setSuperClaims(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); };
   }, []);
 
   // Infinite scroll -- load more when user scrolls near bottom
@@ -7973,7 +7982,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }} className="view-mode-row">
-            {[["cards","\uD83C\uDCCF Cards"],["treatments","\uD83D\uDCCB Treatments"],["rainbow","\uD83C\uDF08 Rainbow"],["stats","\uD83D\uDCCA Stats"],["wants","\uD83C\uDFAF Wants"],["deck","\u2694\uFE0F Deck"],["playbook","\uD83D\uDCD6 Playbook"]].map(([v,l])=>(
+            {[["cards","\uD83C\uDCCF Cards"],["treatments","\uD83D\uDCCB Treatments"],["rainbow","\uD83C\uDF08 Rainbow"],["supers","\u2B50 Supers"],["stats","\uD83D\uDCCA Stats"],["wants","\uD83C\uDFAF Wants"],["deck","\u2694\uFE0F Deck"],["playbook","\uD83D\uDCD6 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -8734,6 +8743,255 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
       {/* Card grid */}
       {/* Stats View */}
+      {viewMode === "supers" && !loading && (() => {
+        // All Super weapon cards grouped by set
+        const superCards = cards.filter(c => c.weapon === "Super" || (c.weapon||"").toUpperCase() === "SUPER");
+        const superSets = [...new Set(superCards.map(c => c.setName).filter(Boolean))].sort();
+
+        // Build claim map: cardId -> claim doc
+        const claimMap = {};
+        superClaims.forEach(cl => { claimMap[cl.cardId] = cl; });
+
+        async function submitClaim(card, photoBase64) {
+          if (!user) return;
+          setClaimSubmitting(true);
+          try {
+            // Upload photo to storage
+            const storageRef2 = ref(storage, `super_claims/${card.id}_${Date.now()}.jpg`);
+            const byteStr = atob(photoBase64.split(",")[1]);
+            const ab = new ArrayBuffer(byteStr.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+            await uploadBytes(storageRef2, new Blob([ab], { type: "image/jpeg" }));
+            const photoUrl = await getDownloadURL(storageRef2);
+            const claimId = card.id;
+            await setDoc(doc(db, "super_claims", claimId), {
+              cardId: card.id, cardName: card.hero, cardNum: card.cardNum,
+              setName: card.setName || "", cardImage: card.imageUrl || null,
+              userId: user.uid, userName: user.displayName || user.email,
+              photoUrl, status: "pending",
+              createdAt: new Date().toISOString(),
+            });
+            setClaimSent(true);
+          } catch(e) { alert("Upload failed: " + e.message); }
+          setClaimSubmitting(false);
+        }
+
+        async function adminVerify(claimId, approve, reason) {
+          await setDoc(doc(db, "super_claims", claimId), {
+            status: approve ? "verified" : "denied",
+            denialReason: reason || "",
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: user?.displayName || "Admin",
+          }, { merge: true });
+        }
+
+        const pendingClaims = superClaims.filter(cl => cl.status === "pending");
+        const verifiedCount = superClaims.filter(cl => cl.status === "verified").length;
+        const totalSupers = superCards.length;
+
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Claim modal */}
+            {claimModal && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+                onClick={() => { if (!claimSubmitting) { setClaimModal(null); setClaimPhoto(null); setClaimSent(false); } }}>
+                <div style={{ background: "#111", border: "2px solid #F59E0B", borderRadius: 20, padding: 28, maxWidth: 420, width: "100%" }} onClick={e => e.stopPropagation()}>
+                  {claimSent ? (
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                      <div style={{ fontSize: 52, marginBottom: 16 }}>⭐</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: "#F59E0B", marginBottom: 8 }}>Claim Submitted!</div>
+                      <div style={{ fontSize: 13, color: "#888", marginBottom: 24 }}>Your Super Foil claim is pending verification. You'll be notified once reviewed.</div>
+                      <button onClick={() => { setClaimModal(null); setClaimPhoto(null); setClaimSent(false); }}
+                        style={{ background: "#F59E0B", color: "#000", border: "none", borderRadius: 12, padding: "12px 32px", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: "#F59E0B", marginBottom: 4 }}>⭐ Claim Super Foil</div>
+                      <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>{claimModal.hero} #{claimModal.cardNum} · {claimModal.setName}</div>
+                      <div style={{ fontSize: 12, color: "#555", marginBottom: 16, lineHeight: 1.6 }}>
+                        Super Foils are 1/1 cards. Upload a photo of your card as proof — an admin will verify your claim before it counts toward the community tracker.
+                      </div>
+                      <label style={{ display: "block", marginBottom: 16 }}>
+                        <div style={{ background: claimPhoto ? "#0a1a0a" : "#0a0a0a", border: `2px dashed ${claimPhoto ? "#F59E0B" : "#2a2a2a"}`, borderRadius: 12, padding: "20px", textAlign: "center", cursor: "pointer" }}>
+                          {claimPhoto ? (
+                            <img src={claimPhoto} alt="proof" style={{ maxHeight: 200, maxWidth: "100%", borderRadius: 8, objectFit: "contain" }}/>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 32, marginBottom: 8 }}>📸</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#F59E0B" }}>Tap to upload photo</div>
+                              <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>Clear photo of your Super Foil card</div>
+                            </>
+                          )}
+                        </div>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                          onChange={e => {
+                            const f = e.target.files?.[0]; if (!f) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => setClaimPhoto(ev.target.result);
+                            reader.readAsDataURL(f);
+                            e.target.value = "";
+                          }}/>
+                      </label>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button onClick={() => { if (claimPhoto) submitClaim(claimModal, claimPhoto); }}
+                          disabled={!claimPhoto || claimSubmitting}
+                          style={{ flex: 1, background: claimPhoto ? "#F59E0B" : "#1a1a1a", color: claimPhoto ? "#000" : "#555", border: "none", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 800, cursor: claimPhoto ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                          {claimSubmitting ? "Submitting..." : "Submit Claim"}
+                        </button>
+                        <button onClick={() => { setClaimModal(null); setClaimPhoto(null); }}
+                          style={{ background: "transparent", border: "1px solid #333", color: "#888", borderRadius: 12, padding: "12px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Admin verification queue */}
+            {isAdmin && pendingClaims.length > 0 && (
+              <div style={{ background: "#1a1400", border: "2px solid #F59E0B44", borderRadius: 14, padding: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#F59E0B", marginBottom: 12 }}>🔍 Pending Verification ({pendingClaims.length})</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {pendingClaims.map(cl => (
+                    <div key={cl.id} style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 10, padding: 14, display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                      <img src={cl.photoUrl} alt="proof" style={{ width: 80, height: 107, objectFit: "cover", borderRadius: 8, flexShrink: 0, cursor: "pointer" }} onClick={() => window.open(cl.photoUrl, "_blank")}/>
+                      <div style={{ flex: 1, minWidth: 200 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "#F0F0F0", marginBottom: 4 }}>{cl.cardName} #{cl.cardNum}</div>
+                        <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>{cl.setName} · claimed by <strong style={{ color: "#F59E0B" }}>{cl.userName}</strong></div>
+                        <div style={{ fontSize: 10, color: "#555" }}>{new Date(cl.createdAt).toLocaleDateString()}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                        <button onClick={() => adminVerify(cl.id, true)}
+                          style={{ background: "#0a1a0a", border: "1px solid #4ade80", color: "#4ade80", borderRadius: 8, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✅ Verify</button>
+                        <button onClick={() => { const reason = prompt("Reason for denial (optional):"); adminVerify(cl.id, false, reason || ""); }}
+                          style={{ background: "#1a0a0a", border: "1px solid #E8317A", color: "#E8317A", borderRadius: 8, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>❌ Deny</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Overall community stat */}
+            <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, padding: "20px 24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#F59E0B", textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>⭐ Community Super Foil Hunt</div>
+                  <div style={{ fontSize: 13, color: "#555" }}>{totalSupers} total Super Foils across all sets · 1/1 cards</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: "#F59E0B" }}>{verifiedCount}<span style={{ fontSize: 14, color: "#555", fontWeight: 400 }}>/{totalSupers}</span></div>
+                  <div style={{ fontSize: 11, color: "#555" }}>found & verified</div>
+                </div>
+              </div>
+              <div style={{ height: 10, background: "#1a1a1a", borderRadius: 5, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${totalSupers > 0 ? (verifiedCount / totalSupers * 100) : 0}%`, background: "linear-gradient(90deg, #F59E0B, #FBBF24, #FDE68A, #FBBF24, #F59E0B)", backgroundSize: "200% 100%", animation: "gradientShift 3s ease infinite", borderRadius: 5, transition: "width 0.5s ease" }}/>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "#555" }}>0</span>
+                <span style={{ fontSize: 11, color: "#F59E0B", fontWeight: 700 }}>{totalSupers > 0 ? (verifiedCount / totalSupers * 100).toFixed(1) : 0}% found</span>
+                <span style={{ fontSize: 11, color: "#555" }}>{totalSupers}</span>
+              </div>
+            </div>
+
+            {/* Per-set trackers */}
+            {superSets.map(setName => {
+              const setSuperCards = superCards.filter(c => c.setName === setName);
+              const setVerified = setSuperCards.filter(c => claimMap[c.id]?.status === "verified");
+              const setPending  = setSuperCards.filter(c => claimMap[c.id]?.status === "pending");
+              const setUnclaimed = setSuperCards.filter(c => !claimMap[c.id]);
+              const verPct = setSuperCards.length > 0 ? (setVerified.length / setSuperCards.length * 100) : 0;
+              const isFull = setVerified.length === setSuperCards.length;
+
+              return (
+                <div key={setName} style={{ background: "#111", border: `1px solid ${isFull ? "#F59E0B44" : "#2a2a2a"}`, borderRadius: 14, overflow: "hidden" }}>
+                  {/* Set header */}
+                  <div style={{ padding: "16px 20px", background: isFull ? "linear-gradient(135deg, #1a1200, #111)" : "#111" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: isFull ? "#F59E0B" : "#F0F0F0" }}>
+                          {isFull ? "🏆 " : "⭐ "}{setName}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+                          {setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: "#F59E0B" }}>
+                        {setVerified.length}<span style={{ fontSize: 12, color: "#555", fontWeight: 400 }}>/{setSuperCards.length}</span>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${verPct}%`, background: isFull ? "linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)" : "linear-gradient(90deg,#F59E0B,#FBBF24)", backgroundSize: "200% 100%", animation: isFull ? "gradientShift 2s ease infinite" : "none", borderRadius: 4, transition: "width 0.5s ease" }}/>
+                    </div>
+                  </div>
+
+                  {/* Card list */}
+                  <div style={{ padding: "12px 20px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                    {setSuperCards.sort((a, b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric: true })).map(c => {
+                      const claim = claimMap[c.id];
+                      const isVerified = claim?.status === "verified";
+                      const isPending  = claim?.status === "pending";
+                      const isDenied   = claim?.status === "denied";
+                      const myOwned    = owned?.[c.id];
+                      const myClaim    = claim?.userId === user?.uid;
+
+                      return (
+                        <div key={c.id} style={{ background: isVerified ? "#1a1200" : "#0a0a0a", border: `1.5px solid ${isVerified ? "#F59E0B" : isPending ? "#F59E0B44" : "#1a1a1a"}`, borderRadius: 10, overflow: "hidden", position: "relative" }}>
+                          {c.imageUrl && (
+                            <div style={{ position: "relative" }}>
+                              <img src={c.imageUrl} alt={c.hero} style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", display: "block", opacity: isVerified ? 1 : 0.6, filter: isVerified ? "none" : "grayscale(30%)" }}/>
+                              {/* Status badge */}
+                              {isVerified && <div style={{ position: "absolute", top: 6, right: 6, background: "#F59E0B", color: "#000", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 800 }}>✅ FOUND</div>}
+                              {isPending  && <div style={{ position: "absolute", top: 6, right: 6, background: "#1a1400", border: "1px solid #F59E0B", color: "#F59E0B", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 800 }}>⏳ PENDING</div>}
+                              {!isVerified && !isPending && <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.7)", color: "#555", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700 }}>UNCLAIMED</div>}
+                            </div>
+                          )}
+                          <div style={{ padding: "10px 12px" }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: isVerified ? "#F59E0B" : "#F0F0F0", marginBottom: 2 }}>{c.hero}</div>
+                            <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>#{c.cardNum} · 1/1 Super</div>
+                            {/* Owner display */}
+                            {isVerified && (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#F59E0B", marginBottom: 6 }}>🏆 {claim.userName}</div>
+                            )}
+                            {isPending && (
+                              <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>⏳ {claim.userName} — awaiting review</div>
+                            )}
+                            {isDenied && myClaim && (
+                              <div style={{ fontSize: 11, color: "#E8317A", marginBottom: 6 }}>❌ Claim denied{claim.denialReason ? `: ${claim.denialReason}` : ""}</div>
+                            )}
+                            {/* Claim button — show if owned, not yet claimed or was denied */}
+                            {user && myOwned && !isVerified && !isPending && (
+                              <button onClick={() => { setClaimModal(c); setClaimPhoto(null); setClaimSent(false); }}
+                                style={{ width: "100%", background: "linear-gradient(135deg,#F59E0B,#FBBF24)", color: "#000", border: "none", borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                                ⭐ Claim This Super
+                              </button>
+                            )}
+                            {!c.imageUrl && (
+                              <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>{c.hero} #{c.cardNum}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {superCards.length === 0 && (
+              <div style={{ textAlign: "center", padding: "60px 0", color: "#555" }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>⭐</div>
+                <div style={{ fontSize: 14 }}>No Super Foil cards found in the checklist yet.</div>
+                <div style={{ fontSize: 12, marginTop: 8, color: "#333" }}>Import a set CSV with weapon="Super" to get started.</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {viewMode === "stats" && !loading && cards.length > 0 && (() => {
         const haveList = cards.filter(c => (owned[c.id]||0) > 1);
         const missingCards = cards.filter(c => !owned[c.id]);
