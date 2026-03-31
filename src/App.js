@@ -10577,6 +10577,26 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+  const DECK_SIZE = 60;
+  const deckSet = new Set(deckCards);
+  const inDeck = cards.filter(c=>deckSet.has(c.id));
+  const isSpec = deckType==="spec", isAM = deckType==="apexmadness";
+  const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+  const inDeckDupKeys = new Set(inDeck.map(dupKey));
+  const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
+  const treatCore={}, treatApex={};
+  if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
+  const deckAvail = cards.filter(c=>{
+    if(deckSet.has(c.id)) return false;
+    if(deckFilterW && c.weapon!==deckFilterW) return false;
+    if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
+    if(deckFilterS && c.setName!==deckFilterS) return false;
+    if(deckFilterT && c.treatment!==deckFilterT) return false;
+    if(deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
+    const t=(c.treatment||"").toLowerCase();
+    if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
+    return true;
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
   return (
           <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
