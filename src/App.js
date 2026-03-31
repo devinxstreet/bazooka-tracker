@@ -13106,48 +13106,69 @@ export default function App() {
       )}
 
       {/* Nav */}
-      <div style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"0 20px",height:52}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            <div style={{width:26,height:26,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 10px rgba(232,49,122,0.25)"}}>
-              <div style={{width:7,height:7,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
+      <div style={{position:"sticky",top:0,zIndex:100}}>
+        <style>{`
+          @keyframes dashGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+          @keyframes dashOrb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-10px) scale(1.05)}}
+          .dash-tab:hover{background:rgba(232,49,122,0.12)!important;color:rgba(255,255,255,0.9)!important;border-color:rgba(232,49,122,0.4)!important;transform:translateY(-1px)}
+        `}</style>
+
+        {/* Gradient header */}
+        <div style={{position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",backgroundSize:"400% 400%",animation:"dashGradient 12s ease infinite",borderBottom:"1px solid rgba(232,49,122,0.15)"}}>
+          {/* Glow orbs */}
+          <div style={{position:"absolute",top:-80,left:"15%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.12) 0%,transparent 70%)",animation:"dashOrb 8s ease-in-out infinite",pointerEvents:"none"}}/>
+          <div style={{position:"absolute",top:-60,right:"10%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.1) 0%,transparent 70%)",animation:"dashOrb 11s ease-in-out infinite reverse",pointerEvents:"none"}}/>
+
+          <div style={{maxWidth:1500,margin:"0 auto",padding:"20px 20px 0",position:"relative"}}>
+            {/* Top row: brand + controls */}
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+                <div style={{width:32,height:32,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 16px rgba(232,49,122,0.3)",flexShrink:0}}>
+                  <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
+                  <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={()=>setGOpen(p=>!p)}
+                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.color="rgba(255,255,255,0.5)"}}>
+                  <span style={{fontSize:13}}>{"\uD83D\uDD0D"}</span>
+                  <span className="mobile-hide">Search</span>
+                  <kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}} className="mobile-hide">K</kbd>
+                </button>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}} className="mobile-hide">{inventory.length} cards</span>
+                {userRole.role === "Admin" && (
+                  <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,color:"rgba(255,255,255,0.4)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
+                    <option value="">-- Real Role --</option>
+                    {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
+                  </select>
+                )}
+                <div style={{display:"flex",alignItems:"center",gap:8}} className="mobile-hide">
+                  <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.8)"}}>{user?.displayName?.split(" ")[0]}</span>
+                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,backdropFilter:"blur(10px)"}}>{effectiveRole.label}</span>
+                </div>
+                <button onClick={()=>signOut(auth)}
+                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Sign out</button>
+              </div>
             </div>
-            <div className="nav-bazooka" style={{fontSize:15,fontWeight:900,letterSpacing:3,color:"#E8317A",cursor:"default",userSelect:"none"}}>BAZOOKA</div>
-            <span style={{fontSize:9,color:"rgba(255,255,255,0.18)",fontWeight:700,letterSpacing:2,textTransform:"uppercase",paddingLeft:6,borderLeft:"1px solid rgba(255,255,255,0.08)"}} className="mobile-hide">Breaks</span>
+
+            {/* Tab bar - pill style like /cards */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflowX:"auto",scrollbarWidth:"none"}}>
+              {ALL_TABS.map(t=>(
+                <button key={t.id} onClick={()=>setTab(t.id)} className="dash-tab"
+                  style={{background:tab===t.id?"rgba(232,49,122,0.15)":"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.45)",border:`1.5px solid ${tab===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",backdropFilter:"blur(10px)",transition:"all 0.15s ease",boxShadow:tab===t.id?"0 0 20px rgba(232,49,122,0.2)":"none"}}>
+                  <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
+                  <span className="nav-tab-label">{t.icon} {t.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div style={{flex:1}}/>
-          <button onClick={()=>setGOpen(p=>!p)}
-            style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"6px 13px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:"inherit",transition:"border-color 0.15s,color 0.15s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="rgba(255,255,255,0.8)"}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.4)"}}>
-            <span style={{fontSize:13}}>{"\uD83D\uDD0D"}</span>
-            <span className="mobile-hide">Search</span>
-            <kbd style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}} className="mobile-hide">K</kbd>
-          </button>
-          <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}} className="mobile-hide">{inventory.length} cards</span>
-          {userRole.role === "Admin" && (
-            <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,color:"rgba(255,255,255,0.5)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
-              <option value="">-- Real Role --</option>
-              {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
-            </select>
-          )}
-          <div style={{display:"flex",alignItems:"center",gap:8}} className="mobile-hide">
-            <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)"}}>{user?.displayName?.split(" ")[0]}</span>
-            <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>{effectiveRole.label}</span>
-          </div>
-          <button onClick={()=>signOut(auth)}
-            style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A"}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Out</button>
-        </div>
-        <div style={{display:"flex",overflowX:"auto",padding:"0 12px",scrollbarWidth:"none"}}>
-          {ALL_TABS.map(t => (
-            <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab"
-              style={{background:"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.35)",border:"none",padding:"9px 16px",fontSize:12,fontWeight:tab===t.id?800:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent",transition:"all 0.15s"}}>
-              <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
-              <span className="nav-tab-label">{t.icon} {t.label}</span>
-            </button>
-          ))}
         </div>
       </div>
       {/* Tab content */}
