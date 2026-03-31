@@ -297,21 +297,41 @@ function LoginScreen() {
     catch { setError("Login failed. Please try again."); }
   }
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif" }}>
-      <div style={{ background:"#111111", borderRadius:16, padding:"48px 40px", boxShadow:"0 4px 40px rgba(232,49,122,0.15)", textAlign:"center", maxWidth:380, width:"100%" }}>
-        <div style={{ fontSize:40, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
-        <div style={{ fontSize:11, color:"#E8317A", marginBottom:32, fontWeight:700, textTransform:"uppercase", letterSpacing:3 }}>Dashboard</div>
-        <button onClick={handleLogin} style={{ display:"flex", alignItems:"center", gap:12, background:"#1a1a1a", border:"2px solid #333333", borderRadius:10, padding:"12px 24px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14, color:"#F0F0F0", width:"100%", justifyContent:"center" }}>
-          <svg width="18" height="18" viewBox="0 0 18 18">
-            <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
-            <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
-            <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
-            <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
-          </svg>
-          Sign in with Google
-        </button>
-        {error && <div style={{ marginTop:16, color:"#E8317A", fontSize:12 }}>{error}</div>}
-        <div style={{ marginTop:20, fontSize:11, color:"#D1D5DB" }}>Access restricted to Bazooka team members</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#000",fontFamily:"'Trebuchet MS',sans-serif",overflow:"hidden",position:"relative"}}>
+      <style>{`
+        @keyframes loginOrb{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(40px,-30px) scale(1.1)}66%{transform:translate(-25px,20px) scale(0.9)}}
+        @keyframes loginSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes loginSpinR{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+        @keyframes loginFade{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes loginPulse{0%,100%{opacity:0.5;transform:scale(0.95)}50%{opacity:1;transform:scale(1.05)}}
+        .login-btn{transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;}
+        .login-btn:hover{transform:translateY(-2px) scale(1.02) !important;box-shadow:0 16px 48px rgba(232,49,122,0.5) !important;}
+      `}</style>
+      <div style={{position:"absolute",width:600,height:600,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.07) 0%,transparent 70%)",top:"-15%",left:"-10%",animation:"loginOrb 12s ease-in-out infinite",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.07) 0%,transparent 70%)",bottom:"-10%",right:"-10%",animation:"loginOrb 15s ease-in-out infinite reverse",pointerEvents:"none"}}/>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:40,animation:"loginFade 0.7s ease both",position:"relative",zIndex:1}}>
+        <div style={{position:"relative",width:100,height:100}}>
+          <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.2)",animation:"loginSpin 10s linear infinite"}}/>
+          <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"1.5px dashed rgba(123,47,247,0.15)",animation:"loginSpinR 14s linear infinite"}}/>
+          <div style={{position:"absolute",inset:14,borderRadius:"50%",border:"2px solid rgba(232,49,122,0.5)",animation:"loginSpin 5s linear infinite",boxShadow:"0 0 20px rgba(232,49,122,0.2)"}}/>
+          <div style={{position:"absolute",inset:28,borderRadius:"50%",border:"1.5px solid rgba(123,47,247,0.4)",animation:"loginSpinR 3s linear infinite"}}/>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{width:10,height:10,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",boxShadow:"0 0 20px rgba(232,49,122,0.8)",animation:"loginPulse 2s ease-in-out infinite"}}/>
+          </div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,fontWeight:900,letterSpacing:8,color:"rgba(255,255,255,0.15)",textTransform:"uppercase",marginBottom:6}}>Bazooka Breaks</div>
+          <div style={{fontSize:52,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-2,lineHeight:1,marginBottom:8}}>Dashboard</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.2)",letterSpacing:3,textTransform:"uppercase"}}>Internal Operations</div>
+        </div>
+        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"32px 40px",textAlign:"center",minWidth:320}}>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.35)",marginBottom:24,lineHeight:1.7}}>Access restricted to<br/>Bazooka team members</div>
+          <button onClick={handleLogin} className="login-btn" style={{display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"14px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",width:"100%",justifyContent:"center",boxShadow:"0 8px 32px rgba(232,49,122,0.3)"}}>
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#fff" fillOpacity="0.9" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#fff" fillOpacity="0.9" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#fff" fillOpacity="0.9" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/><path fill="#fff" fillOpacity="0.9" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.31z"/></svg>
+            Sign in with Google
+          </button>
+          {error && <div style={{marginTop:16,color:"#E8317A",fontSize:12,fontWeight:600}}>{error}</div>}
+        </div>
       </div>
     </div>
   );
@@ -13070,48 +13090,50 @@ export default function App() {
       )}
 
       {/* Nav */}
-      <div style={{ background:"#000000", borderBottom:"1px solid #1a1a1a", position:"sticky", top:0, zIndex:100 }}>
-        {/* Row 1: brand + controls */}
-        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:48 }}>
-          <div className="nav-bazooka" style={{ fontSize:18, fontWeight:900, color:"#E8317A", letterSpacing:3, cursor:"pointer", flexShrink:0 }} onClick={()=>setTab("dashboard")}>
-            BAZOOKA
+      <div style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"0 20px",height:52}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            <div style={{width:26,height:26,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 10px rgba(232,49,122,0.25)"}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
+            </div>
+            <div className="nav-bazooka" style={{fontSize:15,fontWeight:900,letterSpacing:3,color:"#E8317A",cursor:"default",userSelect:"none"}}>BAZOOKA</div>
+            <span style={{fontSize:9,color:"rgba(255,255,255,0.18)",fontWeight:700,letterSpacing:2,textTransform:"uppercase",paddingLeft:6,borderLeft:"1px solid rgba(255,255,255,0.08)"}} className="mobile-hide">Breaks</span>
           </div>
-          <span style={{ fontSize:10, color:"#333", fontWeight:700, letterSpacing:2, textTransform:"uppercase" }} className="mobile-hide">DASHBOARD</span>
-          <div style={{ flex:1 }}/>
-          {/* Global search */}
-          <button onClick={()=>setGOpen(p=>!p)} style={{ display:"flex", alignItems:"center", gap:8, background:"#111111", border:"1px solid #2a2a2a", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", color:"#555", fontSize:12 }}>
-            <span>{"\uD83D\uDD0D"}</span>
+          <div style={{flex:1}}/>
+          <button onClick={()=>setGOpen(p=>!p)}
+            style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"6px 13px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:"inherit",transition:"border-color 0.15s,color 0.15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="rgba(255,255,255,0.8)"}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.4)"}}>
+            <span style={{fontSize:13}}>{"\uD83D\uDD0D"}</span>
             <span className="mobile-hide">Search</span>
-            <kbd style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:4, padding:"1px 5px", fontSize:10, color:"#444" }} className="mobile-hide">/</kbd>
+            <kbd style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}} className="mobile-hide">K</kbd>
           </button>
-          {/* Card count */}
-          <span style={{ fontSize:11, color:"#555" }} className="mobile-hide">{inventory.length} cards</span>
-          {/* View As */}
+          <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}} className="mobile-hide">{inventory.length} cards</span>
           {userRole.role === "Admin" && (
-            <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:7, color:"#888", padding:"4px 8px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }} className="mobile-hide">
+            <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,color:"rgba(255,255,255,0.5)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
               <option value="">-- Real Role --</option>
               {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
             </select>
           )}
-          {/* User badge */}
-          <div style={{ display:"flex", alignItems:"center", gap:6 }} className="mobile-hide">
-            <span style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{user?.displayName?.split(" ")[0]}</span>
-            <span style={{ background:effectiveRole.bg||"#1a1a1a", color:effectiveRole.color, border:`1px solid ${effectiveRole.color}33`, borderRadius:20, padding:"2px 10px", fontSize:10, fontWeight:700 }}>{effectiveRole.label}</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}} className="mobile-hide">
+            <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)"}}>{user?.displayName?.split(" ")[0]}</span>
+            <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>{effectiveRole.label}</span>
           </div>
-          <button onClick={()=>signOut(auth)} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} className="mobile-hide">Sign out</button>
+          <button onClick={()=>signOut(auth)}
+            style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A"}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Out</button>
         </div>
-        {/* Row 2: tabs */}
-        <div style={{ display:"flex", overflowX:"auto", padding:"0 8px 0", gap:2, scrollbarWidth:"none" }} className="nav-tabs-row">
+        <div style={{display:"flex",overflowX:"auto",padding:"0 12px",scrollbarWidth:"none"}}>
           {ALL_TABS.map(t => (
             <button key={t.id} onClick={()=>setTab(t.id)} className="nav-tab"
-              style={{ background:tab===t.id?"#1A1A2E":"transparent", color:tab===t.id?"#E8317A":"#9CA3AF", border:"none", borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent", padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:6 }}>
-              <span className="nav-tab-icon" style={{ display:"none" }}>{t.icon}</span>
+              style={{background:"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.35)",border:"none",padding:"9px 16px",fontSize:12,fontWeight:tab===t.id?800:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",borderBottom:tab===t.id?"2px solid #E8317A":"2px solid transparent",transition:"all 0.15s"}}>
+              <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
               <span className="nav-tab-label">{t.icon} {t.label}</span>
             </button>
           ))}
         </div>
       </div>
-
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto" }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
