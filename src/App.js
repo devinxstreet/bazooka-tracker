@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
@@ -9738,6 +9738,10 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
           <button onClick={()=>closeThread(activeThread.id)} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",color:"#4ade80",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Mark Complete"}</button>
         )}
         {activeThread.status==="completed"&&<span style={{fontSize:11,color:"rgba(74,222,128,0.6)",fontWeight:700}}>{"\u2705 Completed"}</span>}
+        <button onClick={()=>{if(window.confirm("Delete this entire conversation?")){
+          deleteDoc(doc(db,"deal_threads",activeThread.id));
+          setActiveThread(null);
+        }}} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginLeft:"auto"}}>{"\uD83D\uDDD1"}</button>
       </div>
       <div style={{height:400,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}}>
         {threadMsgs.length===0&&<div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:40,fontSize:13}}>No messages yet</div>}
@@ -9748,7 +9752,10 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
           );
           return (
             <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",gap:3}}>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:2}}>{isMe?"You":m.senderName} {"\u00B7"} {new Date(m.sentAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:2,display:"flex",alignItems:"center",gap:8}}>
+                <span>{isMe?"You":m.senderName} {"\u00B7"} {new Date(m.sentAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                {isMe&&<button onClick={()=>updateDoc(doc(db,"deal_threads",activeThread.id),{messages:arrayRemove(m)})} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}} title="Delete">{"\u00D7"}</button>}
+              </div>
               <div style={{
                 background:isMe?"linear-gradient(135deg,rgba(232,49,122,0.3),rgba(123,47,247,0.3))":"rgba(255,255,255,0.06)",
                 border:"1px solid "+(isMe?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"),
@@ -9805,6 +9812,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
                   <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>{t.lastMessageAt?new Date(t.lastMessageAt).toLocaleDateString([],{month:"short",day:"numeric"}):""}</div>
                   <button onClick={e=>{e.stopPropagation();setActiveThread(t);}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat</button>
+                  <button onClick={e=>{e.stopPropagation();if(window.confirm("Delete this conversation?"))deleteDoc(doc(db,"deal_threads",t.id));}} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\uD83D\uDDD1 Delete"}</button>
                 </div>
               </div>
             );
