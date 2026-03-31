@@ -13090,8 +13090,20 @@ export default function App() {
       )}
 
       {/* Active scan indicator (when scanning from non-BoBA tab) */}
-      {activeScan && tab !== "checklist" && (
-        <div style={{ position:"fixed", bottom:24, left:24, background:"#1a0a1a", border:"1.5px solid #E8317A44", borderRadius:12, padding:"10px 16px", fontSize:12, fontWeight:700, color:"#E8317A", zIndex:998 }}>
+      {activeScan && activeScan.type === "images" && (
+        <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:12,padding:"16px 20px",minWidth:300,boxShadow:"0 8px 40px rgba(0,0,0,0.8)",fontFamily:"'Trebuchet MS',sans-serif"}}>
+          <div style={{fontWeight:700,color:"#4ade80",fontSize:13,marginBottom:10}}>{"\uD83D\uDDBC"} {activeScan.type==="images"?"Importing Images...":"Scan active"}</div>
+          {activeScan.total > 0 && (
+            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:8}}>
+              <div style={{width:`${Math.round(activeScan.current/activeScan.total*100)}%`,height:"100%",background:"linear-gradient(90deg,#4ade80,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
+            </div>
+          )}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+            <span style={{color:"#888",flex:1,marginRight:8}}>{activeScan.status}</span>
+            {activeScan.total > 0 && <span style={{color:"#4ade80",fontWeight:700,flexShrink:0}}>{activeScan.current}/{activeScan.total}</span>}
+          </div>
+        </div>
+      )}d #E8317A44", borderRadius:12, padding:"10px 16px", fontSize:12, fontWeight:700, color:"#E8317A", zIndex:998 }}>
           {"\uD83D\uDCF7 Scan mode active"}</div>
       )}
 
