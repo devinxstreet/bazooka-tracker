@@ -10668,9 +10668,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
 }
 
 function OfferModal({ offerModal, offerSent, setOfferModal, offerAmt, setOfferAmt, offerNote, setOfferNote, setOfferSent, submitOffer, inp }) {
+  if (!offerModal) return null;
   return (
-      {/* Offer modal */}
-      {offerModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
           onClick={()=>{if(offerSent){setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
@@ -10767,15 +10766,13 @@ function OfferModal({ offerModal, offerSent, setOfferModal, offerAmt, setOfferAm
             )}
           </div>
         </div>
-      )}
-
+        </div>
   );
 }
 
 function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, setCounterAmt, setCounterSent, counterOffer, negHistory }) {
+  if (!counterModal) return null;
   return (
-      {/* Counter offer modal */}
-      {counterModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
           onClick={()=>{if(counterSent){setCounterModal(null);setCounterAmt("");setCounterSent(false);}}}>
           <div style={{background:"#0E0E14",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
@@ -10854,15 +10851,13 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
             )}
           </div>
         </div>
-      )}
 
   );
 }
 
 function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp }) {
+  if (!scanModal) return null;
   return (
-      {/* Scan modal */}
-      {scanModal&&(
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -10947,7 +10942,6 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
             )}
           </div>
         </div>
-      )}
 
   );
 }
