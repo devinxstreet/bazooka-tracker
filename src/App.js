@@ -2715,7 +2715,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                   <option value="Giveaway">Giveaway</option>
                   <option value="Insurance">Insurance</option>
                   <option value="First-Timer Pack">First-Timer Pack</option>
-                  <option value="Chaser">Chaser Pull</option>
+                  <option value="Chaser Pull">Chaser Pull</option>
                 </select>
               </div>
             </div>
@@ -2865,7 +2865,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         if (toLog.length > 0) {
           const entries = toLog.map(id => {
             const card = inventory.find(c=>c.id===id);
-            return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:"Chaser Cards", usage:"Chaser", notes:"Auto-logged from stream recap", streamId, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+            return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:"Chaser Cards", usage:"Chaser Pull", notes:"Auto-logged from stream recap", streamId, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
           });
           if (onBulkAdd) onBulkAdd(entries);
         }
@@ -2909,7 +2909,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   }
 
   const sum = {};
-  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards" };
+  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
   BREAKERS.forEach(b => { sum[b]={total:0}; CARD_TYPES.forEach(ct=>{sum[b][ct]=0;}); });
   breaks.forEach(b => { if(sum[b.breaker]){ sum[b.breaker].total++; const ct=USAGE_TO_CT[b.usage]||b.cardType; if(ct)sum[b.breaker][ct]++; } });
 
