@@ -11190,9 +11190,8 @@ function PublicCardDatabase() {
     const rootId = counterModal.parentOfferId||counterModal.id;
     getDocs(query(
       collection(db,"negotiation_history"),
-      where("rootOfferId","==",rootId),
-      orderBy("timestamp","asc")
-    )).then(snap => setNegHistory(snap.docs.map(d=>d.data())))
+      where("rootOfferId","==",rootId)
+    )).then(snap => setNegHistory(snap.docs.map(d=>d.data()).sort((a,b)=>(a.timestamp||"").localeCompare(b.timestamp||""))))
       .catch(() => {
         // Fallback: show at least the current offer as first entry
         setNegHistory([{
@@ -11291,9 +11290,11 @@ function PublicCardDatabase() {
         snap => setWantNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       // Deal threads
-      onSnapshot(query(collection(db,"deal_threads"), where("memberUids","array-contains",uid2), orderBy("lastMessageAt","desc")),
+      onSnapshot(query(collection(db,"deal_threads"), where("memberUids","array-contains",uid2)),
         snap => {
-          const threads = snap.docs.map(d=>({...d.data(),id:d.id}));
+          const threads = snap.docs
+            .map(d=>({...d.data(),id:d.id}))
+            .sort((a,b)=>(b.lastMessageAt||"").localeCompare(a.lastMessageAt||""));
           setThreads(threads);
           setUnreadThreads(threads.filter(t=>t.lastReadBy?.[uid2]<t.lastMessageAt&&t.lastSenderUid!==uid2).length);
         }
