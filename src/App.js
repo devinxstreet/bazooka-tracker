@@ -13112,7 +13112,7 @@ export default function App() {
       )}
 
       {/* Nav */}
-      <div style={{position:"sticky",top:0,zIndex:100}}>
+      <div style={{position:"sticky",top:0,zIndex:10000}}>
         <style>{`
           @keyframes dashGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
           @keyframes dashOrb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-10px) scale(1.05)}}
@@ -13120,7 +13120,7 @@ export default function App() {
         `}</style>
 
         {/* Gradient header */}
-        <div style={{position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",backgroundSize:"400% 400%",animation:"dashGradient 12s ease infinite",borderBottom:"1px solid rgba(232,49,122,0.15)"}}>
+        <div style={{position:"relative",overflow:"visible",background:"linear-gradient(135deg,#0d0005,#0a000d,#050015,#000d1a)",backgroundSize:"400% 400%",animation:"dashGradient 12s ease infinite",borderBottom:"1px solid rgba(232,49,122,0.15)"}}>
           {/* Glow orbs */}
           <div style={{position:"absolute",top:-80,left:"15%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.12) 0%,transparent 70%)",animation:"dashOrb 8s ease-in-out infinite",pointerEvents:"none"}}/>
           <div style={{position:"absolute",top:-60,right:"10%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.1) 0%,transparent 70%)",animation:"dashOrb 11s ease-in-out infinite reverse",pointerEvents:"none"}}/>
@@ -13165,7 +13165,7 @@ export default function App() {
             </div>
 
             {/* Tab bar - pill style like /cards */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflowX:"auto",scrollbarWidth:"none"}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
               {ALL_TABS.map(t=>{
                 const menuItems = ({
                 "dashboard": [
@@ -13219,7 +13219,7 @@ export default function App() {
                       {menuItems.length>1&&<span style={{fontSize:9,opacity:0.5,marginLeft:2}}>{"\u25BE"}</span>}
                     </button>
                     {hoverTab===t.id&&menuItems.length>1&&(
-                      <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:9999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
+                      <div style={{position:"absolute",top:"calc(100% - 2px)",left:0,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:99999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
                         {menuItems.map((item,idx)=>(
                           <button key={idx} onClick={item.action}
                             style={{display:"block",width:"100%",background:"transparent",border:"none",borderRadius:10,padding:"9px 14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
