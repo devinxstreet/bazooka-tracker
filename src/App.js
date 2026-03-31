@@ -10149,6 +10149,528 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
   );
 }
 
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, inviteMember, WEAPON_COLORS, setSigningIn, cards, owned }) {
+  return (
+          <div style={{maxWidth:960,margin:"0 auto"}}>
+            {!user?(
+              <div style={{textAlign:"center",padding:80}}>
+                <div style={{fontSize:48,marginBottom:16}}>{"\uD83C\uDFC6"}</div>
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
+              </div>
+            ):(
+              <>
+                {/* Create team form -- only show if no teams */}
+                {teams.filter(t=>t.status!=="deleted").length===0&&(
+                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"\uD83C\uDFC6 Create Your Team"}</div>
+                    <div style={{display:"flex",gap:8}}>
+                      <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
+                      <button onClick={createTeam} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(168,85,247,0.3)"}}>Create</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Team selector */}
+                {teams.filter(t=>t.status!=="deleted").length>1&&(
+                  <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+                    {teams.filter(t=>t.status!=="deleted").map(t=>(
+                      <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"rgba(168,85,247,0.15)":"rgba(255,255,255,0.02)",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.08)"}`,color:activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.4)",borderRadius:10,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
+                        {t.name} ({(t.members||[]).length}/6)
+                      </button>
+                    ))}
+                    <button onClick={()=>{setNewTeamName(" ");}} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New Team</button>
+                  </div>
+                )}
+
+                {activeTeam&&activeTeam.status!=="deleted"&&(()=>{
+                  const team=activeTeam;
+                  const starters=team.starters||team.members?.slice(0,4)||[];
+                  const bench=team.bench||team.members?.slice(4)||[];
+                  const allMembers=[...starters,...bench];
+                  const isOwner=team.createdBy===user.uid;
+
+                  // Apex conflict detection across all members
+                  const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+                  const apexMap={};
+                  allMembers.forEach(m=>{
+                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
+                    cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
+                      const dk=dupKey2(c);
+                      if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
+                      apexMap[dk].members.push(m.displayName);
+                    });
+                  });
+                  const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
+
+                  // Drag state
+                  let dragUid=null;
+
+                  function MemberCard({m, slot, isDraggable}) {
+                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
+                    const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
+                    const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
+                    const isMe=m.uid===user.uid;
+                    const wc_starter="#A855F7", wc_bench="#7B9CFF";
+                    const borderColor=slot==="starter"?wc_starter:wc_bench;
+                    return (
+                      <div
+                        draggable={isDraggable}
+                        onDragStart={e=>{e.dataTransfer.setData("memberUid",m.uid);e.dataTransfer.setData("fromSlot",slot);}}
+                        style={{background:isMe?"rgba(168,85,247,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isMe?`${borderColor}44`:"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14,cursor:isDraggable?"grab":"default",transition:"all 0.2s",userSelect:"none"}}
+                        onMouseEnter={e=>{if(isDraggable)e.currentTarget.style.borderColor=`${borderColor}88`;}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor=isMe?`${borderColor}44`:"rgba(255,255,255,0.06)";}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                          {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"\uD83D\uDC64"}</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
+                          </div>
+                          {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
+                        </div>
+                        {apexCards.length>0&&(
+                          <div>
+                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                              {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
+                            </div>
+                          </div>
+                        )}
+                        {/* Move buttons */}
+                        {isOwner&&m.uid!==user.uid&&(
+                          <div style={{display:"flex",gap:6,marginTop:10}}>
+                            {slot==="starter"&&bench.length<2&&(
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_bench")} style={{fontSize:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",color:"#7B9CFF",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"\u2192 Bench"}</button>
+                            )}
+                            {slot==="bench"&&starters.length<4&&(
+                              <button onClick={()=>moveTeamMember(team,m.uid,"to_starter")} style={{fontSize:10,background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.2)",color:"#A855F7",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"\u2192 Starter"}</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  function DropZone({slot, label, color, members, maxCount}) {
+                    const [over,setOver]=useState(false);
+                    return (
+                      <div
+                        onDragOver={e=>{e.preventDefault();setOver(true);}}
+                        onDragLeave={()=>setOver(false)}
+                        onDrop={e=>{
+                          e.preventDefault(); setOver(false);
+                          const memberUid=e.dataTransfer.getData("memberUid");
+                          const fromSlot=e.dataTransfer.getData("fromSlot");
+                          if(fromSlot===slot)return;
+                          if(slot==="starter"&&members.length>=4)return;
+                          if(slot==="bench"&&members.length>=2)return;
+                          moveTeamMember(team,memberUid,slot==="bench"?"to_bench":"to_starter");
+                        }}
+                        style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontSize:12,fontWeight:800,color,textTransform:"uppercase",letterSpacing:1.5}}>{label}</div>
+                          <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700}}>{members.length}/{maxCount}</span>
+                        </div>
+                        <div style={{
+                          display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,
+                          minHeight:90,borderRadius:14,padding:over?"12px":"0",
+                          border:over?`2px dashed ${color}55`:"2px dashed transparent",
+                          background:over?`${color}08`:"transparent",
+                          transition:"all 0.15s"
+                        }}>
+                          {members.map(m=>(
+                            <MemberCard key={m.uid} m={m} slot={slot} isDraggable={isOwner}/>
+                          ))}
+                          {members.length<maxCount&&(
+                            <div style={{background:"rgba(255,255,255,0.01)",border:`1px dashed ${color}22`,borderRadius:14,minHeight:80,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                              <span style={{fontSize:20,opacity:0.3}}>{slot==="bench"?"\uD83E\uDE91":"\u2B50"}</span>
+                              <span style={{fontSize:10,color:"rgba(255,255,255,0.15)"}}>Empty {slot} slot</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div>
+                      {/* Team header */}
+                      <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+                          <div>
+                            <div style={{fontSize:22,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{allMembers.length}/6 members &middot; Apex Madness &middot; Drag players to move between starter/bench</div>
+                          </div>
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {allMembers.length<6&&isOwner&&(
+                              <>
+                                <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Invite by email..." style={{...inp,width:200,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
+                                <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
+                              </>
+                            )}
+                            {isOwner&&(
+                              <button onClick={()=>deleteTeam(team)} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,49,122,0.15)";e.currentTarget.style.color="#E8317A";}}
+                                onMouseLeave={e=>{e.currentTarget.style.background="rgba(232,49,122,0.08)";e.currentTarget.style.color="rgba(232,49,122,0.6)";}}>
+                                {"\uD83D\uDDD1 Delete Team"}</button>
+                            )}
+                          </div>
+                        </div>
+                        {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:12,fontWeight:600}}>{inviteStatus.ok?"\u2705":"\u274C"} {inviteStatus.msg}</div>}
+
+                        {/* Starters + Bench with drag drop */}
+                        <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+                          <DropZone slot="starter" label="\u2B50 Starters" color="#A855F7" members={starters} maxCount={4}/>
+                          <DropZone slot="bench" label="\uD83E\uDE91 Bench" color="#7B9CFF" members={bench} maxCount={2}/>
+                        </div>
+                      </div>
+
+                      {/* Apex conflict panel */}
+                      {allMembers.length>1&&(
+                        conflicts.length===0?(
+                          <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:24,marginBottom:8}}>{"\u2705"}</div>
+                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
+                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
+                          </div>
+                        ):(
+                          <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>{"\u26A0\uFE0F"}{conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
+                            {conflicts.map(({card,members:mems},i)=>{
+                              const wc=WEAPON_COLORS[card.weapon]||"#444";
+                              return (
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                  <div style={{width:36,height:48,borderRadius:6,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
+                                    {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
+                                  </div>
+                                  <div style={{flex:1}}>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} &middot; {card.power}\u26A1 &middot; {card.treatment}</div>
+                                    <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
+  );
+}
+
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn }) {
+  return (
+          <div style={{maxWidth:700,margin:"0 auto"}}>
+            {!user?(
+              <div style={{textAlign:"center",padding:80}}>
+                <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDC65"}</div>
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)"}}>Sign in to add friends</button>
+              </div>
+            ):(
+              <>
+                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>{"\u2795 Add Friend"}</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google sign-in email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
+                    <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
+                  </div>
+                  {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:10,fontWeight:600}}>{addStatus.ok?"\u2705":"\u274C"} {addStatus.msg}</div>}
+                </div>
+
+                {friendReqs.length>0&&(
+                  <div style={{background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>{"\uD83D\uDCEC Requests ("}{friendReqs.length})</div>
+                    {friendReqs.map(r=>(
+                      <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{r.fromEmail}</div></div>
+                        <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Accept"}</button>
+                        <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {teamInvites.length>0&&(
+                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"\uD83C\uDFC6 Team Invites ("}{teamInvites.length})</div>
+                    {teamInvites.map(inv=>(
+                      <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{inv.teamName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {inv.fromName}</div></div>
+                        <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.3)",color:"#A855F7",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Join"}</button>
+                        <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {sentReqs.length>0&&(
+                  <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:12}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Pending sent</div>
+                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{"\u23F3"}{r.toEmail}</div>)}
+                  </div>
+                )}
+
+                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Friends ({friends.length})</div>
+                  {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet -- add someone above!</div>:
+                    friends.map(f=>(
+                      <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>{"\uD83D\uDC64"}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
+                        </div>
+                        <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
+                          style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                          {viewingFriend===f.friendUid?"Hide":"\uD83D\uDC41 View"}
+                        </button>
+                      </div>
+                    ))
+                  }
+                </div>
+
+                {viewingFriend&&(()=>{
+                  const f=friends.find(fr=>fr.friendUid===viewingFriend);
+                  const fo=friendOwned[viewingFriend]||{};
+                  const friendCards=cards.filter(c=>fo[c.id]);
+                  return (
+                    <div style={{marginTop:12,background:"rgba(123,156,255,0.03)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:16,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:12}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,maxHeight:500,overflowY:"auto"}}>
+                        {friendCards.map(c=>{
+                          const wc=WEAPON_COLORS[c.weapon]||"#444";
+                          return (
+                            <div key={c.id} style={{background:"rgba(0,0,0,0.4)",border:`1px solid ${wc}22`,borderRadius:12,padding:10,backdropFilter:"blur(4px)"}}>
+                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,marginBottom:6}}/>}
+                              <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
+                              <div style={{fontSize:10,color:wc,fontWeight:700}}>{c.weapon}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{c.treatment}</div>
+                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}\u26A1</div>
+                              {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>{"\u00D7"}{fo[c.id]}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+  );
+}
+
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned }) {
+  return (
+          const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
+          const pbEntryIds=new Set(pbCards.map(e=>e.id));
+          const playCount=pbCards.filter(e=>e.type==="play").length;
+          const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
+          const playFull=playCount>=PUBLIC_PLAY_LIMIT;
+          const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
+          const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+          const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
+          const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
+          const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
+          const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+          return (
+            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
+                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
+                  <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
+                    <option value="name">{"Name A\u2192Z"}</option>
+                    <option value="dbs_desc">{"DBS High\u2192Low"}</option>
+                    <option value="dbs_asc">{"DBS Low\u2192High"}</option>
+                  </select>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
+                </div>
+                <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
+                  {pbAvail.map((c,i)=>{
+                    const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                    return (
+                      <div key={c.id} style={{borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px"}}>
+                          {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
+                              <span style={{color:"rgba(255,255,255,0.3)"}}>#{c.cardNum}</span>
+                              {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
+                              {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
+                            </div>
+                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
+                          </div>
+                          <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                            {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:playFull||wouldExceed?"rgba(255,255,255,0.03)":"rgba(232,49,122,0.15)",border:`1px solid ${playFull||wouldExceed?"rgba(255,255,255,0.08)":"rgba(232,49,122,0.4)"}`,color:playFull||wouldExceed?"rgba(255,255,255,0.2)":"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:playFull||wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
+                            {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:wouldExceed?"rgba(255,255,255,0.03)":"rgba(123,156,255,0.15)",border:`1px solid ${wouldExceed?"rgba(255,255,255,0.08)":"rgba(123,156,255,0.4)"}`,color:wouldExceed?"rgba(255,255,255,0.2)":"#7B9CFF",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                  {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
+                    <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
+                      <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginBottom:12}}>
+                  <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden",marginBottom:4}}>
+                    <div style={{width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`,height:"100%",background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:2,transition:"width 0.3s"}}/>
+                  </div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{PUBLIC_PLAY_LIMIT-playCount} play slots left</div>
+                </div>
+                <div style={{background:dbsOver?"rgba(232,49,122,0.05)":"rgba(0,0,0,0.3)",border:`1px solid ${dbsOver?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.05)"}`,borderRadius:10,padding:"12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>{"\uD83D\uDCB0 DBS Budget"}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
+                  </div>
+                  <div style={{height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                    <div style={{width:`${dbsPct}%`,height:"100%",background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
+                  </div>
+                  <div style={{fontSize:10,color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"rgba(255,255,255,0.3)",fontWeight:dbsOver?700:400}}>{dbsOver?`\u26A0\uFE0F Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</div>
+                </div>
+                {pbResolved.length>0&&(
+                  <div style={{marginTop:12}}>
+                    {[{type:"play",label:"\u2694\uFE0F Plays",color:"#E8317A"},{type:"bonus",label:"\u2B50 Bonus",color:"#7B9CFF"}].map(({type,label,color})=>{
+                      const entries=pbResolved.filter(e=>e.type===type);
+                      if(!entries.length)return null;
+                      return (
+                        <div key={type} style={{marginBottom:8}}>
+                          <div style={{fontSize:10,color:color,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} ({entries.length})</div>
+                          {entries.map((e,i)=>{
+                            const c=e.card;
+                            return (
+                              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",width:16,textAlign:"center"}}>{type==="play"?i+1:`B${i+1}`}</span>
+                                {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:11,fontWeight:700,color:color}}>{c.hero}</div>
+                                  {c.dbs&&<div style={{fontSize:10,color:"#A855F7"}}>DBS: {c.dbs}</div>}
+                                </div>
+                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>{"\u00D7"}</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>{"\u2715 Clear"}</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+  );
+}
+
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp }) {
+  return (
+          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
+                <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
+                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
+                  <option value="none">No Restrictions</option>
+                  <option value="spec">{"Spec Deck (\u2264160)"}</option>
+                  <option value="apex">Apex Deck</option>
+                  <option value="apexmadness">Apex Madness</option>
+                </select>
+                <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
+                  <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
+                </select>
+                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"rgba(255,255,255,0.4)"}}>
+                  <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"rgba(255,255,255,0.4)"}}>
+                  <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
+                  const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
+                  return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
+                    style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" \u26A0":""}</button>;
+                })}
+                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
+              </div>
+              <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
+                {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
+                  deckAvail.map((c,i)=>{
+                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.35,transition:"background 0.12s"}}
+                        title={!ok?reason:""}
+                        onMouseEnter={e=>{if(ok)e.currentTarget.style.background="rgba(232,49,122,0.05)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.01)";}}>
+                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} &middot; #{c.cardNum}</div>
+                          {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
+                        </div>
+                        <div style={{fontSize:16,fontWeight:900,color:ok?wc:"rgba(255,255,255,0.2)",flexShrink:0}}>{c.power}</div>
+                        {ok&&<div style={{fontSize:18,color:"#4ade80",flexShrink:0}}>+</div>}
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
+                <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
+              </div>
+              {isAM&&inDeck.length>0&&(
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Treatment Unlocks</div>
+                  {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
+                    const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
+                    return (
+                      <div key={t} style={{marginBottom:7}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.4)",fontWeight:unlocked?700:400}}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
+                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.3)"}}>{core}/10{unlocked?` &middot; ${apex}/1`:""}</span>
+                        </div>
+                        <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                          <div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"linear-gradient(90deg,#A855F7,#7B2FF7)":"rgba(255,255,255,0.15)",borderRadius:2,transition:"width 0.3s"}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:12}}>
+                {Array.from({length:DECK_SIZE}).map((_,i)=>{
+                  const c=inDeck[i];
+                  if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"#111"}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}</div>);}
+                  return <div key={i} style={{aspectRatio:"3/4",borderRadius:4,border:"1px dashed rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.01)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"rgba(255,255,255,0.1)",fontWeight:700}}>{i+1}</span></div>;
+                })}
+              </div>
+              {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.5)",borderRadius:10,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.15)";e.currentTarget.style.color="rgba(232,49,122,0.5)";}}>
+                {"\u2715 Clear deck"}</button>}
+            </div>
+          </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -11349,32 +11871,6 @@ function PublicCardDatabase() {
         </div>
       )}
 
-      {/* Counter offer modal */}
-      {/* Payment info popup */}
-      {paymentPopup&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPaymentPopup(null)}>
-          <div style={{background:"linear-gradient(135deg,#0a1a0a,#0d0d0d)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:24,textAlign:"center",marginBottom:8}}>{"\uD83C\uDF89"}</div>
-            <div style={{fontSize:18,fontWeight:900,color:"#4ade80",textAlign:"center",marginBottom:4}}>Purchase Complete!</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:20}}>{paymentPopup.cardName} {"\u00B7"} {"$"}{(paymentPopup.price||0).toFixed(2)}</div>
-            <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Payment Instructions from {paymentPopup.sellerName}</div>
-              <div style={{fontSize:14,color:"#F0F0F0",fontWeight:600,lineHeight:1.5}}>{paymentPopup.paymentInfo}</div>
-            </div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginBottom:16}}>Send payment and use the Messages tab to confirm with the seller.</div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{setPaymentPopup(null);setActiveTab("messages");}}
-                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                Go to Messages
-              </button>
-              <button onClick={()=>setPaymentPopup(null)}
-                style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:12,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Counter offer modal */}
       {counterModal&&(
@@ -11768,207 +12264,28 @@ function PublicCardDatabase() {
 
         {/* DECK BUILDER TAB */}
         {activeTab==="deck"&&(
-          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
-                <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
-                  <option value="none">No Restrictions</option>
-                  <option value="spec">{"Spec Deck (\u2264160)"}</option>
-                  <option value="apex">Apex Deck</option>
-                  <option value="apexmadness">Apex Madness</option>
-                </select>
-                <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
-                  <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
-                </select>
-                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"rgba(255,255,255,0.4)"}}>
-                  <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
-                </select>
-                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"rgba(255,255,255,0.4)"}}>
-                  <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
-              </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
-                  const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
-                  return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
-                    style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" \u26A0":""}</button>;
-                })}
-                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
-              </div>
-              <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
-                {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
-                  deckAvail.map((c,i)=>{
-                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
-                    return (
-                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}}
-                        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.35,transition:"background 0.12s"}}
-                        title={!ok?reason:""}
-                        onMouseEnter={e=>{if(ok)e.currentTarget.style.background="rgba(232,49,122,0.05)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.01)";}}>
-                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} &middot; #{c.cardNum}</div>
-                          {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
-                        </div>
-                        <div style={{fontSize:16,fontWeight:900,color:ok?wc:"rgba(255,255,255,0.2)",flexShrink:0}}>{c.power}</div>
-                        {ok&&<div style={{fontSize:18,color:"#4ade80",flexShrink:0}}>+</div>}
-                      </div>
-                    );
-                  })
-                }
-              </div>
-            </div>
-            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
-                <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
-              </div>
-              {isAM&&inDeck.length>0&&(
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Treatment Unlocks</div>
-                  {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
-                    const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
-                    return (
-                      <div key={t} style={{marginBottom:7}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.4)",fontWeight:unlocked?700:400}}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
-                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.3)"}}>{core}/10{unlocked?` &middot; ${apex}/1`:""}</span>
-                        </div>
-                        <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
-                          <div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"linear-gradient(90deg,#A855F7,#7B2FF7)":"rgba(255,255,255,0.15)",borderRadius:2,transition:"width 0.3s"}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:12}}>
-                {Array.from({length:DECK_SIZE}).map((_,i)=>{
-                  const c=inDeck[i];
-                  if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"#111"}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}</div>);}
-                  return <div key={i} style={{aspectRatio:"3/4",borderRadius:4,border:"1px dashed rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.01)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"rgba(255,255,255,0.1)",fontWeight:700}}>{i+1}</span></div>;
-                })}
-              </div>
-              {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.5)",borderRadius:10,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.15)";e.currentTarget.style.color="rgba(232,49,122,0.5)";}}>
-                {"\u2715 Clear deck"}</button>}
-            </div>
-          </div>
+          <DeckBuilderTab
+            user={user} deckCards={deckCards} setDeckCards={setDeckCards}
+            deckName={deckName} setDeckName={setDeckName}
+            deckType={deckType} setDeckType={setDeckType}
+            deckSearch={deckSearch} setDeckSearch={setDeckSearch}
+            deckFilterW={deckFilterW} setDeckFilterW={setDeckFilterW}
+            deckFilterP={deckFilterP} setDeckFilterP={setDeckFilterP}
+            deckFilterS={deckFilterS} setDeckFilterS={setDeckFilterS}
+            deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
+            WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
+            cards={cards} owned={owned} inp={inp}
+          />
         )}
 
         {/* PLAYBOOK TAB */}
-        {activeTab==="playbook"&&(()=>{
-          const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
-          const pbEntryIds=new Set(pbCards.map(e=>e.id));
-          const playCount=pbCards.filter(e=>e.type==="play").length;
-          const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
-          const playFull=playCount>=PUBLIC_PLAY_LIMIT;
-          const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
-          const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
-          const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
-          const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
-          const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
-          const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
-          return (
-            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
-                  <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
-                  <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
-                    <option value="name">{"Name A\u2192Z"}</option>
-                    <option value="dbs_desc">{"DBS High\u2192Low"}</option>
-                    <option value="dbs_asc">{"DBS Low\u2192High"}</option>
-                  </select>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
-                </div>
-                <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
-                  {pbAvail.map((c,i)=>{
-                    const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
-                    return (
-                      <div key={c.id} style={{borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px"}}>
-                          {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
-                              <span style={{color:"rgba(255,255,255,0.3)"}}>#{c.cardNum}</span>
-                              {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
-                              {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
-                            </div>
-                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
-                          </div>
-                          <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-                            {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:playFull||wouldExceed?"rgba(255,255,255,0.03)":"rgba(232,49,122,0.15)",border:`1px solid ${playFull||wouldExceed?"rgba(255,255,255,0.08)":"rgba(232,49,122,0.4)"}`,color:playFull||wouldExceed?"rgba(255,255,255,0.2)":"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:playFull||wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
-                            {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:wouldExceed?"rgba(255,255,255,0.03)":"rgba(123,156,255,0.15)",border:`1px solid ${wouldExceed?"rgba(255,255,255,0.08)":"rgba(123,156,255,0.4)"}`,color:wouldExceed?"rgba(255,255,255,0.2)":"#7B9CFF",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                  {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
-                    <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
-                      <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
-                      <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{marginBottom:12}}>
-                  <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden",marginBottom:4}}>
-                    <div style={{width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`,height:"100%",background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:2,transition:"width 0.3s"}}/>
-                  </div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{PUBLIC_PLAY_LIMIT-playCount} play slots left</div>
-                </div>
-                <div style={{background:dbsOver?"rgba(232,49,122,0.05)":"rgba(0,0,0,0.3)",border:`1px solid ${dbsOver?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.05)"}`,borderRadius:10,padding:"12px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                    <span style={{fontSize:11,fontWeight:800,color:dbsOver?"#E8317A":"#A855F7"}}>{"\uD83D\uDCB0 DBS Budget"}</span>
-                    <span style={{fontSize:11,fontWeight:700,color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80"}}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
-                  </div>
-                  <div style={{height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden",marginBottom:6}}>
-                    <div style={{width:`${dbsPct}%`,height:"100%",background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
-                  </div>
-                  <div style={{fontSize:10,color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"rgba(255,255,255,0.3)",fontWeight:dbsOver?700:400}}>{dbsOver?`\u26A0\uFE0F Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</div>
-                </div>
-                {pbResolved.length>0&&(
-                  <div style={{marginTop:12}}>
-                    {[{type:"play",label:"\u2694\uFE0F Plays",color:"#E8317A"},{type:"bonus",label:"\u2B50 Bonus",color:"#7B9CFF"}].map(({type,label,color})=>{
-                      const entries=pbResolved.filter(e=>e.type===type);
-                      if(!entries.length)return null;
-                      return (
-                        <div key={type} style={{marginBottom:8}}>
-                          <div style={{fontSize:10,color:color,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} ({entries.length})</div>
-                          {entries.map((e,i)=>{
-                            const c=e.card;
-                            return (
-                              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                                <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",width:16,textAlign:"center"}}>{type==="play"?i+1:`B${i+1}`}</span>
-                                {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:11,fontWeight:700,color:color}}>{c.hero}</div>
-                                  {c.dbs&&<div style={{fontSize:10,color:"#A855F7"}}>DBS: {c.dbs}</div>}
-                                </div>
-                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>{"\u00D7"}</button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>{"\u2715 Clear"}</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {activeTab==="playbook"&&(
+          <PlaybookTab
+            user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
+            pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
+            setSigningIn={setSigningIn} cards={cards} owned={owned}
+          />
+        )}
 
         {/* MARKET TAB */}
         {activeTab==="market"&&(
@@ -12009,317 +12326,31 @@ function PublicCardDatabase() {
 
         {/* FRIENDS TAB */}
         {activeTab==="friends"&&(
-          <div style={{maxWidth:700,margin:"0 auto"}}>
-            {!user?(
-              <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDC65"}</div>
-                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)"}}>Sign in to add friends</button>
-              </div>
-            ):(
-              <>
-                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
-                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>{"\u2795 Add Friend"}</div>
-                  <div style={{display:"flex",gap:8}}>
-                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google sign-in email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
-                    <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
-                  </div>
-                  {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:10,fontWeight:600}}>{addStatus.ok?"\u2705":"\u274C"} {addStatus.msg}</div>}
-                </div>
-
-                {friendReqs.length>0&&(
-                  <div style={{background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>{"\uD83D\uDCEC Requests ("}{friendReqs.length})</div>
-                    {friendReqs.map(r=>(
-                      <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{r.fromEmail}</div></div>
-                        <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Accept"}</button>
-                        <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {teamInvites.length>0&&(
-                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:20,marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"\uD83C\uDFC6 Team Invites ("}{teamInvites.length})</div>
-                    {teamInvites.map(inv=>(
-                      <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{inv.teamName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {inv.fromName}</div></div>
-                        <button onClick={()=>respondTeamInvite(inv,true)} style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.3)",color:"#A855F7",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Join"}</button>
-                        <button onClick={()=>respondTeamInvite(inv,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {sentReqs.length>0&&(
-                  <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:12}}>
-                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Pending sent</div>
-                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{"\u23F3"}{r.toEmail}</div>)}
-                  </div>
-                )}
-
-                <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
-                  <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Friends ({friends.length})</div>
-                  {friends.length===0?<div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>No friends yet -- add someone above!</div>:
-                    friends.map(f=>(
-                      <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>{"\uD83D\uDC64"}</div>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
-                        </div>
-                        <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
-                          style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-                          {viewingFriend===f.friendUid?"Hide":"\uD83D\uDC41 View"}
-                        </button>
-                      </div>
-                    ))
-                  }
-                </div>
-
-                {viewingFriend&&(()=>{
-                  const f=friends.find(fr=>fr.friendUid===viewingFriend);
-                  const fo=friendOwned[viewingFriend]||{};
-                  const friendCards=cards.filter(c=>fo[c.id]);
-                  return (
-                    <div style={{marginTop:12,background:"rgba(123,156,255,0.03)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:16,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
-                      <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:12}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,maxHeight:500,overflowY:"auto"}}>
-                        {friendCards.map(c=>{
-                          const wc=WEAPON_COLORS[c.weapon]||"#444";
-                          return (
-                            <div key={c.id} style={{background:"rgba(0,0,0,0.4)",border:`1px solid ${wc}22`,borderRadius:12,padding:10,backdropFilter:"blur(4px)"}}>
-                              {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,marginBottom:6}}/>}
-                              <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
-                              <div style={{fontSize:10,color:wc,fontWeight:700}}>{c.weapon}</div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{c.treatment}</div>
-                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}\u26A1</div>
-                              {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>{"\u00D7"}{fo[c.id]}</div>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
+          <FriendsTab
+            user={user} friends={friends} friendReqs={friendReqs} sentReqs={sentReqs}
+            addEmail={addEmail} setAddEmail={setAddEmail}
+            addStatus={addStatus} setAddStatus={setAddStatus}
+            friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
+            respondFriendReq={respondFriendReq} addFriend={addFriend}
+            cards={cards} owned={owned} privateCards={privateCards}
+            WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
+          />
         )}
 
         {/* TEAM TAB */}
         {activeTab==="team"&&(
-          <div style={{maxWidth:960,margin:"0 auto"}}>
-            {!user?(
-              <div style={{textAlign:"center",padding:80}}>
-                <div style={{fontSize:48,marginBottom:16}}>{"\uD83C\uDFC6"}</div>
-                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in to create a team</button>
-              </div>
-            ):(
-              <>
-                {/* Create team form -- only show if no teams */}
-                {teams.filter(t=>t.status!=="deleted").length===0&&(
-                  <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:16,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#A855F7",marginBottom:12}}>{"\uD83C\uDFC6 Create Your Team"}</div>
-                    <div style={{display:"flex",gap:8}}>
-                      <input value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} placeholder="Team name..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&createTeam()}/>
-                      <button onClick={createTeam} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(168,85,247,0.3)"}}>Create</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Team selector */}
-                {teams.filter(t=>t.status!=="deleted").length>1&&(
-                  <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-                    {teams.filter(t=>t.status!=="deleted").map(t=>(
-                      <button key={t.id} onClick={()=>setActiveTeam(t)} style={{background:activeTeam?.id===t.id?"rgba(168,85,247,0.15)":"rgba(255,255,255,0.02)",border:`1.5px solid ${activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.08)"}`,color:activeTeam?.id===t.id?"#A855F7":"rgba(255,255,255,0.4)",borderRadius:10,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
-                        {t.name} ({(t.members||[]).length}/6)
-                      </button>
-                    ))}
-                    <button onClick={()=>{setNewTeamName(" ");}} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ New Team</button>
-                  </div>
-                )}
-
-                {activeTeam&&activeTeam.status!=="deleted"&&(()=>{
-                  const team=activeTeam;
-                  const starters=team.starters||team.members?.slice(0,4)||[];
-                  const bench=team.bench||team.members?.slice(4)||[];
-                  const allMembers=[...starters,...bench];
-                  const isOwner=team.createdBy===user.uid;
-
-                  // Apex conflict detection across all members
-                  const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
-                  const apexMap={};
-                  allMembers.forEach(m=>{
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
-                      const dk=dupKey2(c);
-                      if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
-                      apexMap[dk].members.push(m.displayName);
-                    });
-                  });
-                  const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
-
-                  // Drag state
-                  let dragUid=null;
-
-                  function MemberCard({m, slot, isDraggable}) {
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
-                    const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
-                    const isMe=m.uid===user.uid;
-                    const wc_starter="#A855F7", wc_bench="#7B9CFF";
-                    const borderColor=slot==="starter"?wc_starter:wc_bench;
-                    return (
-                      <div
-                        draggable={isDraggable}
-                        onDragStart={e=>{e.dataTransfer.setData("memberUid",m.uid);e.dataTransfer.setData("fromSlot",slot);}}
-                        style={{background:isMe?"rgba(168,85,247,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${isMe?`${borderColor}44`:"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14,cursor:isDraggable?"grab":"default",transition:"all 0.2s",userSelect:"none"}}
-                        onMouseEnter={e=>{if(isDraggable)e.currentTarget.style.borderColor=`${borderColor}88`;}}
-                        onMouseLeave={e=>{e.currentTarget.style.borderColor=isMe?`${borderColor}44`:"rgba(255,255,255,0.06)";}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                          {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"\uD83D\uDC64"}</div>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
-                          </div>
-                          {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
-                        </div>
-                        {apexCards.length>0&&(
-                          <div>
-                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
-                            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
-                              {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
-                            </div>
-                          </div>
-                        )}
-                        {/* Move buttons */}
-                        {isOwner&&m.uid!==user.uid&&(
-                          <div style={{display:"flex",gap:6,marginTop:10}}>
-                            {slot==="starter"&&bench.length<2&&(
-                              <button onClick={()=>moveTeamMember(team,m.uid,"to_bench")} style={{fontSize:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",color:"#7B9CFF",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"\u2192 Bench"}</button>
-                            )}
-                            {slot==="bench"&&starters.length<4&&(
-                              <button onClick={()=>moveTeamMember(team,m.uid,"to_starter")} style={{fontSize:10,background:"rgba(168,85,247,0.1)",border:"1px solid rgba(168,85,247,0.2)",color:"#A855F7",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{"\u2192 Starter"}</button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  function DropZone({slot, label, color, members, maxCount}) {
-                    const [over,setOver]=useState(false);
-                    return (
-                      <div
-                        onDragOver={e=>{e.preventDefault();setOver(true);}}
-                        onDragLeave={()=>setOver(false)}
-                        onDrop={e=>{
-                          e.preventDefault(); setOver(false);
-                          const memberUid=e.dataTransfer.getData("memberUid");
-                          const fromSlot=e.dataTransfer.getData("fromSlot");
-                          if(fromSlot===slot)return;
-                          if(slot==="starter"&&members.length>=4)return;
-                          if(slot==="bench"&&members.length>=2)return;
-                          moveTeamMember(team,memberUid,slot==="bench"?"to_bench":"to_starter");
-                        }}
-                        style={{flex:1}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{fontSize:12,fontWeight:800,color,textTransform:"uppercase",letterSpacing:1.5}}>{label}</div>
-                          <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700}}>{members.length}/{maxCount}</span>
-                        </div>
-                        <div style={{
-                          display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,
-                          minHeight:90,borderRadius:14,padding:over?"12px":"0",
-                          border:over?`2px dashed ${color}55`:"2px dashed transparent",
-                          background:over?`${color}08`:"transparent",
-                          transition:"all 0.15s"
-                        }}>
-                          {members.map(m=>(
-                            <MemberCard key={m.uid} m={m} slot={slot} isDraggable={isOwner}/>
-                          ))}
-                          {members.length<maxCount&&(
-                            <div style={{background:"rgba(255,255,255,0.01)",border:`1px dashed ${color}22`,borderRadius:14,minHeight:80,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
-                              <span style={{fontSize:20,opacity:0.3}}>{slot==="bench"?"\uD83E\uDE91":"\u2B50"}</span>
-                              <span style={{fontSize:10,color:"rgba(255,255,255,0.15)"}}>Empty {slot} slot</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div>
-                      {/* Team header */}
-                      <div style={{background:"rgba(168,85,247,0.04)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:24,marginBottom:16,backdropFilter:"blur(10px)"}}>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
-                          <div>
-                            <div style={{fontSize:22,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{allMembers.length}/6 members &middot; Apex Madness &middot; Drag players to move between starter/bench</div>
-                          </div>
-                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                            {allMembers.length<6&&isOwner&&(
-                              <>
-                                <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Invite by email..." style={{...inp,width:200,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
-                                <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
-                              </>
-                            )}
-                            {isOwner&&(
-                              <button onClick={()=>deleteTeam(team)} style={{background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.6)",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
-                                onMouseEnter={e=>{e.currentTarget.style.background="rgba(232,49,122,0.15)";e.currentTarget.style.color="#E8317A";}}
-                                onMouseLeave={e=>{e.currentTarget.style.background="rgba(232,49,122,0.08)";e.currentTarget.style.color="rgba(232,49,122,0.6)";}}>
-                                {"\uD83D\uDDD1 Delete Team"}</button>
-                            )}
-                          </div>
-                        </div>
-                        {inviteStatus&&<div style={{fontSize:12,color:inviteStatus.ok?"#4ade80":"#E8317A",marginBottom:12,fontWeight:600}}>{inviteStatus.ok?"\u2705":"\u274C"} {inviteStatus.msg}</div>}
-
-                        {/* Starters + Bench with drag drop */}
-                        <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-                          <DropZone slot="starter" label="\u2B50 Starters" color="#A855F7" members={starters} maxCount={4}/>
-                          <DropZone slot="bench" label="\uD83E\uDE91 Bench" color="#7B9CFF" members={bench} maxCount={2}/>
-                        </div>
-                      </div>
-
-                      {/* Apex conflict panel */}
-                      {allMembers.length>1&&(
-                        conflicts.length===0?(
-                          <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
-                            <div style={{fontSize:24,marginBottom:8}}>{"\u2705"}</div>
-                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
-                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
-                          </div>
-                        ):(
-                          <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
-                            <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>{"\u26A0\uFE0F"}{conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
-                            {conflicts.map(({card,members:mems},i)=>{
-                              const wc=WEAPON_COLORS[card.weapon]||"#444";
-                              return (
-                                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                                  <div style={{width:36,height:48,borderRadius:6,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
-                                    {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
-                                  </div>
-                                  <div style={{flex:1}}>
-                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} &middot; {card.power}\u26A1 &middot; {card.treatment}</div>
-                                    <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
+          <TeamTab
+            user={user} teams={teams} activeTeam={activeTeam} setActiveTeam={setActiveTeam}
+            newTeamName={newTeamName} setNewTeamName={setNewTeamName}
+            inviteEmail={inviteEmail} setInviteEmail={setInviteEmail}
+            inviteStatus={inviteStatus} setInviteStatus={setInviteStatus}
+            teamInvites={teamInvites} moveTeamMember={moveTeamMember}
+            deleteTeam={deleteTeam} respondTeamInvite={respondTeamInvite}
+            createTeam={createTeam} inviteMember={inviteMember}
+            WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
+            cards={cards} owned={owned}
+          />
         )}
-
       </div>{/* end tab content */}
     </div>
   );
