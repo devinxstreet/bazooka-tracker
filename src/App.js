@@ -1099,6 +1099,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
+  useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
   const [lotPct,       setLotPct]       = useState("");
   const [finalOffer,   setFOffer]       = useState("");
@@ -13190,6 +13191,7 @@ export default function App() {
                   {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"\uD83D\uDCC4 Pay Stubs",sub:"Stub generator",action:()=>{setTab("streams");setStreamTabDefault("stubs");setHoverTab(null);}},
+                  {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                 ],
                 "buyers": [
                   {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
