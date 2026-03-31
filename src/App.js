@@ -12988,9 +12988,7 @@ function PublicCardDatabase() {
                           <div style={{ height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden" }}>
                             <div style={{
                               width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                              background: complete
-                                ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
-                                : pct > 50 ? "linear-gradient(90deg,#E8317A,#7B2FF7)" : "#E8317A"
+                              background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
                             }}/>
                           </div>
                         </div>
