@@ -10465,19 +10465,17 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
 }
 
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned }) {
+  const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
+  const pbEntryIds=new Set(pbCards.map(e=>e.id));
+  const playCount=pbCards.filter(e=>e.type==="play").length;
+  const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
+  const playFull=playCount>=PUBLIC_PLAY_LIMIT;
+  const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
+  const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+  const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
+  const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
+  const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
   return (
-          const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
-          const pbEntryIds=new Set(pbCards.map(e=>e.id));
-          const playCount=pbCards.filter(e=>e.type==="play").length;
-          const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
-          const playFull=playCount>=PUBLIC_PLAY_LIMIT;
-          const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
-          const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
-          const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
-          const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
-          const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
-          const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
-          return (
             <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
@@ -10571,7 +10569,6 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                 )}
               </div>
             </div>
-          );
   );
 }
 
