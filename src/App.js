@@ -10476,7 +10476,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
   const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
-  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
             <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
