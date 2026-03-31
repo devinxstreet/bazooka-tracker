@@ -11427,6 +11427,12 @@ function PublicCardDatabase() {
   const [flippedCard,   setFlippedCard]   = useState(null);
   const PAGE_SIZE = 100;
 
+  // -- Rainbow Tracker --
+  const [rainbowFilter,    setRainbowFilter]    = useState("all");
+  const [rainbowSetFilter, setRainbowSetFilter] = useState("");
+  const [expandedHero,     setExpandedHero]     = useState(null);
+  const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
+
   // -- Wants --
   const [wantList,      setWantList]      = useState({});
 
@@ -12513,6 +12519,7 @@ function PublicCardDatabase() {
           {/* Tab bar */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:20}}>
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
+            {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
@@ -12874,7 +12881,160 @@ function PublicCardDatabase() {
           </>
         )}
 
+        {/* RAINBOW TRACKER TAB */}
+        {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
+          const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
+            .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
+          const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+          const heroCards = {};
+          rainbowCards.forEach(c => {
+            if(!c.hero) return;
+            if(!heroCards[c.hero]) heroCards[c.hero] = [];
+            heroCards[c.hero].push(c);
+          });
+          const allHeroes = Object.keys(heroCards).sort();
+          const heroStats = allHeroes.map(hero => {
+            const hcards = heroCards[hero];
+            const total = hcards.length;
+            const ownedCount = hcards.filter(c => owned[c.id]).length;
+            const complete = total > 0 && ownedCount === total;
+            const bySets = {};
+            hcards.forEach(c => {
+              const s = c.setName || "Unknown";
+              if(!bySets[s]) bySets[s] = { total:0, owned:0 };
+              bySets[s].total++;
+              if(owned[c.id]) bySets[s].owned++;
+            });
+            return { hero, total, ownedCount, complete, bySets };
+          });
+          const completedRainbows = heroStats.filter(h => h.complete).length;
+          const partialRainbows   = heroStats.filter(h => h.ownedCount > 0 && !h.complete).length;
+          const filteredHeroes = heroStats.filter(h => !search || h.hero.toLowerCase().includes(search.toLowerCase()));
+          const visibleHeroes = filteredHeroes.filter(h => {
+            if(rainbowFilter === "complete") return h.complete;
+            if(rainbowFilter === "partial")  return h.ownedCount > 0 && !h.complete;
+            if(rainbowFilter === "missing")  return h.ownedCount === 0;
+            return true;
+          });
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {/* Summary KPIs */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+                {[
+                  { l:"\uD83C\uDF08 Complete Rainbows", v:completedRainbows, c:"#4ade80" },
+                  { l:"\uD83D\uDD36 In Progress",       v:partialRainbows,   c:"#FBBF24" },
+                  { l:"\u2B1C Not Started",             v:allHeroes.length-completedRainbows-partialRainbows, c:"rgba(255,255,255,0.2)" },
+                ].map(({l,v,c})=>(
+                  <div key={l} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:12, padding:"14px 16px", textAlign:"center", backdropFilter:"blur(10px)" }}>
+                    <div style={{ fontSize:28, fontWeight:900, color:c }}>{v}</div>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:4 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Search + Filters */}
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hero..." style={{...inp, flex:1, minWidth:160}}/>
+                {availableSets.length > 0 && (
+                  <select value={rainbowSetFilter} onChange={e=>setRainbowSetFilter(e.target.value)} style={{...inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer"}}>
+                    <option value="">{"\uD83C\uDF08 All Sets"}</option>
+                    {availableSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                {[["all","All Heroes"],["complete","\uD83C\uDF08 Complete"],["partial","\uD83D\uDD36 In Progress"],["missing","\u2B1C Not Started"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setRainbowFilter(v)} style={{ background:rainbowFilter===v?"rgba(232,49,122,0.15)":"transparent", color:rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.4)", border:`1.5px solid ${rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.08)"}`, borderRadius:20, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
+                ))}
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)", marginLeft:4 }}>{visibleHeroes.length} heroes</span>
+              </div>
+              {/* Hero rows */}
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {visibleHeroes.map(({ hero, total, ownedCount, complete, bySets }) => {
+                  const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
+                  const isExpanded = expandedHero === hero;
+                  const heroCardList = cards.filter(c => c.hero === hero).sort((a,b) => {
+                    const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
+                    const wa = WEAPONS.indexOf(a.weapon), wb = WEAPONS.indexOf(b.weapon);
+                    if(wa !== wb) return wa - wb;
+                    return (a.treatment||"").localeCompare(b.treatment||"");
+                  });
+                  return (
+                    <div key={hero} style={{ background:"rgba(255,255,255,0.02)", border:`1.5px solid ${complete?"rgba(74,222,128,0.2)":ownedCount>0?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.05)"}`, borderRadius:12, overflow:"hidden", backdropFilter:"blur(10px)" }}>
+                      <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"14px 16px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: Object.keys(bySets).length > 1 && !rainbowSetFilter ? 6 : 8 }}>
+                            <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"rgba(255,255,255,0.3)" }}>
+                              {complete && "\uD83C\uDF08 "}{hero}
+                            </span>
+                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                              <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedCount>0?"#FBBF24":"rgba(255,255,255,0.2)" }}>
+                                {ownedCount}/{total} cards{complete ? " \u2014 RAINBOW! \uD83C\uDF08" : ""}
+                              </span>
+                              <span style={{ color:"rgba(255,255,255,0.2)", fontSize:12 }}>{isExpanded?"\u25B2":"\u25BC"}</span>
+                            </div>
+                          </div>
+                          {!rainbowSetFilter && Object.keys(bySets).length > 1 && (
+                            <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap" }}>
+                              {Object.entries(bySets).map(([setName, sd]) => {
+                                const sc = sd.owned===sd.total?"#4ade80":sd.owned>0?"#FBBF24":"rgba(255,255,255,0.2)";
+                                return (
+                                  <div key={setName} style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(255,255,255,0.04)", borderRadius:5, padding:"2px 8px" }}>
+                                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{setName}:</span>
+                                    <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
+                                    {sd.owned===sd.total && <span style={{ fontSize:10 }}>{"\uD83C\uDF08"}</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div style={{ height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden" }}>
+                            <div style={{
+                              width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
+                              background: complete
+                                ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                                : pct > 50 ? "linear-gradient(90deg,#E8317A,#7B2FF7)" : "#E8317A"
+                            }}/>
+                          </div>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", padding:"14px 16px", background:"rgba(0,0,0,0.3)" }}>
+                          <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+                            {[["all","All"],["owned","\u2705 Have"],["missing","\u274C Missing"]].map(([v,l])=>(
+                              <button key={v} onClick={e=>{ e.stopPropagation(); setTreatOwnedFilter(v); }} style={{ background:treatOwnedFilter===v?"rgba(232,49,122,0.15)":"transparent", color:treatOwnedFilter===v?"#E8317A":"rgba(255,255,255,0.4)", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"rgba(255,255,255,0.08)"}`, borderRadius:20, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                            ))}
+                          </div>
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                            {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => (
+                              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                                flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                                toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
+                                setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
+                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+                            ))}
+                          </div>
+                          {user && (
+                            <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                              <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned",user.uid),next); }} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.25)", color:"#4ade80", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u2705 Mark All Owned"}</button>
+                              <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; heroCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",user.uid),next); }} style={{ background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.2)", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u2715 Clear All"}</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {visibleHeroes.length === 0 && (
+                  <div style={{ textAlign:"center", padding:60, color:"rgba(255,255,255,0.2)" }}>
+                    <div style={{ fontSize:40, marginBottom:12 }}>{"\uD83C\uDF08"}</div>
+                    <div style={{ fontSize:15, fontWeight:700 }}>No heroes match your filters</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* WANTS TAB */}
+        {activeTab==="wants"&&(
         {activeTab==="wants"&&(
           <div>
             {Object.keys(wantList).length===0?(
