@@ -6454,7 +6454,7 @@ function BobaShowcase({ uid }) {
               </div>
               <button onClick={()=>goPage(page+1)} disabled={page>=totalPages-1}
                 style={{ background:"transparent", border:"1px solid #2a2a2a", color:page>=totalPages-1?"#222":"#888", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:700, cursor:page>=totalPages-1?"default":"pointer", fontFamily:"inherit" }}>
-                Next \u2192"}</button>
+                {"Next \u2192"}</button>
             </div>
 
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:16, padding:"28px", boxShadow:"0 24px 80px rgba(0,0,0,0.7)" }}>
@@ -9879,6 +9879,276 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
   );
 }
 
+function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp }) {
+  return (
+          <div>
+            {/* My listings */}
+            {user&&myListings.length>0&&(
+              <div style={{marginBottom:24}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#4ade80",marginBottom:12}}>Your Listings ({myListings.length})</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+                  {myListings.map(l=>(
+                    <div key={l.id} className="market-card" style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",position:"relative"}}>
+                      <div style={{display:"flex",gap:12,marginBottom:10}}>
+                        {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} &middot; {l.cardPower}\u26A1</div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
+                        </div>
+                      </div>
+                      {l.offerCount>0&&<div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:8}}>{"\uD83E\uDD1D"}{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
+                      <button onClick={()=>removeListing(l.id)} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.5)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Remove Listing</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
+            {/* Sold Listings */}
+            {user&&marketSales.filter(s=>s.sellerUid===user.uid).length>0&&(()=>{
+              const mySales=marketSales.filter(s=>s.sellerUid===user.uid);
+              const totalRevenue=mySales.reduce((acc,s)=>acc+(s.price||0),0);
+              const CARRIERS=["USPS","UPS","FedEx","DHL","Other"];
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>{"\uD83D\uDCB8 Sold"}</div>
+                    <span style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#4ade80"}}>{mySales.length} card{mySales.length!==1?"s":""}</span>
+                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#4ade80"}}>{"$"}{totalRevenue.toFixed(2)} total</span>
+                  </div>
+                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:16,overflow:"hidden"}}>
+                    {mySales.map((s,i)=>{
+                      const ti=trackingInputs[s.id]||{num:s.trackingNumber||"",carrier:s.carrier||"USPS"};
+                      const hasTracking=s.trackingNumber;
+                      return (
+                        <div key={s.soldAt+i} style={{borderBottom:i<mySales.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px"}}>
+                            {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} to {s.buyerName||"buyer"}</div>
+                              {hasTracking&&(
+                                <div style={{fontSize:10,color:"#7B9CFF",marginTop:2}}>
+                                  {s.carrier||"USPS"}: {s.trackingNumber}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
+                              <button onClick={e=>{e.stopPropagation();unsellListing(s);}} style={{marginTop:4,background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.4)",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Reverse</button>
+                            </div>
+                          </div>
+                          {/* Tracking input row */}
+                          {s.id&&(
+                            <div style={{display:"flex",gap:6,padding:"0 16px 10px",alignItems:"center"}}>
+                              <select value={ti.carrier} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,carrier:e.target.value}}))}
+                                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 6px",fontSize:11,color:"rgba(255,255,255,0.5)",fontFamily:"inherit",cursor:"pointer"}}>
+                                {CARRIERS.map(c=><option key={c} value={c}>{c}</option>)}
+                              </select>
+                              <input value={ti.num} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,num:e.target.value}}))}
+                                placeholder={hasTracking?"Update tracking #":"Add tracking #"}
+                                style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
+                              <button onClick={()=>saveTracking(s.id,ti.num,ti.carrier)}
+                                disabled={!ti.num.trim()}
+                                style={{background:ti.num.trim()?"rgba(123,156,255,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(ti.num.trim()?"rgba(123,156,255,0.3)":"rgba(255,255,255,0.06)"),color:ti.num.trim()?"#7B9CFF":"rgba(255,255,255,0.2)",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:ti.num.trim()?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                {hasTracking?"Update":"Save"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Bought / Purchases */}
+            {user&&marketSales.filter(s=>s.buyerUid===user.uid).length>0&&(()=>{
+              const myBuys=marketSales.filter(s=>s.buyerUid===user.uid);
+              const totalSpent=myBuys.reduce((acc,s)=>acc+(s.price||0),0);
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF"}}>{"\uD83D\uDCE6 Purchased"}</div>
+                    <span style={{background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#7B9CFF"}}>{myBuys.length} card{myBuys.length!==1?"s":""}</span>
+                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#7B9CFF"}}>{"$"}{totalSpent.toFixed(2)} spent</span>
+                  </div>
+                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(123,156,255,0.1)",borderRadius:16,overflow:"hidden"}}>
+                    {myBuys.map((s,i)=>{
+                      const shipped=s.trackingNumber;
+                      return (
+                        <div key={s.soldAt+"b"+i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<myBuys.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                          {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {s.sellerName||"seller"} {"\u00B7"} {s.soldDate||"--"}</div>
+                            {shipped?(
+                              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                                <span style={{fontSize:10,fontWeight:700,color:"#4ade80"}}>{"\u2705 Shipped"}</span>
+                                <span style={{fontSize:10,color:"#7B9CFF"}}>{s.carrier||""} {s.trackingNumber}</span>
+                              </div>
+                            ):(
+                              <div style={{fontSize:10,color:"rgba(251,191,36,0.6)",marginTop:2}}>{"\u23F3 Awaiting shipment"}</div>
+                            )}
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:15,fontWeight:900,color:"#7B9CFF"}}>{"$"}{(s.price||0).toFixed(2)}</div>
+                            {shipped&&(
+                              <a href={"https://www.google.com/search?q="+encodeURIComponent((s.carrier||"")+" "+s.trackingNumber+" tracking")} target="_blank" rel="noreferrer"
+                                style={{fontSize:10,color:"#7B9CFF",textDecoration:"none",display:"block",marginTop:2}}>Track {"\u2192"}</a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Offer Inbox -- all pending offers on my listings grouped by listing */}
+            {user&&allMyOffers.length>0&&(()=>{
+              // Group offers by listingId
+              const byListing={};
+              allMyOffers.forEach(o=>{
+                if(!byListing[o.listingId]) byListing[o.listingId]={listingId:o.listingId,cardName:o.cardName,cardImage:o.cardImage||null,offers:[]};
+                byListing[o.listingId].offers.push(o);
+              });
+              const groups=Object.values(byListing);
+              return (
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#FBBF24"}}>{"\uD83D\uDCE5 Offer Inbox"}</div>
+                    <span style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#FBBF24"}}>{allMyOffers.length}</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                    {groups.map(g=>(
+                      <div key={g.listingId} style={{background:"rgba(251,191,36,0.03)",border:"1px solid rgba(251,191,36,0.12)",borderRadius:16,overflow:"hidden"}}>
+                        {/* Listing header */}
+                        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(251,191,36,0.08)",background:"rgba(251,191,36,0.04)"}}>
+                          {g.cardImage&&<img src={g.cardImage} alt={g.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{g.cardName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{g.offers.length} offer{g.offers.length!==1?"s":""} {"\u00B7"} Best: {"$"}{(g.offers[0]?.offerAmount||0).toFixed(2)}</div>
+                          </div>
+                        </div>
+                        {/* Offer rows sorted highest to lowest */}
+                        {g.offers.map((o,idx)=>{
+                          const isBest=idx===0;
+                          const pctOfBest=g.offers[0].offerAmount>0?Math.round(o.offerAmount/g.offers[0].offerAmount*100):100;
+                          return (
+                            <div key={o.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:idx<g.offers.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:isBest?"rgba(74,222,128,0.04)":"transparent"}}>
+                              {/* Rank */}
+                              <div style={{width:22,height:22,borderRadius:"50%",background:isBest?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isBest?"#4ade80":"rgba(255,255,255,0.3)",flexShrink:0}}>
+                                {idx+1}
+                              </div>
+                              {/* Buyer name */}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{o.buyerName}</div>
+                                {o.note&&<div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{o.note}</div>}
+                                <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",marginTop:1}}>{o.createdAt?new Date(o.createdAt).toLocaleDateString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                              </div>
+                              {/* Amount + bar */}
+                              <div style={{textAlign:"right",flexShrink:0}}>
+                                <div style={{fontSize:16,fontWeight:900,color:isBest?"#4ade80":"#F0F0F0"}}>{"$"}{(o.offerAmount||0).toFixed(2)}</div>
+                                {!isBest&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{pctOfBest}{"% of best"}</div>}
+                                {isBest&&<div style={{fontSize:10,color:"#4ade80",fontWeight:700}}>Best offer</div>}
+                              </div>
+                              {/* Action buttons */}
+                              <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                                <button onClick={()=>respondOffer(o,"accepted")}
+                                  style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Accept
+                                </button>
+                                <button onClick={()=>{setCounterModal(o);setCounterAmt("");}}
+                                  style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Counter
+                                </button>
+                                <button onClick={()=>respondOffer(o,"declined")}
+                                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                  Decline
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Community listings */}
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
+                {listings.length===0?"No active listings right now":"Community Listings"} {listings.length>0&&<span style={{fontSize:12,color:"rgba(255,255,255,0.3)",fontWeight:400}}>({listings.length})</span>}
+              </div>
+              {listings.length===0?(
+                <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
+                  <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCB0"}</div>
+                  <div style={{fontSize:16,fontWeight:700}}>No cards listed yet</div>
+                  <div style={{fontSize:13,marginTop:8}}>{"List your owned cards from the Cards tab using the \uD83D\uDCB0 button"}</div>
+                </div>
+              ):(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+                  {listings.filter(l=>l.sellerUid!==user?.uid).map(l=>{
+                    const wc=WEAPON_COLORS[l.cardWeapon]||"#444";
+                    return (
+                      <div key={l.id} className="market-card" style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",cursor:"pointer"}} onClick={()=>{if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");}}>
+                        <div style={{display:"flex",gap:12,marginBottom:10}}>
+                          {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:54,height:72,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 4px 16px ${wc}33`}}/>:<div style={{width:54,height:72,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
+                            <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}\u26A1 &middot; {l.setName}</div>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                          <div>
+                            {l.isOBO?(
+                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80",letterSpacing:-0.5}}>{"\uD83D\uDCE8 Best Offer"}</div>
+                            ):(
+                              <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>${(l.askingPrice||0).toFixed(2)}</div>
+                            )}
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.isOBO?"Offers only":l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
+                          </div>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by {l.sellerName}</div>
+                            {l.offerCount>0&&<div style={{fontSize:10,color:"#FBBF24"}}>{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
+                          </div>
+                        </div>
+                        {l.notes&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic",marginBottom:10,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:8}}>{l.notes}</div>}
+                        <div style={{display:"flex",gap:6,marginTop:2}}>
+                          {!l.isOBO&&l.askingPrice>0&&l.sellerUid!==user?.uid&&(
+                            <button onClick={e=>{e.stopPropagation();buyNow(l);}}
+                              style={{flex:1,background:"linear-gradient(135deg,rgba(74,222,128,0.2),rgba(34,197,94,0.15))",border:"1px solid rgba(74,222,128,0.35)",color:"#4ade80",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                              {"\uD83D\uDED2 Buy Now"}
+                            </button>
+                          )}
+                          {l.sellerUid!==user?.uid&&(
+                            <button onClick={e=>{e.stopPropagation();if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
+                              style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                              {"\uD83E\uDD1D "+(l.isOBO?"Make Offer":"Offer")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -11702,271 +11972,18 @@ function PublicCardDatabase() {
 
         {/* MARKET TAB */}
         {activeTab==="market"&&(
-          <div>
-            {/* My listings */}
-            {user&&myListings.length>0&&(
-              <div style={{marginBottom:24}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#4ade80",marginBottom:12}}>Your Listings ({myListings.length})</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-                  {myListings.map(l=>(
-                    <div key={l.id} className="market-card" style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",position:"relative"}}>
-                      <div style={{display:"flex",gap:12,marginBottom:10}}>
-                        {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} &middot; {l.cardPower}\u26A1</div>
-                          <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
-                        </div>
-                      </div>
-                      {l.offerCount>0&&<div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:8}}>{"\uD83E\uDD1D"}{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
-                      <button onClick={()=>removeListing(l.id)} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.5)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Remove Listing</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-
-            {/* Sold Listings */}
-            {user&&marketSales.filter(s=>s.sellerUid===user.uid).length>0&&(()=>{
-              const mySales=marketSales.filter(s=>s.sellerUid===user.uid);
-              const totalRevenue=mySales.reduce((acc,s)=>acc+(s.price||0),0);
-              const CARRIERS=["USPS","UPS","FedEx","DHL","Other"];
-              return (
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>{"\uD83D\uDCB8 Sold"}</div>
-                    <span style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#4ade80"}}>{mySales.length} card{mySales.length!==1?"s":""}</span>
-                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#4ade80"}}>{"$"}{totalRevenue.toFixed(2)} total</span>
-                  </div>
-                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:16,overflow:"hidden"}}>
-                    {mySales.map((s,i)=>{
-                      const ti=trackingInputs[s.id]||{num:s.trackingNumber||"",carrier:s.carrier||"USPS"};
-                      const hasTracking=s.trackingNumber;
-                      return (
-                        <div key={s.soldAt+i} style={{borderBottom:i<mySales.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px"}}>
-                            {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
-                              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.cardTreatment} {"\u00B7"} to {s.buyerName||"buyer"}</div>
-                              {hasTracking&&(
-                                <div style={{fontSize:10,color:"#7B9CFF",marginTop:2}}>
-                                  {s.carrier||"USPS"}: {s.trackingNumber}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{textAlign:"right",flexShrink:0}}>
-                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80"}}>{"$"}{(s.price||0).toFixed(2)}</div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{s.soldDate||"--"}</div>
-                              <button onClick={e=>{e.stopPropagation();unsellListing(s);}} style={{marginTop:4,background:"transparent",border:"1px solid rgba(232,49,122,0.2)",color:"rgba(232,49,122,0.4)",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Reverse</button>
-                            </div>
-                          </div>
-                          {/* Tracking input row */}
-                          {s.id&&(
-                            <div style={{display:"flex",gap:6,padding:"0 16px 10px",alignItems:"center"}}>
-                              <select value={ti.carrier} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,carrier:e.target.value}}))}
-                                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 6px",fontSize:11,color:"rgba(255,255,255,0.5)",fontFamily:"inherit",cursor:"pointer"}}>
-                                {CARRIERS.map(c=><option key={c} value={c}>{c}</option>)}
-                              </select>
-                              <input value={ti.num} onChange={e=>setTrackingInputs(prev=>({...prev,[s.id]:{...ti,num:e.target.value}}))}
-                                placeholder={hasTracking?"Update tracking #":"Add tracking #"}
-                                style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#F0F0F0",fontFamily:"inherit",outline:"none"}}/>
-                              <button onClick={()=>saveTracking(s.id,ti.num,ti.carrier)}
-                                disabled={!ti.num.trim()}
-                                style={{background:ti.num.trim()?"rgba(123,156,255,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(ti.num.trim()?"rgba(123,156,255,0.3)":"rgba(255,255,255,0.06)"),color:ti.num.trim()?"#7B9CFF":"rgba(255,255,255,0.2)",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:ti.num.trim()?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                                {hasTracking?"Update":"Save"}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Bought / Purchases */}
-            {user&&marketSales.filter(s=>s.buyerUid===user.uid).length>0&&(()=>{
-              const myBuys=marketSales.filter(s=>s.buyerUid===user.uid);
-              const totalSpent=myBuys.reduce((acc,s)=>acc+(s.price||0),0);
-              return (
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF"}}>{"\uD83D\uDCE6 Purchased"}</div>
-                    <span style={{background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#7B9CFF"}}>{myBuys.length} card{myBuys.length!==1?"s":""}</span>
-                    <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#7B9CFF"}}>{"$"}{totalSpent.toFixed(2)} spent</span>
-                  </div>
-                  <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(123,156,255,0.1)",borderRadius:16,overflow:"hidden"}}>
-                    {myBuys.map((s,i)=>{
-                      const shipped=s.trackingNumber;
-                      return (
-                        <div key={s.soldAt+"b"+i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<myBuys.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                          {s.cardImage?<img src={s.cardImage} alt={s.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:32,height:43,background:"rgba(255,255,255,0.04)",borderRadius:6,flexShrink:0}}/>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardName}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>from {s.sellerName||"seller"} {"\u00B7"} {s.soldDate||"--"}</div>
-                            {shipped?(
-                              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
-                                <span style={{fontSize:10,fontWeight:700,color:"#4ade80"}}>{"\u2705 Shipped"}</span>
-                                <span style={{fontSize:10,color:"#7B9CFF"}}>{s.carrier||""} {s.trackingNumber}</span>
-                              </div>
-                            ):(
-                              <div style={{fontSize:10,color:"rgba(251,191,36,0.6)",marginTop:2}}>{"\u23F3 Awaiting shipment"}</div>
-                            )}
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:15,fontWeight:900,color:"#7B9CFF"}}>{"$"}{(s.price||0).toFixed(2)}</div>
-                            {shipped&&(
-                              <a href={"https://www.google.com/search?q="+encodeURIComponent((s.carrier||"")+" "+s.trackingNumber+" tracking")} target="_blank" rel="noreferrer"
-                                style={{fontSize:10,color:"#7B9CFF",textDecoration:"none",display:"block",marginTop:2}}>Track {"\u2192"}</a>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Offer Inbox -- all pending offers on my listings grouped by listing */}
-            {user&&allMyOffers.length>0&&(()=>{
-              // Group offers by listingId
-              const byListing={};
-              allMyOffers.forEach(o=>{
-                if(!byListing[o.listingId]) byListing[o.listingId]={listingId:o.listingId,cardName:o.cardName,cardImage:o.cardImage||null,offers:[]};
-                byListing[o.listingId].offers.push(o);
-              });
-              const groups=Object.values(byListing);
-              return (
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#FBBF24"}}>{"\uD83D\uDCE5 Offer Inbox"}</div>
-                    <span style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,color:"#FBBF24"}}>{allMyOffers.length}</span>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                    {groups.map(g=>(
-                      <div key={g.listingId} style={{background:"rgba(251,191,36,0.03)",border:"1px solid rgba(251,191,36,0.12)",borderRadius:16,overflow:"hidden"}}>
-                        {/* Listing header */}
-                        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(251,191,36,0.08)",background:"rgba(251,191,36,0.04)"}}>
-                          {g.cardImage&&<img src={g.cardImage} alt={g.cardName} style={{width:32,height:43,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{g.cardName}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{g.offers.length} offer{g.offers.length!==1?"s":""} {"\u00B7"} Best: {"$"}{(g.offers[0]?.offerAmount||0).toFixed(2)}</div>
-                          </div>
-                        </div>
-                        {/* Offer rows sorted highest to lowest */}
-                        {g.offers.map((o,idx)=>{
-                          const isBest=idx===0;
-                          const pctOfBest=g.offers[0].offerAmount>0?Math.round(o.offerAmount/g.offers[0].offerAmount*100):100;
-                          return (
-                            <div key={o.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:idx<g.offers.length-1?"1px solid rgba(255,255,255,0.04)":"none",background:isBest?"rgba(74,222,128,0.04)":"transparent"}}>
-                              {/* Rank */}
-                              <div style={{width:22,height:22,borderRadius:"50%",background:isBest?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:isBest?"#4ade80":"rgba(255,255,255,0.3)",flexShrink:0}}>
-                                {idx+1}
-                              </div>
-                              {/* Buyer name */}
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{o.buyerName}</div>
-                                {o.note&&<div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{o.note}</div>}
-                                <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",marginTop:1}}>{o.createdAt?new Date(o.createdAt).toLocaleDateString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
-                              </div>
-                              {/* Amount + bar */}
-                              <div style={{textAlign:"right",flexShrink:0}}>
-                                <div style={{fontSize:16,fontWeight:900,color:isBest?"#4ade80":"#F0F0F0"}}>{"$"}{(o.offerAmount||0).toFixed(2)}</div>
-                                {!isBest&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{pctOfBest}{"% of best"}</div>}
-                                {isBest&&<div style={{fontSize:10,color:"#4ade80",fontWeight:700}}>Best offer</div>}
-                              </div>
-                              {/* Action buttons */}
-                              <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-                                <button onClick={()=>respondOffer(o,"accepted")}
-                                  style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                                  Accept
-                                </button>
-                                <button onClick={()=>{setCounterModal(o);setCounterAmt("");}}
-                                  style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                                  Counter
-                                </button>
-                                <button onClick={()=>respondOffer(o,"declined")}
-                                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                                  Decline
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Community listings */}
-            <div>
-              <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
-                {listings.length===0?"No active listings right now":"Community Listings"} {listings.length>0&&<span style={{fontSize:12,color:"rgba(255,255,255,0.3)",fontWeight:400}}>({listings.length})</span>}
-              </div>
-              {listings.length===0?(
-                <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                  <div style={{fontSize:48,marginBottom:16}}>{"\uD83D\uDCB0"}</div>
-                  <div style={{fontSize:16,fontWeight:700}}>No cards listed yet</div>
-                  <div style={{fontSize:13,marginTop:8}}>{"List your owned cards from the Cards tab using the \uD83D\uDCB0 button"}</div>
-                </div>
-              ):(
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-                  {listings.filter(l=>l.sellerUid!==user?.uid).map(l=>{
-                    const wc=WEAPON_COLORS[l.cardWeapon]||"#444";
-                    return (
-                      <div key={l.id} className="market-card" style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${wc}22`,borderRadius:16,padding:16,backdropFilter:"blur(10px)",transition:"all 0.2s",cursor:"pointer"}} onClick={()=>{if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");}}>
-                        <div style={{display:"flex",gap:12,marginBottom:10}}>
-                          {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:54,height:72,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 4px 16px ${wc}33`}}/>:<div style={{width:54,height:72,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
-                            <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}\u26A1 &middot; {l.setName}</div>
-                          </div>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                          <div>
-                            {l.isOBO?(
-                              <div style={{fontSize:15,fontWeight:900,color:"#4ade80",letterSpacing:-0.5}}>{"\uD83D\uDCE8 Best Offer"}</div>
-                            ):(
-                              <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>${(l.askingPrice||0).toFixed(2)}</div>
-                            )}
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.isOBO?"Offers only":l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
-                          </div>
-                          <div style={{textAlign:"right"}}>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by {l.sellerName}</div>
-                            {l.offerCount>0&&<div style={{fontSize:10,color:"#FBBF24"}}>{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
-                          </div>
-                        </div>
-                        {l.notes&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic",marginBottom:10,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:8}}>{l.notes}</div>}
-                        <div style={{display:"flex",gap:6,marginTop:2}}>
-                          {!l.isOBO&&l.askingPrice>0&&l.sellerUid!==user?.uid&&(
-                            <button onClick={e=>{e.stopPropagation();buyNow(l);}}
-                              style={{flex:1,background:"linear-gradient(135deg,rgba(74,222,128,0.2),rgba(34,197,94,0.15))",border:"1px solid rgba(74,222,128,0.35)",color:"#4ade80",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                              {"\uD83D\uDED2 Buy Now"}
-                            </button>
-                          )}
-                          {l.sellerUid!==user?.uid&&(
-                            <button onClick={e=>{e.stopPropagation();if(!user){setSigningIn(true);return;}setOfferModal(l);setOfferAmt("");setOfferNote("");setOfferSent(false);}}
-                              style={{flex:1,background:"linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1))",border:"1px solid rgba(251,191,36,0.2)",color:"#FBBF24",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                              {"\uD83E\uDD1D "+(l.isOBO?"Make Offer":"Offer")}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <MarketTab
+            user={user} myListings={myListings} listings={listings}
+            WEAPON_COLORS={WEAPON_COLORS} allMyOffers={allMyOffers}
+            marketSales={marketSales} trackingInputs={trackingInputs}
+            setTrackingInputs={setTrackingInputs} setListModal={setListModal}
+            setOfferModal={setOfferModal} setOfferAmt={setOfferAmt}
+            setOfferNote={setOfferNote} setOfferSent={setOfferSent}
+            setCounterModal={setCounterModal} setCounterAmt={setCounterAmt}
+            buyNow={buyNow} respondOffer={respondOffer}
+            unsellListing={unsellListing} saveTracking={saveTracking}
+            setSigningIn={setSigningIn} setActiveTab={setActiveTab} inp={inp}
+          />
         )}
 
         {/* MESSAGES TAB */}
