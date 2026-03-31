@@ -277,6 +277,9 @@ function GlobalStyles() {
         .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
         .view-mode-row::-webkit-scrollbar { display: none; }
         .checklist-actions { flex-wrap: wrap !important; }
+        .deck-pb-layout { grid-template-columns: 1fr !important; }
+        .deck-pb-panel { order: -1; }
+        .deck-pb-cardlist { max-height: 60vh !important; }
       }
       @media (max-width: 480px) {
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
@@ -10791,7 +10794,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
-            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+            <div className="deck-pb-layout" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
@@ -10802,7 +10805,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   </select>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
-                <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
+                <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
                   {pbAvail.map((c,i)=>{
                     const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
                     return (
@@ -10828,7 +10831,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   })}
                 </div>
               </div>
-              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                   {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
@@ -10912,7 +10915,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
   return (
-          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+          <div className="deck-pb-layout" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
@@ -10941,7 +10944,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
+              <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   deckAvail.map((c,i)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
@@ -10965,7 +10968,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 }
               </div>
             </div>
-            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
+            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
                 <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
@@ -12731,7 +12734,7 @@ function PublicCardDatabase() {
                 return (
                   <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
                     <div onClick={()=>setCollapsedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isCollapsed?0:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                         <div>
                           <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:3}}>
@@ -12745,11 +12748,9 @@ function PublicCardDatabase() {
                           <span style={{color:"rgba(255,255,255,0.3)",fontSize:14}}>{isCollapsed?"▼":"▲"}</span>
                         </div>
                       </div>
-                      {!isCollapsed&&(
-                        <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
-                        </div>
-                      )}
+                      <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
+                      </div>
                     </div>
                     {!isCollapsed&&(
                     <div style={{padding:"12px 24px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
