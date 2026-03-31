@@ -1668,7 +1668,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <div>
               <label style={S.lbl}>Buy % (blank = 60%)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={lotPct}
                 onChange={e => { setLotPct(e.target.value); setFOffer(""); }}
                 placeholder="60"
@@ -1678,7 +1679,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <div>
               <label style={S.lbl}>Override Offer ($)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={finalOffer}
                 onChange={e => { setFOffer(e.target.value); setLotPct(""); }}
                 placeholder={totalMkt > 0 ? calcOffer.toFixed(2) : "0.00"}
