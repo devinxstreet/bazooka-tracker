@@ -732,23 +732,19 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totZion     = periodStreams.reduce((s,r)=>s+(parseFloat(r.zionRevenue)||0),0);
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
-        // Card usage costs by type -- join breaks with inventory costs
-        const periodStreamIds = new Set(periodStreams.map(s=>s.id));
-        const periodBreaks = breaks.filter(b => b.streamId && periodStreamIds.has(b.streamId));
+        // Card usage costs by type -- use all breaks in the period by date
         const cardCostByType = {};
         const cardQtyByType  = {};
         CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
-        periodBreaks.forEach(b => {
+        breaks.forEach(b => {
           if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
+          const breakDate = b.date || (b.dateAdded ? b.dateAdded.split("T")[0] : null);
+          if (!breakDate || !inPeriod(breakDate)) return;
           const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          if (b.cardType !== "Chaser Cards") { // Chaser cost comes from stream field (includes overrides)
-            cardCostByType[b.cardType] += cost;
-          }
+          cardCostByType[b.cardType] += cost;
           cardQtyByType[b.cardType] += 1;
         });
-        // Chaser Cards cost: use stream-level chaserCards field (captures manual overrides)
-        cardCostByType["Chaser Cards"] = periodStreams.reduce((s,r)=>s+(parseFloat(r.chaserCards)||0),0);
 
         return (
           <div style={{ ...S.card }}>
