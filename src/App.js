@@ -2768,6 +2768,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [recapSaved,  setRecapSaved]  = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
   const csvJustLoaded = useRef(false);
+  const csvDataLoaded = useRef(false);
   const [csvMsg,       setCsvMsg]       = useState(null); // { type: 'success'|'error', text }
 
   // Check existing product usage for this breaker+date
@@ -2788,7 +2789,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
       setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", ...prodFields });
       setRecapSaved(true);
-    } else {
+      csvDataLoaded.current = false;
+    } else if (!csvDataLoaded.current) {
       setRecap(EMPTY_RECAP);
       setRecapSaved(false);
       setChaserSearch("");
@@ -2883,6 +2885,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       }
       setRecapSaved(true);
       setEditingStreamId(streamId); // lock to this stream for subsequent edits
+      csvDataLoaded.current = false;
     } finally { setRecapSaving(false); }
   }
 
@@ -2990,6 +2993,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
                     setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
+                    csvDataLoaded.current = true;
                     setRecapSaved(false);
                     setCsvMsg({ type:"success", text:`\u2705 Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""} — enter the stream date manually then fill in fees & expenses.` });
                     setTimeout(()=>setCsvMsg(null), 8000);
@@ -3041,7 +3045,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
                   {"\u270F\uFE0F Editing:"}{existingStream.breaker} &middot; {existingStream.date}
                 </span>
-                <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
+                <button onClick={()=>{ csvDataLoaded.current=false; setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
                   Start new instead
                 </button>
               </div>
@@ -3471,7 +3475,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             );
           })()}
           {recapSaved && (
-            <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
+            <Btn onClick={()=>{ csvDataLoaded.current=false; setDate(""); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
               + New Stream
             </Btn>
           )}
