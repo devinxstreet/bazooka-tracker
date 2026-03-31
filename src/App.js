@@ -11952,20 +11952,62 @@ function PublicCardDatabase() {
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",color:"#E8317A",fontSize:16,fontWeight:700,fontFamily:"'Trebuchet MS',sans-serif"}}>
-    <div style={{textAlign:"center"}}>
-      <div style={{position:"relative",width:80,height:80,marginBottom:16}}>
-        {/* Vault outer ring */}
-        <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"3px solid rgba(232,49,122,0.15)",borderTopColor:"#E8317A",borderRightColor:"#7B2FF7",animation:"spin 1.2s linear infinite"}}/>
-        {/* Vault inner ring */}
-        <div style={{position:"absolute",inset:8,borderRadius:"50%",border:"2px solid rgba(123,156,255,0.1)",borderBottomColor:"#7B9CFF",animation:"spin 2s linear infinite reverse"}}/>
-        {/* Vault center */}
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{"\uD83D\uDD10"}</div>
+  if(loading) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",fontFamily:"'Trebuchet MS',sans-serif",overflow:"hidden",position:"relative"}}>
+      <style>{`
+        @keyframes vaultSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes vaultSpinR { from{transform:rotate(0deg)} to{transform:rotate(-360deg)} }
+        @keyframes vaultPulse { 0%,100%{opacity:0.4;transform:scale(0.95)} 50%{opacity:1;transform:scale(1.05)} }
+        @keyframes vaultGlow { 0%,100%{box-shadow:0 0 20px rgba(232,49,122,0.3)} 50%{box-shadow:0 0 60px rgba(232,49,122,0.8),0 0 100px rgba(123,47,247,0.4)} }
+        @keyframes cardFloat { 0%{transform:translateY(0px) rotate(-3deg)} 50%{transform:translateY(-12px) rotate(3deg)} 100%{transform:translateY(0px) rotate(-3deg)} }
+        @keyframes fadeSlideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes orb { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-20px) scale(1.1)} 66%{transform:translate(-20px,15px) scale(0.9)} }
+        @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
+      `}</style>
+
+      {/* Background orbs */}
+      <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.08) 0%,transparent 70%)",top:"10%",left:"10%",animation:"orb 8s ease-in-out infinite"}}/>
+      <div style={{position:"absolute",width:300,height:300,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.08) 0%,transparent 70%)",bottom:"15%",right:"15%",animation:"orb 10s ease-in-out infinite reverse"}}/>
+
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:32,animation:"fadeSlideUp 0.6s ease both"}}>
+
+        {/* Vault icon - concentric spinning rings */}
+        <div style={{position:"relative",width:120,height:120}}>
+          {/* Ring 3 - outermost, slow */}
+          <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"2px solid rgba(232,49,122,0.2)",animation:"vaultSpin 8s linear infinite"}}/>
+          <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"2px dashed rgba(123,47,247,0.15)",animation:"vaultSpinR 12s linear infinite"}}/>
+          {/* Ring 2 */}
+          <div style={{position:"absolute",inset:12,borderRadius:"50%",border:"2px solid rgba(232,49,122,0.4)",animation:"vaultSpin 4s linear infinite"}}/>
+          <div style={{position:"absolute",inset:12,borderRadius:"50%",border:"1px solid rgba(123,47,247,0.3)",animation:"vaultSpinR 6s linear infinite"}}/>
+          {/* Ring 1 - inner */}
+          <div style={{position:"absolute",inset:24,borderRadius:"50%",border:"2px solid rgba(232,49,122,0.7)",animation:"vaultSpin 2s linear infinite",boxShadow:"0 0 20px rgba(232,49,122,0.4)"}}>
+            <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:6,height:6,borderRadius:"50%",background:"#E8317A",boxShadow:"0 0 12px #E8317A"}}/>
+          </div>
+          {/* Center glow */}
+          <div style={{position:"absolute",inset:36,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.15) 0%,transparent 70%)",animation:"vaultPulse 2s ease-in-out infinite"}}/>
+          {/* Tick marks on outer ring */}
+          {[0,60,120,180,240,300].map(deg=>(
+            <div key={deg} style={{position:"absolute",top:"50%",left:"50%",width:8,height:2,background:"rgba(232,49,122,0.5)",borderRadius:1,transformOrigin:"left center",transform:`rotate(${deg}deg) translateX(52px) translateY(-1px)`}}/>
+          ))}
+        </div>
+
+        {/* Text */}
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:13,fontWeight:900,letterSpacing:6,color:"rgba(255,255,255,0.15)",textTransform:"uppercase",marginBottom:8}}>Bazooka</div>
+          <div style={{fontSize:32,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1,marginBottom:4}}>VAULT</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",letterSpacing:3,textTransform:"uppercase"}}>BoBA Collector Database</div>
+        </div>
+
+        {/* Animated dots */}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {[0,0.2,0.4].map((delay,i)=>(
+            <div key={i} style={{width:6,height:6,borderRadius:"50%",background:"#E8317A",animation:`dot 1.4s ease-in-out ${delay}s infinite`}}/>
+          ))}
+        </div>
+
       </div>
-      <div style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:4}}>Bazooka Vault</div>
-      <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Loading...</div>
     </div>
-  </div>;
+  );
 
   // -- Render helpers --
   const tabBtn=(id,label,badge)=>(
