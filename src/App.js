@@ -10766,7 +10766,6 @@ function OfferModal({ offerModal, offerSent, setOfferModal, offerAmt, setOfferAm
             )}
           </div>
         </div>
-        </div>
   );
 }
 
