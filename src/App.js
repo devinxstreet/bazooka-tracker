@@ -2746,7 +2746,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [breaker,    setBreaker]    = useState(matchedBreaker);
-  const [date,       setDate]       = useState(new Date().toISOString().split("T")[0]);
+  const [date,       setDate]       = useState("");
   const [cardId,     setCardId]     = useState("");
   const [cardSearch, setCardSearch] = useState("");
   const [usage,      setUsage]      = useState("");
@@ -2757,6 +2757,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [chaserSearch, setChaserSearch] = useState("");
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
   const [streamLogBreaker, setStreamLogBreaker] = useState("");
+  const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"" };
@@ -3506,9 +3507,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker);
         return (
           <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
+            <div style={{ padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap", cursor:"pointer" }} onClick={()=>setStreamLogCollapsed(p=>!p)}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }} onClick={e=>e.stopPropagation()}>
                 {canSeeFinancials && (
                   <select value={streamLogBreaker} onChange={e=>setStreamLogBreaker(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
                     <option value="">All Breakers</option>
@@ -3525,9 +3526,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     {"\uD83D\uDDD1 Delete"}{streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
                   </button>
                 )}
+                <span style={{ color:"#AAAAAA", fontSize:14, userSelect:"none" }}>{streamLogCollapsed ? "▼" : "▲"}</span>
               </div>
             </div>
-            {myStreams.length === 0
+            {!streamLogCollapsed && (myStreams.length === 0
               ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet -- save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -3539,7 +3541,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         onChange={()=>setStreamBulkSel(streamBulkSel.size===myStreams.length ? new Set() : new Set(myStreams.map(s=>s.id)))}
                       />
                     </th>
-                    {["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -3561,6 +3563,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         </td>
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
+                        <td style={{ ...S.td, color: s.streamName?"#F0F0F0":"#444", fontStyle: s.streamName?"normal":"italic", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.streamName||"—"}</td>
                         <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
                         <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(c.netRev)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.imcNet)}</td>}
@@ -3589,7 +3592,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   })}
                 </tbody>
               </table>
-            </div>}
+            </div>)}
           </div>
         );
       })()}
