@@ -12282,6 +12282,7 @@ function PublicCardDatabase() {
             deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
+            canAddToDeck={canAddToDeck}
           />
         )}
 
@@ -12291,6 +12292,7 @@ function PublicCardDatabase() {
             user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
             setSigningIn={setSigningIn} cards={cards} owned={owned}
+            inp={inp}
           />
         )}
 
