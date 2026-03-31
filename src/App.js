@@ -1317,7 +1317,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"none" }}>
           {[["builder","\uD83E\uDDEE Builder"],["quick","\u26A1 Quick Mode"],...(["Admin","Procurement"].includes(userRole?.role)?[["history","\uD83D\uDCCB History"]]:[] )].map(([mode,label]) => (
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
@@ -2260,7 +2260,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
+function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2272,7 +2272,8 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   const [logOutCard, setLogOutCard] = useState(null);
   const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
-  const [invTab,   setInvTab]   = useState("cards");
+  const [invTab,   setInvTab]   = useState(defaultTab);
+  useEffect(()=>{setInvTab(defaultTab);},[defaultTab]);
   const [editCostId,  setEditCostId]  = useState(null);
   const [editCostVal, setEditCostVal] = useState("");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
@@ -2306,7 +2307,7 @@ function Inventory({ inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={S.card}>
-        <div style={{ display:"flex", gap:8, marginBottom:4 }}>
+        <div style={{ display:"none" }}>
           {[["cards","\uD83D\uDCE6 Cards"],["pools","\uD83D\uDDC3 Card Pools"],...(["Admin","Procurement"].includes(userRole?.role)?[["lots","\uD83D\uDDC2 Lot History"]]:[]),["product","\uD83C\uDF81 Product"]].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab===id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
@@ -3688,14 +3689,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 }
 
 
-function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
+function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
   const [search,       setSearch]       = useState("");
   const [sortBy,       setSortBy]       = useState("totalSpend");
   const [filterNew,    setFilterNew]    = useState(false);
   const [selected,     setSelected]     = useState(null);
   const [showImports,  setShowImports]  = useState(false);
-  const [activeTab,    setActiveTab]    = useState("table");
+  const [activeTab,    setActiveTab]    = useState(defaultTab);
+  useEffect(()=>{setActiveTab(defaultTab);},[defaultTab]);
   const [selectedState, setSelectedState] = useState(null);
 
   const fmt = n => `$${(parseFloat(n)||0).toFixed(2)}`;
@@ -3786,7 +3788,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
 
       {/* Analytics tabs */}
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        <div style={{ display:"flex", borderBottom:"1px solid #1a1a1a" }}>
+        <div style={{ display:"none", borderBottom:"1px solid #1a1a1a" }}>
           {[["table","\uD83D\uDC65 Buyers"],["map","\uD83D\uDDFA\uFE0F By State"],["zones","\uD83D\uDD50 By Time Zone"]].map(([id,label])=>(
             <button key={id} onClick={()=>setActiveTab(id)}
               style={{ background:activeTab===id?"#1A1A2E":"transparent", color:activeTab===id?"#E8317A":"#555", border:"none", borderBottom:activeTab===id?"2px solid #E8317A":"2px solid transparent", padding:"10px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -3993,7 +3995,7 @@ function BuyersCRM({ buyers=[], csvImports=[], onDeleteImport, onClearAll, userR
   );
 }
 
-function Performance({ breaks, user, userRole, streams=[] }) {
+function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
@@ -4001,7 +4003,8 @@ function Performance({ breaks, user, userRole, streams=[] }) {
   const now  = new Date();
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-  const [perfPeriod, setPerfPeriod] = useState("month");
+  const [perfPeriod, setPerfPeriod] = useState(defaultPeriod);
+  useEffect(()=>{setPerfPeriod(defaultPeriod);},[defaultPeriod]);
   const [perfFrom,   setPerfFrom]   = useState("");
   const [perfTo,     setPerfTo]     = useState("");
 
@@ -5094,7 +5097,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
-function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
+function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -5104,7 +5107,8 @@ function Streams({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, use
     { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","Procurement"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
-  const [streamTab, setStreamTab] = useState(isShipping ? "cards" : "recap");
+  const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
+  useEffect(()=>{if(defaultStreamTab!=="recap")setStreamTab(defaultStreamTab);},[defaultStreamTab]);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -6802,7 +6806,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   );
 }
 
-function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
+function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
   const [cards,        setCards]        = useState([]);
@@ -6835,7 +6839,8 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   const [scanPaused,   setScanPaused]   = useState(false);
   const scanPausedRef = useRef(false);
   const [flippedCard,  setFlippedCard]  = useState(null);
-  const [viewMode,       setViewMode]       = useState("cards");
+  const [viewMode,       setViewMode]       = useState(defaultView);
+  useEffect(()=>{setViewMode(defaultView);},[defaultView]);
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -12722,10 +12727,11 @@ export default function App() {
   const [scanStatus,    setScanStatus]    = useState(null);
   const [activeScan,    setActiveScan]    = useState(null);
   const [hoverTab,      setHoverTab]  = useState(null);
-  const [invView,       setInvView]       = useState("cards");
-  const [buyerView,     setBuyerView]     = useState("table");
-  const [period,        setPeriod]        = useState("month");
-  const [checklistView, setChecklistView] = useState("checklist");
+  const [invTabDefault,  setInvTabDefault]  = useState("cards");
+  const [buyerTabDefault,setBuyerTabDefault]= useState("table");
+  const [periodDefault,  setPeriodDefault]  = useState("month");
+  const [checklistDefault,setChecklistDefault]=useState("cards");
+  const [streamTabDefault,setStreamTabDefault] = useState("recap");
   const [compMode,      setCompMode]      = useState("builder");
 
   const BOBA_CACHE_KEY = "boba_checklist_cache_v2";
@@ -13168,43 +13174,38 @@ export default function App() {
             <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
               {ALL_TABS.map(t=>{
                 const menuItems = ({
-                "dashboard": [
-                  {label:"\uD83D\uDCCA Overview",sub:"Stats & KPIs",action:()=>{setTab("dashboard");;setHoverTab(null);}},
-                  {label:"\uD83D\uDCE6 Ops Summary",sub:"Inventory health",action:()=>{setTab("dashboard");;setHoverTab(null);}},
-                  {label:"\uD83D\uDCC5 Historical",sub:"Monthly trends",action:()=>{setTab("dashboard");;setHoverTab(null);}},
-                  {label:"\uD83D\uDC65 Team Activity",sub:"Rep performance",action:()=>{setTab("dashboard");;setHoverTab(null);}},
-                ],
+                "dashboard": [],
                 "comp": [
                   {label:"\uD83D\uDCCB Builder",sub:"Full lot comp tool",action:()=>{setTab("comp");setCompMode("builder");setHoverTab(null);}},
                   {label:"\u26A1 Quick Mode",sub:"Fast comp entry",action:()=>{setTab("comp");setCompMode("quick");setHoverTab(null);}},
                   {label:"\uD83D\uDCC2 History",sub:"Past comps & quotes",action:()=>{setTab("comp");setCompMode("history");setHoverTab(null);}},
                 ],
                 "inventory": [
-                  {label:"\uD83D\uDCE6 Cards",sub:"Card inventory",action:()=>{setTab("inventory");setInvView("cards");setHoverTab(null);}},
-                  {label:"\uD83D\uDDC3 Card Pools",sub:"Pool management",action:()=>{setTab("inventory");setInvView("pools");setHoverTab(null);}},
-                  {label:"\uD83D\uDDC2 Lot History",sub:"Past lots",action:()=>{setTab("inventory");setInvView("lots");setHoverTab(null);}},
-                  {label:"\uD83C\uDF81 Product",sub:"Product inventory",action:()=>{setTab("inventory");setInvView("product");setHoverTab(null);}},
+                  {label:"\uD83D\uDCE6 Cards",sub:"Card inventory",action:()=>{setTab("inventory");setInvTabDefault("cards");setHoverTab(null);}},
+                  {label:"\uD83D\uDDC3 Card Pools",sub:"Pool management",action:()=>{setTab("inventory");setInvTabDefault("pools");setHoverTab(null);}},
+                  {label:"\uD83D\uDDC2 Lot History",sub:"Past lots",action:()=>{setTab("inventory");setInvTabDefault("lots");setHoverTab(null);}},
+                  {label:"\uD83C\uDF81 Product",sub:"Product inventory",action:()=>{setTab("inventory");setInvTabDefault("product");setHoverTab(null);}},
                 ],
                 "streams": [
-                  {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");;setHoverTab(null);}},
-                  {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");;setHoverTab(null);}},
-                  {label:"\uD83D\uDCC4 Pay Stubs",sub:"Stub generator",action:()=>{setTab("streams");;setHoverTab(null);}},
+                  {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
+                  {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
+                  {label:"\uD83D\uDCC4 Pay Stubs",sub:"Stub generator",action:()=>{setTab("streams");setStreamTabDefault("stubs");setHoverTab(null);}},
                 ],
                 "buyers": [
-                  {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerView("table");setHoverTab(null);}},
-                  {label:"\uD83D\uDDFA\uFE0F By State",sub:"Heatmap",action:()=>{setTab("buyers");setBuyerView("map");setHoverTab(null);}},
-                  {label:"\uD83D\uDD50 By Time Zone",sub:"Zone breakdown",action:()=>{setTab("buyers");setBuyerView("zones");setHoverTab(null);}},
+                  {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
+                  {label:"\uD83D\uDDFA\uFE0F By State",sub:"Heatmap",action:()=>{setTab("buyers");setBuyerTabDefault("map");setHoverTab(null);}},
+                  {label:"\uD83D\uDD50 By Time Zone",sub:"Zone breakdown",action:()=>{setTab("buyers");setBuyerTabDefault("zones");setHoverTab(null);}},
                 ],
                 "performance": [
-                  {label:"\uD83D\uDCC5 This Month",sub:"Current month",action:()=>{setTab("performance");setPeriod("month");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC6 This Quarter",sub:"Current quarter",action:()=>{setTab("performance");setPeriod("quarter");setHoverTab(null);}},
-                  {label:"\uD83D\uDDD3 This Year",sub:"YTD",action:()=>{setTab("performance");setPeriod("year");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA All Time",sub:"Full history",action:()=>{setTab("performance");setPeriod("all");setHoverTab(null);}},
+                  {label:"\uD83D\uDCC5 This Month",sub:"Current month",action:()=>{setTab("performance");setPeriodDefault("month");setHoverTab(null);}},
+                  {label:"\uD83D\uDCC6 This Quarter",sub:"Current quarter",action:()=>{setTab("performance");setPeriodDefault("quarter");setHoverTab(null);}},
+                  {label:"\uD83D\uDDD3 This Year",sub:"YTD",action:()=>{setTab("performance");setPeriodDefault("year");setHoverTab(null);}},
+                  {label:"\uD83D\uDCCA All Time",sub:"Full history",action:()=>{setTab("performance");setPeriodDefault("all");setHoverTab(null);}},
                 ],
                 "checklist": [
-                  {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistView("checklist");setHoverTab(null);}},
-                  {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistView("wants");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistView("stats");setHoverTab(null);}},
+                  {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
+                  {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistDefault("wants");setHoverTab(null);}},
+                  {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistDefault("stats");setHoverTab(null);}},
                 ],
                 "showcase": [
                   {label:"\u2728 My Showcase",sub:"Public collection",action:()=>{setTab("showcase");;setHoverTab(null);}},
@@ -13242,11 +13243,11 @@ export default function App() {
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"  && <Inventory   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"    && <Streams     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
-        {tab==="buyers"     && <BuyersCRM   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
-        {tab==="performance"&& <Performance breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
-        {tab==="checklist"  && <BobaChecklist userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
+        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
+        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
+        {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
+        {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
+        {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
         {tab==="showcase"   && <BobaShowcase uid={effectiveUser?.uid} />}
       </div>
     </div>
