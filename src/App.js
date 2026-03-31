@@ -7152,6 +7152,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
   async function scanImagesForCards(files, setName) {
     const fileList = Array.from(files);
     if (fileList.length === 0) return;
+    try {
     _setImgScanProgress({ current:0, total:fileList.length, status:"Starting image scan..." });
 
     let matched = 0, skipped = 0;
@@ -7310,6 +7311,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
 
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`\u2705 Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
+    } catch(err) { _setImgScanProgress({ current:0, total:0, status:"Error: " + err.message }); console.error("Import error:", err); }
     try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
   }  // - closes scanImagesForCards
 
@@ -8371,7 +8373,7 @@ function BobaChecklist({ userRole, user, onScanUpdate, onChecklistUpdated }) {
       )}
 
       {imgScanProgress && (
-        <div style={{ ...S.card, border:"1.5px solid #4ade8044", background:"#0a1a0a" }}>
+        <div style={{ position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:12,padding:"16px 20px",minWidth:300,boxShadow:"0 8px 40px rgba(0,0,0,0.8)",fontFamily:"'Trebuchet MS',sans-serif" }}>
           <div style={{ fontWeight:700, color:"#4ade80", fontSize:14, marginBottom:10 }}>{"\uD83D\uDDBC Scanning Images..."}</div>
           <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
             <div style={{ width:`${imgScanProgress.total > 0 ? Math.round(imgScanProgress.current/imgScanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#4ade80,#7B9CFF)", borderRadius:4, transition:"width 0.3s" }}/>
