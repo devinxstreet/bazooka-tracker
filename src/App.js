@@ -11102,7 +11102,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
-  const [loading,       setLoading]       = useState(true);
+  const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v2"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
   const [privateCards,  setPrivateCards]  = useState({});
@@ -11250,12 +11250,19 @@ function PublicCardDatabase() {
     return ()=>unsub();
   }, []);
 
-  // -- Load cards --
+  // -- Load cards (instant from cache, background refresh) --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v2";
+    const CACHE_TTL = 24 * 60 * 60 * 1000;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) { const { cards:cc, ts } = JSON.parse(raw); if (cc?.length>0 && Date.now()-ts<5*60*1000) { setCards(cc); setLoading(false); return; } }
+      if (raw) {
+        const { cards:cc, ts } = JSON.parse(raw);
+        if (cc?.length > 0) {
+          setCards(cc); setLoading(false);
+          if (Date.now() - ts < CACHE_TTL) return;
+        }
+      }
     } catch(e) {}
     getDocs(collection(db,"boba_checklist")).then(snap => {
       const all = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -11263,7 +11270,6 @@ function PublicCardDatabase() {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all,ts:Date.now()})); } catch(e) {}
     });
   }, []);
-
   // -- Auth + owned + wants + private --
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
@@ -12649,7 +12655,7 @@ export default function App() {
   const [activeScan,    setActiveScan]    = useState(null);
 
   const BOBA_CACHE_KEY = "boba_checklist_cache_v2";
-  const BOBA_CACHE_TTL = 5 * 60 * 1000;
+  const BOBA_CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Load bobaCards at startup
   useEffect(() => {
