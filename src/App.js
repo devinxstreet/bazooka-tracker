@@ -5337,10 +5337,14 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [curYear,      setCurYear]      = useState(today.getFullYear());
   const [curMonth,     setCurMonth]     = useState(today.getMonth());
   const [plans,        setPlans]        = useState([]);
+  const [templates,    setTemplates]    = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [modalDate,    setModalDate]    = useState(null);
   const [editingId,    setEditingId]    = useState(null);
   const [saving,       setSaving]       = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateName,   setTemplateName]   = useState("");
   const [monthTargets, setMonthTargets] = useState({});
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
@@ -5378,6 +5382,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const unsub = onSnapshot(collection(db,"planned_streams"), snap => {
       setPlans(snap.docs.map(d=>({...d.data(),id:d.id})));
       setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"stream_templates"), snap => {
+      setTemplates(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.name.localeCompare(b.name)));
     });
     return () => unsub();
   }, []);
@@ -5465,7 +5476,19 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     }
   }
 
-  // -- Revenue / stats calcs --
+  async function saveAsTemplate(name) {
+    if (!name.trim()) return;
+    const { repeat, repeatDays, repeatUntil, estRevenue, estMultiple, ...tplData } = form;
+    await setDoc(doc(db,"stream_templates",uid()), { ...tplData, name:name.trim(), createdAt:new Date().toISOString() });
+    setTemplateName(""); setSavingTemplate(false);
+  }
+  async function deleteTemplate(id) {
+    if (window.confirm("Delete this template?")) await deleteDoc(doc(db,"stream_templates",id));
+  }
+  function applyTemplate(t) {
+    setForm(p=>({ ...p, breaker:t.breaker||p.breaker, products:t.products?.map(pr=>({...pr,id:uid()}))||p.products, sessionType:t.sessionType||p.sessionType, notes:t.notes||p.notes, streamName:t.streamName||p.streamName, estRevenue:"", estMultiple:"" }));
+    setShowTemplates(false);
+  }
   function monthPlans(y,m) { return plans.filter(p=>{const d=p.date||"";return d.startsWith(monthKey(y,m));}); }
   function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
   function planMktValue(p) { return (p.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0); }
@@ -6468,7 +6491,37 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
           {/* Add/edit form */}
           <div style={{borderTop:"1px solid #1a1a1a",paddingTop:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",marginBottom:12,textTransform:"uppercase",letterSpacing:1}}>{editingId?"Edit Plan":"+ Add Planned Stream"}</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",textTransform:"uppercase",letterSpacing:1}}>{editingId?"Edit Plan":"+ Add Planned Stream"}</div>
+              {templates.length > 0 && (
+                <button onClick={()=>setShowTemplates(p=>!p)}
+                  style={{background:showTemplates?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",color:showTemplates?"#FBBF24":"#888",border:`1px solid ${showTemplates?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  ⚡ Templates ({templates.length})
+                </button>
+              )}
+            </div>
+
+            {/* Template picker */}
+            {showTemplates && (
+              <div style={{marginBottom:12,background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8,padding:"10px 12px"}}>
+                <div style={{fontSize:11,color:"#555",marginBottom:8}}>Tap to apply</div>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {templates.map(t=>(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                      <button onClick={()=>applyTemplate(t)}
+                        style={{flex:1,display:"flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:7,padding:"7px 10px",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                        <span style={{fontSize:13}}>⚡</span>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{t.name}</div>
+                          <div style={{fontSize:10,color:"#555"}}>{t.breaker}{t.sessionType?" · "+t.sessionType:""}{(t.products||[]).filter(p=>p.type).length>0?" · "+(t.products.filter(p=>p.type).map(p=>p.qty+"× "+p.type).join(", ")):""}</div>
+                        </div>
+                      </button>
+                      <button onClick={()=>deleteTemplate(t.id)} style={{background:"none",border:"none",color:"#333",cursor:"pointer",fontSize:14,padding:"4px 6px",flexShrink:0}}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
               <div>
                 <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
@@ -6561,6 +6614,27 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       return dates.length>0 ? <span style={{fontSize:11,color:"#7B9CFF",fontWeight:700,flexShrink:0}}>+{dates.length} occurrences</span> : null;
                     })()}
                   </div>
+                )}
+              </div>
+            )}
+            {/* Save as template */}
+            {!editingId && (
+              <div style={{marginBottom:12}}>
+                {savingTemplate ? (
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input autoFocus value={templateName} onChange={e=>setTemplateName(e.target.value)}
+                      onKeyDown={e=>{ if(e.key==="Enter") saveAsTemplate(templateName); if(e.key==="Escape") setSavingTemplate(false); }}
+                      placeholder="Template name (e.g. Dev Friday Night)" style={{...S2.inp,flex:1,fontSize:12,padding:"6px 10px"}}/>
+                    <button onClick={()=>saveAsTemplate(templateName)} disabled={!templateName.trim()}
+                      style={{background:"rgba(251,191,36,0.15)",color:"#FBBF24",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Save</button>
+                    <button onClick={()=>setSavingTemplate(false)}
+                      style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={()=>setSavingTemplate(true)}
+                    style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.08)",color:"#555",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>
+                    ⚡ Save current setup as a template
+                  </button>
                 )}
               </div>
             )}
