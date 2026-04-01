@@ -6115,6 +6115,125 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     );
   }
 
+  // -- Month-over-Month Comparison --
+  function renderMonthOverMonth() {
+    if (!canSeeFinancials) return null;
+
+    // Last month
+    const lmMonth = curMonth === 0 ? 11 : curMonth - 1;
+    const lmYear  = curMonth === 0 ? curYear - 1 : curYear;
+
+    const thisPlans   = monthPlans(curYear, curMonth);
+    const thisActuals = monthActuals(curYear, curMonth);
+    const lastActuals = monthActuals(lmYear, lmMonth);
+
+    if (thisPlans.length === 0 && thisActuals.length === 0 && lastActuals.length === 0) return null;
+
+    const thisProj   = projectedRevenue(thisPlans);
+    const thisAct    = actualRevenue(thisActuals);
+    const lastAct    = actualRevenue(lastActuals);
+    const lastPlans  = monthPlans(lmYear, lmMonth);
+    const lastProj   = projectedRevenue(lastPlans);
+
+    // Per-breaker comparison
+    const breakerRows = BREAKERS.map(b => {
+      const thisBPlans   = thisPlans.filter(p=>p.breaker===b);
+      const thisBActuals = thisActuals.filter(s=>s.breaker===b);
+      const lastBActuals = lastActuals.filter(s=>s.breaker===b);
+      return {
+        breaker: b,
+        thisStreams: thisBActuals.length,
+        thisPlanned: thisBPlans.length,
+        thisRev: actualRevenue(thisBActuals),
+        lastStreams: lastBActuals.length,
+        lastRev: actualRevenue(lastBActuals),
+      };
+    }).filter(r => r.thisPlanned > 0 || r.thisStreams > 0 || r.lastStreams > 0);
+
+    const revDiff   = lastAct > 0 ? thisAct - lastAct : null;
+    const projDiff  = lastAct > 0 ? thisProj - lastAct : null;
+    const streamDiff = thisActuals.length - lastActuals.length;
+
+    const barMax = Math.max(thisProj, thisAct, lastAct, 1);
+
+    return (
+      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📈 Month-over-Month</div>
+            <div style={{fontSize:11,color:"#555",marginTop:2}}>{MONTH_NAMES[lmMonth]} actuals vs {MONTH_NAMES[curMonth]} plan</div>
+          </div>
+          {revDiff !== null && (
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:18,fontWeight:900,color:revDiff>=0?"#4ade80":"#E8317A"}}>{revDiff>=0?"+":""}{fmt2(revDiff)}</div>
+              <div style={{fontSize:10,color:"#555"}}>vs last month actual</div>
+            </div>
+          )}
+        </div>
+
+        {/* Bar comparison */}
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+          {[
+            {label:`${MONTH_NAMES[lmMonth]} Actual`, val:lastAct,  color:"rgba(255,255,255,0.2)"},
+            {label:`${MONTH_NAMES[curMonth]} Projected`, val:thisProj, color:"rgba(251,191,36,0.5)"},
+            ...(thisAct>0?[{label:`${MONTH_NAMES[curMonth]} Actual`, val:thisAct, color:"#4ade80"}]:[]),
+          ].map(({label,val,color})=>(
+            <div key={label} style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:11,color:"#555",width:130,flexShrink:0}}>{label}</span>
+              <div style={{flex:1,height:8,background:"rgba(255,255,255,0.04)",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.min(100,val/barMax*100)}%`,background:color,borderRadius:4,transition:"width 0.4s"}}/>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,color:"#888",width:90,textAlign:"right",flexShrink:0}}>{fmt2(val)}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* KPI tiles */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:breakerRows.length>0?14:0}}>
+          {[
+            {l:`${MONTH_NAMES[lmMonth]} Streams`, v:lastActuals.length, c:"#555"},
+            {l:`${MONTH_NAMES[curMonth]} Planned`,  v:thisPlans.length,   c:"#7B9CFF"},
+            ...(thisActuals.length>0?[{l:`${MONTH_NAMES[curMonth]} Done`, v:thisActuals.length, c:"#4ade80"}]:[]),
+            ...(streamDiff!==0?[{l:"Stream Δ", v:(streamDiff>0?"+":"")+streamDiff, c:streamDiff>0?"#4ade80":"#E8317A"}]:[]),
+            ...(projDiff!==null?[{l:"Proj vs Last Act", v:(projDiff>=0?"+":"")+fmt2(projDiff), c:projDiff>=0?"#4ade80":"#E8317A"}]:[]),
+          ].map(({l,v,c})=>(
+            <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
+              <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
+              <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Per-breaker rows */}
+        {breakerRows.length > 0 && (
+          <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:0,marginBottom:4}}>
+              {["Breaker",`${MONTH_NAMES[lmMonth]} Streams`,`${MONTH_NAMES[lmMonth]} Rev`,`${MONTH_NAMES[curMonth]} Planned`,`${MONTH_NAMES[curMonth]} Rev`].map(h=>(
+                <div key={h} style={{fontSize:9,fontWeight:700,color:"#333",textTransform:"uppercase",letterSpacing:1,padding:"4px 8px"}}>{h}</div>
+              ))}
+            </div>
+            {breakerRows.map(r=>{
+              const bc = BC_COLORS[r.breaker]||"#888";
+              const diff = r.lastRev > 0 ? r.thisRev - r.lastRev : null;
+              return (
+                <div key={r.breaker} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:0,borderTop:"1px solid #1a1a1a",padding:"6px 0"}}>
+                  <div style={{fontSize:12,fontWeight:800,color:bc,padding:"0 8px"}}>{r.breaker}</div>
+                  <div style={{fontSize:12,color:"#555",padding:"0 8px"}}>{r.lastStreams} streams</div>
+                  <div style={{fontSize:12,color:"#888",padding:"0 8px"}}>{r.lastRev>0?fmt2(r.lastRev):"—"}</div>
+                  <div style={{fontSize:12,color:"#7B9CFF",padding:"0 8px"}}>{r.thisPlanned} planned</div>
+                  <div style={{fontSize:12,fontWeight:700,padding:"0 8px",color:diff===null?"#555":diff>=0?"#4ade80":"#E8317A"}}>
+                    {r.thisRev>0?fmt2(r.thisRev):"—"}
+                    {diff!==null&&r.thisRev>0&&<span style={{fontSize:10,marginLeft:4}}>({diff>=0?"+":""}{fmt2(diff)})</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // -- Revenue Gap Advisor --
   function renderGapAdvisor() {
     if (!canSeeFinancials) return null;
@@ -6807,6 +6926,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         <>
           {renderTomorrowAlert()}
           {renderRevenueTiers()}
+          {renderMonthOverMonth()}
           {renderPaceReport()}
           {renderStreamScorecard()}
           {renderGapAdvisor()}
