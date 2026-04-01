@@ -7340,13 +7340,10 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {/* Sub-tab bar */}
-      <div style={{ display:"flex", gap:6 }}>
+      {/* Sub-tab bar — hidden, navigation driven by dropdown */}
+      <div style={{ display:"none" }}>
         {STREAM_TABS.map(t => (
-          <button key={t.id} onClick={()=>setStreamTab(t.id)}
-            style={{ background:streamTab===t.id?"#1A1A2E":"transparent", color:streamTab===t.id?"#E8317A":"#9CA3AF", border:`1.5px solid ${streamTab===t.id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-            {t.label}
-          </button>
+          <button key={t.id} onClick={()=>setStreamTab(t.id)}>{t.label}</button>
         ))}
       </div>
 
@@ -16115,6 +16112,7 @@ export default function App() {
                   {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
+                  {label:"\uD83D\uDCC5 Stream Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                 ],
                 "buyers": [
                   {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
