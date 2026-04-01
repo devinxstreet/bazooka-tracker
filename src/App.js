@@ -6084,7 +6084,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <table style={{width:"100%",borderCollapse:"collapse",minWidth:420}}>
                 <thead>
                   <tr>
-                    {["Tier","Gross","Net Rev (81%)","Baz 30%","Commission","True Net"].map(h=>(
+                    {["Tier","Gross","Net Rev (81%)","IMC 70%","Bazooka 30%"].map(h=>(
                       <th key={h} style={{padding:"6px 10px",borderBottom:"1px solid #2a2a2a",color:"#555",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,textAlign:h==="Tier"?"left":"right"}}>{h}</th>
                     ))}
                   </tr>
@@ -6099,9 +6099,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                         <td style={{padding:"8px 10px",fontSize:12,fontWeight:800,color}}>{label} {sublabel}</td>
                         <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.gross)}</td>
                         <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.netRev)}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,color:"#E8317A",textAlign:"right"}}>{fmt2(e.bazNet)}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,color:"#FBBF24",textAlign:"right"}}>-{fmt2(e.commAmt)} <span style={{fontSize:10,color:"#555"}}>({(e.rate*100).toFixed(0)}%)</span></td>
-                        <td style={{padding:"8px 10px",fontSize:13,fontWeight:900,color:"#4ade80",textAlign:"right"}}>{fmt2(e.bazTrueNet)}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:"#7B9CFF",textAlign:"right"}}>{fmt2(e.imcNet)}</td>
+                        <td style={{padding:"8px 10px",fontSize:13,fontWeight:900,color:"#E8317A",textAlign:"right"}}>{fmt2(e.bazNet)}</td>
                       </tr>
                     );
                   })}
