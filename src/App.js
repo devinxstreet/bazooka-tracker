@@ -7282,12 +7282,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       {viewMode==="month"&&(
         <>
           {renderTomorrowAlert()}
-          {renderCalendar(curYear,curMonth)}
           {renderPaceReport()}
           {renderStreamScorecard()}
+          {renderCalendar(curYear,curMonth)}
+          {renderBestDayPredictor()}
           {renderRevenueTiers()}
           {renderGapAdvisor()}
-          {renderBestDayPredictor()}
           {renderProductSummary()}
           {renderMonthSummary()}
           {renderInventoryNeeds()}
