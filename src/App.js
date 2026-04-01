@@ -5345,6 +5345,28 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
   });
+  const [planAssumptions, setPlanAssumptions] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("stream_plan_assumptions")||"{}"); } catch(e) { return {}; }
+  });
+  // defaults: 8% Whatnot fee, $200 avg stream expenses
+  const whatnotFeePct  = parseFloat(planAssumptions.whatnotFeePct  ?? 8);
+  const avgStreamExp   = parseFloat(planAssumptions.avgStreamExp   ?? 200);
+  function saveAssumption(key, val) {
+    const next = { ...planAssumptions, [key]: val };
+    setPlanAssumptions(next);
+    try { localStorage.setItem("stream_plan_assumptions", JSON.stringify(next)); } catch(e) {}
+  }
+  function calcPlanEarnings(gross) {
+    if (!gross || gross <= 0) return null;
+    const netRev     = gross * 0.81;
+    const bazNet     = netRev * 0.30;
+    const imcNet     = netRev * 0.70;
+    const mm         = gross / Math.max(gross / 1.6, 1);
+    const rate       = bazNet > 0 ? (bazNet/gross >= 0.18 ? 0.55 : bazNet/gross >= 0.16 ? 0.50 : bazNet/gross >= 0.14 ? 0.45 : bazNet/gross >= 0.12 ? 0.40 : 0.35) : 0.35;
+    const commAmt    = bazNet * rate;
+    const bazTrueNet = bazNet - commAmt;
+    return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet, rate };
+  }
 
   const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
@@ -6052,6 +6074,41 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         </div>
         {mkt === 0 && mPlans.length > 0 && (
           <div style={{fontSize:11,color:"#555",marginTop:10,textAlign:"center"}}>Add products to your planned streams to see market-based tiers</div>
+        )}
+
+        {/* Bazooka Earnings Estimate */}
+        {canSeeFinancials && totalMonthMkt(curYear,curMonth) > 0 && (
+          <div style={{marginTop:14}}>
+            <div style={{fontSize:12,fontWeight:800,color:"#E8317A",marginBottom:10}}>💰 Bazooka Earnings Estimate <span style={{fontSize:10,color:"#555",fontWeight:400,marginLeft:6}}>Gross × 81% = Net · 30/70 split · commission from net</span></div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:420}}>
+                <thead>
+                  <tr>
+                    {["Tier","Gross","Net Rev (81%)","Baz 30%","Commission","True Net"].map(h=>(
+                      <th key={h} style={{padding:"6px 10px",borderBottom:"1px solid #2a2a2a",color:"#555",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,textAlign:h==="Tier"?"left":"right"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tiers.map(({mult,label,sublabel,color})=>{
+                    const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
+                    const e = calcPlanEarnings(tierRev);
+                    if (!e) return null;
+                    return (
+                      <tr key={mult} style={{borderBottom:"1px solid #1a1a1a"}}>
+                        <td style={{padding:"8px 10px",fontSize:12,fontWeight:800,color}}>{label} {sublabel}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.gross)}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.netRev)}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:"#E8317A",textAlign:"right"}}>{fmt2(e.bazNet)}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:"#FBBF24",textAlign:"right"}}>-{fmt2(e.commAmt)} <span style={{fontSize:10,color:"#555"}}>({(e.rate*100).toFixed(0)}%)</span></td>
+                        <td style={{padding:"8px 10px",fontSize:13,fontWeight:900,color:"#4ade80",textAlign:"right"}}>{fmt2(e.bazTrueNet)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     );
