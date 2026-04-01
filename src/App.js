@@ -277,17 +277,6 @@ function GlobalStyles() {
         .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
         .view-mode-row::-webkit-scrollbar { display: none; }
         .checklist-actions { flex-wrap: wrap !important; }
-        input[type="date"] { width: 100% !important; box-sizing: border-box !important; }
-        .deck-pb-layout { grid-template-columns: 1fr !important; }
-        .deck-pb-panel { order: -1; }
-        .deck-pb-cardlist { max-height: 60vh !important; }
-        .dash-grid-5 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-grid-4 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-grid-3 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-fin-card { font-size: 18px !important; padding: 12px !important; }
-        .dash-card-row { flex-direction: column !important; }
-        .period-btns { gap: 4px !important; }
-        .period-btns button { padding: 4px 8px !important; font-size: 10px !important; }
       }
       @media (max-width: 480px) {
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
@@ -348,7 +337,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -366,74 +355,32 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showHist,    setShowHist]    = useState(false);
   const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
   const [editingId,   setEditingId]   = useState(null);
-  const [imcAdjustments, setImcAdjustments] = useState(imcAdjustmentsData||{});
-  useEffect(() => { setImcAdjustments(imcAdjustmentsData||{}); }, [imcAdjustmentsData]);
-  function updateImcAdj(mk, val) {
-    const next = { ...imcAdjustments, [mk]: val };
-    setImcAdjustments(next);
-    if (onSaveImcAdjustments) onSaveImcAdjustments(next);
-  }
-  function clearImcAdj() {
-    setImcAdjustments({});
-    if (onSaveImcAdjustments) onSaveImcAdjustments({});
-  }
-  const [showImcAdj,  setShowImcAdj]  = useState(false);
-  const [migrating,   setMigrating]   = useState(false);
-  const [migDone,     setMigDone]     = useState(false);
-  const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
+  const usedIds    = new Set(breaks.map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
-  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
-  // Count individual-card usage by usage type (exclude pool logs — pool usage comes from pool.usedQty)
-  const usedByType = {};
-  CARD_TYPES.forEach(ct => { usedByType[ct] = 0; });
-  breaks.forEach(b => {
-    if (b.isPoolLog) return; // pool usage counted separately below
-    const ct = USAGE_TO_CT[b.usage] || b.cardType;
-    if (ct && usedByType[ct] !== undefined) usedByType[ct]++;
-  });
-  // Add pool usage (usedQty is the ground truth for pools, qty-aware)
-  cardPools.forEach(p => {
-    const ct = p.cardType;
-    if (ct && usedByType[ct] !== undefined) usedByType[ct] += (parseInt(p.usedQty)||0);
-  });
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, inTransit:0, invested:0, market:0 }; });
   inventory.forEach(c => {
     const s = stats[c.cardType]; if (!s) return;
     s.total++; s.invested += (c.costPerCard||0); s.market += (c.marketValue||0);
-    if (c.cardStatus === "in_transit" && !usedIds.has(c.id)) s.inTransit++;
+    if (usedIds.has(c.id)) s.used++;
+    else if (c.cardStatus === "in_transit") s.inTransit++;
   });
-  // Add pool totals (available pool cards) to the relevant card type
-  cardPools.forEach(p => {
-    const s = stats[p.cardType]; if (!s) return;
-    const poolTotal = parseInt(p.totalQty)||0;
-    s.total += poolTotal;
-  });
-  CARD_TYPES.forEach(ct => { stats[ct].used = usedByType[ct]; });
   const totInv      = Object.values(stats).reduce((a,b) => a+b.invested, 0);
   const totMkt      = Object.values(stats).reduce((a,b) => a+b.market, 0);
   const oPct        = totMkt > 0 ? totInv/totMkt : null;
   const oz          = getZone(oPct);
-  const usedCount   = [...usedIds].length + cardPools.reduce((s,p)=>s+(parseInt(p.usedQty)||0),0);
+  const usedCount   = [...usedIds].length;
   const transitCount = inventory.filter(c => c.cardStatus === "in_transit" && !usedIds.has(c.id)).length;
-  const poolAvailTotal = cardPools.reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
-  const availCount  = inventory.length - [...usedIds].length - transitCount + poolAvailTotal;
+  const availCount  = inventory.length - usedCount - transitCount;
 
   const runway = {};
   CARD_TYPES.forEach(ct => {
     const avail = stats[ct].total - stats[ct].used - stats[ct].inTransit;
-    const ctBreaks = breaks.filter(b => !b.isPoolLog && (USAGE_TO_CT[b.usage] || b.cardType) === ct);
-    // For pools, estimate daily usage from usedQty and pool creation date
-    const poolUsed = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+(parseInt(p.usedQty)||0),0);
-    const totalUsedForRate = ctBreaks.length + poolUsed;
-    if (totalUsedForRate === 0) { runway[ct] = 999; return; }
-    const allDates = [
-      ...ctBreaks.map(b => new Date(b.dateAdded||b.date)),
-    ].filter(d => !isNaN(d));
-    if (!allDates.length) { runway[ct] = 999; return; }
-    const earliest = allDates.reduce((mn, d) => d < mn ? d : mn, new Date());
+    const ctBreaks = breaks.filter(b => b.cardType === ct);
+    if (ctBreaks.length === 0) { runway[ct] = 999; return; }
+    const earliest = ctBreaks.reduce((mn, b) => { const d = new Date(b.dateAdded||b.date); return d < mn ? d : mn; }, new Date());
     const days = Math.max(1, Math.floor((new Date() - earliest) / 86400000));
-    runway[ct] = Math.floor(avail / (totalUsedForRate / days));
+    runway[ct] = Math.floor(avail / (ctBreaks.length / days));
   });
 
   const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used - stats[ct].inTransit) < TARGETS[ct].buffer);
@@ -448,10 +395,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
     const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commBase=bazNet, commAmt=commBase*rate;
-    const tips=parseFloat(s.tips)||0;
-    return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, tips, totalExp, collabAmt:bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0), bazTrueNet:bazNet-commAmt+imcExpReimb-repExp-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
+    return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, totalExp, collabAmt:bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0), bazTrueNet:bazNet-commAmt+imcExpReimb-repExp-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
   }
 
   return (
@@ -522,7 +468,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <tbody>
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                      <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                      <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"}}[s.sessionType]||""</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{fmt(s.netRev)}</td>
@@ -595,11 +541,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const commBase = bazNet;
           const mm = parseFloat(s.marketMultiple)||0;
           const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
-          const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : Math.min(0.60, (mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35) + ((parseInt(s.newBuyers)||0)>=5 && !s.binOnly ? 0.05 : 0));
+          const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commAmt  = commBase * rate;
-          const tips = parseFloat(s.tips)||0;
           const collabAmt = bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, tips, collabAmt, bazTrueNet: bazNet - commAmt + imcExpReimb - collabAmt };
+          return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt, bazTrueNet: bazNet - commAmt + imcExpReimb - collabAmt };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -675,7 +620,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           const val = config.val(s);
                           return (
                             <tr key={s.id} style={{ background:"#111111" }}>
-                              <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                              <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                               <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.netRev)}</td>
@@ -713,7 +658,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <div style={{ ...S.card, border:"2px solid #333333" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
               <SectionLabel t="Financial Overview" />
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions period-btns">
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions">
                 {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
                   <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
                 ))}
@@ -730,18 +675,18 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
-            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),  color:"#E8317A", sub:"70% of net revenue" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc,       color:"#E8317A", sub:"70% of net revenue" },
                 { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
                 { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
-                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),   color:"#E8317A", sub:"after commission paid" },
+                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet,   color:"#E8317A", sub:"after commission paid" },
               ].map(({key,label,val,color,sub}) => (
                 <div
                   key={key}
                   onClick={()=>setDrillDown(drillDown===key?null:key)}
-                  className="stat-card dash-fin-card"
+                  className="stat-card"
                   style={{ background:drillDown===key?"#1A1A2E":"#1a1a1a", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
                 >
                   <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
@@ -750,69 +695,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
               ))}
             </div>
-
-            {/* IMC Manual Adjustment — per month */}
-            {canSeeFinancials && (
-              <div style={{marginTop:10}}>
-                {!showImcAdj ? (
-                  <button onClick={()=>setShowImcAdj(true)} style={{background:"none",border:"1px dashed rgba(255,255,255,0.08)",color:"#555",borderRadius:7,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                    ✏️ Adjust IMC by month {Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length>0?`(${Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length} active)`:""}
-                  </button>
-                ) : (
-                  <div style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"14px 16px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                      <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>IMC Adjustment by Month</span>
-                      <button onClick={()=>setShowImcAdj(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>✕ Close</button>
-                    </div>
-                    <div style={{fontSize:11,color:"#555",marginBottom:10}}>Enter the difference between the invoice amount and calculated amount. Use negative to reduce.</div>
-                    {(() => {
-                      // Build list of months that have streams
-                      const monthsWithStreams = [...new Set(streams.filter(s=>s.date).map(s=>s.date.slice(0,7)))].sort().reverse().slice(0,12);
-                      if (monthsWithStreams.length === 0) return <div style={{fontSize:11,color:"#555"}}>No streams logged yet.</div>;
-                      const totalAdj = Object.values(imcAdjustments).reduce((s,v)=>s+(parseFloat(v)||0),0);
-                      return (
-                        <>
-                          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                            {monthsWithStreams.map(mk=>{
-                              const [y,m] = mk.split("-");
-                              const monthLabel = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m)-1]} ${y}`;
-                              const adj = imcAdjustments[mk]||"";
-                              const adjNum = parseFloat(adj)||0;
-                              // Calc IMC for this month from streams
-                              const monthStreams = streams.filter(s=>s.date&&s.date.startsWith(mk));
-                              const calcImc = monthStreams.reduce((s,str)=>{ const c=calcStreamDash(str); return s+c.imcNet; },0);
-                              return (
-                                <div key={mk} style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr auto",gap:8,alignItems:"center"}}>
-                                  <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{monthLabel}</span>
-                                  <span style={{fontSize:11,color:"#555"}}>Calc: <strong style={{color:"#888"}}>{fmt(calcImc)}</strong></span>
-                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                    <span style={{fontSize:11,color:"#555"}}>Adj:</span>
-                                    <input type="number" step="0.01" value={adj}
-                                      onChange={e=>updateImcAdj(mk, e.target.value)}
-                                      placeholder="0.00"
-                                      style={{background:"#111",border:`1px solid ${adjNum?"rgba(251,191,36,0.4)":"#2a2a2a"}`,borderRadius:6,color:adjNum?"#FBBF24":"#F0F0F0",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:100}}/>
-                                  </div>
-                                  <span style={{fontSize:11,fontWeight:700,color:adjNum?"#FBBF24":"#333"}}>
-                                    {adjNum ? `→ ${fmt(calcImc+adjNum)}` : ""}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {totalAdj !== 0 && (
-                            <div style={{marginTop:10,padding:"8px 12px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:7,fontSize:12,color:"#FBBF24",fontWeight:700}}>
-                              Total adjustment (all months): {totalAdj>0?"+":""}{fmt(totalAdj)}
-                            </div>
-                          )}
-                          <button onClick={()=>clearImcAdj()} style={{marginTop:8,background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>✕ Clear all adjustments</button>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
+
           {drillDown && <div className="drill-down">{renderDrillDown()}</div>}
           </>
         );
@@ -849,14 +733,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
         // Card usage costs by type -- use all breaks in the period by date
-        const USAGE_TO_CT_OPS = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
         const cardCostByType = {};
         const cardQtyByType  = {};
         CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
         const now2 = new Date();
         breaks.forEach(b => {
-          const ct = USAGE_TO_CT_OPS[b.usage] || b.cardType;
-          if (!ct || !CARD_TYPES.includes(ct)) return;
+          if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
           const breakDate = b.date || (b.dateAdded ? b.dateAdded.split("T")[0] : null);
           if (!breakDate) return;
           const d = parseLocalDate(breakDate);
@@ -877,17 +759,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             inPrd = true;
           }
           if (!inPrd) return;
-          const inv  = b.isPoolLog ? null : inventory.find(c => c.id === b.inventoryId);
+          const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          const qty  = b.isPoolLog ? (parseInt(b.qty)||1) : 1;
-          cardCostByType[ct] += cost * qty;
-          cardQtyByType[ct]  += qty;
+          cardCostByType[b.cardType] += cost;
+          cardQtyByType[b.cardType] += 1;
         });
 
         return (
           <div style={{ ...S.card }}>
-            <SectionLabel t="\uD83D\uDCE6 Ops Summary" />
-            <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            <SectionLabel t="📦 Ops Summary" />
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
               {[
                 { l:"MagPros",          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
                 { l:"Packaging",        v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"",        c:"#7B9CFF" },
@@ -906,7 +787,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             {/* Card usage by type */}
             <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
               <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Cards Used in Streams</div>
-              <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
                 {CARD_TYPES.map(ct => {
                   const cc = CC[ct]||{ text:"#888", bg:"#111" };
                   const qty  = cardQtyByType[ct]||0;
@@ -930,7 +811,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now = new Date();
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
-        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear());
+        const ytdStreams  = streams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
@@ -947,7 +828,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
         return (
           <div style={{ background:"#111111", border:"1px solid #E8317A", borderRadius:14, padding:"18px 20px" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:6 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
                 {"\uD83D\uDCC8 Year-End Projections"}</div>
@@ -956,7 +837,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
               </span>
             </div>
-            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
               {[
                 { l:"Gross Revenue",       v:proj(ytdGross),    ytd:ytdGross,    c:"#E8317A" },
                 { l:"Net Revenue",         v:proj(ytdNet),      ytd:ytdNet,      c:"#1B4F8A" },
@@ -990,7 +871,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             {alerts.length===0 ? "\u2705 All Good" : `\uD83D\uDEA8 ${alerts.length} Critical`}
           </span>
         </div>
-        <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
           {[
             { l:"Total Cards",    v:inventory.length, c:"#F0F0F0" },
             { l:"Available",      v:availCount,       c:"#166534" },
@@ -1030,15 +911,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
             return (
               <div key={ct} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:9, padding:"10px 14px" }}>
-                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6, gap:6, flexWrap:"wrap" }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:13, flexShrink:0 }}>{ct}</span>
-                  <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#222", padding:"2px 8px", borderRadius:5 }}>{"\uD83D\uDE9A"} {transit}</span>}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                  <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <span style={{ fontSize:11, color:"#AAAAAA" }}>{avail} avail</span>
+                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#111111", padding:"2px 8px", borderRadius:5 }}>{"\uD83D\uDE9A"}{transit} in transit</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
-                      {days >= 999 ? "No usage" : `~${days}d`}
+                      {days >= 999 ? "No usage yet" : `~${days}d runway`}
                     </span>
-                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>Pace: {(pace*100).toFixed(0)}%</span>
+                    <span style={{ fontSize:11, color:"#AAAAAA" }}>Pace: {(pace*100).toFixed(0)}%</span>
                   </div>
                 </div>
                 <div style={{ height:5, background:"#111111", borderRadius:3, overflow:"hidden" }}>
@@ -1049,7 +930,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           })}
         </div>
         {canSeeFinancials && (
-        <div className="dash-grid-3" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
           {[
             { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
             { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
@@ -1157,7 +1038,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         return (
           <div style={{ ...S.card, border:"2px solid #333333" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showHist ? 14 : 0 }}>
-              <SectionLabel t="\uD83D\uDCC5 Historical Monthly Data" />
+              <SectionLabel t="📅 Historical Monthly Data" />
               <button onClick={()=>{ setShowHist(p=>!p); cancelEdit(); }} style={{ background:"transparent", border:"1.5px solid #6B2D8B", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {showHist ? "\u25B2 Hide" : "\u25BC Manage"}
               </button>
@@ -1226,45 +1107,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })()}
 
-      {/* Card Type Migration Tool -- Admin only */}
-      {canSeeFinancials && (() => {
-        const USAGE_MAP = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
-        const mismatched = breaks.filter(b => {
-          if (b.isPoolLog || !b.usage) return false;
-          const correct = USAGE_MAP[b.usage];
-          return correct && b.cardType !== correct;
-        });
-        if (mismatched.length === 0) return null;
-        async function runMigration() {
-          setMigrating(true);
-          await Promise.all(mismatched.map(b =>
-            setDoc(doc(db,"breaks",b.id), { cardType: USAGE_MAP[b.usage] }, { merge:true })
-          ));
-          setMigrating(false); setMigDone(true);
-        }
-        return (
-          <div style={{ ...S.card, border:"2px solid rgba(251,191,36,0.3)", background:"rgba(251,191,36,0.04)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:4 }}>⚠️ Card Type Fix Available</div>
-                <div style={{ fontSize:12, color:"#555" }}>
-                  {mismatched.length} existing break {mismatched.length===1?"entry":"entries"} {mismatched.length===1?"has":"have"} a card type that doesn't match how the card was actually used.
-                  This is a one-time fix — it won't affect your inventory, just corrects the tracking labels.
-                </div>
-              </div>
-              {!migDone ? (
-                <button onClick={runMigration} disabled={migrating}
-                  style={{ background:"rgba(251,191,36,0.15)", color:"#FBBF24", border:"1px solid rgba(251,191,36,0.3)", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:migrating?"not-allowed":"pointer", fontFamily:"inherit", flexShrink:0 }}>
-                  {migrating?`Fixing ${mismatched.length} entries...`:`✅ Fix ${mismatched.length} Entries`}
-                </button>
-              ) : (
-                <div style={{ color:"#4ade80", fontWeight:700, fontSize:13 }}>✅ All fixed!</div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
     </div>
   );
 }
@@ -1273,9 +1115,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
   useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
-  const isMobile = windowWidth < 768;
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
   const [lotPct,       setLotPct]       = useState("");
   const [finalOffer,   setFOffer]       = useState("");
@@ -1285,7 +1124,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
-  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false })));
+  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
   const [quickPct,     setQuickPct]     = useState("");
@@ -1316,40 +1155,15 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
-  // Cost allocation: rows with costOverride use that; remaining offer splits among the rest
-  const manuallyAllocated = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    return s + (isNaN(co) ? 0 : co * (parseInt(r.qty)||1));
-  }, 0);
-  const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
-  const unoverriddenMkt = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    return isNaN(co) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
-  }, 0);
-  const unoverriddenCards = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    return isNaN(co) ? s + (parseInt(r.qty)||1) : s;
-  }, 0);
-  function getCostPerCard(r) {
-    const co = parseFloat(r.costOverride);
-    if (!isNaN(co)) return co;
-    const mv = parseFloat(r.mktVal)||0;
-    if (unoverriddenMkt > 0) return (mv / unoverriddenMkt) * remainingOffer;
-    if (unoverriddenCards > 0) return remainingOffer / unoverriddenCards;
-    return 0;
-  }
-  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
-  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
-
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
-  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
+  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
 
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
     setRows(hasCards
-      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"", manualEntry:false }))
-      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }))
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
     );
     setFOffer(comp.offer ? String(comp.offer) : "");
     setLoadedCompId(comp.id);
@@ -1374,10 +1188,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
-      const cardName = (r.name === "__new__" || r.name === "__manual__") ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
-      const costPerCard = getCostPerCard(r);
+      const cardName = r.name === "__new__" ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
+      const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
       for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       }
     });
     onAccept(cards, seller, user, custNote);
@@ -1524,16 +1338,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:isMobile?6:8, marginTop:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12 }}>
           {[
-            { z:"\uD83D\uDFE2 Green",  p:"Under 65%", a:"Buy independently",   bg:"#0a1a0a", c:"#4ade80" },
-            { z:"\uD83D\uDFE1 Yellow", p:"65–70%",    a:"Flag before buying",   bg:"#FFF9DB", c:"#92400e" },
-            { z:"\uD83D\uDD34 Red",    p:"Over 70%",  a:"Pass or get approval", bg:"#FEE2E2", c:"#991b1b" },
+            { z:"\uD83D\uDFE2 Green",  p:"Under 65%", a:"Buy independently",          bg:"#0a1a0a", c:"#4ade80" },
+            { z:"\uD83D\uDFE1 Yellow", p:"65-70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
+            { z:"\uD83D\uDD34 Red",    p:"Over 70%",  a:"Pass or get approval",        bg:"#FEE2E2", c:"#991b1b" },
           ].map(({z,p,a,bg,c}) => (
-            <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7, flexWrap:"wrap" }}>
-              <span style={{ fontWeight:800, color:c, fontSize:12 }}>{z}</span>
-              <span style={{ color:c, fontSize:11 }}>{p}</span>
-              {!isMobile && <span style={{ color:"#AAAAAA", fontSize:11 }}>— {a}</span>}
+            <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7 }}>
+              <span style={{ fontWeight:800, color:c, fontSize:12, whiteSpace:"nowrap" }}>{z}</span>
+              <span style={{ color:c, fontSize:11, whiteSpace:"nowrap" }}>{p}</span>
+              <span style={{ color:"#AAAAAA", fontSize:11 }}>-- {a}</span>
             </div>
           ))}
         </div>
@@ -1569,7 +1383,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
 
       {compMode==="history" && (() => {
-        const activeQuotes = quotes.filter(q => !q.bazookaClosed);
+        const activeQuotes = quotes.filter(q => !["closed"].includes(q.status));
 
         return (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -1577,7 +1391,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           {/* -- ACTIVE QUOTES -- */}
           {activeQuotes.length > 0 && (
             <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
-              <SectionLabel t="\uD83D\uDD17 Active Quote Links" />
+              <SectionLabel t="🔗 Active Quote Links" />
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {activeQuotes.map(q => {
                   // Auto-dismiss badge when admin views a responded quote
@@ -1622,6 +1436,19 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                           <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDCCB Copy Link"}</button>
                           <a href={quoteUrl} target="_blank" rel="noreferrer" style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, textDecoration:"none" }}>{"View \u2197"}</a>
+                          <button onClick={()=>{
+                            loadComp({
+                              id: q.id,
+                              seller: q.seller?.name||"",
+                              contact: q.seller?.contact||"",
+                              date: q.seller?.date||"",
+                              source: q.seller?.source||"",
+                              payment: q.seller?.payment||"",
+                              paymentHandle: q.seller?.paymentHandle||"",
+                              offer: parseFloat(q.currentOffer||q.dispOffer)||0,
+                              cards: (q.cards||[]).map(c=>({ name:c.cardName||c.name||"", cardType:c.cardType||"", mktVal:c.mktVal||c.marketValue||0, qty:c.qty||1 }))
+                            });
+                          }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"✏️ Edit in Builder"}</button>
                           {onCloseQuote && <button onClick={()=>{ if(window.confirm("Close this quote? The seller's link will show as expired.")) onCloseQuote(q.id); }} style={{ background:"none", border:"1px solid #333", color:"#555", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDD12 Close"}</button>}
                         </div>
                       </div>
@@ -1667,7 +1494,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             })()}
                           </div>
                           <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">{"\uD83E\uDD1D Send Counter"}</Btn>
-                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">{"\u274C Close (admin only)"}</Btn>
+                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">{"\u274C Decline"}</Btn>
                           {q.status==="countered" && (
                             <Btn onClick={async()=>{
                               // Accept their counter -- update offer to their counter amount
@@ -1766,7 +1593,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         )}
         <div id="comp-builder-top" style={S.card}>
           <SectionLabel t="Seller Information" />
-          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr", gap:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
             {/* Seller Name with autocomplete from history */}
             {(() => {
               const prevSellers = [...new Map(
@@ -1847,12 +1674,11 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
         <div style={S.card}>
           <SectionLabel t="Lot-Level Controls" />
-          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12, alignItems:"end" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, alignItems:"end" }}>
             <div>
               <label style={S.lbl}>Buy % (blank = 60%)</label>
               <input
-                type="text"
-                inputMode="decimal"
+                type="number"
                 value={lotPct}
                 onChange={e => { setLotPct(e.target.value); setFOffer(""); }}
                 placeholder="60"
@@ -1862,8 +1688,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <div>
               <label style={S.lbl}>Override Offer ($)</label>
               <input
-                type="text"
-                inputMode="decimal"
+                type="number"
                 value={finalOffer}
                 onChange={e => { setFOffer(e.target.value); setLotPct(""); }}
                 placeholder={totalMkt > 0 ? calcOffer.toFixed(2) : "0.00"}
@@ -1890,270 +1715,40 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
             </div>
           )}
-          {(offerAmt != null && offerAmt > 0) && totalMkt === 0 && totalCards > 0 && (
-            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-              <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>${(dispOffer/totalCards).toFixed(2)}/card</span>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>equal split across {totalCards} cards (no market values entered)</span>
-              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear</button>
-            </div>
-          )}
         </div>
 
         <div style={S.card}>
           <SectionLabel t="Cards in This Lot" />
-          {isMobile ? (
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {rows.map((r,i) => {
-                const mv  = parseFloat(r.mktVal)||0;
-                const qty = parseInt(r.qty)||1;
-                const perCardOffer = totalMkt > 0 ? mv * dispPct : (totalCards > 0 ? dispOffer / totalCards : 0);
-                const mInp = { background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:16, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" };
-                return (
-                  <div key={r.id} style={{ background:r.include?"#111111":"#0a0a0a", border:`1.5px solid ${r.include?"#2a2a2a":"#1a1a1a"}`, borderRadius:10, padding:"12px", opacity:r.include?1:0.5 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                      <span style={{ fontSize:12, fontWeight:700, color:"#555" }}>#{i+1}</span>
-                      <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#888", cursor:"pointer" }}>
-                        <input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/> Include
-                      </label>
-                    </div>
-                    {/* Card Name */}
-                    {POOL_TYPES.includes(r.cardType) ? (
-                      <div style={{marginBottom:8}}>
-                        {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
-                          <select value={r.name} onChange={e=>{
-                            if (e.target.value==="__manual__") {
-                              setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));
-                            } else {
-                              upd(r.id,"name",e.target.value);
-                            }
-                          }} style={{ ...mInp, cursor:"pointer" }}>
-                            <option value="">-- Select Pool or Treatment --</option>
-                            <optgroup label="Your Pools">
-                              {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="All Treatments">
-                              {[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </optgroup>
-                            <option value="__manual__">✏️ Type manually instead...</option>
-                          </select>
-                        ) : (
-                          <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                            <div style={{position:"relative",flex:1}}>
-                              <input
-                                value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
-                                onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
-                                onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
-                                onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
-                                placeholder="Type hero name or card #..."
-                                style={{...mInp}}
-                              />
-                              {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
-                                const raw=(acQuery[r.id]||"").toLowerCase();
-                                const terms=raw.trim().split(/\s+/).filter(Boolean);
-                                const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
-                                if(!hits.length) return null;
-                                return (
-                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
-                                    <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
-                                    {hits.map(c=>{
-                                      const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
-                                      const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                      return (
-                                        <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
-                                          style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
-                                          <div style={{flexShrink:0}}>
-                                            {c.imageUrl
-                                              ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
-                                              : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#555",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
-                                            }
-                                          </div>
-                                          <div style={{flex:1,minWidth:0}}>
-                                            <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{c.hero}</div>
-                                            <div style={{display:"flex",gap:6,fontSize:10,flexWrap:"wrap"}}>
-                                              <span style={{color:"#555"}}>#{c.cardNum}</span>
-                                              {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
-                                              {c.treatment&&<span style={{color:"#888"}}>{c.treatment}</span>}
-                                              {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
-                                            </div>
-                                            {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                            {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
-                              <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"6px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩ Pool</button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div style={{ position:"relative", marginBottom:8 }}>
-                        <input
-                          value={acOpen===r.id ? (acQuery[r.id]??r.name) : r.name}
-                          onChange={e=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:e.target.value})); upd(r.id,"name",e.target.value); }}
-                          onFocus={()=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:r.name})); }}
-                          onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
-                          placeholder="Type hero name or card #..."
-                          style={mInp}
-                        />
-                        {acOpen===r.id && (acQuery[r.id]||"").length>=1 && (() => {
-                          const raw=(acQuery[r.id]||"").toLowerCase();
-                          const terms=raw.trim().split(/\s+/).filter(Boolean);
-                          const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
-                          if(!hits.length) return null;
-                          return (
-                            <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
-                              <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
-                              {hits.map(c=>{
-                                const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
-                                const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                return (
-                                  <div key={c.id} onMouseDown={()=>{ upd(r.id,"name",label); if(c.mktValue||c.marketValue) upd(r.id,"mktVal",String(c.mktValue||c.marketValue||"")); setAcOpen(null); }}
-                                    style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
-                                    <div style={{flexShrink:0}}>
-                                      {c.imageUrl
-                                        ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
-                                        : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#555",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
-                                      }
-                                    </div>
-                                    <div style={{flex:1,minWidth:0}}>
-                                      <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{c.hero}</div>
-                                      <div style={{display:"flex",gap:6,fontSize:10,flexWrap:"wrap"}}>
-                                        <span style={{color:"#555"}}>#{c.cardNum}</span>
-                                        {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
-                                        {c.treatment&&<span style={{color:"#888"}}>{c.treatment}</span>}
-                                        {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
-                                      </div>
-                                      {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
-                      <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Type</div>
-                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...mInp, cursor:"pointer" }}>
-                          <option value="">Type...</option>
-                          {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct.replace(" Cards","")}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Qty</div>
-                        <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={mInp}/>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Value/Card</div>
-                        <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={mInp}/>
-                      </div>
-                    </div>
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:11, color: r.costOverride?"#FBBF24":"#666", marginBottom:4, fontWeight:r.costOverride?700:400 }}>
-                        {r.costOverride?"★ ":""}Cost/Card Override (leave blank = auto)
-                      </div>
-                      <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid #2a2a2a", color:r.costOverride?"#FBBF24":"#888" }}/>
-                    </div>
-                    {(mv > 0 || perCardOffer > 0) && (
-                      <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"#1a1a1a", borderRadius:6, fontSize:12 }}>
-                        <span style={{ color:"#888" }}>Total: <strong style={{ color:"#F0F0F0" }}>${(mv*qty).toFixed(2)}</strong></span>
-                        <span style={{ color:"#888" }}>Offer/card: <strong style={{ color:"#E8317A" }}>${perCardOffer.toFixed(2)}</strong></span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
-            </div>
-          ) : (
           <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:750 }}>
-              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Cost/Card ($)","Offer/Card","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
+              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Offer/Card ($)","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
                   const qty = parseInt(r.qty)||1;
-                  const perCardOffer = totalMkt > 0
-                    ? mv * dispPct
-                    : (totalCards > 0 ? dispOffer / totalCards : 0);
-                  const cz = totalMkt > 0 && mv > 0 ? getZone(dispPct) : (totalCards > 0 && dispOffer > 0 ? getZone(dispOffer / (totalCards * 5)) : null);
+                  const cz  = mv > 0 ? getZone(dispPct) : null;
                   return (
                     <tr key={r.id} style={{ background:"#111111", opacity:r.include?1:0.35 }}>
                       <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                           {POOL_TYPES.includes(r.cardType) ? (
-                            <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
-                              {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
-                                <select
-                                  value={r.name}
-                                  onChange={e=>{
-                                    if (e.target.value==="__manual__") {
-                                      setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));
-                                    } else {
-                                      upd(r.id,"name",e.target.value);
-                                    }
-                                  }}
-                                  style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
-                                >
-                                  <option value="">-- Select Pool or Treatment --</option>
-                                  <optgroup label="Your Pools">
-                                    {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                      <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label="All Treatments">
-                                    {[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(
-                                      <option key={t} value={t}>{t}</option>
-                                    ))}
-                                  </optgroup>
-                                  <option value="__manual__">✏️ Type manually instead...</option>
-                                </select>
-                              ) : (
-                                <div style={{display:"flex",gap:4,alignItems:"center",flex:1}}>
-                                  <div style={{position:"relative",flex:1}}>
-                                    <input
-                                      value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
-                                      onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
-                                      onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
-                                      onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
-                                      placeholder="Type hero name or card #..."
-                                      style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
-                                    />
-                                    {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
-                                      const raw=(acQuery[r.id]||"").toLowerCase();
-                                      const terms=raw.trim().split(/\s+/).filter(Boolean);
-                                      const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
-                                      if(!hits.length) return null;
-                                      return (
-                                        <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
-                                          {hits.map(c=>{
-                                            const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                            return <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
-                                              style={{padding:"8px 12px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}}
-                                              className="inv-row">{label}</div>;
-                                          })}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                  {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
-                                    <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            // Pool type -- show dropdown if pools exist, otherwise free text
+                            cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
+                              <select
+                                value={r.name}
+                                onChange={e=>upd(r.id,"name",e.target.value)}
+                                style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
+                              >
+                                <option value="">-- Select Pool --</option>
+                                {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                  <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                                ))}
+                                <option value="__new__">+ Type new name...</option>
+                              </select>
+                            ) : (
+                              <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                            )
                           ) : (
                             // Individual type -- BoBA checklist autocomplete
                             <>
@@ -2256,10 +1851,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F0F0F0", width:55 }}/></td>
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
-                      <td style={{ ...S.td, width:100 }}>
-                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder="auto" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.costOverride?"#FBBF24":"#555", width:75, border:r.costOverride?"1px solid #FBBF2488":"1px solid #2a2a2a" }}/>
-                      </td>
-                      <td style={{ ...S.td, color: r.costOverride?"#FBBF24":"#E8317A", fontWeight:700 }}>${getCostPerCard(r).toFixed(2)}{r.costOverride?<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>:""}</td>
+                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${(mv*dispPct).toFixed(2)}</td>
                       <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
@@ -2268,21 +1860,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               </tbody>
             </table>
           </div>
-          )}
-          {!isMobile && <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>}
-          {dispOffer > 0 && included.length > 0 && (
-            <div style={{ marginTop:12, padding:"10px 14px", background: Math.abs(allocationDiff) < 0.01 ? "#0a1a0a" : allocationDiff > 0 ? "#1a0a0a" : "#1a1400", border:`1px solid ${Math.abs(allocationDiff)<0.01?"#4ade8033":allocationDiff>0?"#E8317A33":"#FBBF2433"}`, borderRadius:8, display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#F0F0F0"}}>${dispOffer.toFixed(2)}</strong></span>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Allocated: <strong style={{color: Math.abs(allocationDiff)<0.01?"#4ade80":allocationDiff>0?"#E8317A":"#FBBF24"}}>${totalAllocated.toFixed(2)}</strong></span>
-              {Math.abs(allocationDiff) >= 0.01 && (
-                <span style={{ fontSize:12, fontWeight:700, color:allocationDiff>0?"#E8317A":"#FBBF24" }}>
-                  {allocationDiff>0?`⚠ $${allocationDiff.toFixed(2)} over offer`:`$${Math.abs(allocationDiff).toFixed(2)} unallocated (auto-distributed)`}
-                </span>
-              )}
-              {Math.abs(allocationDiff) < 0.01 && <span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Perfectly balanced</span>}
-              {included.some(r=>r.costOverride) && <span style={{fontSize:11,color:"#FBBF24"}}>★ = manual override</span>}
-            </div>
-          )}
+          <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>
         </div>
 
         <div style={{ ...S.card, border:"2px solid #333333" }}>
@@ -2474,50 +2052,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
 
 // --- CARD POOLS ----------------------------------------------
-function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials, bobaCards=[], inventory=[], breaks=[] }) {
+function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
   const [form,       setForm]       = useState(EMPTY_POOL);
-  const [editing,    setEditing]    = useState(null);
+  const [editing,    setEditing]    = useState(null); // pool id or "new"
   const [logForm,    setLogForm]    = useState({ poolId:"", qty:"", breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
-
-  // Derive counts from inventory for each pool
-  // A pool matches inventory cards by cardType + cardName (treatment match)
-  const usedInvIds = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
-
-  function getPoolInventoryCounts(pool) {
-    const sameTypePools = cardPools.filter(p => p.cardType === pool.cardType);
-    // Try name-based match first
-    const nameMatch = pool.cardName
-      ? inventory.filter(c => c.cardType === pool.cardType && c.cardName?.toLowerCase().includes(pool.cardName.toLowerCase()))
-      : [];
-    // Fall back to all cards of that type only if:
-    // - name match found nothing AND
-    // - this is the only pool of that type (avoid double-counting across pools)
-    const matching = nameMatch.length > 0
-      ? nameMatch
-      : (sameTypePools.length === 1 ? inventory.filter(c => c.cardType === pool.cardType) : []);
-    const total     = matching.length;
-    const used      = matching.filter(c => usedInvIds.has(c.id)).length;
-    const inTransit = matching.filter(c => c.cardStatus === "in_transit" && !usedInvIds.has(c.id)).length;
-    const avail     = total - used - inTransit;
-    return { invTotal: total, invUsed: used, invInTransit: inTransit, invAvail: avail };
-  }
-
-  // Effective pool counts = manual pool qty + inventory-derived qty
-  function getEffectiveCounts(pool) {
-    const inv = getPoolInventoryCounts(pool);
-    const poolTotal  = parseInt(pool.totalQty)||0;
-    const poolUsed   = parseInt(pool.usedQty)||0;
-    const poolAvail  = Math.max(0, poolTotal - poolUsed);
-    return {
-      total: poolTotal + inv.invTotal,
-      used:  poolUsed  + inv.invUsed,
-      avail: poolAvail + inv.invAvail,
-      invTotal: inv.invTotal,
-      invAvail: inv.invAvail,
-    };
-  }
   const [addForm,    setAddForm]    = useState({ poolId:"", qty:"" });
   const [showLog,    setShowLog]    = useState(false);
   const [showAdd,    setShowAdd]    = useState(false);
@@ -2527,9 +2067,9 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
     return acc;
   }, {});
 
-  const totalCards = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).total, 0);
-  const totalUsed  = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).used,  0);
-  const totalAvail = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).avail, 0);
+  const totalCards = cardPools.reduce((s,p)=>(s+(parseInt(p.totalQty)||0)),0);
+  const totalUsed  = cardPools.reduce((s,p)=>(s+(parseInt(p.usedQty)||0)),0);
+  const totalAvail = totalCards - totalUsed;
 
   function startNew() { setForm(EMPTY_POOL); setEditing("new"); }
   function startEdit(p) { setForm({ cardName:p.cardName, cardType:p.cardType, totalQty:p.totalQty||"", costPerCard:p.costPerCard||"", marketValue:p.marketValue||"", notes:p.notes||"" }); setEditing(p.id); }
@@ -2571,14 +2111,14 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       {/* Log Out form */}
       {showLog && (
         <div style={{ ...S.card, border:"1px solid #E8317A33" }}>
-          <SectionLabel t="\uD83D\uDCE4 Log Cards Out of Pool" />
+          <SectionLabel t="📤 Log Cards Out of Pool" />
           <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr auto", gap:10, alignItems:"end" }}>
             <div>
               <label style={S.lbl}>Pool</label>
               <select value={logForm.poolId} onChange={e=>setLogForm(p=>({...p,poolId:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
                 <option value="">-- Select Pool --</option>
                 {cardPools.map(p=>{
-                  const avail = getEffectiveCounts(p).avail;
+                  const avail=(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0);
                   return <option key={p.id} value={p.id}>{p.cardName} ({avail} avail)</option>;
                 })}
               </select>
@@ -2613,7 +2153,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       {/* Add to Pool form */}
       {showAdd && (
         <div style={{ ...S.card, border:"1px solid #4ade8033" }}>
-          <SectionLabel t="\uD83D\uDCE5 Add Cards to Pool" />
+          <SectionLabel t="📥 Add Cards to Pool" />
           <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr auto", gap:10, alignItems:"end" }}>
             <div>
               <label style={S.lbl}>Pool</label>
@@ -2637,67 +2177,45 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       )}
 
       {/* New/Edit pool form */}
-      {editing && (() => {
-        const treatments = [...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort();
-        const isCustom = form.cardName && !treatments.includes(form.cardName);
-        return (
-          <div style={{ ...S.card, border:"2px solid #E8317A44" }}>
-            <SectionLabel t={editing==="new"?"New Card Pool":"Edit Pool"} />
-            <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-              <div>
-                <label style={S.lbl}>Treatment / Card Name</label>
-                {treatments.length > 0 ? (
-                  <>
-                    <select
-                      value={isCustom?"__custom__":form.cardName}
-                      onChange={e=>{
-                        if(e.target.value==="__custom__") setForm(p=>({...p,cardName:""}));
-                        else setForm(p=>({...p,cardName:e.target.value}));
-                      }}
-                      style={{...S.inp,cursor:"pointer",marginBottom:isCustom?6:0}}
-                    >
-                      <option value="">-- Select Treatment --</option>
-                      {treatments.map(t=><option key={t} value={t}>{t}</option>)}
-                      <option value="__custom__">✏️ Custom name...</option>
-                    </select>
-                    {isCustom&&<input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="Enter custom name" style={S.inp}/>}
-                  </>
-                ) : (
-                  <input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="e.g. Silver Battlefoil" style={S.inp}/>
-                )}
-              </div>
-              <div>
-                <label style={S.lbl}>Card Type</label>
-                <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{...S.inp,cursor:"pointer"}}>
-                  {POOL_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={S.lbl}>Starting Qty</label>
-                <input type="number" min="0" value={form.totalQty} onChange={e=>setForm(p=>({...p,totalQty:e.target.value}))} style={S.inp} disabled={editing!=="new"}/>
-              </div>
-              <div>
-                <label style={S.lbl}>Cost Per Card ($)</label>
-                <input type="number" step="0.01" value={form.costPerCard} onChange={e=>setForm(p=>({...p,costPerCard:e.target.value}))} style={S.inp}/>
-              </div>
+      {editing && (
+        <div style={{ ...S.card, border:"2px solid #E8317A44" }}>
+          <SectionLabel t={editing==="new"?"New Card Pool":"Edit Pool"} />
+          <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={S.lbl}>Card Name</label>
+              <input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="e.g. Silver Battlefoil" style={S.inp}/>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, marginBottom:10 }}>
-              <div>
-                <label style={S.lbl}>Market Value Per Card ($)</label>
-                <input type="number" step="0.01" value={form.marketValue} onChange={e=>setForm(p=>({...p,marketValue:e.target.value}))} style={S.inp}/>
-              </div>
-              <div>
-                <label style={S.lbl}>Notes</label>
-                <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional notes" style={S.inp}/>
-              </div>
+            <div>
+              <label style={S.lbl}>Card Type</label>
+              <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                {POOL_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>{"\uD83D\uDCBE Save Pool"}</Btn>
-              <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
+            <div>
+              <label style={S.lbl}>Starting Qty</label>
+              <input type="number" min="0" value={form.totalQty} onChange={e=>setForm(p=>({...p,totalQty:e.target.value}))} style={S.inp} disabled={editing!=="new"}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Cost Per Card ($)</label>
+              <input type="number" step="0.01" value={form.costPerCard} onChange={e=>setForm(p=>({...p,costPerCard:e.target.value}))} style={S.inp}/>
             </div>
           </div>
-        );
-      })()}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={S.lbl}>Market Value Per Card ($)</label>
+              <input type="number" step="0.01" value={form.marketValue} onChange={e=>setForm(p=>({...p,marketValue:e.target.value}))} style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Notes</label>
+              <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional notes" style={S.inp}/>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>{"\uD83D\uDCBE Save Pool"}</Btn>
+            <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
+          </div>
+        </div>
+      )}
 
       {/* Pool list by type */}
       {POOL_TYPES.map(type => {
@@ -2713,31 +2231,23 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
               ? <div style={{ color:"#333", fontSize:12, padding:"10px 0" }}>No {type} pools yet</div>
               : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {pools.map(p => {
-                    const ec      = getEffectiveCounts(p);
-                    const avail   = ec.avail;
-                    const pct     = ec.total > 0 ? (avail/ec.total)*100 : 0;
+                    const avail = (parseInt(p.totalQty)||0) - (parseInt(p.usedQty)||0);
+                    const pct   = parseInt(p.totalQty)>0 ? (avail/parseInt(p.totalQty))*100 : 0;
                     const statusC = avail > 100 ? "#4ade80" : avail > 30 ? "#FBBF24" : "#E8317A";
                     return (
                       <div key={p.id} style={{ ...S.card, display:"grid", gridTemplateColumns:"1fr auto auto auto auto auto auto", gap:12, alignItems:"center", padding:"12px 16px" }}>
                         <div>
                           <div style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{p.cardName}</div>
-                          {ec.invTotal > 0 && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>📦 {ec.invTotal} from inventory ({ec.invAvail} avail{ec.invInTransit>0?`, ${ec.invInTransit} in transit`:""})</div>}
                           {p.notes && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{p.notes}</div>}
                         </div>
                         <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>{ec.total}</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>{parseInt(p.totalQty)||0}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Total</div>
                         </div>
                         <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:20, fontWeight:900, color:ec.used>0?"#E8317A":"#333" }}>{ec.used}</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:p.usedQty>0?"#E8317A":"#333" }}>{parseInt(p.usedQty)||0}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Used</div>
                         </div>
-                        {ec.invInTransit > 0 && (
-                          <div style={{ textAlign:"center" }}>
-                            <div style={{ fontSize:20, fontWeight:900, color:"#FBBF24" }}>{ec.invInTransit}</div>
-                            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Transit</div>
-                          </div>
-                        )}
                         <div style={{ textAlign:"center" }}>
                           <div style={{ fontSize:20, fontWeight:900, color:statusC }}>{avail}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Avail</div>
@@ -2779,7 +2289,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, onBulkAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
+function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2790,9 +2300,6 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [sortInv,  setSortInv]  = useState("date");
   const [logOutCard, setLogOutCard] = useState(null);
   const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
-  const [bulkLogMode, setBulkLogMode] = useState(false);
-  const [bulkLogSel,  setBulkLogSel]  = useState(new Set());
-  const [bulkLogForm, setBulkLogForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState(defaultTab);
   useEffect(()=>{setInvTab(defaultTab);},[defaultTab]);
@@ -2828,71 +2335,6 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-      {/* Restock Alerts */}
-      {(() => {
-        const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
-        const totalStreams = streams.length || 1;
-        const burnPerStream = {};
-        CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=0; });
-        breaks.forEach(b=>{ const ct=USAGE_TO_CT2[b.usage]||b.cardType; if(ct&&burnPerStream[ct]!==undefined) burnPerStream[ct]+=b.isPoolLog?(parseInt(b.qty)||1):1; });
-        CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=burnPerStream[ct]/totalStreams; });
-
-        // Build used IDs set (fast)
-        const usedIds = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
-
-        const invAvail = {};
-        CARD_TYPES.forEach(ct=>{
-          // Individual inventory cards available (not used, not in transit)
-          const indiv = inventory.filter(c=>
-            c.cardType===ct &&
-            !usedIds.has(c.id) &&
-            c.cardStatus !== "in_transit"
-          ).length;
-          // Pool cards available (pool totalQty - usedQty from pool logs)
-          const pool = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
-          invAvail[ct] = indiv + pool;
-        });
-
-        const MONTHLY_TARGETS = { "Giveaway Cards":2000, "Insurance Cards":2000, "First-Timer Cards":50, "Chaser Cards":30 };
-        const alerts = CARD_TYPES.map(ct=>{
-          const avail   = invAvail[ct];
-          const target  = MONTHLY_TARGETS[ct] || 0;
-          const burn    = burnPerStream[ct];
-          const runsOut = burn > 0 ? Math.floor(avail / burn) : 999;
-          const urgent  = avail < (target * 0.25);
-          const low     = avail < (target * 0.50);
-          if (!low && !urgent) return null;
-          return { ct, avail, target, runsOut, urgent };
-        }).filter(Boolean);
-        if (alerts.length === 0) return null;
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {alerts.map(({ct,avail,target,runsOut,urgent})=>{
-              const pct = target>0 ? Math.min(100,avail/target*100) : 100;
-              return (
-                <div key={ct} style={{ background:urgent?"rgba(220,38,38,0.06)":"rgba(251,191,36,0.05)", border:`1.5px solid ${urgent?"rgba(220,38,38,0.3)":"rgba(251,191,36,0.25)"}`, borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <span style={{ fontSize:16 }}>{urgent?"🚨":"⚠️"}</span>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:800, color:urgent?"#ef4444":"#FBBF24" }}>{ct.replace(" Cards","")} {urgent?"critically low":"running low"}</div>
-                      <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{avail.toLocaleString()} available · {target.toLocaleString()} monthly target · ~{runsOut} streams of runway</div>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:120, height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden" }}>
-                      <div style={{ height:"100%", width:`${pct}%`, background:urgent?"#ef4444":"#FBBF24", borderRadius:3 }}/>
-                    </div>
-                    <span style={{ fontSize:12, fontWeight:700, color:urgent?"#ef4444":"#FBBF24" }}>{pct.toFixed(0)}%</span>
-                    <button onClick={()=>setInvTab("cards")} style={{ background:"transparent", border:`1px solid ${urgent?"rgba(220,38,38,0.3)":"rgba(251,191,36,0.25)"}`, color:urgent?"#ef4444":"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>View Cards →</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
-
       <div style={S.card}>
         <div style={{ display:"none" }}>
           {[["cards","\uD83D\uDCE6 Cards"],["pools","\uD83D\uDDC3 Card Pools"],...(["Admin","Procurement"].includes(userRole?.role)?[["lots","\uD83D\uDDC2 Lot History"]]:[]),["product","\uD83C\uDF81 Product"]].map(([id,label]) => (
@@ -3129,7 +2571,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
       {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
 
-      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards} inventory={inventory} breaks={breaks}/>}
+      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
@@ -3157,40 +2599,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
               <button onClick={handleBulkDelete} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDDD1 Delete"}{selected.size} selected</button>
             )}
-            {selected.size>0 && onBulkAdd && (
-              <button onClick={()=>setBulkLogMode(p=>!p)} style={{ background:bulkLogMode?"rgba(74,222,128,0.15)":"#111111", color:"#4ade80", border:"1.5px solid #4ade8044", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {bulkLogMode?"✕ Cancel":"✅ Bulk Log Out"} {selected.size > 0 ? `${selected.size}` : ""}
-              </button>
-            )}
           </div>
         </div>
-
-        {/* Bulk Log Out bar */}
-        {bulkLogMode && selected.size > 0 && (
-          <div style={{ background:"rgba(74,222,128,0.06)", border:"1.5px solid rgba(74,222,128,0.2)", borderRadius:10, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-            <span style={{ fontSize:13, fontWeight:700, color:"#4ade80" }}>✅ Log Out {selected.size} card{selected.size!==1?"s":""}</span>
-            <select value={bulkLogForm.breaker} onChange={e=>setBulkLogForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
-              {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
-            </select>
-            <select value={bulkLogForm.usage} onChange={e=>setBulkLogForm(p=>({...p,usage:e.target.value}))} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
-              {USAGE_TYPES.map(u=><option key={u} value={u}>{u}</option>)}
-            </select>
-            <input type="date" value={bulkLogForm.date} onChange={e=>setBulkLogForm(p=>({...p,date:e.target.value}))} style={{ ...S.inp, width:"auto" }}/>
-            <button onClick={()=>{
-              const USAGE_TO_CT_INV = {"Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards"};
-              const entries = [...selected].map(id=>{
-                const card = inventory.find(c=>c.id===id);
-                const resolvedType = USAGE_TO_CT_INV[bulkLogForm.usage] || card?.cardType || "";
-                return { id:uid(), date:bulkLogForm.date, breaker:bulkLogForm.breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage:bulkLogForm.usage, notes:"Bulk logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
-              });
-              onBulkAdd(entries);
-              setSelected(new Set());
-              setBulkLogMode(false);
-            }} style={{ background:"linear-gradient(135deg,#4ade80,#22d3ee)", color:"#000", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-              Confirm Log Out
-            </button>
-          </div>
-        )}
         <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:900 }}>
@@ -3303,15 +2713,13 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                   <option value="Giveaway">Giveaway</option>
                   <option value="Insurance">Insurance</option>
                   <option value="First-Timer Pack">First-Timer Pack</option>
-                  <option value="Chaser Pull">Chaser Pull</option>
+                  <option value="Chaser">Chaser Pull</option>
                 </select>
               </div>
             </div>
             <div style={{ display:"flex", gap:8, marginTop:16 }}>
               <Btn onClick={async()=>{
-                const USAGE_TO_CT_MAP = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
-                const resolvedType = USAGE_TO_CT_MAP[logOutForm.usage] || logOutCard.cardType;
-                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:resolvedType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:logOutCard.cardType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
                 if (onAdd) await onAdd(entry);
                 setLogOutCard(null);
               }} variant="green">{"\u2705 Log Out"}</Btn>
@@ -3325,16 +2733,13 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[] }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
-  const [windowWidth,  setWindowWidth]  = useState(window.innerWidth);
-  useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
-  const isMobile = windowWidth < 768;
   const [breaker,    setBreaker]    = useState(matchedBreaker);
-  const [date,       setDate]       = useState("");
+  const [date,       setDate]       = useState(new Date().toISOString().split("T")[0]);
   const [cardId,     setCardId]     = useState("");
   const [cardSearch, setCardSearch] = useState("");
   const [usage,      setUsage]      = useState("");
@@ -3345,10 +2750,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [chaserSearch, setChaserSearch] = useState("");
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
   const [streamLogBreaker, setStreamLogBreaker] = useState("");
-  const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{} };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3356,7 +2760,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [recapSaved,  setRecapSaved]  = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
   const csvJustLoaded = useRef(false);
-  const csvDataLoaded = useRef(false);
   const [csvMsg,       setCsvMsg]       = useState(null); // { type: 'success'|'error', text }
 
   // Check existing product usage for this breaker+date
@@ -3375,10 +2778,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, ...prodFields });
       setRecapSaved(true);
-      csvDataLoaded.current = false;
-    } else if (!csvDataLoaded.current) {
+    } else {
       setRecap(EMPTY_RECAP);
       setRecapSaved(false);
       setChaserSearch("");
@@ -3441,11 +2843,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const commBase = bazNet;
     const mm = parseFloat(recap.marketMultiple)||0;
     const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
-    const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : Math.min(0.60, (mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35) + ((parseInt(recap.newBuyers)||0)>=5 && !recap.binOnly ? 0.05 : 0));
+    const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
     const commAmt = commBase * rate;
-    const tips = parseFloat(recap.tips)||0;
     const collabAmt = recap.collabPartner && recap.collabPartner !== "_" ? bazNet * (parseFloat(recap.collabPct||0)/100) : 0;
-    return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, tips, collabAmt, bazTrueNet: bazNet - commAmt + imcExpReimb - collabAmt };
+    return { gross, totalExp, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt, bazTrueNet: bazNet - commAmt + imcExpReimb - collabAmt };
   }
 
   async function handleSaveRecap() {
@@ -3453,7 +2854,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     setRecapSaving(true);
     try {
       const streamId = existingStream?.id || uid();
-      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, streamName:recap.streamName||"", id:streamId, breaker, date });
+      await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, id:streamId, breaker, date });
       // Log selected chaser cards out of inventory
       if (recap.chaserCardIds) {
         const cardIds = recap.chaserCardIds.split(",").filter(Boolean);
@@ -3462,7 +2863,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         if (toLog.length > 0) {
           const entries = toLog.map(id => {
             const card = inventory.find(c=>c.id===id);
-            return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:"Chaser Cards", usage:"Chaser Pull", notes:"Auto-logged from stream recap", streamId, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+            return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:"Chaser Cards", usage:"Chaser", notes:"Auto-logged from stream recap", streamId, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
           });
           if (onBulkAdd) onBulkAdd(entries);
         }
@@ -3474,7 +2875,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       }
       setRecapSaved(true);
       setEditingStreamId(streamId); // lock to this stream for subsequent edits
-      csvDataLoaded.current = false;
     } finally { setRecapSaving(false); }
   }
 
@@ -3485,21 +2885,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const available = inventory.filter(c => !usedIds.has(c.id) && c.cardStatus !== "in_transit");
   const selCard   = inventory.find(c => c.id===cardId);
 
-  const USAGE_TO_CT_LOG = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
   function handleAdd() {
     if (!breaker||!cardId) return;
-    const resolvedType = USAGE_TO_CT_LOG[usage] || selCard?.cardType || "";
-    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:resolvedType, usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
+    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
     setCardId(""); setCardSearch(""); setUsage(""); setNotes("");
   }
   function toggleBulk(id) { setBulkSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function handleBulkLog() {
     if (!breaker||bulkSel.size===0) return;
-    const entries = [...bulkSel].map(id => {
-      const card = inventory.find(c=>c.id===id);
-      const resolvedType = USAGE_TO_CT_LOG[usage] || card?.cardType || "";
-      return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
-    });
+    const entries = [...bulkSel].map(id => { const card=inventory.find(c=>c.id===id); return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" }; });
     onBulkAdd(entries); setBulkSel(new Set());
   }
   function toggleHistSel(id) { setHistSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
@@ -3513,9 +2907,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   }
 
   const sum = {};
-  const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
   BREAKERS.forEach(b => { sum[b]={total:0}; CARD_TYPES.forEach(ct=>{sum[b][ct]=0;}); });
-  breaks.forEach(b => { if(sum[b.breaker]){ sum[b.breaker].total++; const ct=USAGE_TO_CT[b.usage]||b.cardType; if(ct)sum[b.breaker][ct]++; } });
+  breaks.forEach(b => { if(sum[b.breaker]){sum[b.breaker].total++; if(b.cardType)sum[b.breaker][b.cardType]++;} });
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -3588,9 +2981,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
                     }
                     setRecap(p=>({ ...p, grossRevenue:gross.toFixed(2), coupons:coupons>0?coupons.toFixed(2):p.coupons, zionRevenue:zionGross>0?zionGross.toFixed(2):"" }));
-                    csvDataLoaded.current = true;
+                    if (streamDate) { csvJustLoaded.current = true; setDate(streamDate); }
                     setRecapSaved(false);
-                    setCsvMsg({ type:"success", text:`\u2705 Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""} — enter the stream date manually then fill in fees & expenses.` });
+                    setCsvMsg({ type:"success", text:`\u2705 Imported! Gross: $${gross.toFixed(2)}${zionGross>0?` · Zion Cases (excluded): $${zionGross.toFixed(2)}`:""}${coupons>0?` · Coupons: $${coupons.toFixed(2)}`:""}${skipped>0?` · ${skipped} cancelled skipped`:""}${streamDate?` · Date: ${streamDate}`:""} -- now fill in Whatnot fees & other expenses.` });
                     setTimeout(()=>setCsvMsg(null), 8000);
 
                     // Parse buyers for CRM
@@ -3640,7 +3033,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
                   {"\u270F\uFE0F Editing:"}{existingStream.breaker} · {existingStream.date}
                 </span>
-                <button onClick={()=>{ csvDataLoaded.current=false; setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
+                <button onClick={()=>{ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
                   Start new instead
                 </button>
               </div>
@@ -3662,10 +3055,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
           <TextInput label="Date" type="date" value={date} onChange={setDate}/>
           <div>
-            <label style={S.lbl}>Stream Name</label>
-            <input value={recap.streamName||""} onChange={e=>rf("streamName")(e.target.value)} placeholder="e.g. Friday Night Break #12" style={{ ...S.inp, color: recap.streamName?"#F0F0F0":"#9CA3AF" }}/>
-          </div>
-          <div>
             <label style={S.lbl}>Break Type</label>
             <select value={recap.breakType} onChange={e=>rf("breakType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
               <option value="auction">Auction</option>
@@ -3673,34 +3062,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <option value="mixed">Mixed</option>
             </select>
           </div>
-        </div>
-
-        {/* Link to planned stream */}
-        {(() => {
-          const dayPlans = plannedStreams.filter(p=>p.date===date&&(!breaker||p.breaker===breaker));
-          if (!date || dayPlans.length === 0) return null;
-          return (
-            <div style={{marginBottom:14,padding:"10px 14px",background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <span style={{fontSize:12,fontWeight:700,color:"#7B9CFF",flexShrink:0}}>📅 Link to planned stream:</span>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
-                {dayPlans.map(p=>(
-                  <button key={p.id} onClick={()=>{
-                    rf("streamName")(p.streamName||recap.streamName||"");
-                    rf("sessionType")(p.sessionType||recap.sessionType||"");
-                  }}
-                    style={{background:"rgba(123,156,255,0.1)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.25)",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                    {p.streamName||p.breaker||"Planned Stream"}
-                    {p.sessionType?` · ${p.sessionType}`:""}
-                    {(p.products||[]).filter(pr=>pr.type).length>0?` · ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}` :""}
-                  </button>
-                ))}
-              </div>
-              <span style={{fontSize:10,color:"#555"}}>Tap to auto-fill</span>
-            </div>
-          );
-        })()}
-
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <div>
             <label style={S.lbl}>Session Type</label>
             <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
@@ -3740,16 +3101,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
             </div>
           ))}
-        </div>
-
-        {/* Tips — goes 100% to rep, not in IMC/Bazooka split */}
-        <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:2 }}>💰 Tips</div>
-            <div style={{ fontSize:10, color:"#555" }}>100% goes to the rep — not included in IMC or Bazooka revenue</div>
-          </div>
-          <input type="number" step="0.01" value={recap.tips||""} onChange={e=>rf("tips")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#FBBF24", fontWeight:700 }}/>
-          {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
         </div>
 
         {/* Zion Cases Revenue -- auto-filled, read-only, Bazooka only */}
@@ -4014,7 +3365,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   {[
                     { l:"Bazooka Earnings",          v:fmt(rc.bazNet),              c:"#E8317A" },
                     { l:"\u2212 Rep Commission",           v:"\u2212 "+fmt(rc.commAmt),        c:"#991b1b" },
-                    ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Expense Reimb (70%)",  v:"+ "+fmt(rc.imcExpReimb||0), c:"#166534" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),          c:"#166534" }] : []),
                   ].map(({l,v,c}) => (
@@ -4029,9 +3379,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
                   { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
-                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5&&!recap.binOnly?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
-                  ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
-                  ...(rc.tips>0?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips), c:"#4ade80" }]:[]),
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#4ade80" },
                 ].map(({l,v,c}) => (
                   <div key={l} style={{ textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -4111,7 +3459,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             );
           })()}
           {recapSaved && (
-            <Btn onClick={()=>{ csvDataLoaded.current=false; setDate(""); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
+            <Btn onClick={()=>{ setDate(new Date().toISOString().split("T")[0]); setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} variant="ghost">
               + New Stream
             </Btn>
           )}
@@ -4139,7 +3487,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const totalExp=fees+coupons+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
           const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
           const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
-          const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+          const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
           const commBase=bazNet, commAmt=commBase*rate;
           return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet - commAmt+imcExpReimb-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
         }
@@ -4147,9 +3495,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker);
         return (
           <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap", cursor:"pointer" }} onClick={()=>setStreamLogCollapsed(p=>!p)}>
+            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
-              <div style={{ display:"flex", gap:8, alignItems:"center" }} onClick={e=>e.stopPropagation()}>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 {canSeeFinancials && (
                   <select value={streamLogBreaker} onChange={e=>setStreamLogBreaker(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
                     <option value="">All Breakers</option>
@@ -4166,10 +3514,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     {"\uD83D\uDDD1 Delete"}{streamBulkSel.size} stream{streamBulkSel.size!==1?"s":""}
                   </button>
                 )}
-                <span style={{ color:"#AAAAAA", fontSize:14, userSelect:"none" }}>{streamLogCollapsed ? "▼" : "▲"}</span>
               </div>
             </div>
-            {!streamLogCollapsed && (myStreams.length === 0
+            {myStreams.length === 0
               ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"30px 0" }}>No streams logged yet -- save a stream recap above to get started</div>
               : <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -4181,7 +3528,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         onChange={()=>setStreamBulkSel(streamBulkSel.size===myStreams.length ? new Set() : new Set(myStreams.map(s=>s.id)))}
                       />
                     </th>
-                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers","Collab",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -4203,7 +3550,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         </td>
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
-                        <td style={{ ...S.td, color: s.streamName?"#F0F0F0":"#444", fontStyle: s.streamName?"normal":"italic", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.streamName||"—"}</td>
                         <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
                         <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(c.netRev)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.imcNet)}</td>}
@@ -4212,12 +3558,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                         <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `\uD83C\uDF31 ${s.newBuyers}` : "--"}</td>
-                        <td style={S.td}>
-                          {s.collabPartner && s.collabPartner !== "_"
-                            ? <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>🤝 {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>
-                            : <span style={{ color:"#333" }}>--</span>
-                          }
-                        </td>
                         {PRODUCT_TYPES.map(pt => {
                           const qty = parseInt(s[`prod_${pt}`])||0;
                           const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
@@ -4238,7 +3578,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   })}
                 </tbody>
               </table>
-            </div>)}
+            </div>}
           </div>
         );
       })()}
@@ -4247,14 +3587,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!recapOnly && <>
       <div style={S.card}>
         <SectionLabel t="Log Card Out" />
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
           <SelectInput label="Breaker"    value={breaker} onChange={setBreaker} options={BREAKERS}/>
           <TextInput   label="Date" type="date" value={date} onChange={setDate}/>
           <SelectInput label="Usage Type" value={usage}   onChange={setUsage}   options={USAGE_TYPES}/>
         </div>
         <div style={{ marginBottom:12 }}>
           <Field label="Search Card">
-            <input value={cardSearch} onChange={e=>{setCardSearch(e.target.value);setCardId("");}} placeholder="Type to search available cards..." style={{...S.inp, fontSize:isMobile?16:13, padding:isMobile?"12px 14px":"8px 12px"}}/>
+            <input value={cardSearch} onChange={e=>{setCardSearch(e.target.value);setCardId("");}} placeholder="Type to search available cards..." style={S.inp}/>
             {cardSearch.length > 0 && (
               <div style={{ border:"1px solid #2a2a2a", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#111111", boxShadow:"0 4px 12px rgba(232,49,122,0.1)", marginTop:4 }}>
                 {available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).length===0
@@ -4262,9 +3602,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   : available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).map(c => {
                       const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                       return (
-                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"14px 16px":"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
+                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                            <span style={{ fontWeight:700, fontSize:isMobile?15:13 }}>{c.cardName}</span>
+                            <span style={{ fontWeight:700, fontSize:13 }}>{c.cardName}</span>
                             <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
                           </div>
                           {canSeeFinancials && <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:600 }}>${(c.marketValue||0).toFixed(2)}</span>}
@@ -4283,7 +3623,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {canSeeFinancials && <span style={{ fontSize:12, color:"#AAAAAA" }}>Value: <strong style={{color:"#AAAAAA"}}>${(selCard.marketValue||0).toFixed(2)}</strong></span>}
           </div>
         )}
-        <div style={{ display:"flex", flexDirection:isMobile?"column":"row", gap:10, alignItems:isMobile?"stretch":"end" }}>
+        <div style={{ display:"flex", gap:10, alignItems:"end" }}>
           <div style={{ flex:1 }}><TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="e.g. Break #2"/></div>
           <Btn onClick={handleAdd} disabled={!breaker||!cardId} variant="green">Log Card Out</Btn>
           <Btn onClick={()=>{setBulkMode(p=>!p);setBulkSel(new Set());}} variant="ghost">{bulkMode?"Cancel Bulk":"Bulk Log Out"}</Btn>
@@ -4308,32 +3648,19 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         {BREAKERS.map(b => {
           const bc=BC[b]; const s=sum[b];
           return (
             <div key={b} style={{ ...S.card, border:`1px solid ${bc.border}44` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:isMobile?6:10 }}>
-                <div style={{ fontWeight:900, fontSize:16, color:bc.text }}>{b}</div>
-                <div style={{ fontSize:isMobile?20:24, fontWeight:900, color:bc.text }}>{s.total} <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:400 }}>used</span></div>
-              </div>
-              {isMobile ? (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
-                  {CARD_TYPES.map(ct => (
-                    <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 8px", background:"#1a1a1a", borderRadius:6 }}>
-                      <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct.replace(" Cards","")}</span>
-                      <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
-                    </div>
-                  ))}
+              <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
+              <div style={{ fontSize:24, fontWeight:900, color:bc.text, marginBottom:10 }}>{s.total} <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:400 }}>cards used</span></div>
+              {CARD_TYPES.map(ct => (
+                <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
+                  <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct}</span>
+                  <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
                 </div>
-              ) : (
-                CARD_TYPES.map(ct => (
-                  <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
-                    <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct}</span>
-                    <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
-                  </div>
-                ))
-              )}
+              ))}
             </div>
           );
         })}
@@ -5071,7 +4398,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         return (
           <div style={{ ...S.card, border:"1px solid #2a2a2a" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-              <SectionLabel t="\uD83D\uDCC8 SKU Price History" />
+              <SectionLabel t="📈 SKU Price History" />
               <div style={{ display:"flex", gap:6 }}>
                 {PRODUCT_TYPES.filter(pt => history[pt].length > 0).map(pt => (
                   <button key={pt} onClick={()=>setActivePt(pt)} style={{ background:activePt===pt?COLORS[pt]+"22":"transparent", color:activePt===pt?COLORS[pt]:"#555", border:`1.5px solid ${activePt===pt?COLORS[pt]:"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{pt}</button>
@@ -5537,7 +4864,7 @@ function Sellers({ inventory, breaks, userRole }) {
         if (snapStreams.length < 2) return null;
         return (
           <div style={{ ...S.card, marginTop:14 }}>
-            <SectionLabel t="\uD83D\uDCC8 SKU Market Price History" />
+            <SectionLabel t="📈 SKU Market Price History" />
             <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Price per box at time of each stream -- frozen at save</div>
             <div style={{ position:"relative", height:260 }}>
               <canvas id="skuPriceChart" style={{ width:"100%", height:"100%" }}/>
@@ -5646,7 +4973,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
 
       {/* Inputs */}
       <div style={S.card}>
-        <SectionLabel t="\uD83E\uDDEE Break Planner" />
+        <SectionLabel t="🧮 Break Planner" />
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
 
           {/* Products */}
@@ -5799,2032 +5126,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
-function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], cardPools=[], userRole }) {
-  const canSeeFinancials = ["Admin"].includes(userRole?.role);
-  const fmt2 = v => "$" + parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-
-  // -- State --
-  const today = new Date();
-  const [viewMode,     setViewMode]     = useState("month");
-  const [curYear,      setCurYear]      = useState(today.getFullYear());
-  const [curMonth,     setCurMonth]     = useState(today.getMonth());
-  const [plans,        setPlans]        = useState([]);
-  const [vacations,    setVacations]    = useState([]);
-  const [templates,    setTemplates]    = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [modalDate,    setModalDate]    = useState(null);
-  const [editingId,    setEditingId]    = useState(null);
-  const [saving,       setSaving]       = useState(false);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [templateName,   setTemplateName]   = useState("");
-  const [copyWeekModal,  setCopyWeekModal]  = useState(false);
-  const [copyWeekSrc,    setCopyWeekSrc]    = useState("");
-  const [copyWeekDst,    setCopyWeekDst]    = useState("");
-  const [copyingWeek,    setCopyingWeek]    = useState(false);
-  const [shareWeekModal, setShareWeekModal] = useState(false);
-  const [shareWeekStart, setShareWeekStart] = useState(""); // Sunday of week to share
-  const [confettiActive, setConfettiActive] = useState(false);
-  const confettiCanvas   = useRef(null);
-  const confettiAnimRef  = useRef(null);
-  const confettiTriggered = useRef(new Set()); // track which milestones already fired
-  const [monthTargets, setMonthTargets] = useState({});
-  const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
-  });
-  const [planAssumptions, setPlanAssumptions] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("stream_plan_assumptions")||"{}"); } catch(e) { return {}; }
-  });
-  // defaults: 8% Whatnot fee, $200 avg stream expenses
-  const whatnotFeePct  = parseFloat(planAssumptions.whatnotFeePct  ?? 8);
-  const avgStreamExp   = parseFloat(planAssumptions.avgStreamExp   ?? 200);
-  function saveAssumption(key, val) {
-    const next = { ...planAssumptions, [key]: val };
-    setPlanAssumptions(next);
-    try { localStorage.setItem("stream_plan_assumptions", JSON.stringify(next)); } catch(e) {}
-  }
-  function calcPlanEarnings(gross) {
-    if (!gross || gross <= 0) return null;
-    const netRev     = gross * 0.81;
-    const bazNet     = netRev * 0.30;
-    const imcNet     = netRev * 0.70;
-    const mm         = gross / Math.max(gross / 1.6, 1);
-    const rate       = bazNet > 0 ? (bazNet/gross >= 0.18 ? 0.55 : bazNet/gross >= 0.16 ? 0.50 : bazNet/gross >= 0.14 ? 0.45 : bazNet/gross >= 0.12 ? 0.40 : 0.35) : 0.35;
-    const commAmt    = bazNet * rate;
-    const bazTrueNet = bazNet - commAmt;
-    return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet, rate };
-  }
-
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
-  const [form, setForm] = useState(EMPTY_PLAN);
-
-  const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
-
-  // -- Firestore --
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db,"planned_streams"), snap => {
-      setPlans(snap.docs.map(d=>({...d.data(),id:d.id})));
-      setLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db,"breaker_vacations"), snap => {
-      setVacations(snap.docs.map(d=>({...d.data(),id:d.id})));
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db,"stream_templates"), snap => {
-      setTemplates(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.name.localeCompare(b.name)));
-    });
-    return () => unsub();
-  }, []);
-
-  // Confetti engine
-  function launchConfetti() {
-    const canvas = confettiCanvas.current;
-    if (!canvas) return;
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-    setConfettiActive(true);
-    const ctx = canvas.getContext("2d");
-    const COLORS = ["#E8317A","#7B2FF7","#4ade80","#FBBF24","#22d3ee","#F0F0F0","#C084FC"];
-    const pieces = Array.from({length:150}, () => ({
-      x: Math.random()*canvas.width, y: -20,
-      w: 6+Math.random()*8, h: 10+Math.random()*6,
-      color: COLORS[Math.floor(Math.random()*COLORS.length)],
-      rot: Math.random()*360, rotV: (Math.random()-0.5)*8,
-      vx: (Math.random()-0.5)*6, vy: 2+Math.random()*5,
-      opacity: 1,
-    }));
-    let frame = 0;
-    function animate() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      pieces.forEach(p => {
-        p.x += p.vx; p.y += p.vy + frame*0.02;
-        p.rot += p.rotV; p.vy += 0.08;
-        if (frame > 120) p.opacity = Math.max(0, p.opacity - 0.012);
-        ctx.save();
-        ctx.globalAlpha = p.opacity;
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rot * Math.PI/180);
-        ctx.fillStyle = p.color;
-        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-        ctx.restore();
-      });
-      frame++;
-      if (frame < 220) confettiAnimRef.current = requestAnimationFrame(animate);
-      else { ctx.clearRect(0,0,canvas.width,canvas.height); setConfettiActive(false); }
-    }
-    if (confettiAnimRef.current) cancelAnimationFrame(confettiAnimRef.current);
-    confettiAnimRef.current = requestAnimationFrame(animate);
-  }
-
-  // Watch for milestone hits — fire confetti once per milestone per month
-  useEffect(() => {
-    if (!canSeeFinancials) return;
-    const mKey      = monthKey(curYear, curMonth);
-    const mActuals  = monthActuals(curYear, curMonth);
-    const actRev    = actualRevenue(mActuals);
-    const target    = parseFloat(monthTargets[mKey]) || 0;
-    const mkt       = totalMonthMkt(curYear, curMonth);
-    const milestones = [
-      ...(target > 0    ? [`${mKey}-target-${Math.floor(target)}`]   : []),
-      ...(mkt > 0       ? [`${mKey}-1.5x-${Math.floor(mkt*1.5)}`]   : []),
-      ...(mkt > 0       ? [`${mKey}-1.7x-${Math.floor(mkt*1.7)}`]   : []),
-      ...(mkt > 0       ? [`${mKey}-1.9x-${Math.floor(mkt*1.9)}`]   : []),
-    ];
-    milestones.forEach(key => {
-      const threshold = parseFloat(key.split("-").pop());
-      if (actRev >= threshold && !confettiTriggered.current.has(key)) {
-        confettiTriggered.current.add(key);
-        setTimeout(launchConfetti, 300);
-      }
-    });
-  }, [streams, curYear, curMonth, monthTargets]); // eslint-disable-line
-
-  // -- Helpers --
-  function monthKey(y,m) { return `${y}-${String(m+1).padStart(2,"0")}`; }
-  function daysInMonth(y,m) { return new Date(y,m+1,0).getDate(); }
-  function firstDow(y,m) { return new Date(y,m,1).getDay(); }
-  function dateStr(y,m,d) { return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
-  function plansForDate(ds) { return plans.filter(p=>p.date===ds); }
-  function actualForDate(ds) { return streams.filter(s=>s.date===ds); }
-  function prevMonth() { if(curMonth===0){setCurYear(y=>y-1);setCurMonth(11);}else setCurMonth(m=>m-1); }
-  function nextMonth() { if(curMonth===11){setCurYear(y=>y+1);setCurMonth(0);}else setCurMonth(m=>m+1); }
-
-  function openModal(ds, plan=null) {
-    setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
-    else { setEditingId(null); setForm(EMPTY_PLAN); }
-  }
-  function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
-
-  // Generate all dates for a repeat pattern starting from startDate
-  function generateRepeatDates(startDate, repeat, repeatDays, repeatUntil) {
-    const dates = [];
-    const end = repeatUntil ? new Date(repeatUntil+"T12:00:00") : new Date(curYear, curMonth+1, 0, 12, 0, 0);
-    let cur = new Date(startDate+"T12:00:00");
-    // Skip the start date itself (already saved as main event)
-    if (repeat === "daily") {
-      cur.setDate(cur.getDate()+1);
-      while (cur <= end) {
-        dates.push(cur.toISOString().slice(0,10));
-        cur.setDate(cur.getDate()+1);
-      }
-    } else if (repeat === "weekly") {
-      cur.setDate(cur.getDate()+7);
-      while (cur <= end) {
-        dates.push(cur.toISOString().slice(0,10));
-        cur.setDate(cur.getDate()+7);
-      }
-    } else if (repeat === "biweekly") {
-      cur.setDate(cur.getDate()+14);
-      while (cur <= end) {
-        dates.push(cur.toISOString().slice(0,10));
-        cur.setDate(cur.getDate()+14);
-      }
-    } else if (repeat === "custom" && repeatDays.length > 0) {
-      // Custom days of week — generate all matching days from tomorrow to end
-      cur.setDate(cur.getDate()+1);
-      while (cur <= end) {
-        if (repeatDays.includes(cur.getDay())) dates.push(cur.toISOString().slice(0,10));
-        cur.setDate(cur.getDate()+1);
-      }
-    }
-    return dates;
-  }
-
-  async function savePlan() {
-    if (!modalDate) return;
-    setSaving(true);
-    const { repeat, repeatDays, repeatUntil, ...planData } = form;
-    const data = { ...planData, date:modalDate, updatedAt:new Date().toISOString() };
-    // Save the main event
-    const id = editingId || uid();
-    await setDoc(doc(db,"planned_streams",id), data);
-    // Save repeating occurrences
-    if (!editingId && repeat !== "none") {
-      const repeatDates = generateRepeatDates(modalDate, repeat, repeatDays, repeatUntil);
-      await Promise.all(repeatDates.map(ds =>
-        setDoc(doc(db,"planned_streams",uid()), { ...planData, date:ds, updatedAt:new Date().toISOString(), isRecurring:true, recurringFrom:id })
-      ));
-    }
-    closeModal(); setSaving(false);
-  }
-  async function deletePlan(id, deleteAll=false) {
-    const plan = plans.find(p=>p.id===id);
-    if (!plan) return;
-    if (deleteAll && plan.recurringFrom) {
-      // Delete all events from the same series
-      const series = plans.filter(p=>p.recurringFrom===plan.recurringFrom||p.id===plan.recurringFrom);
-      if (window.confirm(`Remove all ${series.length+1} events in this series?`)) {
-        await Promise.all([...series.map(p=>deleteDoc(doc(db,"planned_streams",p.id))), deleteDoc(doc(db,"planned_streams",id))]);
-      }
-    } else {
-      if (window.confirm("Remove this planned stream?")) await deleteDoc(doc(db,"planned_streams",id));
-    }
-  }
-
-  const [vacModal,    setVacModal]    = useState(false);
-  const [vacForm,     setVacForm]     = useState({ breaker:BREAKERS[0], startDate:"", endDate:"", note:"" });
-  const [editVacId,   setEditVacId]   = useState(null);
-  const [savingVac,   setSavingVac]   = useState(false);
-
-  function vacationsForDate(ds) {
-    return vacations.filter(v => ds >= v.startDate && ds <= v.endDate);
-  }
-  function vacationsForMonth(y, m) {
-    const first = dateStr(y, m, 1);
-    const last  = dateStr(y, m, daysInMonth(y, m));
-    return vacations.filter(v => v.startDate <= last && v.endDate >= first);
-  }
-  async function saveVacation() {
-    if (!vacForm.startDate || !vacForm.endDate || !vacForm.breaker) return;
-    setSavingVac(true);
-    const id = editVacId || uid();
-    await setDoc(doc(db,"breaker_vacations",id), { ...vacForm, updatedAt:new Date().toISOString() });
-    setVacModal(false); setEditVacId(null); setVacForm({ breaker:BREAKERS[0], startDate:"", endDate:"", note:"" });
-    setSavingVac(false);
-  }
-  async function deleteVacation(id) {
-    if (window.confirm("Remove this time-off entry?")) await deleteDoc(doc(db,"breaker_vacations",id));
-  }
-
-  async function saveAsTemplate(name) {
-    if (!name.trim()) return;
-    const { repeat, repeatDays, repeatUntil, estRevenue, estMultiple, ...tplData } = form;
-    await setDoc(doc(db,"stream_templates",uid()), { ...tplData, name:name.trim(), createdAt:new Date().toISOString() });
-    setTemplateName(""); setSavingTemplate(false);
-  }
-  async function deleteTemplate(id) {
-    if (window.confirm("Delete this template?")) await deleteDoc(doc(db,"stream_templates",id));
-  }
-  function applyTemplate(t) {
-    setForm(p=>({ ...p, breaker:t.breaker||p.breaker, products:t.products?.map(pr=>({...pr,id:uid()}))||p.products, sessionType:t.sessionType||p.sessionType, notes:t.notes||p.notes, streamName:t.streamName||p.streamName, estRevenue:"", estMultiple:"" }));
-    setShowTemplates(false);
-  }
-
-  // Get all weeks (Sunday starts) in current month view
-  function getWeeksInMonth(y, m) {
-    const weeks = [];
-    const days = daysInMonth(y, m);
-    for (let d=1; d<=days; d++) {
-      const ds = dateStr(y, m, d);
-      const dow = new Date(ds+"T12:00:00").getDay();
-      if (dow === 0 || d === 1) {
-        // Sunday = start of week
-        const weekStart = dow === 0 ? ds : (() => {
-          const prev = new Date(ds+"T12:00:00"); prev.setDate(prev.getDate()-dow);
-          return prev.toISOString().slice(0,10);
-        })();
-        if (!weeks.find(w=>w===weekStart)) weeks.push(weekStart);
-      }
-    }
-    return weeks;
-  }
-
-  async function copyWeek() {
-    if (!copyWeekSrc || !copyWeekDst) return;
-    setCopyingWeek(true);
-    const srcStart = new Date(copyWeekSrc+"T12:00:00");
-    const dstStart = new Date(copyWeekDst+"T12:00:00");
-    const diffMs   = dstStart - srcStart;
-    const diffDays = Math.round(diffMs / 86400000);
-    // Find all plans in src week (Sun–Sat)
-    const srcEnd = new Date(srcStart); srcEnd.setDate(srcStart.getDate()+6);
-    const srcEndStr = srcEnd.toISOString().slice(0,10);
-    const weekPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEndStr);
-    if (weekPlans.length === 0) { setCopyingWeek(false); setCopyWeekModal(false); return; }
-    await Promise.all(weekPlans.map(p=>{
-      const newDate = new Date(p.date+"T12:00:00");
-      newDate.setDate(newDate.getDate()+diffDays);
-      const newDs = newDate.toISOString().slice(0,10);
-      const { id:_id, isRecurring:_r, recurringFrom:_rf, ...rest } = p;
-      return setDoc(doc(db,"planned_streams",uid()), { ...rest, date:newDs, updatedAt:new Date().toISOString() });
-    }));
-    setCopyingWeek(false); setCopyWeekModal(false);
-  }
-  function monthPlans(y,m) { return plans.filter(p=>{const d=p.date||"";return d.startsWith(monthKey(y,m));}); }
-  function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
-  function planMktValue(p) { return (p.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0); }
-  function estimateRevenue(p, mult=1.5) { return planMktValue(p) * mult; }
-  function projectedRevenue(planList, mult=1.5) {
-    return planList.reduce((s,p) => {
-      const mkt = planMktValue(p);
-      if (mkt > 0) {
-        // If a multiple was explicitly chosen (via tier button), use it. Otherwise always default to 1.5x.
-        const storedMult = parseFloat(p.estMultiple);
-        const effectiveMult = (storedMult >= 0.5 && storedMult <= 5) ? storedMult : mult;
-        return s + mkt * effectiveMult;
-      }
-      // No products — use manually entered estRevenue as-is
-      return s + (parseFloat(p.estRevenue)||0);
-    }, 0);
-  }
-  function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
-  function totalMonthMkt(y,m) { return monthPlans(y,m).reduce((s,p)=>s+planMktValue(p),0); }
-  // Always returns revenue based on current SKU prices when products exist
-  function liveRevenue(p) {
-    const mkt = planMktValue(p);
-    if (mkt > 0) {
-      const mult = parseFloat(p.estMultiple) || (p.estRevenue && mkt > 0 ? parseFloat(p.estRevenue)/mkt : 1.5);
-      const effectiveMult = mult > 0.5 && mult < 5 ? mult : 1.5;
-      return mkt * effectiveMult;
-    }
-    return parseFloat(p.estRevenue) || 0;
-  }
-
-  // -- Inventory needs --
-  const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
-  const totalActualStreams = streams.length || 1;
-  const burnPerStream = {};
-  CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=0; });
-  breaks.forEach(b=>{ const ct=USAGE_TO_CT2[b.usage]||b.cardType; if(ct&&burnPerStream[ct]!==undefined)burnPerStream[ct]+=b.isPoolLog?(parseInt(b.qty)||1):1; });
-  CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=burnPerStream[ct]/totalActualStreams; });
-  const invAvail = {};
-  CARD_TYPES.forEach(ct=>{
-    const indiv = inventory.filter(c=>c.cardType===ct&&!breaks.find(b=>!b.isPoolLog&&b.inventoryId===c.id)).length;
-    const poolAvail = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
-    invAvail[ct] = indiv + poolAvail;
-  });
-
-  // -- Quarter calcs --
-  const quarterMonths = [0,1,2].map(i=>{ const m=(curMonth+i)%12; const y=curYear+(curMonth+i>=12?1:0); return{y,m}; });
-
-  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const BC_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF" };
-
-  // -- Calendar grid --
-  function renderCalendar(y, m, compact=false) {
-    const days = daysInMonth(y,m);
-    const startDow = firstDow(y,m);
-    const mPlans = monthPlans(y,m);
-    const mActuals = monthActuals(y,m);
-    const mKey = monthKey(y,m);
-    const target = parseFloat(monthTargets[mKey])||0;
-    const projRev = projectedRevenue(mPlans);
-    const actRev = actualRevenue(mActuals);
-
-    return (
-      <div style={{ ...S2.card, padding:compact?"12px":"16px 20px" }}>
-        {/* Month header */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-          <div>
-            <div style={{ fontSize:compact?14:18, fontWeight:900, color:"#F0F0F0" }}>{MONTH_NAMES[m]} {y}</div>
-            <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
-              {mPlans.length} planned · {mActuals.length} done
-              {canSeeFinancials && projRev>0 && <span style={{color:"#E8317A",marginLeft:8}}>{fmt2(projRev)} projected</span>}
-              {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80",marginLeft:8}}>{fmt2(actRev)} actual</span>}
-            </div>
-          </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {!compact && (
-              <>
-                {canSeeFinancials && <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:11,color:"#555"}}>Target:</span>
-                  <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
-                </div>}
-                <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>‹</button>
-                <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>›</button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Target progress bar */}
-        {canSeeFinancials && target > 0 && !compact && (
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:11,color:"#555"}}>Revenue progress</span>
-              <span style={{fontSize:11,fontWeight:700,color:actRev>=target?"#4ade80":projRev>=target?"#FBBF24":"#E8317A"}}>
-                {fmt2(actRev)} actual · {fmt2(projRev)} projected · {fmt2(target)} target
-              </span>
-            </div>
-            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",position:"relative"}}>
-              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,projRev/target*100)}%`,background:"rgba(251,191,36,0.3)",borderRadius:3,transition:"width 0.3s"}}/>
-              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,actRev/target*100)}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:3,transition:"width 0.3s"}}/>
-            </div>
-          </div>
-        )}
-
-        {/* DOW headers */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
-          {DOW.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#333",padding:"2px 0"}}>{d}</div>)}
-        </div>
-
-        {/* Day grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-          {Array.from({length:startDow}).map((_,i)=><div key={`e${i}`}/>)}
-          {Array.from({length:days}).map((_,i)=>{
-            const day = i+1;
-            const ds = dateStr(y,m,day);
-            const dayPlans = plansForDate(ds);
-            const dayActuals = actualForDate(ds);
-            const isToday = ds===dateStr(today.getFullYear(),today.getMonth(),today.getDate());
-            const isPast = new Date(ds) < new Date(dateStr(today.getFullYear(),today.getMonth(),today.getDate()));
-            // Heat map: estimate revenue for this day
-            const dayProjRev = dayPlans.reduce((s,p)=>s+(liveRevenue(p)),0);
-            const dayActRev  = dayActuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-            const heatRev    = dayActRev || dayProjRev;
-            const maxRev     = Math.max(...Array.from({length:days},(_,j)=>{
-              const d2=dateStr(y,m,j+1);
-              const p2=plansForDate(d2).reduce((s,p)=>s+(liveRevenue(p)),0);
-              const a2=actualForDate(d2).reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-              return a2||p2;
-            }), 1);
-            const heatPct = maxRev > 0 ? heatRev/maxRev : 0;
-            const isMissed = dayPlans.length > 0 && dayActuals.length === 0 && isPast;
-            const heatBg = heatRev > 0
-              ? dayActRev > 0
-                ? `rgba(74,222,128,${0.05+heatPct*0.18})`
-                : isMissed
-                  ? `rgba(251,191,36,0.08)`
-                  : `rgba(123,156,255,${0.06+heatPct*0.16})`
-              : isPast ? "#0a0a0a" : "#111";
-            const heatBorder = isToday ? "#E8317A44"
-              : isMissed ? "rgba(251,191,36,0.25)"
-              : heatRev>0 ? (dayActRev>0 ? "rgba(74,222,128,0.15)" : "rgba(123,156,255,0.12)")
-              : "#1a1a1a";
-            return (
-              <div key={day} onClick={()=>openModal(ds)}
-                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":heatBg,border:`1px solid ${heatBorder}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="#1e1e2a"}
-                onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":heatBg}>
-                <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
-                {/* Vacation bands */}
-                {vacationsForDate(ds).map(v=>{
-                  const bc = BC_COLORS[v.breaker]||"#888";
-                  const isStart = v.startDate===ds;
-                  const isEnd   = v.endDate===ds;
-                  return (
-                    <div key={v.id} style={{fontSize:8,fontWeight:700,color:"#fff",background:"rgba(220,38,38,0.75)",borderRadius:isStart&&isEnd?3:isStart?"3px 0 0 3px":isEnd?"0 3px 3px 0":0,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"line-through",textDecorationColor:"rgba(255,255,255,0.6)"}}>
-                      {isStart?`🏖 ${v.breaker}`:isEnd?"← back":"·· "+v.breaker}
-                    </div>
-                  );
-                })}
-                {dayActuals.slice(0,1).map(a=>(
-                  <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    ✅ {a.streamName||a.breaker||"Stream"}
-                  </div>
-                ))}
-                {dayPlans.slice(0,compact?1:2).map(p=>(
-                  <div key={p.id} style={{fontSize:8,fontWeight:700,color:isMissed?"#FBBF24":BC_COLORS[p.breaker]||"#E8317A",background:isMissed?"rgba(251,191,36,0.12)":"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {isMissed?"⚠️":p.isRecurring?"🔁":"📋"} {p.streamName||p.breaker||"Plan"}
-                  </div>
-                ))}
-                {dayPlans.length>2&&!compact&&<div style={{fontSize:7,color:"#555"}}>+{dayPlans.length-2} more</div>}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Vacation summary for this month */}
-        {!compact && (() => {
-          const mVacs = vacationsForMonth(y, m);
-          return (
-            <div style={{marginTop:12,borderTop:"1px solid #1a1a1a",paddingTop:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mVacs.length>0?8:0}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#555"}}>🏖 Time Off</span>
-                <button onClick={()=>{setVacForm({breaker:BREAKERS[0],startDate:dateStr(y,m,1),endDate:dateStr(y,m,1),note:""});setEditVacId(null);setVacModal(true);}}
-                  style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:7,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                  + Add Time Off
-                </button>
-              </div>
-              {mVacs.length > 0 && (
-                <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {mVacs.map(v=>{
-                    const bc = BC_COLORS[v.breaker]||"#888";
-                    const days = Math.round((new Date(v.endDate+"T12:00:00")-new Date(v.startDate+"T12:00:00"))/86400000)+1;
-                    return (
-                      <div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",background:`${bc}10`,border:`1px solid ${bc}22`,borderRadius:7}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{fontSize:12,fontWeight:700,color:bc}}>{v.breaker}</span>
-                          <span style={{fontSize:11,color:"#555"}}>{v.startDate.slice(5).replace("-","/")} → {v.endDate.slice(5).replace("-","/")} · {days} day{days!==1?"s":""}</span>
-                          {v.note&&<span style={{fontSize:10,color:"#444"}}>{v.note}</span>}
-                        </div>
-                        <div style={{display:"flex",gap:4}}>
-                          <button onClick={()=>{setVacForm({breaker:v.breaker,startDate:v.startDate,endDate:v.endDate,note:v.note||""});setEditVacId(v.id);setVacModal(true);}}
-                            style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:5,padding:"2px 7px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
-                          <button onClick={()=>deleteVacation(v.id)}
-                            style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
-    );
-  }
-
-  // -- Inventory needs section --
-  function renderInventoryNeeds() {
-    const mPlans = monthPlans(curYear, curMonth);
-    const planned = mPlans.length;
-    if (planned === 0) return null;
-
-    function saveBurnRate(ct, val) {
-      const next = { ...burnRateOverrides, [ct]: val };
-      setBurnRateOverrides(next);
-      try { localStorage.setItem("stream_burn_rates", JSON.stringify(next)); } catch(e) {}
-    }
-
-    return (
-      <div style={S2.card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>🃏 Card Inventory Needs — {MONTH_NAMES[curMonth]}</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>
-              {planned} planned stream{planned!==1?"s":""} · edit cards/stream to override the estimate
-            </div>
-          </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-          {CARD_TYPES.map(ct=>{
-            const histRate = burnPerStream[ct];
-            const override = burnRateOverrides[ct];
-            const rateToUse = override !== undefined && override !== "" ? parseFloat(override)||0 : histRate;
-            const needed = Math.ceil(rateToUse * planned);
-            const avail  = invAvail[ct];
-            const ok     = avail >= needed;
-            const pct    = needed > 0 ? Math.min(100, avail/needed*100) : 100;
-            const cc     = CC[ct]||{text:"#888",bg:"#111",border:"#222"};
-            const isOverridden = override !== undefined && override !== "";
-            return (
-              <div key={ct} style={{background:"#1a1a1a",border:`1px solid ${ok?"#2a2a2a":"#E8317A33"}`,borderRadius:8,padding:"12px 14px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:12,fontWeight:700,color:cc.text}}>{ct.replace(" Cards","")}</span>
-                  <span style={{fontSize:11,fontWeight:700,color:ok?"#4ade80":"#E8317A"}}>{avail} avail / {needed} needed</span>
-                </div>
-                {/* Cards per stream edit */}
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#555",flexShrink:0}}>Per stream:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={override !== undefined ? override : ""}
-                    onChange={e=>saveBurnRate(ct, e.target.value)}
-                    placeholder={histRate > 0 ? histRate.toFixed(1) : "0"}
-                    style={{background:"#111",border:`1px solid ${isOverridden?"rgba(123,156,255,0.4)":"#2a2a2a"}`,borderRadius:6,color:isOverridden?"#7B9CFF":"#F0F0F0",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:70}}
-                  />
-                  {isOverridden && (
-                    <button onClick={()=>saveBurnRate(ct,"")} title="Reset to historical avg"
-                      style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>↩</button>
-                  )}
-                  <span style={{fontSize:10,color:"#333",marginLeft:2}}>
-                    {isOverridden ? "manual" : histRate>0 ? "avg" : "no data"}
-                  </span>
-                </div>
-                <div style={{height:4,background:"#111",borderRadius:2,overflow:"hidden",marginBottom:4}}>
-                  <div style={{height:"100%",width:`${pct}%`,background:ok?"#4ade80":"#E8317A",borderRadius:2,transition:"width 0.3s"}}/>
-                </div>
-                <div style={{fontSize:10,color:ok?"#555":"#E8317A"}}>{ok ? `${avail-needed} buffer` : `⚠ Need ${needed-avail} more`}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // -- Product / Boxes Summary --
-  function renderProductSummary() {
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    if (mPlans.length === 0) return null;
-
-    const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
-    const PT_EMOJI  = {"Double Mega":"📦","Hobby":"📬","Jumbo":"📫","Miscellaneous":"🗃️"};
-
-    // Planned boxes per type from plan.products
-    const plannedBoxes = {};
-    const plannedMkt   = {};
-    PRODUCT_TYPES.forEach(pt=>{ plannedBoxes[pt]=0; plannedMkt[pt]=0; });
-    mPlans.forEach(p=>{
-      (p.products||[]).forEach(pr=>{
-        if(!pr.type||!PRODUCT_TYPES.includes(pr.type)) return;
-        const qty = parseInt(pr.qty)||0;
-        plannedBoxes[pr.type] += qty;
-        plannedMkt[pr.type]   += qty * (parseFloat(skuPrices[pr.type])||0);
-      });
-    });
-
-    // Actual boxes ripped from logged streams (prod_Double Mega, prod_Hobby, etc.)
-    const actualBoxes = {};
-    PRODUCT_TYPES.forEach(pt=>{ actualBoxes[pt]=0; });
-    mActuals.forEach(s=>{
-      PRODUCT_TYPES.forEach(pt=>{
-        actualBoxes[pt] += parseInt(s[`prod_${pt}`])||0;
-      });
-    });
-
-    const totalPlannedBoxes = PRODUCT_TYPES.reduce((s,pt)=>s+plannedBoxes[pt],0);
-    const totalActualBoxes  = PRODUCT_TYPES.reduce((s,pt)=>s+actualBoxes[pt],0);
-    const totalPlannedMkt   = PRODUCT_TYPES.reduce((s,pt)=>s+plannedMkt[pt],0);
-    if (totalPlannedBoxes === 0) return null;
-
-    // Avg boxes per stream from history
-    const avgBoxesPerStream = {};
-    PRODUCT_TYPES.forEach(pt=>{ avgBoxesPerStream[pt] = streams.length > 0 ? streams.reduce((s,str)=>s+(parseInt(str[`prod_${pt}`])||0),0)/streams.length : 0; });
-
-    return (
-      <div style={S2.card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📦 Boxes to Rip — {MONTH_NAMES[curMonth]}</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>
-              {totalPlannedBoxes} total planned · {totalActualBoxes > 0 ? `${totalActualBoxes} ripped so far · ` : ""}{fmt2(totalPlannedMkt)} market value
-            </div>
-          </div>
-          <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:22,fontWeight:900,color:"#7B9CFF"}}>{totalPlannedBoxes}</div>
-              <div style={{fontSize:10,color:"#555"}}>boxes planned</div>
-            </div>
-            {totalActualBoxes > 0 && (
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{totalActualBoxes}</div>
-                <div style={{fontSize:10,color:"#555"}}>ripped so far</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:14}}>
-          {PRODUCT_TYPES.filter(pt=>plannedBoxes[pt]>0).map(pt=>{
-            const planned = plannedBoxes[pt];
-            const actual  = actualBoxes[pt];
-            const mkt     = plannedMkt[pt];
-            const color   = PT_COLORS[pt]||"#888";
-            const pct     = planned > 0 ? Math.min(100, actual/planned*100) : 0;
-            return (
-              <div key={pt} style={{background:"#1a1a1a",border:`1px solid ${actual>=planned&&actual>0?"rgba(74,222,128,0.2)":"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <span style={{fontSize:12,fontWeight:700,color}}>{PT_EMOJI[pt]||"📦"} {pt}</span>
-                  {actual >= planned && actual > 0 && <span style={{fontSize:10,color:"#4ade80",fontWeight:700}}>✅ Done</span>}
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
-                  <div style={{textAlign:"center",background:"rgba(0,0,0,0.3)",borderRadius:6,padding:"6px 4px"}}>
-                    <div style={{fontSize:18,fontWeight:900,color}}>{planned}</div>
-                    <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Planned</div>
-                  </div>
-                  <div style={{textAlign:"center",background:"rgba(0,0,0,0.3)",borderRadius:6,padding:"6px 4px"}}>
-                    <div style={{fontSize:18,fontWeight:900,color:actual>0?"#4ade80":"#333"}}>{actual || "—"}</div>
-                    <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Ripped</div>
-                  </div>
-                </div>
-                {actual > 0 && (
-                  <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden",marginBottom:6}}>
-                    <div style={{height:"100%",width:`${pct}%`,background:"#4ade80",borderRadius:2,transition:"width 0.3s"}}/>
-                  </div>
-                )}
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#555"}}>
-                  <span>{fmt2(mkt)} mkt value</span>
-                  {skuPrices[pt]&&<span>{fmt2(parseFloat(skuPrices[pt]))} /box</span>}
-                </div>
-                {avgBoxesPerStream[pt]>0&&<div style={{fontSize:10,color:"#444",marginTop:3}}>~{avgBoxesPerStream[pt].toFixed(1)}/stream historically</div>}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Per-stream product breakdown */}
-        {mPlans.some(p=>(p.products||[]).some(pr=>pr.type&&parseInt(pr.qty)>0)) && (
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>By Stream</div>
-            <div style={{display:"flex",flexDirection:"column",gap:5}}>
-              {mPlans.filter(p=>(p.products||[]).some(pr=>pr.type&&parseInt(pr.qty)>0)).sort((a,b)=>a.date.localeCompare(b.date)).map(p=>{
-                const streamBoxes = (p.products||[]).filter(pr=>pr.type&&parseInt(pr.qty)>0);
-                const streamMkt = streamBoxes.reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
-                const actual = actualForDate(p.date);
-                const wasLogged = actual.length > 0;
-                return (
-                  <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:wasLogged?"rgba(74,222,128,0.04)":"rgba(0,0,0,0.3)",border:`1px solid ${wasLogged?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)"}`,borderRadius:8,flexWrap:"wrap",gap:6}}>
-                    <div>
-                      <span style={{fontSize:12,fontWeight:700,color:wasLogged?"#4ade80":"#F0F0F0"}}>{wasLogged?"✅ ":""}{p.streamName||p.breaker}</span>
-                      <span style={{fontSize:10,color:"#555",marginLeft:8}}>{p.date}</span>
-                    </div>
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                      {streamBoxes.map(pr=>(
-                        <span key={pr.id} style={{fontSize:11,fontWeight:700,color:PT_COLORS[pr.type]||"#888",background:"rgba(0,0,0,0.4)",borderRadius:5,padding:"2px 8px"}}>
-                          {pr.qty}× {pr.type}
-                        </span>
-                      ))}
-                      {streamMkt > 0 && <span style={{fontSize:11,color:"#555"}}>{fmt2(streamMkt)} mkt</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-  function renderMonthSummary() {
-    const mPlans = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    if (mPlans.length===0 && mActuals.length===0) return null;
-    const breakerPlan = {};
-    BREAKERS.forEach(b=>{ breakerPlan[b]={planned:0,projRev:0}; });
-    mPlans.forEach(p=>{ if(breakerPlan[p.breaker]){ breakerPlan[p.breaker].planned++; breakerPlan[p.breaker].projRev+=liveRevenue(p); } });
-    return (
-      <div style={S2.card}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>👥 By Breaker — {MONTH_NAMES[curMonth]}</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
-          {BREAKERS.map(b=>{
-            const bp=breakerPlan[b];
-            const bc=BC[b]||{text:"#888"};
-            const bActuals=mActuals.filter(a=>a.breaker===b);
-            return (
-              <div key={b} style={{background:"#1a1a1a",border:`1px solid ${bc.border||"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
-                <div style={{fontSize:14,fontWeight:900,color:bc.text,marginBottom:8}}>{b}</div>
-                <div style={{fontSize:11,color:"#555",marginBottom:3}}>Planned: <strong style={{color:"#F0F0F0"}}>{bp.planned} streams</strong></div>
-                <div style={{fontSize:11,color:"#555",marginBottom:3}}>Actual: <strong style={{color:"#4ade80"}}>{bActuals.length} done</strong></div>
-                {canSeeFinancials && bp.projRev>0&&<div style={{fontSize:11,color:"#555"}}>Projected: <strong style={{color:"#E8317A"}}>{fmt2(bp.projRev)}</strong></div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // -- Month Health Score --
-  function getHealthScore() {
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    const mKey     = monthKey(curYear, curMonth);
-    const target   = parseFloat(monthTargets[mKey]) || 0;
-    const actRev   = actualRevenue(mActuals);
-    const projRev  = projectedRevenue(mPlans);
-    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const pastPlans = mPlans.filter(p=>p.date<=todayStr);
-    const projSoFar = projectedRevenue(pastPlans);
-    let score = 0;
-
-    // Pace (40pts) — only judge streams that were DUE, not future ones
-    if (pastPlans.length === 0) {
-      score += 40; // no streams due yet, full marks
-    } else if (projSoFar > 0) {
-      score += Math.min(40, Math.round((actRev/projSoFar)*40));
-    } else {
-      score += 40; // due streams had no projected revenue, neutral
-    }
-
-    // Projection vs target (30pts) — full marks if no target set
-    if (target > 0) score += Math.min(30, Math.round((projRev/target)*30));
-    else score += 30;
-
-    // Inventory (30pts) — based on planned streams this month
-    const planned = mPlans.length;
-    if (planned > 0) {
-      const invOk = CARD_TYPES.filter(ct=>{
-        const override = burnRateOverrides[ct];
-        const rate = override!==""&&override!==undefined ? parseFloat(override)||0 : burnPerStream[ct];
-        return invAvail[ct] >= Math.ceil(rate*planned);
-      }).length;
-      score += Math.round((invOk/CARD_TYPES.length)*30);
-    } else {
-      score += 30;
-    }
-
-    const grade = score>=90?"A":score>=75?"B":score>=60?"C":"D";
-    const color = score>=90?"#4ade80":score>=75?"#FBBF24":score>=60?"#F97316":"#E8317A";
-    return { score, grade, color };
-  }
-
-  // -- Tomorrow Alert --
-  function renderTomorrowAlert() {
-    const tmrw = new Date(today); tmrw.setDate(today.getDate()+1);
-    const tmrwStr = dateStr(tmrw.getFullYear(), tmrw.getMonth(), tmrw.getDate());
-    const tmrwPlans = plansForDate(tmrwStr);
-    if (tmrwPlans.length === 0) return null;
-    const issues = CARD_TYPES.filter(ct=>{
-      const override = burnRateOverrides[ct];
-      const rate = override!==""&&override!==undefined ? parseFloat(override)||0 : burnPerStream[ct];
-      return invAvail[ct] < Math.ceil(rate);
-    });
-    if (issues.length === 0) return null;
-    return (
-      <div style={{background:"rgba(251,191,36,0.06)",border:"2px solid rgba(251,191,36,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-        <span style={{fontSize:18}}>⚠️</span>
-        <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>Stream tomorrow — inventory may be short</div>
-          <div style={{fontSize:11,color:"#555",marginTop:2}}>
-            {tmrwPlans.map(p=>p.streamName||p.breaker).join(", ")} · Short on: {issues.map(ct=>ct.replace(" Cards","")).join(", ")}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // -- Stream Scorecard --
-  function renderStreamScorecard() {
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    if (mActuals.length === 0) return null;
-    const scored = mPlans.map(p=>{
-      const actuals = actualForDate(p.date);
-      if (!actuals.length) return null;
-      const actual = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-      const planned = liveRevenue(p);
-      const pct = planned > 0 ? actual/planned : 1;
-      const grade = pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D";
-      const color = pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A";
-      return { ...p, actual, planned, pct, grade, color };
-    }).filter(Boolean).sort((a,b)=>b.date.localeCompare(a.date));
-    const latest = scored[0];
-    if (!latest) return null;
-    return (
-      <div style={{background:"rgba(0,0,0,0.3)",border:`2px solid ${latest.color}33`,borderRadius:12,padding:"14px 18px"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🏆 Last Stream Scorecard</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>{latest.streamName||latest.breaker}</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>{latest.date}</div>
-          </div>
-          <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Plan</div><div style={{fontSize:16,fontWeight:900,color:"#FBBF24"}}>{fmt2(latest.planned)}</div></div>
-            <div style={{fontSize:20,color:"#333"}}>→</div>
-            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Actual</div><div style={{fontSize:16,fontWeight:900,color:"#4ade80"}}>{fmt2(latest.actual)}</div></div>
-            <div style={{textAlign:"center",background:latest.color+"22",border:`2px solid ${latest.color}44`,borderRadius:10,padding:"8px 16px"}}>
-              <div style={{fontSize:28,fontWeight:900,color:latest.color,lineHeight:1}}>{latest.grade}</div>
-              <div style={{fontSize:10,color:"#555",marginTop:2}}>{(latest.pct*100).toFixed(0)}% of plan</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // -- Best Day Predictor --
-  function renderBestDayPredictor() {
-    if (!canSeeFinancials) return null;
-    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const days = daysInMonth(curYear, curMonth);
-    const openDays = [];
-    for (let d=1; d<=days; d++) {
-      const ds = dateStr(curYear, curMonth, d);
-      if (ds <= todayStr) continue;
-      const dow = new Date(ds+"T12:00:00").getDay();
-      if (plansForDate(ds).length === 0) openDays.push({ ds, dow });
-    }
-    if (openDays.length === 0) return null;
-    const dowRevs = Array.from({length:7},()=>({count:0,total:0}));
-    streams.forEach(s=>{ if(!s.date||!s.grossRevenue)return; const d=new Date(s.date+"T12:00:00").getDay(); dowRevs[d].count++; dowRevs[d].total+=parseFloat(s.grossRevenue)||0; });
-    const dowAvg = dowRevs.map(d=>d.count>0?d.total/d.count:0);
-    const byDow = {};
-    openDays.forEach(d=>{ if(!byDow[d.dow])byDow[d.dow]=[]; byDow[d.dow].push(d); });
-    const insights = Object.entries(byDow)
-      .filter(([dow])=>dowAvg[dow]>0)
-      .map(([dow,days])=>({ dow:parseInt(dow), count:days.length, avg:dowAvg[dow], potential:days.length*dowAvg[dow], days }))
-      .sort((a,b)=>b.potential-a.potential).slice(0,3);
-    if (insights.length === 0) return null;
-    const DOW_FULL = ["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"];
-    return (
-      <div style={{background:"rgba(123,156,255,0.04)",border:"1px solid rgba(123,156,255,0.12)",borderRadius:12,padding:"14px 18px"}}>
-        <div style={{fontSize:12,fontWeight:800,color:"#7B9CFF",marginBottom:10}}>💡 Best Day Opportunities</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {insights.map(({dow,count,avg,potential,days})=>(
-            <div key={dow} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:8}}>
-              <div>
-                <span style={{fontSize:12,fontWeight:700,color:"#7B9CFF"}}>{count} open {DOW_FULL[dow]}</span>
-                <span style={{fontSize:11,color:"#555",marginLeft:8}}>~{fmt2(avg)}/stream historically</span>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <span style={{fontSize:13,fontWeight:900,color:"#4ade80"}}>+{fmt2(potential)} potential</span>
-                <span style={{fontSize:10,color:"#555",display:"block"}}>{days.map(d=>d.ds.slice(5).replace("-","/")).join(", ")}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // -- Streak Tracker --
-  function renderStreakTracker() {
-    if (!canSeeFinancials) return null;
-    if (streams.length === 0) return null;
-
-    // Group streams by month, calc weighted avg market multiple per month
-    const monthData = {};
-    streams.forEach(s => {
-      if (!s.date || !s.grossRevenue) return;
-      const mk = s.date.slice(0,7); // "YYYY-MM"
-      if (!monthData[mk]) monthData[mk] = { gross:0, weightedMult:0, count:0 };
-      const gross = parseFloat(s.grossRevenue)||0;
-      const mult  = parseFloat(s.marketMultiple)||0;
-      monthData[mk].gross += gross;
-      if (mult > 0) monthData[mk].weightedMult += gross * mult;
-      monthData[mk].count++;
-    });
-
-    // Resolve monthly multiple
-    const months = Object.keys(monthData).sort();
-    const monthResults = months.map(mk => {
-      const d = monthData[mk];
-      const avgMult = d.gross > 0 && d.weightedMult > 0 ? d.weightedMult / d.gross : null;
-      const tier = avgMult === null ? null : avgMult >= 1.9 ? 1.9 : avgMult >= 1.7 ? 1.7 : avgMult >= 1.5 ? 1.5 : null;
-      return { mk, gross:d.gross, avgMult, tier, count:d.count };
-    });
-
-    // Calculate streaks for each tier threshold
-    function calcStreak(threshold) {
-      let current = 0, best = 0, bestStart = "", curStart = "";
-      monthResults.forEach(r => {
-        if (r.tier !== null && r.tier >= threshold) {
-          if (current === 0) curStart = r.mk;
-          current++;
-          if (current > best) { best = current; bestStart = curStart; }
-        } else {
-          current = 0; curStart = "";
-        }
-      });
-      return { current, best, bestStart };
-    }
-
-    const s15 = calcStreak(1.5);
-    const s17 = calcStreak(1.7);
-    const s19 = calcStreak(1.9);
-
-    // Last 6 months for sparkline
-    const last6 = monthResults.slice(-6);
-
-    const TIER_CFG = [
-      { label:"1.5x+", sublabel:"Minimum", streak:s15, color:"#FBBF24" },
-      { label:"1.7x+", sublabel:"Good",    streak:s17, color:"#4ade80" },
-      { label:"1.9x+", sublabel:"Great",   streak:s19, color:"#E8317A" },
-    ];
-
-    return (
-      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>🔥 Streak Tracker</div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
-          {TIER_CFG.map(({label,sublabel,streak,color})=>(
-            <div key={label} style={{background:`${color}08`,border:`1px solid ${color}22`,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
-              <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{label} {sublabel}</div>
-              <div style={{fontSize:32,fontWeight:900,color,lineHeight:1}}>{streak.current}</div>
-              <div style={{fontSize:10,color:"#555",marginTop:4}}>month streak</div>
-              {streak.best > 0 && streak.best !== streak.current && (
-                <div style={{fontSize:10,color:"#333",marginTop:4}}>Best: {streak.best} mo.</div>
-              )}
-              {streak.current > 0 && streak.current === streak.best && streak.best > 1 && (
-                <div style={{fontSize:10,color,marginTop:4,fontWeight:700}}>🏆 Personal best!</div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Month-by-month history */}
-        {last6.length > 0 && (
-          <div>
-            <div style={{fontSize:10,fontWeight:700,color:"#333",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Last {last6.length} months</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {last6.map(r=>{
-                const color = r.tier===1.9?"#E8317A":r.tier===1.7?"#4ade80":r.tier===1.5?"#FBBF24":"#333";
-                const label = r.tier===1.9?"1.9x":r.tier===1.7?"1.7x":r.tier===1.5?"1.5x":r.avgMult?`${r.avgMult.toFixed(1)}x`:"—";
-                const [y,m] = r.mk.split("-");
-                return (
-                  <div key={r.mk} style={{flex:1,minWidth:60,background:`${color}12`,border:`1px solid ${color}33`,borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
-                    <div style={{fontSize:9,color:"#555",marginBottom:4}}>{MONTH_NAMES[parseInt(m)-1].slice(0,3)} {y.slice(2)}</div>
-                    <div style={{fontSize:13,fontWeight:900,color}}>{label}</div>
-                    <div style={{fontSize:9,color:"#333",marginTop:3}}>{fmt2(r.gross)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -- Month-over-Month Comparison --
-  function renderMonthOverMonth() {
-    if (!canSeeFinancials) return null;
-
-    // Last month
-    const lmMonth = curMonth === 0 ? 11 : curMonth - 1;
-    const lmYear  = curMonth === 0 ? curYear - 1 : curYear;
-
-    const thisPlans   = monthPlans(curYear, curMonth);
-    const thisActuals = monthActuals(curYear, curMonth);
-    const lastActuals = monthActuals(lmYear, lmMonth);
-
-    if (thisPlans.length === 0 && thisActuals.length === 0 && lastActuals.length === 0) return null;
-
-    const thisProj   = projectedRevenue(thisPlans);
-    const thisAct    = actualRevenue(thisActuals);
-    const lastAct    = actualRevenue(lastActuals);
-    const lastPlans  = monthPlans(lmYear, lmMonth);
-    const lastProj   = projectedRevenue(lastPlans);
-
-    // Per-breaker comparison
-    const breakerRows = BREAKERS.map(b => {
-      const thisBPlans   = thisPlans.filter(p=>p.breaker===b);
-      const thisBActuals = thisActuals.filter(s=>s.breaker===b);
-      const lastBActuals = lastActuals.filter(s=>s.breaker===b);
-      return {
-        breaker: b,
-        thisStreams: thisBActuals.length,
-        thisPlanned: thisBPlans.length,
-        thisRev: actualRevenue(thisBActuals),
-        lastStreams: lastBActuals.length,
-        lastRev: actualRevenue(lastBActuals),
-      };
-    }).filter(r => r.thisPlanned > 0 || r.thisStreams > 0 || r.lastStreams > 0);
-
-    const revDiff   = lastAct > 0 ? thisAct - lastAct : null;
-    const projDiff  = lastAct > 0 ? thisProj - lastAct : null;
-    const streamDiff = thisActuals.length - lastActuals.length;
-
-    const barMax = Math.max(thisProj, thisAct, lastAct, 1);
-
-    return (
-      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📈 Month-over-Month</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>{MONTH_NAMES[lmMonth]} actuals vs {MONTH_NAMES[curMonth]} plan</div>
-          </div>
-          {revDiff !== null && (
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:18,fontWeight:900,color:revDiff>=0?"#4ade80":"#E8317A"}}>{revDiff>=0?"+":""}{fmt2(revDiff)}</div>
-              <div style={{fontSize:10,color:"#555"}}>vs last month actual</div>
-            </div>
-          )}
-        </div>
-
-        {/* Bar comparison */}
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-          {[
-            {label:`${MONTH_NAMES[lmMonth]} Actual`, val:lastAct,  color:"rgba(255,255,255,0.2)"},
-            {label:`${MONTH_NAMES[curMonth]} Projected`, val:thisProj, color:"rgba(251,191,36,0.5)"},
-            ...(thisAct>0?[{label:`${MONTH_NAMES[curMonth]} Actual`, val:thisAct, color:"#4ade80"}]:[]),
-          ].map(({label,val,color})=>(
-            <div key={label} style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:11,color:"#555",width:130,flexShrink:0}}>{label}</span>
-              <div style={{flex:1,height:8,background:"rgba(255,255,255,0.04)",borderRadius:4,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.min(100,val/barMax*100)}%`,background:color,borderRadius:4,transition:"width 0.4s"}}/>
-              </div>
-              <span style={{fontSize:11,fontWeight:700,color:"#888",width:90,textAlign:"right",flexShrink:0}}>{fmt2(val)}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* KPI tiles */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:breakerRows.length>0?14:0}}>
-          {[
-            {l:`${MONTH_NAMES[lmMonth]} Streams`, v:lastActuals.length, c:"#555"},
-            {l:`${MONTH_NAMES[curMonth]} Planned`,  v:thisPlans.length,   c:"#7B9CFF"},
-            ...(thisActuals.length>0?[{l:`${MONTH_NAMES[curMonth]} Done`, v:thisActuals.length, c:"#4ade80"}]:[]),
-            ...(streamDiff!==0?[{l:"Stream Δ", v:(streamDiff>0?"+":"")+streamDiff, c:streamDiff>0?"#4ade80":"#E8317A"}]:[]),
-            ...(projDiff!==null?[{l:"Proj vs Last Act", v:(projDiff>=0?"+":"")+fmt2(projDiff), c:projDiff>=0?"#4ade80":"#E8317A"}]:[]),
-          ].map(({l,v,c})=>(
-            <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
-              <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
-              <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Per-breaker rows */}
-        {breakerRows.length > 0 && (
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:0,marginBottom:4}}>
-              {["Breaker",`${MONTH_NAMES[lmMonth]} Streams`,`${MONTH_NAMES[lmMonth]} Rev`,`${MONTH_NAMES[curMonth]} Planned`,`${MONTH_NAMES[curMonth]} Rev`].map(h=>(
-                <div key={h} style={{fontSize:9,fontWeight:700,color:"#333",textTransform:"uppercase",letterSpacing:1,padding:"4px 8px"}}>{h}</div>
-              ))}
-            </div>
-            {breakerRows.map(r=>{
-              const bc = BC_COLORS[r.breaker]||"#888";
-              const diff = r.lastRev > 0 ? r.thisRev - r.lastRev : null;
-              return (
-                <div key={r.breaker} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:0,borderTop:"1px solid #1a1a1a",padding:"6px 0"}}>
-                  <div style={{fontSize:12,fontWeight:800,color:bc,padding:"0 8px"}}>{r.breaker}</div>
-                  <div style={{fontSize:12,color:"#555",padding:"0 8px"}}>{r.lastStreams} streams</div>
-                  <div style={{fontSize:12,color:"#888",padding:"0 8px"}}>{r.lastRev>0?fmt2(r.lastRev):"—"}</div>
-                  <div style={{fontSize:12,color:"#7B9CFF",padding:"0 8px"}}>{r.thisPlanned} planned</div>
-                  <div style={{fontSize:12,fontWeight:700,padding:"0 8px",color:diff===null?"#555":diff>=0?"#4ade80":"#E8317A"}}>
-                    {r.thisRev>0?fmt2(r.thisRev):"—"}
-                    {diff!==null&&r.thisRev>0&&<span style={{fontSize:10,marginLeft:4}}>({diff>=0?"+":""}{fmt2(diff)})</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -- Revenue Gap Advisor --
-  function renderGapAdvisor() {
-    if (!canSeeFinancials) return null;
-    const mKey    = monthKey(curYear, curMonth);
-    const target  = parseFloat(monthTargets[mKey]) || 0;
-    if (target === 0) return null;
-
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    const actRev   = actualRevenue(mActuals);
-    const projRev  = projectedRevenue(mPlans);
-    const effectiveBase = actRev + projectedRevenue(mPlans.filter(p => p.date > dateStr(today.getFullYear(), today.getMonth(), today.getDate())));
-    const gap = target - effectiveBase;
-    const isStretch = gap <= 0; // already at or over target
-
-    // Historical avg revenue per stream
-    const histRevs = streams.filter(s => parseFloat(s.grossRevenue) > 0).map(s => parseFloat(s.grossRevenue));
-    const avgStreamRev = histRevs.length > 0 ? histRevs.reduce((a,b)=>a+b,0)/histRevs.length : 0;
-
-    // Revenue by day of week from history
-    const dowRevs = Array.from({length:7},()=>({count:0,total:0}));
-    streams.forEach(s => {
-      if (!s.date || !s.grossRevenue) return;
-      const d = new Date(s.date+"T12:00:00");
-      const dow = d.getDay();
-      dowRevs[dow].count++;
-      dowRevs[dow].total += parseFloat(s.grossRevenue)||0;
-    });
-    const dowAvg = dowRevs.map(d => d.count>0 ? d.total/d.count : avgStreamRev);
-    const DOW_NAMES2 = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-
-    // Find open days this month (future, no plan yet)
-    const todayStr2 = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const days = daysInMonth(curYear, curMonth);
-    const openDays = [];
-    for (let d=1; d<=days; d++) {
-      const ds = dateStr(curYear, curMonth, d);
-      if (ds <= todayStr2) continue;
-      const dow = new Date(ds+"T12:00:00").getDay();
-      const existingPlans = plansForDate(ds).length;
-      openDays.push({ ds, dow, avgRev: dowAvg[dow] || avgStreamRev, hasPlans: existingPlans > 0 });
-    }
-    // Sort open days by expected revenue desc
-    openDays.sort((a,b) => b.avgRev - a.avgRev);
-
-    // Option A: Add new streams
-    const topOpenDays = openDays.filter(d => !d.hasPlans).slice(0, 8);
-    let optAStreams = [], optARevenue = 0;
-    for (const d of topOpenDays) {
-      if (optARevenue >= gap) break;
-      optAStreams.push(d);
-      optARevenue += d.avgRev;
-    }
-    const optAGap = Math.max(0, gap - optARevenue);
-
-    // Option B: Upgrade existing planned streams (add a product box)
-    const avgBoxValue = Object.values(skuPrices).filter(v=>parseFloat(v)>0).map(v=>parseFloat(v));
-    const avgBoxMktVal = avgBoxValue.length > 0 ? avgBoxValue.reduce((a,b)=>a+b,0)/avgBoxValue.length : 0;
-    const avgBoxRevLift = avgBoxMktVal * 1.5; // 150% = typical market multiple
-    const futurePlans = mPlans.filter(p => p.date > todayStr2);
-    const upgradesNeeded = avgBoxRevLift > 0 ? Math.ceil(gap / avgBoxRevLift) : null;
-
-    // Best breaker by avg revenue
-    const breakerRevs = {};
-    BREAKERS.forEach(b=>{ breakerRevs[b]={count:0,total:0}; });
-    streams.forEach(s=>{ if(s.breaker&&s.grossRevenue){breakerRevs[s.breaker].count++;breakerRevs[s.breaker].total+=parseFloat(s.grossRevenue)||0;} });
-    const bestBreaker = BREAKERS.sort((a,b)=>(breakerRevs[b].total/Math.max(1,breakerRevs[b].count))-(breakerRevs[a].total/Math.max(1,breakerRevs[a].count)))[0];
-
-    const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-    return (
-      <div style={{background:"rgba(123,156,255,0.04)",border:"2px solid rgba(123,156,255,0.15)",borderRadius:14,padding:"20px 22px"}}>
-        {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:900,color:isStretch?"#4ade80":"#7B9CFF"}}>
-              {isStretch ? "🔥 Stretch Mode — Let's Go Further" : "🎯 Revenue Gap Advisor"}
-            </div>
-            <div style={{fontSize:12,color:"#555",marginTop:3}}>
-              {isStretch
-                ? <>You're <strong style={{color:"#4ade80"}}>{fmt2(Math.abs(gap))} ahead</strong> of your {fmt2(target)} target — here's how to push even further</>
-                : <>You need <strong style={{color:"#E8317A"}}>{fmt2(gap)}</strong> more to hit your {fmt2(target)} target</>
-              }
-            </div>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:22,fontWeight:900,color:isStretch?"#4ade80":"#E8317A"}}>{isStretch?"+":""}{fmt2(isStretch?Math.abs(gap):gap)}</div>
-            <div style={{fontSize:11,color:"#555"}}>{isStretch?"ahead of target":"gap to close"}</div>
-          </div>
-        </div>
-
-        {/* Gap bar */}
-        <div style={{marginBottom:18}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555",marginBottom:4}}>
-            <span>Current projection: {fmt2(effectiveBase)}</span>
-            <span>Target: {fmt2(target)}</span>
-          </div>
-          <div style={{height:10,background:"rgba(255,255,255,0.04)",borderRadius:5,overflow:"hidden",position:"relative"}}>
-            <div style={{position:"absolute",height:"100%",width:`${Math.min(100,effectiveBase/Math.max(target,effectiveBase)*100)}%`,background:isStretch?"linear-gradient(90deg,#4ade80,#22d3ee)":"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:5,transition:"width 0.4s"}}/>
-            {!isStretch&&<div style={{position:"absolute",right:0,top:0,height:"100%",width:`${Math.min(100,gap/target*100)}%`,background:"rgba(232,49,122,0.25)",borderRadius:"0 5px 5px 0"}}/>}
-          </div>
-          <div style={{fontSize:11,fontWeight:700,marginTop:4,color:isStretch?"#4ade80":"#E8317A"}}>
-            {isStretch
-              ? `✅ ${(effectiveBase/target*100).toFixed(0)}% of target — already there! Here's how to go bigger:`
-              : `${(effectiveBase/target*100).toFixed(0)}% of target — ${fmt2(gap)} to go`
-            }
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-
-          {/* Option A: Add streams */}
-          {optAStreams.length > 0 && (
-            <div style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:"#4ade80",marginBottom:8}}>
-                📅 {isStretch ? `Stack ${optAStreams.length} More Stream${optAStreams.length!==1?"s":""}` : `Option A — Add ${optAStreams.length} Stream${optAStreams.length!==1?"s":""}`}
-              </div>
-              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
-                {isStretch
-                  ? `Best open days to pile on · est. +${fmt2(optARevenue)}`
-                  : `Based on your best open days · est. ${fmt2(optARevenue)} revenue${optAGap>0?` · still ${fmt2(optAGap)} short`:""}`
-                }
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {optAStreams.map((d,i)=>(
-                  <div key={d.ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",borderRadius:7}}>
-                    <div>
-                      <span style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{DOW_NAMES2[d.dow]} {d.ds.slice(5).replace("-","/")}</span>
-                      {bestBreaker&&i===0&&<span style={{fontSize:10,color:"#7B9CFF",marginLeft:6}}>→ {bestBreaker} (highest avg)</span>}
-                    </div>
-                    <span style={{fontSize:11,fontWeight:700,color:"#4ade80"}}>~{fmt2(d.avgRev)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Option B: Upgrade existing streams */}
-          {futurePlans.length > 0 && upgradesNeeded !== null && avgBoxRevLift > 0 && (
-            <div style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",marginBottom:8}}>
-                📦 {isStretch ? "Load Up Existing Streams" : `Option B — Upgrade ${Math.min(upgradesNeeded,futurePlans.length)} Existing Stream${Math.min(upgradesNeeded,futurePlans.length)!==1?"s":""}`}
-              </div>
-              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
-                {isStretch
-                  ? `Add more product to planned streams · ~+${fmt2(avgBoxRevLift)} lift each`
-                  : `Add ~1 more box to each · est. +${fmt2(avgBoxRevLift)} lift per stream`
-                }
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {futurePlans.slice(0,Math.min(isStretch?5:upgradesNeeded,5)).map(p=>(
-                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",borderRadius:7}}>
-                    <div>
-                      <span style={{fontSize:11,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
-                      <span style={{fontSize:10,color:"#555",marginLeft:6}}>{p.date}</span>
-                    </div>
-                    <span style={{fontSize:11,fontWeight:700,color:"#FBBF24"}}>+~{fmt2(avgBoxRevLift)}</span>
-                  </div>
-                ))}
-                {!isStretch && upgradesNeeded > 5 && <div style={{fontSize:10,color:"#555",padding:"4px 10px"}}>+{upgradesNeeded-5} more upgrades needed to fully close gap</div>}
-              </div>
-            </div>
-          )}
-
-          {/* Option C: Mix / Full Send */}
-          {optAStreams.length > 0 && futurePlans.length > 0 && (
-            <div style={{background:"rgba(232,49,122,0.04)",border:"1px solid rgba(232,49,122,0.12)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:"#E8317A",marginBottom:8}}>
-                {isStretch ? "🚀 Full Send — Both" : "⚡ Option C — Mix It Up"}
-              </div>
-              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
-                {isStretch ? "New streams + loaded product = max month" : "Fastest path to close the gap"}
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {optAStreams.slice(0,2).map(d=>(
-                  <div key={d.ds} style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
-                    <span style={{color:"#4ade80",fontWeight:700}}>+stream</span>
-                    <span style={{color:"#F0F0F0"}}>{DOW_NAMES2[d.dow]} {d.ds.slice(5).replace("-","/")} ~{fmt2(d.avgRev)}</span>
-                  </div>
-                ))}
-                {futurePlans.slice(0,Math.ceil((isStretch?3:upgradesNeeded)/2)).map(p=>(
-                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
-                    <span style={{color:"#FBBF24",fontWeight:700}}>+upgrade</span>
-                    <span style={{color:"#F0F0F0"}}>{p.streamName||p.breaker} {p.date} ~+{fmt2(avgBoxRevLift)}</span>
-                  </div>
-                ))}
-                <div style={{marginTop:6,fontSize:12,fontWeight:900,color:"#E8317A"}}>
-                  {isStretch
-                    ? `Could push to ~${fmt2(effectiveBase + optAStreams.slice(0,2).reduce((s,d)=>s+d.avgRev,0) + futurePlans.slice(0,3).length*avgBoxRevLift)}`
-                    : `Est. gap closed: ${fmt2(optAStreams.slice(0,2).reduce((s,d)=>s+d.avgRev,0)+futurePlans.slice(0,Math.ceil(upgradesNeeded/2)).length*avgBoxRevLift)} of ${fmt2(gap)} needed`
-                  }
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {avgStreamRev > 0 && (
-          <div style={{marginTop:12,fontSize:11,color:"#333"}}>
-            Based on your historical avg of {fmt2(avgStreamRev)}/stream across {histRevs.length} logged streams · best day: <strong style={{color:"#7B9CFF"}}>{DOW_NAMES2[dowAvg.indexOf(Math.max(...dowAvg))]}</strong>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -- Revenue Tiers --
-  function renderRevenueTiers() {
-    if (!canSeeFinancials) return null;
-    const mPlans = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    const mkt = totalMonthMkt(curYear, curMonth);
-    const actRev = actualRevenue(mActuals);
-    if (mkt === 0 && mPlans.length === 0) return null;
-
-    const tiers = [
-      { mult:1.5, label:"1.5x", sublabel:"Minimum",  color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
-      { mult:1.7, label:"1.7x", sublabel:"Good",      color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
-      { mult:1.9, label:"1.9x", sublabel:"🔥 Great",  color:"#E8317A", bg:"rgba(232,49,122,0.06)",  border:"rgba(232,49,122,0.2)"  },
-    ];
-
-    return (
-      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📊 Revenue Tiers — {MONTH_NAMES[curMonth]}</div>
-            {mkt > 0 && <div style={{fontSize:11,color:"#555",marginTop:2}}>Based on {fmt2(mkt)} total planned product market value</div>}
-          </div>
-          {actRev > 0 && <div style={{fontSize:11,color:"#555"}}>Actual so far: <strong style={{color:"#4ade80"}}>{fmt2(actRev)}</strong></div>}
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-          {tiers.map(({mult,label,sublabel,color,bg,border})=>{
-            const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
-            const achieved = actRev >= tierRev;
-            const pct = tierRev > 0 ? Math.min(100, actRev/tierRev*100) : 0;
-            return (
-              <div key={mult} style={{background:bg,border:`1.5px solid ${achieved?"rgba(74,222,128,0.5)":border}`,borderRadius:10,padding:"14px 16px",textAlign:"center",position:"relative"}}>
-                {achieved && <div style={{position:"absolute",top:6,right:8,fontSize:10,fontWeight:800,color:"#4ade80"}}>✅ HIT</div>}
-                <div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} {sublabel}</div>
-                <div style={{fontSize:22,fontWeight:900,color,marginBottom:6}}>{fmt2(tierRev)}</div>
-                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden",marginBottom:4}}>
-                  <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:2,transition:"width 0.4s"}}/>
-                </div>
-                <div style={{fontSize:10,color:"#555"}}>{pct.toFixed(0)}% there{actRev>0?` · ${fmt2(Math.max(0,tierRev-actRev))} to go`:""}</div>
-                {/* Set as target button */}
-                <button onClick={()=>setMonthTargets(p=>({...p,[monthKey(curYear,curMonth)]:tierRev.toFixed(2)}))}
-                  style={{marginTop:8,background:"transparent",border:`1px solid ${border}`,color,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>
-                  Set as Target
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        {mkt === 0 && mPlans.length > 0 && (
-          <div style={{fontSize:11,color:"#555",marginTop:10,textAlign:"center"}}>Add products to your planned streams to see market-based tiers</div>
-        )}
-
-        {/* Bazooka Earnings Estimate */}
-        {canSeeFinancials && totalMonthMkt(curYear,curMonth) > 0 && (
-          <div style={{marginTop:14}}>
-            <div style={{fontSize:12,fontWeight:800,color:"#E8317A",marginBottom:10}}>💰 Bazooka Earnings Estimate <span style={{fontSize:10,color:"#555",fontWeight:400,marginLeft:6}}>Gross × 81% = Net · 30/70 split · commission from net</span></div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:420}}>
-                <thead>
-                  <tr>
-                    {["Tier","Gross","Net Rev (81%)","IMC 70%","Bazooka 30%"].map(h=>(
-                      <th key={h} style={{padding:"6px 10px",borderBottom:"1px solid #2a2a2a",color:"#555",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,textAlign:h==="Tier"?"left":"right"}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tiers.map(({mult,label,sublabel,color})=>{
-                    const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
-                    const e = calcPlanEarnings(tierRev);
-                    if (!e) return null;
-                    return (
-                      <tr key={mult} style={{borderBottom:"1px solid #1a1a1a"}}>
-                        <td style={{padding:"8px 10px",fontSize:12,fontWeight:800,color}}>{label} {sublabel}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.gross)}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,color:"#F0F0F0",textAlign:"right"}}>{fmt2(e.netRev)}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,color:"#7B9CFF",textAlign:"right"}}>{fmt2(e.imcNet)}</td>
-                        <td style={{padding:"8px 10px",fontSize:13,fontWeight:900,color:"#E8317A",textAlign:"right"}}>{fmt2(e.bazNet)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -- Pace Report --
-  function renderPaceReport() {
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    if (mPlans.length === 0 && mActuals.length === 0) return null;
-
-    const actRev    = actualRevenue(mActuals);
-    const todayStr  = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const pastPlans = mPlans.filter(p => p.date <= todayStr);
-    const futurePlans = mPlans.filter(p => p.date > todayStr);
-    const projSoFar = projectedRevenue(pastPlans);
-
-    // Per-stream results — only streams with a logged actual
-    const streamResults = mPlans.map(p => {
-      const actuals = actualForDate(p.date);
-      if (!actuals.length) return null;
-      const planned = liveRevenue(p);
-      const actual  = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-      return { date:p.date, breaker:p.breaker, streamName:p.streamName||p.breaker, planned, actual, diff:actual-planned };
-    }).filter(Boolean);
-    const totalDiff = streamResults.reduce((s,r)=>s+r.diff,0);
-
-    // State machine — only "behind" if streams were DUE and not met
-    let paceStatus;
-    if (pastPlans.length === 0 && mActuals.length === 0) paceStatus = "future";
-    else if (pastPlans.length > 0 && mActuals.length === 0 && projSoFar > 0) paceStatus = "no-actuals-yet";
-    else if (projSoFar === 0) paceStatus = mActuals.length > 0 ? "ahead" : "future";
-    else paceStatus = actRev >= projSoFar*1.05 ? "ahead" : actRev >= projSoFar*0.95 ? "on-pace" : "behind";
-
-    const nextPlan = [...futurePlans].sort((a,b)=>a.date.localeCompare(b.date))[0];
-    const cfg = {
-      "future":         {label:"📅 Month hasn't started yet",      color:"#7B9CFF", bg:"rgba(123,156,255,0.04)", border:"rgba(123,156,255,0.12)"},
-      "no-actuals-yet": {label:"⏳ Streams due — log your recaps",  color:"#FBBF24", bg:"rgba(251,191,36,0.04)",  border:"rgba(251,191,36,0.15)"},
-      "ahead":          {label:"🟢 Ahead of pace",                  color:"#4ade80", bg:"rgba(74,222,128,0.04)",  border:"rgba(74,222,128,0.15)"},
-      "on-pace":        {label:"🟡 On pace",                        color:"#FBBF24", bg:"rgba(251,191,36,0.04)",  border:"rgba(251,191,36,0.15)"},
-      "behind":         {label:"🔴 Behind pace",                    color:"#E8317A", bg:"rgba(232,49,122,0.04)",  border:"rgba(232,49,122,0.15)"},
-    }[paceStatus];
-
-    return (
-      <div style={{background:cfg.bg,border:`2px solid ${cfg.border}`,borderRadius:14,padding:"18px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:900,color:cfg.color}}>{cfg.label}</div>
-            <div style={{fontSize:12,color:"#555",marginTop:3}}>
-              {paceStatus==="future" && (nextPlan
-                ? <>First planned stream: <strong style={{color:"#F0F0F0"}}>{nextPlan.streamName||nextPlan.breaker}</strong> on {nextPlan.date} · {mPlans.length} planned this month</>
-                : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
-              )}
-              {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace</>}
-              {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{mActuals.length} of {mPlans.length} planned streams completed · {futurePlans.length} still ahead</>}
-            </div>
-          </div>
-          {canSeeFinancials && mActuals.length > 0 && (
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:24,fontWeight:900,color:cfg.color}}>{fmt2(actRev)}</div>
-              <div style={{fontSize:11,color:"#555"}}>{projSoFar>0?`vs ${fmt2(projSoFar)} expected by now`:"actual so far"}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Future: show potential tiers */}
-        {paceStatus==="future" && canSeeFinancials && mPlans.length > 0 && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
-            {[{l:"Planned",v:mPlans.length+" streams",c:"#7B9CFF"},{l:"Min 1.5x",v:fmt2(projectedRevenue(mPlans,1.5)),c:"#FBBF24"},{l:"Good 1.7x",v:fmt2(projectedRevenue(mPlans,1.7)),c:"#4ade80"},{l:"Great 1.9x",v:fmt2(projectedRevenue(mPlans,1.9)),c:"#E8317A"}].map(({l,v,c})=>(
-              <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
-                <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
-                <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Active: KPIs + per-stream results */}
-        {canSeeFinancials && (paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && (
-          <>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:streamResults.length>0?12:0}}>
-              {[
-                {l:"Actual",         v:fmt2(actRev),                                                                   c:"#4ade80"},
-                ...(projSoFar>0?[{l:"Due by today",   v:fmt2(projSoFar),                                              c:"#FBBF24"}]:[]),
-                ...(projSoFar>0?[{l:"Variance",       v:(actRev-projSoFar>=0?"+":"")+fmt2(actRev-projSoFar),           c:actRev>=projSoFar?"#4ade80":"#E8317A"}]:[]),
-                ...(streamResults.length>0?[{l:"vs Plan",v:(totalDiff>=0?"+":"")+fmt2(totalDiff),                      c:totalDiff>=0?"#4ade80":"#E8317A"}]:[]),
-                ...(futurePlans.length>0?[{l:"Remaining",v:futurePlans.length+" streams",                              c:"#7B9CFF"}]:[]),
-              ].map(({l,v,c})=>(
-                <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
-                  <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
-                  <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-                </div>
-              ))}
-            </div>
-            {streamResults.length > 0 && (
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {streamResults.map((r,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:6}}>
-                    <div>
-                      <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{r.streamName}</span>
-                      <span style={{fontSize:10,color:"#555",marginLeft:8}}>{r.date}</span>
-                    </div>
-                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <span style={{fontSize:11,color:"#555"}}>Plan: <strong style={{color:"#FBBF24"}}>{fmt2(r.planned)}</strong></span>
-                      <span style={{fontSize:11,color:"#555"}}>Actual: <strong style={{color:"#4ade80"}}>{fmt2(r.actual)}</strong></span>
-                      <span style={{fontSize:12,fontWeight:900,color:r.diff>=0?"#4ade80":"#E8317A"}}>{r.diff>=0?"+":""}{fmt2(r.diff)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // -- Vacation Modal --
-  function renderVacationModal() {
-    if (!vacModal) return null;
-    return (
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setVacModal(false)}>
-        <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>🏖 Time Off</div>
-            <button onClick={()=>setVacModal(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div>
-              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {BREAKERS.map(b=>{
-                  const bc = BC_COLORS[b]||"#888";
-                  return (
-                    <button key={b} onClick={()=>setVacForm(p=>({...p,breaker:b}))}
-                      style={{background:vacForm.breaker===b?`${bc}20`:"transparent",color:vacForm.breaker===b?bc:"rgba(255,255,255,0.3)",border:`1.5px solid ${vacForm.breaker===b?bc:"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                      {b}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Start Date</div>
-                <input type="date" value={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,startDate:e.target.value,endDate:p.endDate<e.target.value?e.target.value:p.endDate}))}
-                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>End Date</div>
-                <input type="date" value={vacForm.endDate} min={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,endDate:e.target.value}))}
-                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-              </div>
-            </div>
-            {vacForm.startDate && vacForm.endDate && (
-              <div style={{fontSize:12,color:BC_COLORS[vacForm.breaker]||"#888",fontWeight:700}}>
-                {Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1} day{Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1!==1?"s":""} off
-              </div>
-            )}
-            <div>
-              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Note (optional)</div>
-              <input value={vacForm.note} onChange={e=>setVacForm(p=>({...p,note:e.target.value}))} placeholder="e.g. Family vacation, Surgery..."
-                style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-            </div>
-            <div style={{display:"flex",gap:8,marginTop:4}}>
-              <button onClick={saveVacation} disabled={savingVac||!vacForm.startDate||!vacForm.endDate}
-                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                {savingVac?"Saving...":editVacId?"💾 Update":"🏖 Save Time Off"}
-              </button>
-              <button onClick={()=>setVacModal(false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // -- Plan modal --
-  function renderModal() {
-    if (!modalDate) return null;
-    const dayPlans = plansForDate(modalDate);
-    const dayActuals = actualForDate(modalDate);
-    return (
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeModal}>
-        <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>📅 {modalDate}</div>
-            <button onClick={closeModal} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
-          </div>
-
-          {/* Existing actuals */}
-          {dayActuals.length>0&&(
-            <div style={{marginBottom:14,padding:"10px 14px",background:"#0a1a0a",border:"1px solid #4ade8033",borderRadius:8}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#4ade80",marginBottom:6}}>✅ Actual Stream{dayActuals.length>1?"s":""} Logged</div>
-              {dayActuals.map(a=><div key={a.id} style={{fontSize:12,color:"#888"}}>{a.streamName||a.breaker} — {canSeeFinancials?fmt2(a.grossRevenue):"logged"}</div>)}
-            </div>
-          )}
-
-          {/* Existing plans for this date */}
-          {dayPlans.length>0&&(
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Planned Streams</div>
-              {dayPlans.map(p=>(
-                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
-                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
-                  </div>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
-                    <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
-                    {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add/edit form */}
-          <div style={{borderTop:"1px solid #1a1a1a",paddingTop:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",textTransform:"uppercase",letterSpacing:1}}>{editingId?"Edit Plan":"+ Add Planned Stream"}</div>
-              {templates.length > 0 && (
-                <button onClick={()=>setShowTemplates(p=>!p)}
-                  style={{background:showTemplates?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",color:showTemplates?"#FBBF24":"#888",border:`1px solid ${showTemplates?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                  ⚡ Templates ({templates.length})
-                </button>
-              )}
-            </div>
-
-            {/* Template picker */}
-            {showTemplates && (
-              <div style={{marginBottom:12,background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8,padding:"10px 12px"}}>
-                <div style={{fontSize:11,color:"#555",marginBottom:8}}>Tap to apply</div>
-                <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                  {templates.map(t=>(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                      <button onClick={()=>applyTemplate(t)}
-                        style={{flex:1,display:"flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:7,padding:"7px 10px",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
-                        <span style={{fontSize:13}}>⚡</span>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{t.name}</div>
-                          <div style={{fontSize:10,color:"#555"}}>{t.breaker}{t.sessionType?" · "+t.sessionType:""}{(t.products||[]).filter(p=>p.type).length>0?" · "+(t.products.filter(p=>p.type).map(p=>p.qty+"× "+p.type).join(", ")):""}</div>
-                        </div>
-                      </button>
-                      <button onClick={()=>deleteTemplate(t.id)} style={{background:"none",border:"none",color:"#333",cursor:"pointer",fontSize:14,padding:"4px 6px",flexShrink:0}}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
-                <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
-                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Session Type</div>
-                <select value={form.sessionType} onChange={e=>setForm(p=>({...p,sessionType:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
-                  <option value="">-- Select --</option>
-                  <option value="day">☀️ Day Break</option>
-                  <option value="night">🌙 Night Break</option>
-                  <option value="weekend">📅 Weekend Break</option>
-                  <option value="event">🎉 Event</option>
-                </select>
-              </div>
-            </div>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Stream Name (optional)</div>
-              <input value={form.streamName} onChange={e=>setForm(p=>({...p,streamName:e.target.value}))} placeholder="e.g. Friday Night Break #12" style={S2.inp}/>
-            </div>
-            {/* Products */}
-            <div style={{marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:11,color:"#555"}}>Products</div>
-                <button onClick={()=>setForm(p=>({...p,products:[...p.products,{id:uid(),type:"",qty:"1"}]}))} style={{background:"none",border:"1px solid #333",color:"#E8317A",borderRadius:6,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
-              </div>
-              {form.products.map((pr,i)=>(
-                <div key={pr.id} style={{display:"grid",gridTemplateColumns:"1fr 70px auto",gap:6,marginBottom:6,alignItems:"center"}}>
-                  <select value={pr.type} onChange={e=>setForm(p=>({...p,products:p.products.map(x=>x.id===pr.id?{...x,type:e.target.value}:x)}))} style={{...S2.inp,cursor:"pointer",fontSize:12}}>
-                    <option value="">-- Product --</option>
-                    {PRODUCT_TYPES.map(pt=><option key={pt} value={pt}>{pt}</option>)}
-                  </select>
-                  <input type="number" min="1" value={pr.qty} onChange={e=>setForm(p=>({...p,products:p.products.map(x=>x.id===pr.id?{...x,qty:e.target.value}:x)}))} placeholder="Qty" style={{...S2.inp,textAlign:"center",fontSize:12}}/>
-                  {form.products.length>1&&<button onClick={()=>setForm(p=>({...p,products:p.products.filter(x=>x.id!==pr.id)}))} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>}
-                </div>
-              ))}
-            </div>
-            {canSeeFinancials&&<div style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Est. Revenue ($)</div>
-              {(() => {
-                const mkt = (form.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
-                return mkt > 0 ? (
-                  <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
-                    {[[1.5,"1.5x","#FBBF24"],[1.7,"1.7x","#4ade80"],[1.9,"1.9x 🔥","#E8317A"]].map(([mult,label,color])=>(
-                      <button key={mult} onClick={()=>setForm(p=>({...p,estRevenue:(mkt*mult).toFixed(2),estMultiple:String(mult)}))}
-                        style={{background:parseFloat(form.estMultiple)===mult?`${color}30`:`${color}15`,color,border:`1px solid ${parseFloat(form.estMultiple)===mult?color:color+"44"}`,borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                        {label} = {fmt2(mkt*mult)}{parseFloat(form.estMultiple)===mult?" ✓":""}
-                      </button>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
-              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value,estMultiple:""}))} placeholder="Tap a multiple above or enter manually" style={S2.inp}/>
-            </div>}
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
-              <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes..." style={S2.inp}/>
-            </div>
-
-            {/* Repeat section — only for new events */}
-            {!editingId && (
-              <div style={{marginBottom:14,padding:"12px 14px",background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:8}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#7B9CFF",marginBottom:10}}>🔁 Repeat</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:form.repeat!=="none"?10:0}}>
-                  {[["none","No repeat"],["weekly","Weekly"],["biweekly","Every 2 wks"],["daily","Daily"],["custom","Custom days"]].map(([v,l])=>(
-                    <button key={v} onClick={()=>setForm(p=>({...p,repeat:v,repeatDays:[]}))}
-                      style={{background:form.repeat===v?"rgba(123,156,255,0.2)":"transparent",color:form.repeat===v?"#7B9CFF":"rgba(255,255,255,0.3)",border:`1px solid ${form.repeat===v?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                {form.repeat==="custom"&&(
-                  <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
-                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>(
-                      <button key={i} onClick={()=>setForm(p=>({...p,repeatDays:p.repeatDays.includes(i)?p.repeatDays.filter(x=>x!==i):[...p.repeatDays,i]}))}
-                        style={{background:form.repeatDays.includes(i)?"rgba(123,156,255,0.25)":"rgba(255,255,255,0.03)",color:form.repeatDays.includes(i)?"#7B9CFF":"rgba(255,255,255,0.3)",border:`1px solid ${form.repeatDays.includes(i)?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {form.repeat!=="none"&&(
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{fontSize:11,color:"#555",flexShrink:0}}>Until:</div>
-                    <input type="date" value={form.repeatUntil||dateStr(curYear,curMonth,daysInMonth(curYear,curMonth))} onChange={e=>setForm(p=>({...p,repeatUntil:e.target.value}))} style={{...S2.inp,fontSize:12,padding:"6px 10px"}}/>
-                    {(() => {
-                      const dates = generateRepeatDates(modalDate||"", form.repeat, form.repeatDays, form.repeatUntil||dateStr(curYear,curMonth,daysInMonth(curYear,curMonth)));
-                      return dates.length>0 ? <span style={{fontSize:11,color:"#7B9CFF",fontWeight:700,flexShrink:0}}>+{dates.length} occurrences</span> : null;
-                    })()}
-                  </div>
-                )}
-              </div>
-            )}
-            {/* Save as template */}
-            {!editingId && (
-              <div style={{marginBottom:12}}>
-                {savingTemplate ? (
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <input autoFocus value={templateName} onChange={e=>setTemplateName(e.target.value)}
-                      onKeyDown={e=>{ if(e.key==="Enter") saveAsTemplate(templateName); if(e.key==="Escape") setSavingTemplate(false); }}
-                      placeholder="Template name (e.g. Dev Friday Night)" style={{...S2.inp,flex:1,fontSize:12,padding:"6px 10px"}}/>
-                    <button onClick={()=>saveAsTemplate(templateName)} disabled={!templateName.trim()}
-                      style={{background:"rgba(251,191,36,0.15)",color:"#FBBF24",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Save</button>
-                    <button onClick={()=>setSavingTemplate(false)}
-                      style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
-                  </div>
-                ) : (
-                  <button onClick={()=>setSavingTemplate(true)}
-                    style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.08)",color:"#555",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>
-                    ⚡ Save current setup as a template
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={savePlan} disabled={saving} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>{saving?"Saving...":editingId?"💾 Update":"📋 Add to Calendar"}</button>
-              <button onClick={closeModal} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) return <div style={{textAlign:"center",padding:60,color:"#555"}}>Loading calendar...</div>;
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* Confetti canvas */}
-      <canvas ref={confettiCanvas} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:99999,display:confettiActive?"block":"none"}}/>
-      {renderModal()}
-      {renderVacationModal()}
-
-      {/* Share Week Modal */}
-      {shareWeekModal && (() => {
-        const weekDays = Array.from({length:7},(_,i)=>{
-          const d = new Date(shareWeekStart+"T12:00:00"); d.setDate(d.getDate()+i);
-          return d.toISOString().slice(0,10);
-        });
-        const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-        const weekPlans = weekDays.map(ds=>({ds, plans:plansForDate(ds), actuals:actualForDate(ds)})).filter(d=>d.plans.length>0||d.actuals.length>0);
-
-        function openPrintWindow() {
-          const rows = weekDays.map((ds,i)=>{
-            const dayPlans = plansForDate(ds);
-            const dayActuals = actualForDate(ds);
-            if (dayPlans.length===0&&dayActuals.length===0) return "";
-            const items = [
-              ...dayActuals.map(a=>`<div style="margin:4px 0;padding:6px 10px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:4px;font-size:13px;">✅ <strong>${a.streamName||a.breaker||"Stream"}</strong>${a.breaker?` · ${a.breaker}`:""}</div>`),
-              ...dayPlans.map(p=>`<div style="margin:4px 0;padding:6px 10px;background:#e8eaf6;border-left:3px solid #5c6bc0;border-radius:4px;font-size:13px;">📋 <strong>${p.streamName||p.breaker||"Planned"}</strong>${p.breaker?` · ${p.breaker}`:""}${p.sessionType?` · ${p.sessionType}`:""}${(p.products||[]).filter(pr=>pr.type).length>0?` · ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}`:""}</div>`),
-            ].join("");
-            return `<tr><td style="padding:10px 14px;font-weight:700;color:#333;white-space:nowrap;vertical-align:top;width:110px;">${DOW_FULL[i]}<br/><span style="font-weight:400;font-size:12px;color:#888;">${ds.slice(5).replace("-","/")}</span></td><td style="padding:10px 14px;">${items}</td></tr>`;
-          }).join("");
-          const endSun = weekDays[6];
-          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
-          const w = window.open("","_blank");
-          w.document.write(html);
-          w.document.close();
-        }
-
-        return (
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShareWeekModal(false)}>
-            <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:500,width:"100%",maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div>
-                  <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>📤 Share Weekly Schedule</div>
-                  <div style={{fontSize:11,color:"#555",marginTop:2}}>Week of {shareWeekStart}</div>
-                </div>
-                <button onClick={()=>setShareWeekModal(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
-              </div>
-
-              {/* Week picker */}
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-                <span style={{fontSize:11,color:"#555"}}>Week starting:</span>
-                <input type="date" value={shareWeekStart} onChange={e=>setShareWeekStart(e.target.value)}
-                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"5px 8px",fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-              </div>
-
-              {/* Preview */}
-              <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:6}}>
-                {weekDays.map((ds,i)=>{
-                  const dayPlans = plansForDate(ds);
-                  const dayActuals = actualForDate(ds);
-                  if (dayPlans.length===0&&dayActuals.length===0) return (
-                    <div key={ds} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}>
-                      <span style={{fontSize:11,fontWeight:700,color:"#333",width:90,flexShrink:0}}>{DOW_FULL[i]} {ds.slice(5)}</span>
-                      <span style={{fontSize:11,color:"#2a2a2a"}}>—</span>
-                    </div>
-                  );
-                  return (
-                    <div key={ds} style={{padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#555",marginBottom:4}}>{DOW_FULL[i]} · {ds.slice(5).replace("-","/")}</div>
-                      {dayActuals.map(a=>(
-                        <div key={a.id} style={{fontSize:12,color:"#4ade80",marginBottom:2}}>✅ {a.streamName||a.breaker||"Stream"}</div>
-                      ))}
-                      {dayPlans.map(p=>(
-                        <div key={p.id} style={{fontSize:12,color:"#7B9CFF",marginBottom:2}}>
-                          📋 {p.streamName||p.breaker} {p.sessionType?`· ${p.sessionType}`:""} {(p.products||[]).filter(pr=>pr.type).length>0?`· ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}` :""}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={openPrintWindow}
-                  style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                  🖨️ Open & Print
-                </button>
-                <button onClick={()=>{
-                  const lines = weekDays.flatMap((ds,i)=>{
-                    const dayPlans = plansForDate(ds);
-                    const dayActuals = actualForDate(ds);
-                    if (!dayPlans.length&&!dayActuals.length) return [];
-                    return [`${DOW_FULL[i]} ${ds.slice(5)}:`,...dayActuals.map(a=>`  ✅ ${a.streamName||a.breaker}`),...dayPlans.map(p=>`  📋 ${p.streamName||p.breaker}${p.sessionType?" · "+p.sessionType:""}${(p.products||[]).filter(pr=>pr.type).length>0?" · "+p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", "):""}`),""];
-                  });
-                  navigator.clipboard.writeText(`Bazooka Breaks — Week of ${shareWeekStart}\n\n${lines.join("\n")}`);
-                }}
-                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#888",borderRadius:10,padding:"11px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-                  📋 Copy Text
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-      {copyWeekModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setCopyWeekModal(false)}>
-          <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>📋 Copy Week</div>
-            <div style={{fontSize:12,color:"#555",marginBottom:16}}>Duplicate a week's streams to another week</div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,color:"#555",marginBottom:6}}>Copy FROM (week starting)</div>
-              {(() => {
-                const weeks = getWeeksInMonth(curYear, curMonth);
-                return (
-                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                    {weeks.map(w=>{
-                      const wEnd = new Date(w+"T12:00:00"); wEnd.setDate(wEnd.getDate()+6);
-                      const wEndStr = wEnd.toISOString().slice(0,10);
-                      const wPlans = plans.filter(p=>p.date>=w&&p.date<=wEndStr);
-                      if (wPlans.length===0) return null;
-                      return (
-                        <button key={w} onClick={()=>setCopyWeekSrc(w)}
-                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:copyWeekSrc===w?"rgba(232,49,122,0.12)":"rgba(0,0,0,0.3)",border:`1px solid ${copyWeekSrc===w?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,cursor:"pointer",fontFamily:"inherit",color:"#F0F0F0"}}>
-                          <span style={{fontSize:12,fontWeight:700}}>Week of {w.slice(5).replace("-","/")}</span>
-                          <span style={{fontSize:11,color:"#555"}}>{wPlans.length} stream{wPlans.length!==1?"s":""}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-            {copyWeekSrc && (
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,color:"#555",marginBottom:6}}>Paste TO (week starting)</div>
-                <input type="date" value={copyWeekDst} onChange={e=>setCopyWeekDst(e.target.value)}
-                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-                {copyWeekSrc && copyWeekDst && (() => {
-                  const srcEnd = new Date(copyWeekSrc+"T12:00:00"); srcEnd.setDate(srcEnd.getDate()+6);
-                  const wPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEnd.toISOString().slice(0,10));
-                  return <div style={{fontSize:11,color:"#7B9CFF",marginTop:6}}>Will create {wPlans.length} new stream{wPlans.length!==1?"s":""}</div>;
-                })()}
-              </div>
-            )}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={copyWeek} disabled={!copyWeekSrc||!copyWeekDst||copyingWeek}
-                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:(!copyWeekSrc||!copyWeekDst||copyingWeek)?"not-allowed":"pointer",fontFamily:"inherit",opacity:(!copyWeekSrc||!copyWeekDst)?0.5:1}}>
-                {copyingWeek?"Copying...":"📋 Copy Week"}
-              </button>
-              <button onClick={()=>setCopyWeekModal(false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View toggle */}
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        {[["month","📅 Month"],["quarter","📊 Quarter"]].map(([v,l])=>(
-          <button key={v} onClick={()=>setViewMode(v)} style={{background:viewMode===v?"rgba(232,49,122,0.15)":"transparent",color:viewMode===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${viewMode===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
-        ))}
-        {viewMode==="month"&&(
-          <>
-            <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>‹ Prev</button>
-            <span style={{fontSize:13,fontWeight:700,color:"#F0F0F0",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
-            <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
-            <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
-            <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>
-            <button onClick={()=>{
-              const todayStr2 = dateStr(today.getFullYear(),today.getMonth(),today.getDate());
-              const dow = new Date(todayStr2+"T12:00:00").getDay();
-              const sun = new Date(todayStr2+"T12:00:00"); sun.setDate(sun.getDate()-dow);
-              setShareWeekStart(sun.toISOString().slice(0,10));
-              setShareWeekModal(true);
-            }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📤 Share Week</button>
-          </>
-        )}
-      </div>
-
-      {/* Legend */}
-      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#4ade80"}}/><span style={{fontSize:11,color:"#555"}}>Recap logged</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#7B9CFF"}}/><span style={{fontSize:11,color:"#555"}}>Planned</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)"}}/><span style={{fontSize:11,color:"#555"}}>No recap yet</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#1a0a14",border:"1px solid #E8317A44"}}/><span style={{fontSize:11,color:"#555"}}>Today</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:11}}>🏖</span><span style={{fontSize:11,color:"#555"}}>Time off</span></div>
-      </div>
-
-      {viewMode==="month"&&(
-        <>
-          {renderTomorrowAlert()}
-          {renderPaceReport()}
-          {renderStreamScorecard()}
-          {renderCalendar(curYear,curMonth)}
-          {renderBestDayPredictor()}
-          {renderRevenueTiers()}
-          {renderGapAdvisor()}
-          {renderProductSummary()}
-          {renderMonthSummary()}
-          {renderInventoryNeeds()}
-        </>
-      )}
-
-      {viewMode==="quarter"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
-          {quarterMonths.map(({y,m})=>(
-            <div key={`${y}-${m}`}>
-              {renderCalendar(y,m,true)}
-              {canSeeFinancials&&(()=>{
-                const mPlans=monthPlans(y,m),mActuals=monthActuals(y,m);
-                const projRev=projectedRevenue(mPlans),actRev=actualRevenue(mActuals);
-                if(mPlans.length===0&&mActuals.length===0) return null;
-                return(
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:6}}>
-                    {[{l:"Streams",v:mPlans.length,c:"#7B9CFF"},{l:"Projected",v:fmt2(projRev),c:"#FBBF24"},{l:"Actual",v:fmt2(actRev),c:"#4ade80"}].map(({l,v,c})=>(
-                      <div key={l} style={{background:"#1a1a1a",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
-                        <div style={{fontSize:14,fontWeight:900,color:c}}>{v}</div>
-                        <div style={{fontSize:9,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[] }) {
+function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -7832,7 +5134,6 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Procurement","Shipping"] },
     { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer","Procurement"] },
     { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","Procurement"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer","Procurement"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -7840,18 +5141,20 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {/* Sub-tab bar — hidden, navigation driven by dropdown */}
-      <div style={{ display:"none" }}>
+      {/* Sub-tab bar */}
+      <div style={{ display:"flex", gap:6 }}>
         {STREAM_TABS.map(t => (
-          <button key={t.id} onClick={()=>setStreamTab(t.id)}>{t.label}</button>
+          <button key={t.id} onClick={()=>setStreamTab(t.id)}
+            style={{ background:streamTab===t.id?"#1A1A2E":"transparent", color:streamTab===t.id?"#E8317A":"#9CA3AF", border:`1.5px solid ${streamTab===t.id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl} plannedStreams={plannedStreams}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
-      {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
     </div>
   );
 }
@@ -7895,7 +5198,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
             <tbody>
               {(stub.streams||[]).map((s,i)=>(
                 <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                  <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                  <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                   <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:11,color:"#7B9CFF"}}>{({day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"})[s.sessionType]||""}</span>:""}</td>
                   <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                   <td style={{ ...S.td, color:"#7B9CFF" }}>{fmt(s.bazNet||0)}</td>
@@ -8085,12 +5388,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <button onClick={()=>setViewStream(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"\u2190 Back"}</button>
           <div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
               {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new buyers</span>}
-              {s.collabPartner && s.collabPartner !== "_" && <span style={{ background:"rgba(123,156,255,0.12)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
             </div>
           </div>
 
@@ -8108,10 +5410,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`\u2212 Stream Expenses`,                    v:"\u2212 "+fmt(parseFloat(s.whatnotPromo||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)), c:"#666", indent:true },
               { l:"= Net Revenue",                        v:fmt(c.netRev),                          c:"#F0F0F0", indent:false, bold:true },
               { l:"\u00D7 30% (Bazooka Share)",                v:fmt(c.bazNet),                          c:"#E8317A", indent:true  },
-              ...(c.collabAmt>0 ? [{ l:`\u2212 Collab Payout (${s.collabPartner}, ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }] : []),
-              { l:`= Bazooka Commission Base${c.collabAmt>0?" (after collab)":""}`, v:fmt(c.bazNet - c.collabAmt), c:"#7B9CFF", indent:false, bold:true },
               { l:`\u2212 Your Expenses (13.5% of stream costs)`, v:"\u2212 "+fmt(c.repExp),                 c:"#991b1b", indent:true  },
               ...(isAdmin ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0),        c:"#166534", indent:true  }] : []),
+              { l:"= Commission Base",                    v:fmt(c.bazNet - c.repExp),               c:"#7B9CFF", indent:false, bold:true },
               { l:`\u00D7 Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`\u00D7 ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
@@ -8293,14 +5594,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
               const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
               const commAmt=bazNet*rate;
-              const tips=parseFloat(s.tips)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0); const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb-collabAmt;
-              return { gross, totalExp, netRev, bazNet, bazNetForComm, repExp, imcExpReimb, commAmt, tips, bazTrueNet, rate };
+              return { gross, totalExp, netRev, bazNet, bazNetForComm, repExp, imcExpReimb, commAmt, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.reimb+=c.imcExpReimb; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,reimb:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.reimb+=c.imcExpReimb; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,reimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -8313,7 +5613,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 const c = calcS(s);
                 return adminPDF ? `
                   <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
@@ -8324,13 +5624,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.bazTrueNet)}</td>
                   </tr>` : `
                   <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
-                    ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
                   </tr>`;
               }).join("");
 
@@ -8396,14 +5695,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
                     ` : `
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
-                    ${totals.tips>0?`<div class="tot-item"><div class="tot-val" style="color:#d97706;">${fmt(totals.tips)}</div><div class="tot-lbl">Tips (100% yours)</div></div>`:""}
                     `}
                   </div>
                 </div>
                 <div class="payout">
-                  <div class="payout-label">{"\uD83D\uDCB5 Total Earned This Period"}</div>
-                  <div class="payout-amt">${fmt(totals.comm+totals.tips)}</div>
-                  ${totals.tips>0?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">(${fmt(totals.comm)} commission + ${fmt(totals.tips)} tips)</div>`:""}
+                  <div class="payout-label">{"\uD83D\uDCB5 Commission Earned This Period"}</div>
+                  <div class="payout-amt">${fmt(totals.comm)}</div>
                 </div>`}
                 <div class="footer">Bazooka Breaks, LLC &nbsp;·&nbsp; This document is confidential and intended for the named recipient only.</div>
               </body></html>`);
@@ -8448,8 +5745,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         totalGross: totals.gross,
                         totalBaz: totals.baz,
                         totalComm: totals.comm,
-                        totalTips: totals.tips,
-                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt, tips:c.tips }; }),
+                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExp, rate:c.rate, commAmt:c.commAmt }; }),
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
@@ -8481,8 +5777,6 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                               { l:"Bazooka True Net",   v:fmt(totals.trueNet), c:"#4ade80" },
                             ] : [
                               { l:"Commission",         v:fmt(totals.comm),    c:"#4ade80" },
-                              ...(totals.tips>0?[{ l:"Tips (100% yours)", v:fmt(totals.tips), c:"#FBBF24" }]:[]),
-                              ...(totals.tips>0?[{ l:"Total Earned",      v:fmt(totals.comm+totals.tips), c:"#4ade80" }]:[]),
                             ]),
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
@@ -8499,7 +5793,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                             {stubStreams.map((s,i)=>{
                               const c=calcS(s);
                               return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                                <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                                <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
@@ -8627,16 +5921,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
-                <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
+                <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#F0F0F0"}}>{fmt(c.gross)}</strong></span>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
                   {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
                   {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new</span>}
-                  {s.collabPartner && s.collabPartner !== "_" && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px" }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
@@ -13498,7 +10791,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
   );
 }
 
-function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile }) {
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp }) {
   const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
   const pbEntryIds=new Set(pbCards.map(e=>e.id));
   const playCount=pbCards.filter(e=>e.type==="play").length;
@@ -13511,8 +10804,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
-            <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"start"}}>
-              <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0}}>
+            <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
@@ -13522,7 +10815,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   </select>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
-                <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:isMobile?"55vh":"calc(100vh - 300px)",overflowY:"auto"}}>
+                <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
                   {pbAvail.map((c,i)=>{
                     const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
                     return (
@@ -13548,7 +10841,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   })}
                 </div>
               </div>
-              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
+              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                   {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
@@ -13607,7 +10900,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck }) {
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -13632,8 +10925,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
   return (
-          <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"start"}}>
-            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0}}>
+          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)",gap:16,alignItems:"start"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
@@ -13661,7 +10954,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:isMobile?"55vh":"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
+              <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   deckAvail.map((c,i)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
@@ -13685,7 +10978,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 }
               </div>
             </div>
-            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
                 <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
@@ -14135,13 +11428,6 @@ function PublicCardDatabase() {
   const [signingIn,     setSigningIn]     = useState(false);
   const [activeTab,     setActiveTab]     = useState("cards");
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
-  const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
-  useEffect(() => {
-    const onResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", onResize, { passive:true });
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  const isMobile = windowWidth < 768;
 
   // -- Cards/filter state --
   const [search,        setSearch]        = useState("");
@@ -14153,13 +11439,6 @@ function PublicCardDatabase() {
   const [page,          setPage]          = useState(1);
   const [flippedCard,   setFlippedCard]   = useState(null);
   const PAGE_SIZE = 100;
-
-  // -- Rainbow Tracker --
-  const [rainbowFilter,    setRainbowFilter]    = useState("all");
-  const [rainbowSetFilter, setRainbowSetFilter] = useState("");
-  const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment
-  const [expandedHero,     setExpandedHero]     = useState(null);
-  const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
 
   // -- Wants --
   const [wantList,      setWantList]      = useState({});
@@ -14241,7 +11520,6 @@ function PublicCardDatabase() {
   const [claimPhoto,      setClaimPhoto]      = useState(null);
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [claimSent,       setClaimSent]       = useState(false);
-  const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
@@ -15248,7 +12526,6 @@ function PublicCardDatabase() {
           {/* Tab bar */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:20}}>
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
-            {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
@@ -15454,10 +12731,9 @@ function PublicCardDatabase() {
                 const setUnclaimed=setSuperCards.filter(c=>!claimMap[c.id]);
                 const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
                 const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
-                const isCollapsed=!!collapsedSuperSets[setName];
                 return (
                   <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
-                    <div onClick={()=>setCollapsedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
+                    <div style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                         <div>
                           <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
@@ -15465,18 +12741,14 @@ function PublicCardDatabase() {
                             {setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed
                           </div>
                         </div>
-                        <div style={{display:"flex",alignItems:"center",gap:12}}>
-                          <div style={{fontSize:28,fontWeight:900,color:"#F59E0B"}}>
-                            {setVerified.length}<span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/{setSuperCards.length}</span>
-                          </div>
-                          <span style={{color:"rgba(255,255,255,0.3)",fontSize:14}}>{isCollapsed?"▼":"▲"}</span>
+                        <div style={{fontSize:28,fontWeight:900,color:"#F59E0B"}}>
+                          {setVerified.length}<span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/{setSuperCards.length}</span>
                         </div>
                       </div>
                       <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}>
                         <div style={{height:"100%",width:`${verPct}%`,background:isFull?"linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)":"linear-gradient(90deg,#F59E0B,#FBBF24)",backgroundSize:"200% 100%",animation:isFull?"gradientShift 2s ease infinite":"none",borderRadius:4,transition:"width 0.5s ease"}}/>
                       </div>
                     </div>
-                    {!isCollapsed&&(
                     <div style={{padding:"12px 24px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
                       {setSuperCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap[c.id];
@@ -15513,18 +12785,11 @@ function PublicCardDatabase() {
                                   Sign in to claim
                                 </button>
                               )}
-                              {isAdminUser && claim && (
-                                <button onClick={async()=>{ if(window.confirm(`Remove the claim for ${c.hero} #${c.cardNum}? This cannot be undone.`)) { await deleteDoc(doc(db,"super_claims",c.id)); } }}
-                                  style={{width:"100%",marginTop:6,background:"rgba(232,49,122,0.08)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.2)",borderRadius:8,padding:"5px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                                  🗑️ Remove Claim
-                                </button>
-                              )}
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                    )}
                   </div>
                 );
               })}
@@ -15622,170 +12887,6 @@ function PublicCardDatabase() {
           </>
         )}
 
-        {/* RAINBOW TRACKER TAB */}
-        {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
-          const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
-            .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
-          const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-
-          // -- Build group stats (shared logic for hero & treatment) --
-          const groupMap = {};
-          rainbowCards.forEach(c => {
-            const key = rainbowGroupBy === "hero" ? c.hero : c.treatment;
-            if(!key) return;
-            if(!groupMap[key]) groupMap[key] = [];
-            groupMap[key].push(c);
-          });
-          const allGroups = Object.keys(groupMap).sort();
-          const groupStats = allGroups.map(key => {
-            const gcards = groupMap[key];
-            const total = gcards.length;
-            const ownedCount = gcards.filter(c => owned[c.id]).length;
-            const complete = total > 0 && ownedCount === total;
-            // secondary breakdown tags
-            const bySecondary = {};
-            gcards.forEach(c => {
-              const s = rainbowGroupBy === "hero" ? (c.setName || "Unknown") : (c.hero || "Unknown");
-              if(!bySecondary[s]) bySecondary[s] = { total:0, owned:0 };
-              bySecondary[s].total++;
-              if(owned[c.id]) bySecondary[s].owned++;
-            });
-            return { key, total, ownedCount, complete, bySecondary };
-          });
-          const completedRainbows = groupStats.filter(g => g.complete).length;
-          const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
-          const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : "Search treatment...";
-          const filteredGroups = groupStats.filter(g => !search || g.key.toLowerCase().includes(search.toLowerCase()));
-          const visibleGroups = filteredGroups.filter(g => {
-            if(rainbowFilter === "complete") return g.complete;
-            if(rainbowFilter === "partial")  return g.ownedCount > 0 && !g.complete;
-            if(rainbowFilter === "missing")  return g.ownedCount === 0;
-            return true;
-          });
-
-          return (
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {/* Summary KPIs */}
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-                {[
-                  { l:"\uD83C\uDF08 Complete", v:completedRainbows, c:"#4ade80" },
-                  { l:"\uD83D\uDD36 In Progress", v:partialRainbows, c:"#FBBF24" },
-                  { l:"\u2B1C Not Started", v:allGroups.length-completedRainbows-partialRainbows, c:"rgba(255,255,255,0.2)" },
-                ].map(({l,v,c})=>(
-                  <div key={l} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:12, padding:"14px 16px", textAlign:"center", backdropFilter:"blur(10px)" }}>
-                    <div style={{ fontSize:28, fontWeight:900, color:c }}>{v}</div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:4 }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Group-by toggle + Search + Filters */}
-              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                {/* Group-by toggle */}
-                <div style={{ display:"flex", background:"rgba(255,255,255,0.04)", borderRadius:20, padding:3, gap:2 }}>
-                  {[["hero","\uD83E\uDDB8 By Hero"],["treatment","\uD83C\uDFA8 By Treatment"]].map(([v,l])=>(
-                    <button key={v} onClick={()=>{ setRainbowGroupBy(v); setExpandedHero(null); setSearch(""); }} style={{ background:rainbowGroupBy===v?"rgba(232,49,122,0.9)":"transparent", color:rainbowGroupBy===v?"#fff":"rgba(255,255,255,0.4)", border:"none", borderRadius:17, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
-                  ))}
-                </div>
-                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={searchPlaceholder} style={{...inp, flex:1, minWidth:140}}/>
-                {availableSets.length > 0 && (
-                  <select value={rainbowSetFilter} onChange={e=>setRainbowSetFilter(e.target.value)} style={{...inp, width:"auto", fontSize:11, padding:"5px 10px", cursor:"pointer"}}>
-                    <option value="">{"\uD83C\uDF08 All Sets"}</option>
-                    {availableSets.map(s=><option key={s} value={s}>{s}</option>)}
-                  </select>
-                )}
-                {[["all","All"],["complete","\uD83C\uDF08 Complete"],["partial","\uD83D\uDD36 In Progress"],["missing","\u2B1C Not Started"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setRainbowFilter(v)} style={{ background:rainbowFilter===v?"rgba(232,49,122,0.15)":"transparent", color:rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.4)", border:`1.5px solid ${rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.08)"}`, borderRadius:20, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
-                ))}
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>{visibleGroups.length} {rainbowGroupBy === "hero" ? "heroes" : "treatments"}</span>
-              </div>
-
-              {/* Rows */}
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {visibleGroups.map(({ key, total, ownedCount, complete, bySecondary }) => {
-                  const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
-                  const isExpanded = expandedHero === key;
-                  const groupCardList = rainbowCards.filter(c => (rainbowGroupBy === "hero" ? c.hero : c.treatment) === key)
-                    .sort((a,b) => {
-                      if(rainbowGroupBy === "hero") {
-                        const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
-                        const wa = WEAPONS.indexOf(a.weapon), wb = WEAPONS.indexOf(b.weapon);
-                        if(wa !== wb) return wa - wb;
-                        return (a.treatment||"").localeCompare(b.treatment||"");
-                      }
-                      return (a.hero||"").localeCompare(b.hero||"");
-                    });
-                  const showSecondary = Object.keys(bySecondary).length > 1 && !rainbowSetFilter;
-                  return (
-                    <div key={key} style={{ background:"rgba(255,255,255,0.02)", border:`1.5px solid ${complete?"rgba(74,222,128,0.2)":ownedCount>0?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.05)"}`, borderRadius:12, overflow:"hidden", backdropFilter:"blur(10px)" }}>
-                      <div onClick={()=>setExpandedHero(isExpanded ? null : key)} style={{ padding:"14px 16px", cursor:"pointer" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: showSecondary ? 6 : 8 }}>
-                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"rgba(255,255,255,0.3)" }}>
-                            {complete && "\uD83C\uDF08 "}{key}
-                          </span>
-                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedCount>0?"#FBBF24":"rgba(255,255,255,0.2)" }}>
-                              {ownedCount}/{total}{complete ? " \u2014 COMPLETE! \uD83C\uDF08" : ""}
-                            </span>
-                            <span style={{ color:"rgba(255,255,255,0.2)", fontSize:12 }}>{isExpanded?"\u25B2":"\u25BC"}</span>
-                          </div>
-                        </div>
-                        {showSecondary && (
-                          <div style={{ display:"flex", gap:5, marginBottom:6, flexWrap:"wrap" }}>
-                            {Object.entries(bySecondary).map(([label, sd]) => {
-                              const sc = sd.owned===sd.total?"#4ade80":sd.owned>0?"#FBBF24":"rgba(255,255,255,0.2)";
-                              return (
-                                <div key={label} style={{ display:"flex", alignItems:"center", gap:3, background:"rgba(255,255,255,0.04)", borderRadius:5, padding:"2px 7px" }}>
-                                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{label}:</span>
-                                  <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
-                                  {sd.owned===sd.total && <span style={{ fontSize:9 }}>{"\uD83C\uDF08"}</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <div style={{ height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden" }}>
-                          <div style={{ width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)" }}/>
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", padding:"14px 16px", background:"rgba(0,0,0,0.3)" }}>
-                          <div style={{ display:"flex", gap:4, marginBottom:10 }}>
-                            {[["all","All"],["owned","\u2705 Have"],["missing","\u274C Missing"]].map(([v,l])=>(
-                              <button key={v} onClick={e=>{ e.stopPropagation(); setTreatOwnedFilter(v); }} style={{ background:treatOwnedFilter===v?"rgba(232,49,122,0.15)":"transparent", color:treatOwnedFilter===v?"#E8317A":"rgba(255,255,255,0.4)", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"rgba(255,255,255,0.08)"}`, borderRadius:20, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
-                            ))}
-                          </div>
-                          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
-                            {groupCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => (
-                              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                                flippedCard={flippedCard} setFlippedCard={setFlippedCard}
-                                toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
-                                setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
-                            ))}
-                          </div>
-                          {user && (
-                            <div style={{ marginTop:10, display:"flex", gap:8 }}>
-                              <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; groupCardList.forEach(c=>next[c.id]=1); setOwned(next); await setDoc(doc(db,"boba_owned",user.uid),next); }} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.25)", color:"#4ade80", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u2705 Mark All Owned"}</button>
-                              <button onClick={async e=>{ e.stopPropagation(); const next={...owned}; groupCardList.forEach(c=>delete next[c.id]); setOwned(next); await setDoc(doc(db,"boba_owned",user.uid),next); }} style={{ background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.2)", color:"#E8317A", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u2715 Clear All"}</button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {visibleGroups.length === 0 && (
-                  <div style={{ textAlign:"center", padding:60, color:"rgba(255,255,255,0.2)" }}>
-                    <div style={{ fontSize:40, marginBottom:12 }}>{"\uD83C\uDF08"}</div>
-                    <div style={{ fontSize:15, fontWeight:700 }}>No {rainbowGroupBy === "hero" ? "heroes" : "treatments"} match your filters</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
         {/* WANTS TAB */}
         {activeTab==="wants"&&(
           <div>
@@ -15821,7 +12922,7 @@ function PublicCardDatabase() {
             deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
-            canAddToDeck={canAddToDeck} isMobile={isMobile}
+            canAddToDeck={canAddToDeck}
           />
         )}
 
@@ -15831,7 +12932,7 @@ function PublicCardDatabase() {
             user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
             setSigningIn={setSigningIn} cards={cards} owned={owned}
-            inp={inp} isMobile={isMobile}
+            inp={inp}
           />
         )}
 
@@ -15948,7 +13049,7 @@ function PublicQuote({ quoteId }) {
   if (!quote) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#888", fontFamily:"'Trebuchet MS',sans-serif", fontSize:14 }}>Quote not found or has expired.</div>;
 
   const isExpired = new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000);
-  const isClosed  = quote.status === "closed"; // legacy only — new closes use bazookaClosed which doesn't affect seller view
+  const isClosed  = quote.status === "closed";
   const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
   const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
@@ -16129,7 +13230,6 @@ export default function App() {
   const [inventory,     setInventory]     = useState([]);
   const [breaks,        setBreaks]        = useState([]);
   const [streams,       setStreams]       = useState([]);
-  const [plannedStreams, setPlannedStreams] = useState([]);
   const [comps,         setComps]         = useState([]);
   const [quotes,        setQuotes]        = useState([]);
   const [buyers,        setBuyers]        = useState([]);
@@ -16143,8 +13243,7 @@ export default function App() {
   const [lotNotes,      setLotNotes]      = useState({});
   const [historicalData,setHistoricalData]=useState([]);
   const [payStubs,      setPayStubs]      = useState([]);
-  const [imcFormUrl,         setImcFormUrl]         = useState("");
-  const [imcAdjustmentsData, setImcAdjustmentsData] = useState({});
+  const [imcFormUrl,    setImcFormUrl]    = useState("");
   const [bobaCards,     setBobaCards]     = useState([]);
   const [toast,         setToast]         = useState(null);
   const [scanStatus,    setScanStatus]    = useState(null);
@@ -16207,9 +13306,7 @@ export default function App() {
       onSnapshot(doc(db,"config","lotNotes"), snap => { if(snap.exists()) setLotNotes(snap.data()); }),
       onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
       onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))),
-      onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
       onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }),
-      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
     ];
     return () => unsubs.forEach(u => u());
   }, [user]);
@@ -16293,7 +13390,7 @@ export default function App() {
     return id;
   }
 
-  async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { bazookaClosed:true }, { merge:true }); }
+  async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { status:"closed" }, { merge:true }); }
 
   async function handleBazookaCounter(quoteId, amount, history) {
     await setDoc(doc(db,"quotes",quoteId), { status:"pending", currentOffer:amount, history:[...history,{type:"bazooka_counter",amount,timestamp:new Date().toISOString()}], notified:false }, { merge:true });
@@ -16384,10 +13481,6 @@ export default function App() {
   async function handleSaveImcFormUrl(url) {
     await setDoc(doc(db,"config","imcFormUrl"), { url });
     showToast("\uD83D\uDCBE IMC Form URL saved");
-  }
-
-  async function handleSaveImcAdjustments(adjustments) {
-    await setDoc(doc(db,"config","imcAdjustments"), adjustments);
   }
 
   async function handleUpsertBuyers(buyerList, streamId, filename) {
@@ -16622,7 +13715,6 @@ export default function App() {
                   {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC5 Stream Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                 ],
                 "buyers": [
                   {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
@@ -16671,10 +13763,10 @@ export default function App() {
       </div>
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
-        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments}/>}
+        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams}/>}
+        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
+        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
