@@ -5345,6 +5345,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [showTemplates, setShowTemplates] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName,   setTemplateName]   = useState("");
+  const [copyWeekModal,  setCopyWeekModal]  = useState(false);
+  const [copyWeekSrc,    setCopyWeekSrc]    = useState(""); // "YYYY-MM-DD" of week's Sunday
+  const [copyWeekDst,    setCopyWeekDst]    = useState(""); // "YYYY-MM-DD" of target Sunday
+  const [copyingWeek,    setCopyingWeek]    = useState(false);
   const [monthTargets, setMonthTargets] = useState({});
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
@@ -5489,6 +5493,47 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     setForm(p=>({ ...p, breaker:t.breaker||p.breaker, products:t.products?.map(pr=>({...pr,id:uid()}))||p.products, sessionType:t.sessionType||p.sessionType, notes:t.notes||p.notes, streamName:t.streamName||p.streamName, estRevenue:"", estMultiple:"" }));
     setShowTemplates(false);
   }
+
+  // Get all weeks (Sunday starts) in current month view
+  function getWeeksInMonth(y, m) {
+    const weeks = [];
+    const days = daysInMonth(y, m);
+    for (let d=1; d<=days; d++) {
+      const ds = dateStr(y, m, d);
+      const dow = new Date(ds+"T12:00:00").getDay();
+      if (dow === 0 || d === 1) {
+        // Sunday = start of week
+        const weekStart = dow === 0 ? ds : (() => {
+          const prev = new Date(ds+"T12:00:00"); prev.setDate(prev.getDate()-dow);
+          return prev.toISOString().slice(0,10);
+        })();
+        if (!weeks.find(w=>w===weekStart)) weeks.push(weekStart);
+      }
+    }
+    return weeks;
+  }
+
+  async function copyWeek() {
+    if (!copyWeekSrc || !copyWeekDst) return;
+    setCopyingWeek(true);
+    const srcStart = new Date(copyWeekSrc+"T12:00:00");
+    const dstStart = new Date(copyWeekDst+"T12:00:00");
+    const diffMs   = dstStart - srcStart;
+    const diffDays = Math.round(diffMs / 86400000);
+    // Find all plans in src week (Sun–Sat)
+    const srcEnd = new Date(srcStart); srcEnd.setDate(srcStart.getDate()+6);
+    const srcEndStr = srcEnd.toISOString().slice(0,10);
+    const weekPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEndStr);
+    if (weekPlans.length === 0) { setCopyingWeek(false); setCopyWeekModal(false); return; }
+    await Promise.all(weekPlans.map(p=>{
+      const newDate = new Date(p.date+"T12:00:00");
+      newDate.setDate(newDate.getDate()+diffDays);
+      const newDs = newDate.toISOString().slice(0,10);
+      const { id:_id, isRecurring:_r, recurringFrom:_rf, ...rest } = p;
+      return setDoc(doc(db,"planned_streams",uid()), { ...rest, date:newDs, updatedAt:new Date().toISOString() });
+    }));
+    setCopyingWeek(false); setCopyWeekModal(false);
+  }
   function monthPlans(y,m) { return plans.filter(p=>{const d=p.date||"";return d.startsWith(monthKey(y,m));}); }
   function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
   function planMktValue(p) { return (p.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0); }
@@ -5497,9 +5542,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return planList.reduce((s,p) => {
       const mkt = planMktValue(p);
       if (mkt > 0) {
-        // Always recalculate from current SKU prices — use stored multiple, then estRevenue-inferred multiple, then fallback
-        const storedMult = parseFloat(p.estMultiple) || (p.estRevenue && mkt > 0 ? parseFloat(p.estRevenue)/mkt : mult);
-        const effectiveMult = storedMult > 0.5 && storedMult < 5 ? storedMult : mult;
+        // If a multiple was explicitly chosen (via tier button), use it. Otherwise always default to 1.5x.
+        const storedMult = parseFloat(p.estMultiple);
+        const effectiveMult = (storedMult >= 0.5 && storedMult <= 5) ? storedMult : mult;
         return s + mkt * effectiveMult;
       }
       // No products — use manually entered estRevenue as-is
@@ -6654,6 +6699,58 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       {renderModal()}
 
+      {/* Copy Week Modal */}
+      {copyWeekModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setCopyWeekModal(false)}>
+          <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>📋 Copy Week</div>
+            <div style={{fontSize:12,color:"#555",marginBottom:16}}>Duplicate a week's streams to another week</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:6}}>Copy FROM (week starting)</div>
+              {(() => {
+                const weeks = getWeeksInMonth(curYear, curMonth);
+                return (
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {weeks.map(w=>{
+                      const wEnd = new Date(w+"T12:00:00"); wEnd.setDate(wEnd.getDate()+6);
+                      const wEndStr = wEnd.toISOString().slice(0,10);
+                      const wPlans = plans.filter(p=>p.date>=w&&p.date<=wEndStr);
+                      if (wPlans.length===0) return null;
+                      return (
+                        <button key={w} onClick={()=>setCopyWeekSrc(w)}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:copyWeekSrc===w?"rgba(232,49,122,0.12)":"rgba(0,0,0,0.3)",border:`1px solid ${copyWeekSrc===w?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,cursor:"pointer",fontFamily:"inherit",color:"#F0F0F0"}}>
+                          <span style={{fontSize:12,fontWeight:700}}>Week of {w.slice(5).replace("-","/")}</span>
+                          <span style={{fontSize:11,color:"#555"}}>{wPlans.length} stream{wPlans.length!==1?"s":""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+            {copyWeekSrc && (
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,color:"#555",marginBottom:6}}>Paste TO (week starting)</div>
+                <input type="date" value={copyWeekDst} onChange={e=>setCopyWeekDst(e.target.value)}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                {copyWeekSrc && copyWeekDst && (() => {
+                  const srcEnd = new Date(copyWeekSrc+"T12:00:00"); srcEnd.setDate(srcEnd.getDate()+6);
+                  const wPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEnd.toISOString().slice(0,10));
+                  return <div style={{fontSize:11,color:"#7B9CFF",marginTop:6}}>Will create {wPlans.length} new stream{wPlans.length!==1?"s":""}</div>;
+                })()}
+              </div>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={copyWeek} disabled={!copyWeekSrc||!copyWeekDst||copyingWeek}
+                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:(!copyWeekSrc||!copyWeekDst||copyingWeek)?"not-allowed":"pointer",fontFamily:"inherit",opacity:(!copyWeekSrc||!copyWeekDst)?0.5:1}}>
+                {copyingWeek?"Copying...":"📋 Copy Week"}
+              </button>
+              <button onClick={()=>setCopyWeekModal(false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View toggle */}
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         {[["month","📅 Month"],["quarter","📊 Quarter"]].map(([v,l])=>(
@@ -6665,6 +6762,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <span style={{fontSize:13,fontWeight:700,color:"#F0F0F0",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
             <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
             <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
+            <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>
           </>
         )}
       </div>
