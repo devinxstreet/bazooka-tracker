@@ -5540,26 +5540,27 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80",marginLeft:8}}>{fmt2(actRev)} actual</span>}
             </div>
           </div>
-          {!compact && canSeeFinancials && (() => {
-            const hs = getHealthScore();
-            return (
-              <div style={{textAlign:"center",background:hs.color+"15",border:`2px solid ${hs.color}33`,borderRadius:10,padding:"6px 14px",marginRight:8}}>
-                <div style={{fontSize:22,fontWeight:900,color:hs.color,lineHeight:1}}>{hs.grade}</div>
-                <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:2}}>Month Health</div>
-              </div>
-            );
-          })()}
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            {!compact && canSeeFinancials && (() => {
+              const hs = getHealthScore();
+              return (
+                <div style={{textAlign:"center",background:hs.color+"15",border:`2px solid ${hs.color}33`,borderRadius:10,padding:"6px 14px"}}>
+                  <div style={{fontSize:22,fontWeight:900,color:hs.color,lineHeight:1}}>{hs.grade}</div>
+                  <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:2}}>Month Health</div>
+                </div>
+              );
+            })()}
+            {!compact && (
+              <>
+                {canSeeFinancials && <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,color:"#555"}}>Target:</span>
+                  <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
+                </div>}
+                <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>‹</button>
+                <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>›</button>
+              </>
+            )}
           </div>
-          {!compact && (
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {canSeeFinancials && <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <span style={{fontSize:11,color:"#555"}}>Target:</span>
-                <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
-              </div>}
-              <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>‹</button>
-              <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>›</button>
-            </div>
-          )}
         </div>
 
         {/* Target progress bar */}
