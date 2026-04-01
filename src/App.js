@@ -2714,7 +2714,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
                       <div key={p.id} style={{ ...S.card, display:"grid", gridTemplateColumns:"1fr auto auto auto auto auto auto", gap:12, alignItems:"center", padding:"12px 16px" }}>
                         <div>
                           <div style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{p.cardName}</div>
-                          {ec.invTotal > 0 && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>📦 {ec.invTotal} from inventory ({ec.invAvail} avail)</div>}
+                          {ec.invTotal > 0 && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>📦 {ec.invTotal} from inventory ({ec.invAvail} avail{ec.invInTransit>0?`, ${ec.invInTransit} in transit`:""})</div>}
                           {p.notes && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{p.notes}</div>}
                         </div>
                         <div style={{ textAlign:"center" }}>
@@ -2725,6 +2725,12 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
                           <div style={{ fontSize:20, fontWeight:900, color:ec.used>0?"#E8317A":"#333" }}>{ec.used}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Used</div>
                         </div>
+                        {ec.invInTransit > 0 && (
+                          <div style={{ textAlign:"center" }}>
+                            <div style={{ fontSize:20, fontWeight:900, color:"#FBBF24" }}>{ec.invInTransit}</div>
+                            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Transit</div>
+                          </div>
+                        )}
                         <div style={{ textAlign:"center" }}>
                           <div style={{ fontSize:20, fontWeight:900, color:statusC }}>{avail}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Avail</div>
