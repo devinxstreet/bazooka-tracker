@@ -5342,6 +5342,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [editingId,    setEditingId]    = useState(null);
   const [saving,       setSaving]       = useState(false);
   const [monthTargets, setMonthTargets] = useState({});
+  const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
+  });
 
   const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
@@ -5566,27 +5569,63 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const mPlans = monthPlans(curYear, curMonth);
     const planned = mPlans.length;
     if (planned === 0) return null;
+
+    function saveBurnRate(ct, val) {
+      const next = { ...burnRateOverrides, [ct]: val };
+      setBurnRateOverrides(next);
+      try { localStorage.setItem("stream_burn_rates", JSON.stringify(next)); } catch(e) {}
+    }
+
     return (
       <div style={S2.card}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>📦 Inventory Needs — {MONTH_NAMES[curMonth]}</div>
-        <div style={{fontSize:11,color:"#555",marginBottom:12}}>Based on {planned} planned streams × avg historical burn rate ({totalActualStreams} actual streams logged)</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>🃏 Card Inventory Needs — {MONTH_NAMES[curMonth]}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:2}}>
+              {planned} planned stream{planned!==1?"s":""} · edit cards/stream to override the estimate
+            </div>
+          </div>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
           {CARD_TYPES.map(ct=>{
-            const needed = Math.ceil(burnPerStream[ct]*planned);
+            const histRate = burnPerStream[ct];
+            const override = burnRateOverrides[ct];
+            const rateToUse = override !== undefined && override !== "" ? parseFloat(override)||0 : histRate;
+            const needed = Math.ceil(rateToUse * planned);
             const avail  = invAvail[ct];
-            const ok = avail >= needed;
-            const pct = needed > 0 ? Math.min(100,avail/needed*100) : 100;
-            const cc = CC[ct]||{text:"#888",bg:"#111",border:"#222"};
+            const ok     = avail >= needed;
+            const pct    = needed > 0 ? Math.min(100, avail/needed*100) : 100;
+            const cc     = CC[ct]||{text:"#888",bg:"#111",border:"#222"};
+            const isOverridden = override !== undefined && override !== "";
             return (
               <div key={ct} style={{background:"#1a1a1a",border:`1px solid ${ok?"#2a2a2a":"#E8317A33"}`,borderRadius:8,padding:"12px 14px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span style={{fontSize:12,fontWeight:700,color:cc.text}}>{ct.replace(" Cards","")}</span>
-                  <span style={{fontSize:11,fontWeight:700,color:ok?"#4ade80":"#E8317A"}}>{avail}/{needed}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:ok?"#4ade80":"#E8317A"}}>{avail} avail / {needed} needed</span>
+                </div>
+                {/* Cards per stream edit */}
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                  <span style={{fontSize:11,color:"#555",flexShrink:0}}>Per stream:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={override !== undefined ? override : ""}
+                    onChange={e=>saveBurnRate(ct, e.target.value)}
+                    placeholder={histRate > 0 ? histRate.toFixed(1) : "0"}
+                    style={{background:"#111",border:`1px solid ${isOverridden?"rgba(123,156,255,0.4)":"#2a2a2a"}`,borderRadius:6,color:isOverridden?"#7B9CFF":"#F0F0F0",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:70}}
+                  />
+                  {isOverridden && (
+                    <button onClick={()=>saveBurnRate(ct,"")} title="Reset to historical avg"
+                      style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>↩</button>
+                  )}
+                  <span style={{fontSize:10,color:"#333",marginLeft:2}}>
+                    {isOverridden ? "manual" : histRate>0 ? "avg" : "no data"}
+                  </span>
                 </div>
                 <div style={{height:4,background:"#111",borderRadius:2,overflow:"hidden",marginBottom:4}}>
                   <div style={{height:"100%",width:`${pct}%`,background:ok?"#4ade80":"#E8317A",borderRadius:2,transition:"width 0.3s"}}/>
                 </div>
-                <div style={{fontSize:10,color:ok?"#555":"#E8317A"}}>{ok?`${avail-needed} buffer`:`⚠ Need ${needed-avail} more`}</div>
+                <div style={{fontSize:10,color:ok?"#555":"#E8317A"}}>{ok ? `${avail-needed} buffer` : `⚠ Need ${needed-avail} more`}</div>
               </div>
             );
           })}
