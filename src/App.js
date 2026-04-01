@@ -377,7 +377,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     setImcAdjustments({});
     if (onSaveImcAdjustments) onSaveImcAdjustments({});
   }
-  const [showImcAdj, setShowImcAdj] = useState(false);
+  const [showImcAdj,  setShowImcAdj]  = useState(false);
+  const [migrating,   setMigrating]   = useState(false);
+  const [migDone,     setMigDone]     = useState(false);
   const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
@@ -1230,8 +1232,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           return correct && b.cardType !== correct;
         });
         if (mismatched.length === 0) return null;
-        const [migrating, setMigrating] = useState(false);
-        const [migDone,   setMigDone]   = useState(false);
         async function runMigration() {
           setMigrating(true);
           await Promise.all(mismatched.map(b =>
