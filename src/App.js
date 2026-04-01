@@ -348,7 +348,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[] }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -366,8 +366,18 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showHist,    setShowHist]    = useState(false);
   const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
   const [editingId,   setEditingId]   = useState(null);
-  const [imcAdjustments, setImcAdjustments] = useState({});
-  const [showImcAdj,     setShowImcAdj]     = useState(false);
+  const [imcAdjustments, setImcAdjustments] = useState(imcAdjustmentsData||{});
+  useEffect(() => { setImcAdjustments(imcAdjustmentsData||{}); }, [imcAdjustmentsData]);
+  function updateImcAdj(mk, val) {
+    const next = { ...imcAdjustments, [mk]: val };
+    setImcAdjustments(next);
+    if (onSaveImcAdjustments) onSaveImcAdjustments(next);
+  }
+  function clearImcAdj() {
+    setImcAdjustments({});
+    if (onSaveImcAdjustments) onSaveImcAdjustments({});
+  }
+  const [showImcAdj, setShowImcAdj] = useState(false);
   const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
@@ -774,7 +784,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                                     <span style={{fontSize:11,color:"#555"}}>Adj:</span>
                                     <input type="number" step="0.01" value={adj}
-                                      onChange={e=>setImcAdjustments(p=>({...p,[mk]:e.target.value}))}
+                                      onChange={e=>updateImcAdj(mk, e.target.value)}
                                       placeholder="0.00"
                                       style={{background:"#111",border:`1px solid ${adjNum?"rgba(251,191,36,0.4)":"#2a2a2a"}`,borderRadius:6,color:adjNum?"#FBBF24":"#F0F0F0",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:100}}/>
                                   </div>
@@ -790,7 +800,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               Total adjustment (all months): {totalAdj>0?"+":""}{fmt(totalAdj)}
                             </div>
                           )}
-                          <button onClick={()=>setImcAdjustments({})} style={{marginTop:8,background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>✕ Clear all adjustments</button>
+                          <button onClick={()=>clearImcAdj()} style={{marginTop:8,background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>✕ Clear all adjustments</button>
                         </>
                       );
                     })()}
@@ -15626,7 +15636,8 @@ export default function App() {
   const [lotNotes,      setLotNotes]      = useState({});
   const [historicalData,setHistoricalData]=useState([]);
   const [payStubs,      setPayStubs]      = useState([]);
-  const [imcFormUrl,    setImcFormUrl]    = useState("");
+  const [imcFormUrl,         setImcFormUrl]         = useState("");
+  const [imcAdjustmentsData, setImcAdjustmentsData] = useState({});
   const [bobaCards,     setBobaCards]     = useState([]);
   const [toast,         setToast]         = useState(null);
   const [scanStatus,    setScanStatus]    = useState(null);
@@ -15691,6 +15702,7 @@ export default function App() {
       onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))),
       onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
       onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }),
+      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
     ];
     return () => unsubs.forEach(u => u());
   }, [user]);
@@ -15865,6 +15877,10 @@ export default function App() {
   async function handleSaveImcFormUrl(url) {
     await setDoc(doc(db,"config","imcFormUrl"), { url });
     showToast("\uD83D\uDCBE IMC Form URL saved");
+  }
+
+  async function handleSaveImcAdjustments(adjustments) {
+    await setDoc(doc(db,"config","imcAdjustments"), adjustments);
   }
 
   async function handleUpsertBuyers(buyerList, streamId, filename) {
@@ -16147,7 +16163,7 @@ export default function App() {
       </div>
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
-        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools}/>}
+        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams}/>}
