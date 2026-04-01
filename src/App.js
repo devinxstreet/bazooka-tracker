@@ -280,6 +280,13 @@ function GlobalStyles() {
         .deck-pb-layout { grid-template-columns: 1fr !important; }
         .deck-pb-panel { order: -1; }
         .deck-pb-cardlist { max-height: 60vh !important; }
+        .dash-grid-5 { grid-template-columns: repeat(2,1fr) !important; }
+        .dash-grid-4 { grid-template-columns: repeat(2,1fr) !important; }
+        .dash-grid-3 { grid-template-columns: repeat(2,1fr) !important; }
+        .dash-fin-card { font-size: 18px !important; padding: 12px !important; }
+        .dash-card-row { flex-direction: column !important; }
+        .period-btns { gap: 4px !important; }
+        .period-btns button { padding: 4px 8px !important; font-size: 10px !important; }
       }
       @media (max-width: 480px) {
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
@@ -666,7 +673,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <div style={{ ...S.card, border:"2px solid #333333" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
               <SectionLabel t="Financial Overview" />
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions">
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions period-btns">
                 {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
                   <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
                 ))}
@@ -683,7 +690,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} &middot; {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc,       color:"#E8317A", sub:"70% of net revenue" },
@@ -694,7 +701,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <div
                   key={key}
                   onClick={()=>setDrillDown(drillDown===key?null:key)}
-                  className="stat-card"
+                  className="stat-card dash-fin-card"
                   style={{ background:drillDown===key?"#1A1A2E":"#1a1a1a", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
                 >
                   <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
@@ -776,9 +783,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         return (
           <div style={{ ...S.card }}>
             <SectionLabel t="\uD83D\uDCE6 Ops Summary" />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-              {[
-                { l:"MagPros",          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
+            <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
                 { l:"Packaging",        v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"",        c:"#7B9CFF" },
                 { l:"Top Loaders",      v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",          c:"#7B9CFF" },
                 { l:"Chaser Cards",     v:`$${totChaser.toFixed(2)}`,   sub:"",                                           c:"#E8317A" },
@@ -795,8 +800,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             {/* Card usage by type */}
             <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
               <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Cards Used in Streams</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-                {CARD_TYPES.map(ct => {
+              <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
                   const cc = CC[ct]||{ text:"#888", bg:"#111" };
                   const qty  = cardQtyByType[ct]||0;
                   const cost = cardCostByType[ct]||0;
@@ -879,7 +883,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             {alerts.length===0 ? "\u2705 All Good" : `\uD83D\uDEA8 ${alerts.length} Critical`}
           </span>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
+        <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
           {[
             { l:"Total Cards",    v:inventory.length, c:"#F0F0F0" },
             { l:"Available",      v:availCount,       c:"#166534" },
@@ -919,7 +923,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
             return (
               <div key={ct} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:9, padding:"10px 14px" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6, flexWrap:"wrap", gap:4 }}>
                   <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <span style={{ fontSize:11, color:"#AAAAAA" }}>{avail} avail</span>
@@ -938,7 +942,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           })}
         </div>
         {canSeeFinancials && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
+        <div className="dash-grid-3" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
           {[
             { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
             { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
