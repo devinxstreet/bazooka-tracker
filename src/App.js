@@ -1925,11 +1925,18 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                               upd(r.id,"name",e.target.value);
                             }
                           }} style={{ ...mInp, cursor:"pointer" }}>
-                            <option value="">-- Select Pool --</option>
+                            <option value="">-- Select Pool or Treatment --</option>
+                            <optgroup label="Your Pools">
+                              {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="All Treatments">
+                              {[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </optgroup>
                             <option value="__manual__">✏️ Type manually instead...</option>
-                            {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                              <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                            ))}
                           </select>
                         ) : (
                           <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -2098,11 +2105,18 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                   }}
                                   style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
                                 >
-                                  <option value="">-- Select Pool --</option>
+                                  <option value="">-- Select Pool or Treatment --</option>
+                                  <optgroup label="Your Pools">
+                                    {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                      <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="All Treatments">
+                                    {[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(
+                                      <option key={t} value={t}>{t}</option>
+                                    ))}
+                                  </optgroup>
                                   <option value="__manual__">✏️ Type manually instead...</option>
-                                  {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                    <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                                  ))}
                                 </select>
                               ) : (
                                 <div style={{display:"flex",gap:4,alignItems:"center",flex:1}}>
@@ -2458,12 +2472,45 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
 
 // --- CARD POOLS ----------------------------------------------
-function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials, bobaCards=[] }) {
+function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials, bobaCards=[], inventory=[], breaks=[] }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
   const [form,       setForm]       = useState(EMPTY_POOL);
-  const [editing,    setEditing]    = useState(null); // pool id or "new"
+  const [editing,    setEditing]    = useState(null);
   const [logForm,    setLogForm]    = useState({ poolId:"", qty:"", breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
+
+  // Derive counts from inventory for each pool
+  // A pool matches inventory cards by cardType + cardName (treatment match)
+  const usedInvIds = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
+
+  function getPoolInventoryCounts(pool) {
+    // Match inventory cards where cardType matches AND cardName contains the pool's treatment name
+    const matching = inventory.filter(c => {
+      if (c.cardType !== pool.cardType) return false;
+      // Match if card name contains the pool name (treatment) — case insensitive
+      return pool.cardName ? c.cardName?.toLowerCase().includes(pool.cardName.toLowerCase()) : true;
+    });
+    const total = matching.length;
+    const used  = matching.filter(c => usedInvIds.has(c.id)).length;
+    const inTransit = matching.filter(c => c.cardStatus === "in_transit" && !usedInvIds.has(c.id)).length;
+    const avail = total - used - inTransit;
+    return { invTotal: total, invUsed: used, invInTransit: inTransit, invAvail: avail };
+  }
+
+  // Effective pool counts = manual pool qty + inventory-derived qty
+  function getEffectiveCounts(pool) {
+    const inv = getPoolInventoryCounts(pool);
+    const poolTotal  = parseInt(pool.totalQty)||0;
+    const poolUsed   = parseInt(pool.usedQty)||0;
+    const poolAvail  = Math.max(0, poolTotal - poolUsed);
+    return {
+      total: poolTotal + inv.invTotal,
+      used:  poolUsed  + inv.invUsed,
+      avail: poolAvail + inv.invAvail,
+      invTotal: inv.invTotal,
+      invAvail: inv.invAvail,
+    };
+  }
   const [addForm,    setAddForm]    = useState({ poolId:"", qty:"" });
   const [showLog,    setShowLog]    = useState(false);
   const [showAdd,    setShowAdd]    = useState(false);
@@ -2473,9 +2520,9 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
     return acc;
   }, {});
 
-  const totalCards = cardPools.reduce((s,p)=>(s+(parseInt(p.totalQty)||0)),0);
-  const totalUsed  = cardPools.reduce((s,p)=>(s+(parseInt(p.usedQty)||0)),0);
-  const totalAvail = totalCards - totalUsed;
+  const totalCards = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).total, 0);
+  const totalUsed  = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).used,  0);
+  const totalAvail = cardPools.reduce((s,p)=>s+getEffectiveCounts(p).avail, 0);
 
   function startNew() { setForm(EMPTY_POOL); setEditing("new"); }
   function startEdit(p) { setForm({ cardName:p.cardName, cardType:p.cardType, totalQty:p.totalQty||"", costPerCard:p.costPerCard||"", marketValue:p.marketValue||"", notes:p.notes||"" }); setEditing(p.id); }
@@ -2524,7 +2571,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
               <select value={logForm.poolId} onChange={e=>setLogForm(p=>({...p,poolId:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
                 <option value="">-- Select Pool --</option>
                 {cardPools.map(p=>{
-                  const avail=(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0);
+                  const avail = getEffectiveCounts(p).avail;
                   return <option key={p.id} value={p.id}>{p.cardName} ({avail} avail)</option>;
                 })}
               </select>
@@ -2659,21 +2706,23 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
               ? <div style={{ color:"#333", fontSize:12, padding:"10px 0" }}>No {type} pools yet</div>
               : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {pools.map(p => {
-                    const avail = (parseInt(p.totalQty)||0) - (parseInt(p.usedQty)||0);
-                    const pct   = parseInt(p.totalQty)>0 ? (avail/parseInt(p.totalQty))*100 : 0;
+                    const ec      = getEffectiveCounts(p);
+                    const avail   = ec.avail;
+                    const pct     = ec.total > 0 ? (avail/ec.total)*100 : 0;
                     const statusC = avail > 100 ? "#4ade80" : avail > 30 ? "#FBBF24" : "#E8317A";
                     return (
                       <div key={p.id} style={{ ...S.card, display:"grid", gridTemplateColumns:"1fr auto auto auto auto auto auto", gap:12, alignItems:"center", padding:"12px 16px" }}>
                         <div>
                           <div style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{p.cardName}</div>
+                          {ec.invTotal > 0 && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>📦 {ec.invTotal} from inventory ({ec.invAvail} avail)</div>}
                           {p.notes && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{p.notes}</div>}
                         </div>
                         <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>{parseInt(p.totalQty)||0}</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>{ec.total}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Total</div>
                         </div>
                         <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:20, fontWeight:900, color:p.usedQty>0?"#E8317A":"#333" }}>{parseInt(p.usedQty)||0}</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:ec.used>0?"#E8317A":"#333" }}>{ec.used}</div>
                           <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Used</div>
                         </div>
                         <div style={{ textAlign:"center" }}>
@@ -3053,7 +3102,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
       {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
 
-      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards}/>}
+      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards} inventory={inventory} breaks={breaks}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
