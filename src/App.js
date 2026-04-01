@@ -1130,6 +1130,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
   useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
+  const isMobile = windowWidth < 768;
   const [seller,       setSeller]       = useState({ name:"", contact:"", date:"", source:"", payment:"", paymentHandle:"" });
   const [lotPct,       setLotPct]       = useState("");
   const [finalOffer,   setFOffer]       = useState("");
@@ -1595,7 +1598,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         )}
         <div id="comp-builder-top" style={S.card}>
           <SectionLabel t="Seller Information" />
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr", gap:12 }}>
             {/* Seller Name with autocomplete from history */}
             {(() => {
               const prevSellers = [...new Map(
@@ -1676,7 +1679,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
         <div style={S.card}>
           <SectionLabel t="Lot-Level Controls" />
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, alignItems:"end" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12, alignItems:"end" }}>
             <div>
               <label style={S.lbl}>Buy % (blank = 60%)</label>
               <input
@@ -1730,6 +1733,89 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
         <div style={S.card}>
           <SectionLabel t="Cards in This Lot" />
+          {isMobile ? (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {rows.map((r,i) => {
+                const mv  = parseFloat(r.mktVal)||0;
+                const qty = parseInt(r.qty)||1;
+                const perCardOffer = totalMkt > 0 ? mv * dispPct : (totalCards > 0 ? dispOffer / totalCards : 0);
+                const mInp = { background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:16, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" };
+                return (
+                  <div key={r.id} style={{ background:r.include?"#111111":"#0a0a0a", border:`1.5px solid ${r.include?"#2a2a2a":"#1a1a1a"}`, borderRadius:10, padding:"12px", opacity:r.include?1:0.5 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#555" }}>#{i+1}</span>
+                      <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#888", cursor:"pointer" }}>
+                        <input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/> Include
+                      </label>
+                    </div>
+                    {/* Card Name */}
+                    {POOL_TYPES.includes(r.cardType) ? (
+                      cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
+                        <select value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} style={{ ...mInp, marginBottom:8, cursor:"pointer" }}>
+                          <option value="">-- Select Pool --</option>
+                          {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                            <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...mInp, marginBottom:8 }}/>
+                      )
+                    ) : (
+                      <div style={{ position:"relative", marginBottom:8 }}>
+                        <input
+                          value={acOpen===r.id ? (acQuery[r.id]??r.name) : r.name}
+                          onChange={e=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:e.target.value})); upd(r.id,"name",e.target.value); }}
+                          onFocus={()=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:r.name})); }}
+                          onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                          placeholder="Type hero name or card #..."
+                          style={mInp}
+                        />
+                        {acOpen===r.id && (acQuery[r.id]||"").length>=1 && (() => {
+                          const raw=(acQuery[r.id]||"").toLowerCase();
+                          const terms=raw.trim().split(/\s+/).filter(Boolean);
+                          const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
+                          if(!hits.length) return null;
+                          return (
+                            <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
+                              {hits.map(c=>{
+                                const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+"":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                                return <div key={c.id} onMouseDown={()=>{ upd(r.id,"name",label); if(c.mktValue||c.marketValue) upd(r.id,"mktVal",String(c.mktValue||c.marketValue||"")); setAcOpen(null); }}
+                                  style={{ padding:"10px 14px", borderBottom:"1px solid #111", cursor:"pointer", fontSize:13, color:"#F0F0F0" }}>{label}</div>;
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
+                      <div>
+                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Type</div>
+                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...mInp, cursor:"pointer" }}>
+                          <option value="">Type...</option>
+                          {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct.replace(" Cards","")}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Qty</div>
+                        <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={mInp}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Value/Card</div>
+                        <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={mInp}/>
+                      </div>
+                    </div>
+                    {(mv > 0 || perCardOffer > 0) && (
+                      <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"#1a1a1a", borderRadius:6, fontSize:12 }}>
+                        <span style={{ color:"#888" }}>Total: <strong style={{ color:"#F0F0F0" }}>${(mv*qty).toFixed(2)}</strong></span>
+                        <span style={{ color:"#888" }}>Offer/card: <strong style={{ color:"#E8317A" }}>${perCardOffer.toFixed(2)}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+            </div>
+          ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
               <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Offer/Card ($)","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -1874,7 +1960,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               </tbody>
             </table>
           </div>
-          <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>
+          )}
+          {!isMobile && <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>}
         </div>
 
         <div style={{ ...S.card, border:"2px solid #333333" }}>
