@@ -1948,12 +1948,32 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
                                 if(!hits.length) return null;
                                 return (
-                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:240,overflowY:"auto"}}>
+                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
+                                    <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                                     {hits.map(c=>{
+                                      const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
                                       const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                      return <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
-                                        style={{padding:"8px 12px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}}
-                                        className="inv-row">{label}</div>;
+                                      return (
+                                        <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
+                                          style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
+                                          <div style={{flexShrink:0}}>
+                                            {c.imageUrl
+                                              ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
+                                              : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#555",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
+                                            }
+                                          </div>
+                                          <div style={{flex:1,minWidth:0}}>
+                                            <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{c.hero}</div>
+                                            <div style={{display:"flex",gap:6,fontSize:10,flexWrap:"wrap"}}>
+                                              <span style={{color:"#555"}}>#{c.cardNum}</span>
+                                              {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
+                                              {c.treatment&&<span style={{color:"#888"}}>{c.treatment}</span>}
+                                              {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
+                                            </div>
+                                            {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
+                                          </div>
+                                        </div>
+                                      );
                                     })}
                                   </div>
                                 );
@@ -1982,10 +2002,31 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           if(!hits.length) return null;
                           return (
                             <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
+                              <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                               {hits.map(c=>{
-                                const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+"":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                return <div key={c.id} onMouseDown={()=>{ upd(r.id,"name",label); if(c.mktValue||c.marketValue) upd(r.id,"mktVal",String(c.mktValue||c.marketValue||"")); setAcOpen(null); }}
-                                  style={{ padding:"10px 14px", borderBottom:"1px solid #111", cursor:"pointer", fontSize:13, color:"#F0F0F0" }}>{label}</div>;
+                                const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                                const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                                return (
+                                  <div key={c.id} onMouseDown={()=>{ upd(r.id,"name",label); if(c.mktValue||c.marketValue) upd(r.id,"mktVal",String(c.mktValue||c.marketValue||"")); setAcOpen(null); }}
+                                    style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
+                                    <div style={{flexShrink:0}}>
+                                      {c.imageUrl
+                                        ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
+                                        : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#555",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
+                                      }
+                                    </div>
+                                    <div style={{flex:1,minWidth:0}}>
+                                      <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{c.hero}</div>
+                                      <div style={{display:"flex",gap:6,fontSize:10,flexWrap:"wrap"}}>
+                                        <span style={{color:"#555"}}>#{c.cardNum}</span>
+                                        {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
+                                        {c.treatment&&<span style={{color:"#888"}}>{c.treatment}</span>}
+                                        {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
+                                      </div>
+                                      {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
+                                    </div>
+                                  </div>
+                                );
                               })}
                             </div>
                           );
