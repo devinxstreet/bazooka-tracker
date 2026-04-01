@@ -366,6 +366,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showHist,    setShowHist]    = useState(false);
   const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
   const [editingId,   setEditingId]   = useState(null);
+  const [imcAdjustment, setImcAdjustment] = useState("");
+  const [showImcAdj,    setShowImcAdj]    = useState(false);
   const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
@@ -717,7 +719,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc,       color:"#E8317A", sub:"70% of net revenue" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc + (parseFloat(imcAdjustment)||0),  color:"#E8317A", sub:"70% of net revenue" },
                 { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
                 { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
                 { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet,   color:"#E8317A", sub:"after commission paid" },
@@ -734,9 +736,30 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
               ))}
             </div>
-          </div>
 
-          {drillDown && <div className="drill-down">{renderDrillDown()}</div>}
+            {/* IMC Manual Adjustment */}
+            {canSeeFinancials && (
+              <div style={{marginTop:10}}>
+                {!showImcAdj ? (
+                  <button onClick={()=>setShowImcAdj(true)} style={{background:"none",border:"1px dashed rgba(255,255,255,0.08)",color:"#555",borderRadius:7,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                    ✏️ Adjust IMC amount {parseFloat(imcAdjustment)?`(${parseFloat(imcAdjustment)>0?"+":""}${fmt(parseFloat(imcAdjustment))} applied)`:""}
+                  </button>
+                ) : (
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:11,color:"#555"}}>IMC adjustment:</span>
+                    <input type="number" step="0.01" value={imcAdjustment} onChange={e=>setImcAdjustment(e.target.value)}
+                      placeholder="e.g. 838.86 or -100"
+                      style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:7,color:"#F0F0F0",padding:"5px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:160}}/>
+                    <span style={{fontSize:11,color:"#555"}}>
+                      Calc: {fmt(totals.imc)} → Adjusted: <strong style={{color:"#E8317A"}}>{fmt(totals.imc+(parseFloat(imcAdjustment)||0))}</strong>
+                      {parseFloat(imcAdjustment) ? <span style={{color:"#FBBF24",marginLeft:6}}>({parseFloat(imcAdjustment)>0?"+":""}{fmt(parseFloat(imcAdjustment))})</span> : ""}
+                    </span>
+                    <button onClick={()=>{setImcAdjustment("");setShowImcAdj(false);}} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>✕ Clear</button>
+                    <button onClick={()=>setShowImcAdj(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Done</button>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         );
       })()}
@@ -1257,7 +1280,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
-      const cardName = r.name === "__new__" ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
+      const cardName = (r.name === "__new__" || r.name === "__manual__") ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
       const costPerCard = getCostPerCard(r);
       for (let i=0; i<qty; i++) {
         cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
@@ -1801,16 +1824,24 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     </div>
                     {/* Card Name */}
                     {POOL_TYPES.includes(r.cardType) ? (
-                      cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
-                        <select value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} style={{ ...mInp, marginBottom:8, cursor:"pointer" }}>
-                          <option value="">-- Select Pool --</option>
-                          {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                            <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...mInp, marginBottom:8 }}/>
-                      )
+                      <div style={{marginBottom:8}}>
+                        {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && r.name !== "__manual__" ? (
+                          <select value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} style={{ ...mInp, cursor:"pointer" }}>
+                            <option value="">-- Select Pool --</option>
+                            <option value="__manual__">✏️ Type manually instead...</option>
+                            {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                              <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                            <input value={r.name==="__manual__"?"":r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{...mInp,flex:1}}/>
+                            {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
+                              <button onClick={()=>upd(r.id,"name","")} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"6px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩ Pool</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div style={{ position:"relative", marginBottom:8 }}>
                         <input
@@ -1890,22 +1921,28 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       <td style={{ ...S.td, width:220, position:"relative" }}>
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                           {POOL_TYPES.includes(r.cardType) ? (
-                            // Pool type -- show dropdown if pools exist, otherwise free text
-                            cardPools.filter(p=>p.cardType===r.cardType).length > 0 ? (
-                              <select
-                                value={r.name}
-                                onChange={e=>upd(r.id,"name",e.target.value)}
-                                style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
-                              >
-                                <option value="">-- Select Pool --</option>
-                                {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                  <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                                ))}
-                                <option value="__new__">+ Type new name...</option>
-                              </select>
-                            ) : (
-                              <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
-                            )
+                            <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
+                              {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && r.name !== "__manual__" ? (
+                                <select
+                                  value={r.name}
+                                  onChange={e=>upd(r.id,"name",e.target.value)}
+                                  style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
+                                >
+                                  <option value="">-- Select Pool --</option>
+                                  <option value="__manual__">✏️ Type manually instead...</option>
+                                  {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
+                                    <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                                  <input value={r.name==="__manual__"?"":r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                                  {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
+                                    <button onClick={()=>upd(r.id,"name","")} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             // Individual type -- BoBA checklist autocomplete
                             <>
