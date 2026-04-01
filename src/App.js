@@ -277,6 +277,7 @@ function GlobalStyles() {
         .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
         .view-mode-row::-webkit-scrollbar { display: none; }
         .checklist-actions { flex-wrap: wrap !important; }
+        input[type="date"] { width: 100% !important; box-sizing: border-box !important; }
         .deck-pb-layout { grid-template-columns: 1fr !important; }
         .deck-pb-panel { order: -1; }
         .deck-pb-cardlist { max-height: 60vh !important; }
@@ -347,7 +348,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -365,13 +366,22 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showHist,    setShowHist]    = useState(false);
   const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
   const [editingId,   setEditingId]   = useState(null);
-  const usedIds    = new Set(breaks.map(b => b.inventoryId));
+  const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
-  // Count used by the usage type logged, not the inventory purchase type
+  // Count individual-card usage by usage type (exclude pool logs — pool usage comes from pool.usedQty)
   const usedByType = {};
   CARD_TYPES.forEach(ct => { usedByType[ct] = 0; });
-  breaks.forEach(b => { const ct = USAGE_TO_CT[b.usage] || b.cardType; if (ct && usedByType[ct] !== undefined) usedByType[ct]++; });
+  breaks.forEach(b => {
+    if (b.isPoolLog) return; // pool usage counted separately below
+    const ct = USAGE_TO_CT[b.usage] || b.cardType;
+    if (ct && usedByType[ct] !== undefined) usedByType[ct]++;
+  });
+  // Add pool usage (usedQty is the ground truth for pools, qty-aware)
+  cardPools.forEach(p => {
+    const ct = p.cardType;
+    if (ct && usedByType[ct] !== undefined) usedByType[ct] += (parseInt(p.usedQty)||0);
+  });
   const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, inTransit:0, invested:0, market:0 }; });
   inventory.forEach(c => {
@@ -379,23 +389,37 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     s.total++; s.invested += (c.costPerCard||0); s.market += (c.marketValue||0);
     if (c.cardStatus === "in_transit" && !usedIds.has(c.id)) s.inTransit++;
   });
+  // Add pool totals (available pool cards) to the relevant card type
+  cardPools.forEach(p => {
+    const s = stats[p.cardType]; if (!s) return;
+    const poolTotal = parseInt(p.totalQty)||0;
+    s.total += poolTotal;
+  });
   CARD_TYPES.forEach(ct => { stats[ct].used = usedByType[ct]; });
   const totInv      = Object.values(stats).reduce((a,b) => a+b.invested, 0);
   const totMkt      = Object.values(stats).reduce((a,b) => a+b.market, 0);
   const oPct        = totMkt > 0 ? totInv/totMkt : null;
   const oz          = getZone(oPct);
-  const usedCount   = [...usedIds].length;
+  const usedCount   = [...usedIds].length + cardPools.reduce((s,p)=>s+(parseInt(p.usedQty)||0),0);
   const transitCount = inventory.filter(c => c.cardStatus === "in_transit" && !usedIds.has(c.id)).length;
-  const availCount  = inventory.length - usedCount - transitCount;
+  const poolAvailTotal = cardPools.reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
+  const availCount  = inventory.length - [...usedIds].length - transitCount + poolAvailTotal;
 
   const runway = {};
   CARD_TYPES.forEach(ct => {
     const avail = stats[ct].total - stats[ct].used - stats[ct].inTransit;
-    const ctBreaks = breaks.filter(b => (USAGE_TO_CT[b.usage] || b.cardType) === ct);
-    if (ctBreaks.length === 0) { runway[ct] = 999; return; }
-    const earliest = ctBreaks.reduce((mn, b) => { const d = new Date(b.dateAdded||b.date); return d < mn ? d : mn; }, new Date());
+    const ctBreaks = breaks.filter(b => !b.isPoolLog && (USAGE_TO_CT[b.usage] || b.cardType) === ct);
+    // For pools, estimate daily usage from usedQty and pool creation date
+    const poolUsed = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+(parseInt(p.usedQty)||0),0);
+    const totalUsedForRate = ctBreaks.length + poolUsed;
+    if (totalUsedForRate === 0) { runway[ct] = 999; return; }
+    const allDates = [
+      ...ctBreaks.map(b => new Date(b.dateAdded||b.date)),
+    ].filter(d => !isNaN(d));
+    if (!allDates.length) { runway[ct] = 999; return; }
+    const earliest = allDates.reduce((mn, d) => d < mn ? d : mn, new Date());
     const days = Math.max(1, Math.floor((new Date() - earliest) / 86400000));
-    runway[ct] = Math.floor(avail / (ctBreaks.length / days));
+    runway[ct] = Math.floor(avail / (totalUsedForRate / days));
   });
 
   const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used - stats[ct].inTransit) < TARGETS[ct].buffer);
@@ -748,12 +772,14 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
         // Card usage costs by type -- use all breaks in the period by date
+        const USAGE_TO_CT_OPS = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
         const cardCostByType = {};
         const cardQtyByType  = {};
         CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
         const now2 = new Date();
         breaks.forEach(b => {
-          if (!b.cardType || !CARD_TYPES.includes(b.cardType)) return;
+          const ct = USAGE_TO_CT_OPS[b.usage] || b.cardType;
+          if (!ct || !CARD_TYPES.includes(ct)) return;
           const breakDate = b.date || (b.dateAdded ? b.dateAdded.split("T")[0] : null);
           if (!breakDate) return;
           const d = parseLocalDate(breakDate);
@@ -776,8 +802,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           if (!inPrd) return;
           const inv = inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          cardCostByType[b.cardType] += cost;
-          cardQtyByType[b.cardType] += 1;
+          cardCostByType[ct] += cost;
+          cardQtyByType[ct] += 1;
         });
 
         return (
@@ -926,15 +952,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
             return (
               <div key={ct} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:9, padding:"10px 14px" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6, flexWrap:"wrap", gap:4 }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:13 }}>{ct}</span>
-                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                    <span style={{ fontSize:11, color:"#AAAAAA" }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#111111", padding:"2px 8px", borderRadius:5 }}>{"\uD83D\uDE9A"}{transit} in transit</span>}
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6, gap:6, flexWrap:"wrap" }}>
+                  <span style={{ fontWeight:700, color:cc.text, fontSize:13, flexShrink:0 }}>{ct}</span>
+                  <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>{avail} avail</span>
+                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#222", padding:"2px 8px", borderRadius:5 }}>{"\uD83D\uDE9A"} {transit}</span>}
                     <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
-                      {days >= 999 ? "No usage yet" : `~${days}d runway`}
+                      {days >= 999 ? "No usage" : `~${days}d`}
                     </span>
-                    <span style={{ fontSize:11, color:"#AAAAAA" }}>Pace: {(pace*100).toFixed(0)}%</span>
+                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>Pace: {(pace*100).toFixed(0)}%</span>
                   </div>
                 </div>
                 <div style={{ height:5, background:"#111111", borderRadius:3, overflow:"hidden" }}>
@@ -1356,16 +1382,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"#9CA3AF", border:`1.5px solid ${compMode===mode?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:isMobile?6:8, marginTop:12 }}>
           {[
-            { z:"\uD83D\uDFE2 Green",  p:"Under 65%", a:"Buy independently",          bg:"#0a1a0a", c:"#4ade80" },
-            { z:"\uD83D\uDFE1 Yellow", p:"65-70%",    a:"Flag before buying",          bg:"#FFF9DB", c:"#92400e" },
-            { z:"\uD83D\uDD34 Red",    p:"Over 70%",  a:"Pass or get approval",        bg:"#FEE2E2", c:"#991b1b" },
+            { z:"\uD83D\uDFE2 Green",  p:"Under 65%", a:"Buy independently",   bg:"#0a1a0a", c:"#4ade80" },
+            { z:"\uD83D\uDFE1 Yellow", p:"65–70%",    a:"Flag before buying",   bg:"#FFF9DB", c:"#92400e" },
+            { z:"\uD83D\uDD34 Red",    p:"Over 70%",  a:"Pass or get approval", bg:"#FEE2E2", c:"#991b1b" },
           ].map(({z,p,a,bg,c}) => (
-            <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7 }}>
-              <span style={{ fontWeight:800, color:c, fontSize:12, whiteSpace:"nowrap" }}>{z}</span>
-              <span style={{ color:c, fontSize:11, whiteSpace:"nowrap" }}>{p}</span>
-              <span style={{ color:"#AAAAAA", fontSize:11 }}>-- {a}</span>
+            <div key={z} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:bg, border:`1px solid ${c}22`, borderRadius:7, flexWrap:"wrap" }}>
+              <span style={{ fontWeight:800, color:c, fontSize:12 }}>{z}</span>
+              <span style={{ color:c, fontSize:11 }}>{p}</span>
+              {!isMobile && <span style={{ color:"#AAAAAA", fontSize:11 }}>— {a}</span>}
             </div>
           ))}
         </div>
@@ -2839,6 +2865,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
+  const [windowWidth,  setWindowWidth]  = useState(window.innerWidth);
+  useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
+  const isMobile = windowWidth < 768;
   const [breaker,    setBreaker]    = useState(matchedBreaker);
   const [date,       setDate]       = useState("");
   const [cardId,     setCardId]     = useState("");
@@ -3699,14 +3728,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!recapOnly && <>
       <div style={S.card}>
         <SectionLabel t="Log Card Out" />
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
           <SelectInput label="Breaker"    value={breaker} onChange={setBreaker} options={BREAKERS}/>
           <TextInput   label="Date" type="date" value={date} onChange={setDate}/>
           <SelectInput label="Usage Type" value={usage}   onChange={setUsage}   options={USAGE_TYPES}/>
         </div>
         <div style={{ marginBottom:12 }}>
           <Field label="Search Card">
-            <input value={cardSearch} onChange={e=>{setCardSearch(e.target.value);setCardId("");}} placeholder="Type to search available cards..." style={S.inp}/>
+            <input value={cardSearch} onChange={e=>{setCardSearch(e.target.value);setCardId("");}} placeholder="Type to search available cards..." style={{...S.inp, fontSize:isMobile?16:13, padding:isMobile?"12px 14px":"8px 12px"}}/>
             {cardSearch.length > 0 && (
               <div style={{ border:"1px solid #2a2a2a", borderRadius:8, overflow:"hidden", maxHeight:220, overflowY:"auto", background:"#111111", boxShadow:"0 4px 12px rgba(232,49,122,0.1)", marginTop:4 }}>
                 {available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).length===0
@@ -3714,9 +3743,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   : available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).map(c => {
                       const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"#6B7280"};
                       return (
-                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
+                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"14px 16px":"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                            <span style={{ fontWeight:700, fontSize:13 }}>{c.cardName}</span>
+                            <span style={{ fontWeight:700, fontSize:isMobile?15:13 }}>{c.cardName}</span>
                             <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
                           </div>
                           {canSeeFinancials && <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:600 }}>${(c.marketValue||0).toFixed(2)}</span>}
@@ -3735,7 +3764,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {canSeeFinancials && <span style={{ fontSize:12, color:"#AAAAAA" }}>Value: <strong style={{color:"#AAAAAA"}}>${(selCard.marketValue||0).toFixed(2)}</strong></span>}
           </div>
         )}
-        <div style={{ display:"flex", gap:10, alignItems:"end" }}>
+        <div style={{ display:"flex", flexDirection:isMobile?"column":"row", gap:10, alignItems:isMobile?"stretch":"end" }}>
           <div style={{ flex:1 }}><TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="e.g. Break #2"/></div>
           <Btn onClick={handleAdd} disabled={!breaker||!cardId} variant="green">Log Card Out</Btn>
           <Btn onClick={()=>{setBulkMode(p=>!p);setBulkSel(new Set());}} variant="ghost">{bulkMode?"Cancel Bulk":"Bulk Log Out"}</Btn>
@@ -3760,19 +3789,32 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:12 }}>
         {BREAKERS.map(b => {
           const bc=BC[b]; const s=sum[b];
           return (
             <div key={b} style={{ ...S.card, border:`1px solid ${bc.border}44` }}>
-              <div style={{ fontWeight:900, fontSize:16, color:bc.text, marginBottom:10 }}>{b}</div>
-              <div style={{ fontSize:24, fontWeight:900, color:bc.text, marginBottom:10 }}>{s.total} <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:400 }}>cards used</span></div>
-              {CARD_TYPES.map(ct => (
-                <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
-                  <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct}</span>
-                  <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:isMobile?6:10 }}>
+                <div style={{ fontWeight:900, fontSize:16, color:bc.text }}>{b}</div>
+                <div style={{ fontSize:isMobile?20:24, fontWeight:900, color:bc.text }}>{s.total} <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:400 }}>used</span></div>
+              </div>
+              {isMobile ? (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+                  {CARD_TYPES.map(ct => (
+                    <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 8px", background:"#1a1a1a", borderRadius:6 }}>
+                      <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct.replace(" Cards","")}</span>
+                      <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                CARD_TYPES.map(ct => (
+                  <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #222222" }}>
+                    <span style={{ fontSize:11, color:"#AAAAAA" }}>{ct}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
+                  </div>
+                ))
+              )}
             </div>
           );
         })}
@@ -14067,7 +14109,7 @@ export default function App() {
       </div>
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
-        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif}/>}
+        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl}/>}
