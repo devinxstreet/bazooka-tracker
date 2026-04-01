@@ -2458,7 +2458,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 const DEFAULT_PARALLELS = ["Base","Silver","Gold","Holo","Refractor","Auto","Prizm","Optic","Color Match","Superfractor","1/1","Other"];
 
 // --- CARD POOLS ----------------------------------------------
-function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials }) {
+function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, userRole, canSeeFinancials, bobaCards=[] }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
   const [form,       setForm]       = useState(EMPTY_POOL);
@@ -2583,45 +2583,67 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       )}
 
       {/* New/Edit pool form */}
-      {editing && (
-        <div style={{ ...S.card, border:"2px solid #E8317A44" }}>
-          <SectionLabel t={editing==="new"?"New Card Pool":"Edit Pool"} />
-          <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <label style={S.lbl}>Card Name</label>
-              <input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="e.g. Silver Battlefoil" style={S.inp}/>
+      {editing && (() => {
+        const treatments = [...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort();
+        const isCustom = form.cardName && !treatments.includes(form.cardName);
+        return (
+          <div style={{ ...S.card, border:"2px solid #E8317A44" }}>
+            <SectionLabel t={editing==="new"?"New Card Pool":"Edit Pool"} />
+            <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+              <div>
+                <label style={S.lbl}>Treatment / Card Name</label>
+                {treatments.length > 0 ? (
+                  <>
+                    <select
+                      value={isCustom?"__custom__":form.cardName}
+                      onChange={e=>{
+                        if(e.target.value==="__custom__") setForm(p=>({...p,cardName:""}));
+                        else setForm(p=>({...p,cardName:e.target.value}));
+                      }}
+                      style={{...S.inp,cursor:"pointer",marginBottom:isCustom?6:0}}
+                    >
+                      <option value="">-- Select Treatment --</option>
+                      {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+                      <option value="__custom__">✏️ Custom name...</option>
+                    </select>
+                    {isCustom&&<input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="Enter custom name" style={S.inp}/>}
+                  </>
+                ) : (
+                  <input value={form.cardName} onChange={e=>setForm(p=>({...p,cardName:e.target.value}))} placeholder="e.g. Silver Battlefoil" style={S.inp}/>
+                )}
+              </div>
+              <div>
+                <label style={S.lbl}>Card Type</label>
+                <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{...S.inp,cursor:"pointer"}}>
+                  {POOL_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.lbl}>Starting Qty</label>
+                <input type="number" min="0" value={form.totalQty} onChange={e=>setForm(p=>({...p,totalQty:e.target.value}))} style={S.inp} disabled={editing!=="new"}/>
+              </div>
+              <div>
+                <label style={S.lbl}>Cost Per Card ($)</label>
+                <input type="number" step="0.01" value={form.costPerCard} onChange={e=>setForm(p=>({...p,costPerCard:e.target.value}))} style={S.inp}/>
+              </div>
             </div>
-            <div>
-              <label style={S.lbl}>Card Type</label>
-              <select value={form.cardType} onChange={e=>setForm(p=>({...p,cardType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                {POOL_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, marginBottom:10 }}>
+              <div>
+                <label style={S.lbl}>Market Value Per Card ($)</label>
+                <input type="number" step="0.01" value={form.marketValue} onChange={e=>setForm(p=>({...p,marketValue:e.target.value}))} style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.lbl}>Notes</label>
+                <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional notes" style={S.inp}/>
+              </div>
             </div>
-            <div>
-              <label style={S.lbl}>Starting Qty</label>
-              <input type="number" min="0" value={form.totalQty} onChange={e=>setForm(p=>({...p,totalQty:e.target.value}))} style={S.inp} disabled={editing!=="new"}/>
-            </div>
-            <div>
-              <label style={S.lbl}>Cost Per Card ($)</label>
-              <input type="number" step="0.01" value={form.costPerCard} onChange={e=>setForm(p=>({...p,costPerCard:e.target.value}))} style={S.inp}/>
+            <div style={{ display:"flex", gap:8 }}>
+              <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>{"\uD83D\uDCBE Save Pool"}</Btn>
+              <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
             </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, marginBottom:10 }}>
-            <div>
-              <label style={S.lbl}>Market Value Per Card ($)</label>
-              <input type="number" step="0.01" value={form.marketValue} onChange={e=>setForm(p=>({...p,marketValue:e.target.value}))} style={S.inp}/>
-            </div>
-            <div>
-              <label style={S.lbl}>Notes</label>
-              <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional notes" style={S.inp}/>
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Btn onClick={savePool} variant="green" disabled={!form.cardName.trim()}>{"\uD83D\uDCBE Save Pool"}</Btn>
-            <Btn onClick={cancelEdit} variant="ghost">Cancel</Btn>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Pool list by type */}
       {POOL_TYPES.map(type => {
@@ -3031,7 +3053,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
       {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
 
-      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials}/>}
+      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards}/>}
 
       {invTab==="cards" && <>
         <div style={S.card}>
