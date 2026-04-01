@@ -133,7 +133,7 @@ function ZoneBadge({ pct }) {
   const z = getZone(pct);
   if (!z) return <span style={{ color:"#D1D5DB", fontSize:11 }}>--</span>;
   const cls = pct >= 0.70 ? "zone-red" : pct >= 0.65 ? "zone-yellow" : "";
-  return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} &middot; {(pct*100).toFixed(1)}%</span>;
+  return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} · {(pct*100).toFixed(1)}%</span>;
 }
 function Btn({ children, onClick, variant="gold", disabled, style:extra }) {
   const V = {
@@ -496,8 +496,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ fontSize:14, fontWeight:800, color:"#4ade80", marginBottom:4 }}>New Pay Stub from Bazooka!</div>
               <div style={{ fontSize:12, color:"#888" }}>
                 Period: <strong style={{color:"#F0F0F0"}}>{stub.period}</strong>
-                &nbsp;&middot;&nbsp; {stub.streamCount} stream{stub.streamCount!==1?"s":""}
-                &nbsp;&middot;&nbsp; Generated {new Date(stub.createdAt).toLocaleDateString()}
+                &nbsp;·&nbsp; {stub.streamCount} stream{stub.streamCount!==1?"s":""}
+                &nbsp;·&nbsp; Generated {new Date(stub.createdAt).toLocaleDateString()}
               </div>
             </div>
           </div>
@@ -728,7 +728,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               </div>
             )}
 
-            <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} &middot; {filtered.length} stream{filtered.length!==1?"s":""}</div>
+            <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
@@ -953,7 +953,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 {"\uD83D\uDCC8 Year-End Projections"}</div>
               <span style={{ fontSize:11, color:"#AAAAAA" }}>
                 {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
-                {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} &middot; {pct}% through {now.getFullYear()}
+                {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
               </span>
             </div>
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
@@ -1389,7 +1389,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
       <div style={{ background:"#111111", border:"2px solid #E8317A55", borderRadius:16, overflow:"hidden", maxWidth:680, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
         <div style={{ background:"#000000", padding:"28px 32px", textAlign:"center" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#F0F0F0", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
-          <div style={{ fontSize:11, color:"#AAAAAA", fontStyle:"italic" }}>Bo Jackson Battle Arena &middot; Lot Purchase Offer</div>
+          <div style={{ fontSize:11, color:"#AAAAAA", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
         <div style={{ padding:"14px 24px", borderBottom:"1px solid #333333", display:"grid", gridTemplateColumns:"1fr 1fr", background:"#111111" }}>
           <div><span style={{ color:"#AAAAAA", fontSize:11 }}>Prepared for: </span><strong>{seller.name||"--"}</strong></div>
@@ -1602,10 +1602,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             <span style={{ background:statusCfg.bg, color:statusCfg.color, border:`1px solid ${statusCfg.color}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{statusCfg.label}</span>
                           </div>
                           <div style={{ fontSize:11, color:"#666" }}>
-                            {q.cards?.length||0} cards &middot; Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
-                            {q.status==="countered" && <> &middot; Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
-                            {q.status==="accepted" && q.sellerPayment && <> &middot; Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
-                            &nbsp;&middot; {daysLeft}d left
+                            {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
+                            {q.status==="countered" && <> · Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
+                            {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
+                            &nbsp;· {daysLeft}d left
                           </div>
                           {/* View tracking */}
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
@@ -1613,7 +1613,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                               ? <span style={{ fontSize:11, color:"#444" }}>{"\uD83D\uDC41 Not opened yet"}</span>
                               : <span style={{ fontSize:11, color:(q.viewCount||0)>=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
                                   {"\uD83D\uDC41 Opened "}{q.viewCount} time{q.viewCount!==1?"s":""}
-                                  {q.lastViewedAt && <span style={{color:"#555",fontWeight:400}}> &middot; Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
+                                  {q.lastViewedAt && <span style={{color:"#555",fontWeight:400}}> · Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
                                   {(q.viewCount||0)>=5 && <span style={{color:"#FBBF24",marginLeft:6}}>{"\uD83D\uDD25 Interested!"}</span>}
                                 </span>
                             }
@@ -1716,7 +1716,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>Saved by</span>
                           <span style={{ fontWeight:700, fontSize:12, color:"#F0F0F0" }}>{c.savedBy||"--"}</span>
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
-                          <span style={{ fontSize:11, color:"#D1D5DB" }}>&middot;</span>
+                          <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>{savedAt}</span>
                         </div>
                       </div>
@@ -1815,7 +1815,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.seller}</div>
                                 <div style={{ fontSize:10, color:"#555", marginTop:1 }}>
-                                  {dealCount} deal{dealCount!==1?"s":""} &middot; ${Math.round(totalBought).toLocaleString()} total
+                                  {dealCount} deal{dealCount!==1?"s":""} · ${Math.round(totalBought).toLocaleString()} total
                                   {c.source && <span style={{ marginLeft:6, color:"#7B9CFF" }}>{c.source}</span>}
                                 </div>
                               </div>
@@ -2417,7 +2417,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <div style={{ display:"flex", flexDirection:"column", gap:10, position:"sticky", top:80 }}>
               <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
                 <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", marginBottom:2 }}>{seller.name}</div>
-                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} &middot; Last: {sorted[0]?.date||"--"}</div>
+                <div style={{ fontSize:11, color:"#555" }}>{sellerComps.length} deal{sellerComps.length!==1?"s":""} · Last: {sorted[0]?.date||"--"}</div>
                 {seller.contact && <div style={{ fontSize:11, color:"#7B9CFF", marginTop:4 }}>{seller.contact}</div>}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -2452,7 +2452,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"--"}</span>
                       </div>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards &middot; ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
+                        <span style={{ fontSize:11, color:"#888" }}>{c.totalCards||0} cards · ${Math.round(c.totalMarket||0).toLocaleString()} mkt</span>
                         <span style={{ fontSize:12, fontWeight:700, color:statColor(p) }}>${Math.round(c.offer||0).toLocaleString()} ({Math.round(p*100)}%)</span>
                       </div>
                     </div>
@@ -2963,7 +2963,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
                             <div><span style={{ fontWeight:700, fontSize:14, color:"#F0F0F0" }}>{lot.seller}</span><span style={{ color:"#AAAAAA", fontSize:12, marginLeft:10 }}>{lot.date}</span></div>
                             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                              <span style={{ fontSize:12, color:"#AAAAAA" }}>{lot.source}{canSeeFinancials?` &middot; ${lot.payment}`:""}</span>
+                              <span style={{ fontSize:12, color:"#AAAAAA" }}>{lot.source}{canSeeFinancials?` · ${lot.payment}`:""}</span>
                               {canSeeFinancials && <span style={{ fontWeight:700, color:"#E8317A" }}>${lot.lotPaid.toFixed(2)}</span>}
                               {CAN_DELETE.includes(userRole?.role) && (
                                 <button
@@ -3007,7 +3007,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                                             const url = CURL[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent((tracking.carrier||'')+" tracking "+num)}`;
                                             return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} \u2197</a>;
                                           })()}
-                                        {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>&middot; checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
+                                        {tracking.lastChecked && <span style={{ fontSize:10, color:"#D1D5DB" }}>· checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
                                       </>
                                     : <span style={{ fontSize:12, color:"#D1D5DB" }}>No tracking added yet</span>
                                   }
@@ -3285,7 +3285,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setLogOutCard(null)}>
           <div style={{ background:"#111111", border:"1.5px solid #E8317A44", borderRadius:14, padding:"24px", width:380, maxWidth:"90vw" }} onClick={e=>e.stopPropagation()}>
             <div style={{ fontWeight:800, fontSize:15, color:"#F0F0F0", marginBottom:4 }}>{"\uD83D\uDCE4 Log Out Card"}</div>
-            <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>{logOutCard.cardName} &middot; {logOutCard.cardType}</div>
+            <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>{logOutCard.cardName} · {logOutCard.cardType}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               <div>
                 <label style={S.lbl}>Breaker</label>
@@ -3638,7 +3638,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {editingStreamId && existingStream && (
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
-                  {"\u270F\uFE0F Editing:"}{existingStream.breaker} &middot; {existingStream.date}
+                  {"\u270F\uFE0F Editing:"}{existingStream.breaker} · {existingStream.date}
                 </span>
                 <button onClick={()=>{ csvDataLoaded.current=false; setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); }} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:11, textDecoration:"underline", fontFamily:"inherit" }}>
                   Start new instead
@@ -3757,7 +3757,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>{"\uD83D\uDFE2 Zion Cases Revenue -- Bazooka Only"}</div>
-              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-detected from CSV &middot; Not included in IMC gross</div>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Auto-detected from CSV · Not included in IMC gross</div>
             </div>
             <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>${parseFloat(recap.zionRevenue||0).toFixed(2)}</div>
           </div>
@@ -3823,7 +3823,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   {selectedChasers.length > 0 && (
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
                       <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:700 }}>
-                        {"\u2705"}{selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected &middot; auto-cost: ${totalCost.toFixed(2)}
+                        {"\u2705"}{selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
                       </span>
                       <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>{"\u2715 Clear"}</button>
                     </div>
@@ -4611,7 +4611,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", borderBottom:"1px solid #1a1a1a" }}>
                       <div>
                         <span style={{ fontSize:14, fontWeight:800, color:"#E8317A" }}>{selectedState}</span>
-                        <span style={{ fontSize:12, color:"#555", marginLeft:8 }}>{d?.buyers||0} buyer{d?.buyers!==1?"s":""} &middot; {fmt(d?.revenue||0)}</span>
+                        <span style={{ fontSize:12, color:"#555", marginLeft:8 }}>{d?.buyers||0} buyer{d?.buyers!==1?"s":""} · {fmt(d?.revenue||0)}</span>
                       </div>
                       <button onClick={()=>setSelectedState(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"\u00D7"}</button>
                     </div>
@@ -4674,7 +4674,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{imp.filename}</div>
                     <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
-                      {imp.rowCount} buyers &middot; {new Date(imp.importedAt).toLocaleDateString()}
+                      {imp.rowCount} buyers · {new Date(imp.importedAt).toLocaleDateString()}
                       {stream && <span style={{ color:"#7B9CFF", marginLeft:8 }}>{stream.name||stream.id}</span>}
                     </div>
                   </div>
@@ -5384,7 +5384,7 @@ function Sellers({ inventory, breaks, userRole }) {
             <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{s.name}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>
               {s.topSource !== "--" && <span style={{ color:SOURCE_COLORS[s.topSource]||"#6B7280", fontWeight:700 }}>{s.topSource}</span>}
-              {s.topSource !== "--" && " &middot; "}
+              {s.topSource !== "--" && " · "}
               Last purchase {s.lastDate ? new Date(s.lastDate).toLocaleDateString() : "--"}
             </div>
           </div>
@@ -5634,9 +5634,9 @@ function BreakPlanner({ skuPrices={}, userRole }) {
 
   // Zone based on market multiple (targetGross / totalMktVal)
   // 1.5x+ = green, 1.3-1.5x = yellow, <1.3x = red
-  const zone = targetMultiple >= 1.5 ? { c:"#4ade80", bg:"#0a1a0a", l:"\uD83D\uDFE2 Green &middot; "+targetMultiple.toFixed(2)+"x" }
-             : targetMultiple >= 1.3 ? { c:"#FBBF24", bg:"#1a1400", l:"\uD83D\uDFE1 Yellow &middot; "+targetMultiple.toFixed(2)+"x" }
-             : { c:"#E8317A", bg:"#1a0a0a", l:"\uD83D\uDD34 Red &middot; "+targetMultiple.toFixed(2)+"x" };
+  const zone = targetMultiple >= 1.5 ? { c:"#4ade80", bg:"#0a1a0a", l:"\uD83D\uDFE2 Green · "+targetMultiple.toFixed(2)+"x" }
+             : targetMultiple >= 1.3 ? { c:"#FBBF24", bg:"#1a1400", l:"\uD83D\uDFE1 Yellow · "+targetMultiple.toFixed(2)+"x" }
+             : { c:"#E8317A", bg:"#1a0a0a", l:"\uD83D\uDD34 Red · "+targetMultiple.toFixed(2)+"x" };
 
   const breakEvenGross  = totalMktVal * 1.0;
   const breakEvenSpot   = breakEvenGross / numSpots;
@@ -5717,7 +5717,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
         <>
           {/* Spot price hero */}
           <div style={{ ...S.card, background:zone.bg, border:`2px solid ${zone.c}44`, textAlign:"center", padding:"28px 20px" }}>
-            <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} &middot; {targetPct}% of Market Value</div>
+            <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} · {targetPct}% of Market Value</div>
             <div style={{ fontSize:13, color:"#888", marginBottom:6 }}>Price per spot to hit your target</div>
             <div style={{ fontSize:56, fontWeight:900, color:zone.c, letterSpacing:-1 }}>${spotPrice.toFixed(2)}</div>
             <div style={{ fontSize:13, color:"#666", marginTop:6 }}>{numSpots} spots \u00D7 ${spotPrice.toFixed(2)} = <strong style={{color:"#F0F0F0"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
@@ -5728,7 +5728,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
             {[
               { l:"Est. Gross Revenue",  v:`$${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#F0F0F0", sub:`${numSpots} spots @ $${spotPrice.toFixed(2)}` },
               { l:"Bazooka Net (30%)",   v:fmt(bazNet),    c:"#E8317A",  sub:`After ${whatnotPct}% Whatnot fee` },
-              { l:`${breaker}'s Commission`, v:fmt(commAmt), c:"#4ade80", sub:`${(rate*100).toFixed(0)}% rate &middot; ${(mm).toFixed(2)}x multiple` },
+              { l:`${breaker}'s Commission`, v:fmt(commAmt), c:"#4ade80", sub:`${(rate*100).toFixed(0)}% rate · ${(mm).toFixed(2)}x multiple` },
             ].map(({l,v,c,sub})=>(
               <div key={l} style={{ ...S.card, textAlign:"center" }}>
                 <div style={{ fontSize:24, fontWeight:900, color:c, marginBottom:4 }}>{v}</div>
@@ -7871,7 +7871,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
               {!stub.read && <span style={{ background:"#E8317A22", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:20, padding:"1px 8px", fontSize:10, fontWeight:700 }}>Unread</span>}
             </div>
             <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
-              {stub.streamCount} stream{stub.streamCount!==1?"s":""} &middot; Generated {new Date(stub.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} by {stub.createdBy||"Admin"}
+              {stub.streamCount} stream{stub.streamCount!==1?"s":""} · Generated {new Date(stub.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} by {stub.createdBy||"Admin"}
             </div>
           </div>
         </div>
@@ -8405,7 +8405,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div class="payout-amt">${fmt(totals.comm+totals.tips)}</div>
                   ${totals.tips>0?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">(${fmt(totals.comm)} commission + ${fmt(totals.tips)} tips)</div>`:""}
                 </div>`}
-                <div class="footer">Bazooka Breaks, LLC &nbsp;&middot;&nbsp; This document is confidential and intended for the named recipient only.</div>
+                <div class="footer">Bazooka Breaks, LLC &nbsp;·&nbsp; This document is confidential and intended for the named recipient only.</div>
               </body></html>`);
               w.document.close();
             }
@@ -8853,7 +8853,7 @@ function PublicDeckBuilder() {
                       <div key={t} style={{ marginBottom:6 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
                           <span style={{ fontSize:11, color:unlocked?"#A855F7":"#888", fontWeight:unlocked?700:400 }}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
-                          <span style={{ fontSize:11, color:unlocked?"#A855F7":"#555" }}>{core}/10{unlocked?` &middot; ${apex}/1 apex`:""}</span>
+                          <span style={{ fontSize:11, color:unlocked?"#A855F7":"#555" }}>{core}/10{unlocked?` · ${apex}/1 apex`:""}</span>
                         </div>
                         <div style={{ height:3, background:"#1a1a1a", borderRadius:2 }}>
                           <div style={{ width:`${Math.min(100,core/10*100)}%`, height:"100%", background:unlocked?"#A855F7":"#333", borderRadius:2 }}/>
@@ -8947,7 +8947,7 @@ function PublicPlaybookBuilder() {
           <a href="/" style={{ color:"#555", fontSize:12, textDecoration:"none" }}>{"\u2190 Back"}</a>
           <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{"\uD83D\uDCD6 Playbook Builder"}</div>
           <span style={{ fontSize:12, color:playFull?"#E8317A":"#4ade80", fontWeight:700 }}>{playCount}/{PUBLIC_PLAY_LIMIT} plays</span>
-          {bonusCount>0 && <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>&middot; {bonusCount} BPL</span>}
+          {bonusCount>0 && <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>· {bonusCount} BPL</span>}
           <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save playbooks</span>
         </div>
 
@@ -9147,7 +9147,7 @@ function BobaShowcase({ uid }) {
                 <span style={{ color:"#E8317A" }}>BAZOOKA</span>
                 <span style={{ color:"#F0F0F0" }}> Collection</span>
               </div>
-              <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena &middot; Bazooka Breaks, LLC</div>
+              <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
             </div>
             <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "#1a1a1a", border:`1px solid ${copied?"#4ade80":"#2a2a2a"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
               {copied ? "\u2705 Copied!" : "\uD83D\uDD17 Share Link"}
@@ -9183,7 +9183,7 @@ function BobaShowcase({ uid }) {
               <option value="hero">{"Sort: Hero A\u2192Z"}</option>
             </select>
             <div style={{ flex:1 }}/>
-            <span style={{ fontSize:11, color:"#333" }}>{filtered.length} cards &middot; {totalPages} pages</span>
+            <span style={{ fontSize:11, color:"#333" }}>{filtered.length} cards · {totalPages} pages</span>
           </div>
         </div>
       </div>
@@ -9255,7 +9255,7 @@ function BobaShowcase({ uid }) {
             </div>
             <div style={{ flex:1, minWidth:260 }}>
               <div style={{ fontSize:11, color:"#444", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>
-                {spotlight.setName} &middot; #{spotlight.cardNum}
+                {spotlight.setName} · #{spotlight.cardNum}
               </div>
               <div style={{ fontSize:38, fontWeight:900, color:"#F0F0F0", lineHeight:1.1, marginBottom:12 }}>{spotlight.hero}</div>
               {(() => { const r = getRarity(spotlight); return (
@@ -9344,7 +9344,7 @@ function ShowcaseCard({ c, onClick, large }) {
           <div style={{ fontSize:large?15:12, fontWeight:900, color:"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:3 }}>
             {c.weapon && <span style={{ fontSize:large?12:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
-            {c.power  && <span style={{ fontSize:large?12:10, color:"#555" }}>&middot; {c.power}</span>}
+            {c.power  && <span style={{ fontSize:large?12:10, color:"#555" }}>· {c.power}</span>}
             <span style={{ fontSize:large?11:9, color:rarity.color, marginLeft:"auto", fontWeight:700 }}>{rarity.label}</span>
           </div>
         </div>
@@ -9506,7 +9506,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                 {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                 {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
               </div>
-              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
+              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
@@ -9530,7 +9530,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
         {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
-      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>&middot; {athleteSport(c.athlete)}</span> : null}</div>}
+      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -10816,7 +10816,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         }}/>
                       </div>
                       <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
-                        {setOwned}/{setCards.length} &middot; {setPct}%
+                        {setOwned}/{setCards.length} · {setPct}%
                       </span>
                     </div>
                   );
@@ -11018,7 +11018,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         {/* Debug: show what Vision actually detected */}
                         {photoScan.detected && (
                           <div style={{ fontSize:10, color:"#333", marginTop:6, borderTop:"1px solid #1a1a1a", paddingTop:4 }}>
-                            <div>Vision read: #{photoScan.detected.cardNum||"?"} &middot; {photoScan.detected.hero||"?"} &middot; {photoScan.detected.weapon||"?"}</div>
+                            <div>Vision read: #{photoScan.detected.cardNum||"?"} · {photoScan.detected.hero||"?"} · {photoScan.detected.weapon||"?"}</div>
                             {photoScan.detected.visualHints && <div style={{ color:"#2a2a2a", marginTop:2 }}>Visual: {photoScan.detected.visualHints}</div>}
                           </div>
                         )}
@@ -11093,7 +11093,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         }
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
-                          <div style={{ fontSize:11, color:wc }}>{c.weapon} &middot; {c.power}</div>
+                          <div style={{ fontSize:11, color:wc }}>{c.weapon} · {c.power}</div>
                         </div>
                         <div style={{ fontSize:13, fontWeight:900, color:"#4ade80", flexShrink:0 }}>+{entry.qty}</div>
                       </div>
@@ -11116,7 +11116,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       {/* Non-modal photoScan toast (used when not in modal) */}
       {!scanModal && photoScan && photoScan.status !== "scanning" && (
         <div style={{ ...S.card, border:`1.5px solid ${photoScan.status==="matched"?"#4ade8044":"#E8317A44"}`, background:photoScan.status==="matched"?"#0a1a0a":"#1a0a0a", display:"flex", alignItems:"center", gap:12 }}>
-          {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>{"\u2705"}</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} &middot; #{photoScan.card?.cardNum}</div></div></>}
+          {photoScan.status==="matched" && <><span style={{ fontSize:28 }}>{"\u2705"}</span><div><div style={{ fontWeight:800, color:"#4ade80", fontSize:14 }}>Added to collection!</div><div style={{ fontSize:12, color:"#888", marginTop:2 }}>{photoScan.card?.hero} · #{photoScan.card?.cardNum}</div></div></>}
           {photoScan.status==="nomatch" && <><span style={{ fontSize:28 }}>{"\u274C"}</span><div><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Card not found</div>{photoScan.identified && <div style={{ fontSize:12, color:"#888", marginTop:2 }}>Detected: {photoScan.identified.hero||"?"} #{photoScan.identified.cardNum||"?"}</div>}</div></>}
           {photoScan.status==="error" && <><span style={{ fontSize:28 }}>{"\u26A0\uFE0F"}</span><div style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>Scan failed -- try again</div></>}
         </div>
@@ -11404,7 +11404,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-              <span style={{ fontSize:11, color:"#555" }}>{treatmentList.length} treatments &middot; respects active filters</span>
+              <span style={{ fontSize:11, color:"#555" }}>{treatmentList.length} treatments · respects active filters</span>
               <div style={{ display:"flex", gap:4, marginLeft:"auto" }}>
                 {[["all","All"],["owned","\u2705 Have"],["missing","\u274C Missing"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setTreatOwnedFilter(v)} style={{ background:treatOwnedFilter===v?"#1A1A2E":"transparent", color:treatOwnedFilter===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${treatOwnedFilter===v?"#E8317A":"#333"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
@@ -11426,7 +11426,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         </span>
                         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                           <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":pct>0?"#FBBF24":"#555" }}>
-                            {ownedCount}/{tcards.length} &middot; {pct}%
+                            {ownedCount}/{tcards.length} · {pct}%
                           </span>
                           <span style={{ color:"#444", fontSize:12 }}>{isExp?"\u25B2":"\u25BC"}</span>
                         </div>
@@ -11843,7 +11843,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div key={c.id} style={{ background:"#0a1a0a", border:"1px solid #4ade8022", borderRadius:8, padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <div>
                           <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0" }}>{c.hero}</div>
-                          <div style={{ fontSize:10, color:"#555" }}>#{c.cardNum} &middot; <span style={{color:wc2}}>{c.weapon}</span></div>
+                          <div style={{ fontSize:10, color:"#555" }}>#{c.cardNum} · <span style={{color:wc2}}>{c.weapon}</span></div>
                         </div>
                         <div style={{ textAlign:"right" }}>
                           <div style={{ fontSize:14, fontWeight:900, color:"#4ade80" }}>{"\u00D7"}{owned[c.id]||0}</div>
@@ -12196,7 +12196,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                                   {unlocked ? "\uD83D\uDD13" : "\uD83D\uDD12"} {t}
                                 </span>
                                 <span style={{ fontSize:11, color: unlocked ? "#A855F7" : "#555" }}>
-                                  {core}/10 core{unlocked ? ` &middot; ${apex}/1 apex` : ""}
+                                  {core}/10 core{unlocked ? ` · ${apex}/1 apex` : ""}
                                 </span>
                               </div>
                               <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
@@ -12382,7 +12382,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 <span style={{ fontSize:12, fontWeight:700 }}>
                   <span style={{ color:playFull?"#E8317A":"#4ade80" }}>{playCount}/{PLAY_LIMIT}</span>
                   <span style={{ color:"#555" }}> plays</span>
-                  {bonusCount > 0 && <span style={{ color:"#7B9CFF" }}> &middot; {bonusCount} BPL</span>}
+                  {bonusCount > 0 && <span style={{ color:"#7B9CFF" }}> · {bonusCount} BPL</span>}
                 </span>
                 <button onClick={savePlaybook} disabled={pbSaving||pbCards.length===0}
                   style={{ background:"#0a1a0a", border:"1px solid #4ade8044", color:"#4ade80", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -12695,7 +12695,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     ) : (
                       <>
                         <span style={{ fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{imp.setName}</span>
-                        <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards &middot; {imp.importedAt?.slice(0,10)}</span>
+                        <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{imp.cardCount?.toLocaleString()} cards · {imp.importedAt?.slice(0,10)}</span>
                       </>
                     )}
                   </div>
@@ -12927,7 +12927,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                         {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} &middot; {l.cardPower}\u26A1</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} · {l.cardPower}\u26A1</div>
                           <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
                           <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
                         </div>
@@ -13141,7 +13141,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                             <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
                             <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}\u26A1 &middot; {l.setName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}\u26A1 · {l.setName}</div>
                           </div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -13333,7 +13333,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
                           <div>
                             <div style={{fontSize:22,fontWeight:900,background:"linear-gradient(135deg,#A855F7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{team.name}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{allMembers.length}/6 members &middot; Apex Madness &middot; Drag players to move between starter/bench</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4}}>{allMembers.length}/6 members · Apex Madness · Drag players to move between starter/bench</div>
                           </div>
                           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                             {allMembers.length<6&&isOwner&&(
@@ -13378,7 +13378,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                                     {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
                                   <div style={{flex:1}}>
-                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} &middot; {card.power}\u26A1 &middot; {card.treatment}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}\u26A1 · {card.treatment}</div>
                                     <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
                                 </div>
@@ -13674,7 +13674,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} &middot; #{c.cardNum}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} · #{c.cardNum}</div>
                           {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
                         </div>
                         <div style={{fontSize:16,fontWeight:900,color:ok?wc:"rgba(255,255,255,0.2)",flexShrink:0}}>{c.power}</div>
@@ -13699,7 +13699,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <div key={t} style={{marginBottom:7}}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
                           <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.4)",fontWeight:unlocked?700:400}}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
-                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.3)"}}>{core}/10{unlocked?` &middot; ${apex}/1`:""}</span>
+                          <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.3)"}}>{core}/10{unlocked?` · ${apex}/1`:""}</span>
                         </div>
                         <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
                           <div style={{width:`${Math.min(100,core/10*100)}%`,height:"100%",background:unlocked?"linear-gradient(90deg,#A855F7,#7B2FF7)":"rgba(255,255,255,0.15)",borderRadius:2,transition:"width 0.3s"}}/>
@@ -13952,7 +13952,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                       <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{c.hero}</div>
                       <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} &middot; {c.setName}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} · {c.setName}</div>
                       <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}\u26A1</div>
                     </div>
                   </div>
@@ -13991,7 +13991,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 {scanSession.slice(0,5).map((s,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
                     <span style={{fontSize:20}}>{"\u2705"}</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} &middot; {s.card.power}\u26A1</div></div>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} · {s.card.power}\u26A1</div></div>
                     <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
                   </div>
                 ))}
@@ -14095,7 +14095,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
                 {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
                   <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} &middot; {s.cardPower}\u26A1</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} · {s.cardPower}\u26A1</div>
                       <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
                     </div>
                     <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
@@ -15126,7 +15126,7 @@ function PublicCardDatabase() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCB0 List for Sale/Trade"}</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} &middot; {listModal.treatment} &middot; {listModal.power}\u26A1</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}\u26A1</div>
             <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
               {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"],["offer","Best Offer"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setListType(v)} style={{flex:1,minWidth:"45%",background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:"1.5px solid "+(listType===v?"#4ade80":"rgba(255,255,255,0.1)"),color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
@@ -15297,7 +15297,7 @@ function PublicCardDatabase() {
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px 12px"}}>
                 {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
                 <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>{n.cardName}</span>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>by {n.sellerName} &middot; ${(n.askingPrice||0).toFixed(2)}</span>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>by {n.sellerName} · ${(n.askingPrice||0).toFixed(2)}</span>
                 <button onClick={()=>{setActiveTab("market");setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
                 <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>{"\u00D7"}</button>
               </div>
@@ -15975,7 +15975,7 @@ function PublicQuote({ quoteId }) {
         {/* Header */}
         <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:16, textAlign:"center", border:"1px solid #1a1a1a" }}>
           <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
-          <div style={{ fontSize:11, color:"#555", fontStyle:"italic" }}>Bo Jackson Battle Arena &middot; Lot Purchase Offer</div>
+          <div style={{ fontSize:11, color:"#555", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
 
         {(isExpired || isClosed) && (
@@ -16508,7 +16508,7 @@ export default function App() {
                       <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"#111":"#0d0d0d" }} className="inv-row">
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.cardName}</div>
-                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} &middot; {c.source||"--"} &middot; {c.date||"--"}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{c.seller||"--"} · {c.source||"--"} · {c.date||"--"}</div>
                         </div>
                         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
                           {c.marketValue > 0 && <span style={{ fontSize:11, fontWeight:700, color:"#FBBF24" }}>${(c.marketValue||0).toFixed(2)} mkt</span>}
