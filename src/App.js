@@ -1933,7 +1933,32 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           </select>
                         ) : (
                           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                            <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{...mInp,flex:1}}/>
+                            <div style={{position:"relative",flex:1}}>
+                              <input
+                                value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
+                                onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
+                                onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
+                                onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                                placeholder="Type hero name or card #..."
+                                style={{...mInp}}
+                              />
+                              {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
+                                const raw=(acQuery[r.id]||"").toLowerCase();
+                                const terms=raw.trim().split(/\s+/).filter(Boolean);
+                                const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
+                                if(!hits.length) return null;
+                                return (
+                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:240,overflowY:"auto"}}>
+                                    {hits.map(c=>{
+                                      const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                                      return <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
+                                        style={{padding:"8px 12px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}}
+                                        className="inv-row">{label}</div>;
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                             {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
                               <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"6px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩ Pool</button>
                             )}
@@ -2039,8 +2064,33 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                   ))}
                                 </select>
                               ) : (
-                                <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                                  <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                                <div style={{display:"flex",gap:4,alignItems:"center",flex:1}}>
+                                  <div style={{position:"relative",flex:1}}>
+                                    <input
+                                      value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
+                                      onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
+                                      onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
+                                      onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                                      placeholder="Type hero name or card #..."
+                                      style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
+                                    />
+                                    {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
+                                      const raw=(acQuery[r.id]||"").toLowerCase();
+                                      const terms=raw.trim().split(/\s+/).filter(Boolean);
+                                      const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
+                                      if(!hits.length) return null;
+                                      return (
+                                        <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
+                                          {hits.map(c=>{
+                                            const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                                            return <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
+                                              style={{padding:"8px 12px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}}
+                                              className="inv-row">{label}</div>;
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                   {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
                                     <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
                                   )}
