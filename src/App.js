@@ -5452,6 +5452,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [curYear,      setCurYear]      = useState(today.getFullYear());
   const [curMonth,     setCurMonth]     = useState(today.getMonth());
   const [plans,        setPlans]        = useState([]);
+  const [vacations,    setVacations]    = useState([]);
   const [templates,    setTemplates]    = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [modalDate,    setModalDate]    = useState(null);
@@ -5507,6 +5508,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const unsub = onSnapshot(collection(db,"planned_streams"), snap => {
       setPlans(snap.docs.map(d=>({...d.data(),id:d.id})));
       setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"breaker_vacations"), snap => {
+      setVacations(snap.docs.map(d=>({...d.data(),id:d.id})));
     });
     return () => unsub();
   }, []);
@@ -5662,6 +5670,31 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     } else {
       if (window.confirm("Remove this planned stream?")) await deleteDoc(doc(db,"planned_streams",id));
     }
+  }
+
+  const [vacModal,    setVacModal]    = useState(false);
+  const [vacForm,     setVacForm]     = useState({ breaker:BREAKERS[0], startDate:"", endDate:"", note:"" });
+  const [editVacId,   setEditVacId]   = useState(null);
+  const [savingVac,   setSavingVac]   = useState(false);
+
+  function vacationsForDate(ds) {
+    return vacations.filter(v => ds >= v.startDate && ds <= v.endDate);
+  }
+  function vacationsForMonth(y, m) {
+    const first = dateStr(y, m, 1);
+    const last  = dateStr(y, m, daysInMonth(y, m));
+    return vacations.filter(v => v.startDate <= last && v.endDate >= first);
+  }
+  async function saveVacation() {
+    if (!vacForm.startDate || !vacForm.endDate || !vacForm.breaker) return;
+    setSavingVac(true);
+    const id = editVacId || uid();
+    await setDoc(doc(db,"breaker_vacations",id), { ...vacForm, updatedAt:new Date().toISOString() });
+    setVacModal(false); setEditVacId(null); setVacForm({ breaker:BREAKERS[0], startDate:"", endDate:"", note:"" });
+    setSavingVac(false);
+  }
+  async function deleteVacation(id) {
+    if (window.confirm("Remove this time-off entry?")) await deleteDoc(doc(db,"breaker_vacations",id));
   }
 
   async function saveAsTemplate(name) {
@@ -5866,6 +5899,17 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 onMouseEnter={e=>e.currentTarget.style.background="#1e1e2a"}
                 onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":heatBg}>
                 <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
+                {/* Vacation bands */}
+                {vacationsForDate(ds).map(v=>{
+                  const bc = BC_COLORS[v.breaker]||"#888";
+                  const isStart = v.startDate===ds;
+                  const isEnd   = v.endDate===ds;
+                  return (
+                    <div key={v.id} style={{fontSize:8,fontWeight:700,color:bc,background:`${bc}22`,border:`1px solid ${bc}44`,borderRadius:isStart&&isEnd?3:isStart?"3px 0 0 3px":isEnd?"0 3px 3px 0":0,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {isStart?`🏖 ${v.breaker}`:isEnd?"← back":"·· "+v.breaker}
+                    </div>
+                  );
+                })}
                 {dayActuals.slice(0,1).map(a=>(
                   <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     ✅ {a.streamName||a.breaker||"Stream"}
@@ -5881,6 +5925,45 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             );
           })}
         </div>
+
+        {/* Vacation summary for this month */}
+        {!compact && (() => {
+          const mVacs = vacationsForMonth(y, m);
+          return (
+            <div style={{marginTop:12,borderTop:"1px solid #1a1a1a",paddingTop:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mVacs.length>0?8:0}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#555"}}>🏖 Time Off</span>
+                <button onClick={()=>{setVacForm({breaker:BREAKERS[0],startDate:dateStr(y,m,1),endDate:dateStr(y,m,1),note:""});setEditVacId(null);setVacModal(true);}}
+                  style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:7,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                  + Add Time Off
+                </button>
+              </div>
+              {mVacs.length > 0 && (
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {mVacs.map(v=>{
+                    const bc = BC_COLORS[v.breaker]||"#888";
+                    const days = Math.round((new Date(v.endDate+"T12:00:00")-new Date(v.startDate+"T12:00:00"))/86400000)+1;
+                    return (
+                      <div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",background:`${bc}10`,border:`1px solid ${bc}22`,borderRadius:7}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontSize:12,fontWeight:700,color:bc}}>{v.breaker}</span>
+                          <span style={{fontSize:11,color:"#555"}}>{v.startDate.slice(5).replace("-","/")} → {v.endDate.slice(5).replace("-","/")} · {days} day{days!==1?"s":""}</span>
+                          {v.note&&<span style={{fontSize:10,color:"#444"}}>{v.note}</span>}
+                        </div>
+                        <div style={{display:"flex",gap:4}}>
+                          <button onClick={()=>{setVacForm({breaker:v.breaker,startDate:v.startDate,endDate:v.endDate,note:v.note||""});setEditVacId(v.id);setVacModal(true);}}
+                            style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:5,padding:"2px 7px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                          <button onClick={()=>deleteVacation(v.id)}
+                            style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -6895,6 +6978,66 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     );
   }
 
+  // -- Vacation Modal --
+  function renderVacationModal() {
+    if (!vacModal) return null;
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setVacModal(false)}>
+        <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>🏖 Time Off</div>
+            <button onClick={()=>setVacModal(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {BREAKERS.map(b=>{
+                  const bc = BC_COLORS[b]||"#888";
+                  return (
+                    <button key={b} onClick={()=>setVacForm(p=>({...p,breaker:b}))}
+                      style={{background:vacForm.breaker===b?`${bc}20`:"transparent",color:vacForm.breaker===b?bc:"rgba(255,255,255,0.3)",border:`1.5px solid ${vacForm.breaker===b?bc:"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      {b}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Start Date</div>
+                <input type="date" value={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,startDate:e.target.value,endDate:p.endDate<e.target.value?e.target.value:p.endDate}))}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>End Date</div>
+                <input type="date" value={vacForm.endDate} min={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,endDate:e.target.value}))}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            {vacForm.startDate && vacForm.endDate && (
+              <div style={{fontSize:12,color:BC_COLORS[vacForm.breaker]||"#888",fontWeight:700}}>
+                {Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1} day{Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1!==1?"s":""} off
+              </div>
+            )}
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Note (optional)</div>
+              <input value={vacForm.note} onChange={e=>setVacForm(p=>({...p,note:e.target.value}))} placeholder="e.g. Family vacation, Surgery..."
+                style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={saveVacation} disabled={savingVac||!vacForm.startDate||!vacForm.endDate}
+                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                {savingVac?"Saving...":editVacId?"💾 Update":"🏖 Save Time Off"}
+              </button>
+              <button onClick={()=>setVacModal(false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // -- Plan modal --
   function renderModal() {
     if (!modalDate) return null;
@@ -7102,6 +7245,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       {/* Confetti canvas */}
       <canvas ref={confettiCanvas} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:99999,display:confettiActive?"block":"none"}}/>
       {renderModal()}
+      {renderVacationModal()}
 
       {/* Share Week Modal */}
       {shareWeekModal && (() => {
@@ -7277,6 +7421,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#7B9CFF"}}/><span style={{fontSize:11,color:"#555"}}>Planned</span></div>
         <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)"}}/><span style={{fontSize:11,color:"#555"}}>No recap yet</span></div>
         <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#1a0a14",border:"1px solid #E8317A44"}}/><span style={{fontSize:11,color:"#555"}}>Today</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:11}}>🏖</span><span style={{fontSize:11,color:"#555"}}>Time off</span></div>
       </div>
 
       {viewMode==="month"&&(
