@@ -5343,7 +5343,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [saving,       setSaving]       = useState(false);
   const [monthTargets, setMonthTargets] = useState({});
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -5369,33 +5369,85 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   function openModal(ds, plan=null) {
     setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||""}); }
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
   }
   function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
 
+  // Generate all dates for a repeat pattern starting from startDate
+  function generateRepeatDates(startDate, repeat, repeatDays, repeatUntil) {
+    const dates = [];
+    const end = repeatUntil ? new Date(repeatUntil+"T12:00:00") : new Date(curYear, curMonth+1, 0, 12, 0, 0);
+    let cur = new Date(startDate+"T12:00:00");
+    // Skip the start date itself (already saved as main event)
+    if (repeat === "daily") {
+      cur.setDate(cur.getDate()+1);
+      while (cur <= end) {
+        dates.push(cur.toISOString().slice(0,10));
+        cur.setDate(cur.getDate()+1);
+      }
+    } else if (repeat === "weekly") {
+      cur.setDate(cur.getDate()+7);
+      while (cur <= end) {
+        dates.push(cur.toISOString().slice(0,10));
+        cur.setDate(cur.getDate()+7);
+      }
+    } else if (repeat === "biweekly") {
+      cur.setDate(cur.getDate()+14);
+      while (cur <= end) {
+        dates.push(cur.toISOString().slice(0,10));
+        cur.setDate(cur.getDate()+14);
+      }
+    } else if (repeat === "custom" && repeatDays.length > 0) {
+      // Custom days of week — generate all matching days from tomorrow to end
+      cur.setDate(cur.getDate()+1);
+      while (cur <= end) {
+        if (repeatDays.includes(cur.getDay())) dates.push(cur.toISOString().slice(0,10));
+        cur.setDate(cur.getDate()+1);
+      }
+    }
+    return dates;
+  }
+
   async function savePlan() {
     if (!modalDate) return;
     setSaving(true);
-    const data = { ...form, date:modalDate, updatedAt:new Date().toISOString() };
+    const { repeat, repeatDays, repeatUntil, ...planData } = form;
+    const data = { ...planData, date:modalDate, updatedAt:new Date().toISOString() };
+    // Save the main event
     const id = editingId || uid();
     await setDoc(doc(db,"planned_streams",id), data);
+    // Save repeating occurrences
+    if (!editingId && repeat !== "none") {
+      const repeatDates = generateRepeatDates(modalDate, repeat, repeatDays, repeatUntil);
+      await Promise.all(repeatDates.map(ds =>
+        setDoc(doc(db,"planned_streams",uid()), { ...planData, date:ds, updatedAt:new Date().toISOString(), isRecurring:true, recurringFrom:id })
+      ));
+    }
     closeModal(); setSaving(false);
   }
-  async function deletePlan(id) {
-    if (window.confirm("Remove this planned stream?")) await deleteDoc(doc(db,"planned_streams",id));
+  async function deletePlan(id, deleteAll=false) {
+    const plan = plans.find(p=>p.id===id);
+    if (!plan) return;
+    if (deleteAll && plan.recurringFrom) {
+      // Delete all events from the same series
+      const series = plans.filter(p=>p.recurringFrom===plan.recurringFrom||p.id===plan.recurringFrom);
+      if (window.confirm(`Remove all ${series.length+1} events in this series?`)) {
+        await Promise.all([...series.map(p=>deleteDoc(doc(db,"planned_streams",p.id))), deleteDoc(doc(db,"planned_streams",id))]);
+      }
+    } else {
+      if (window.confirm("Remove this planned stream?")) await deleteDoc(doc(db,"planned_streams",id));
+    }
   }
 
   // -- Revenue / stats calcs --
   function monthPlans(y,m) { return plans.filter(p=>{const d=p.date||"";return d.startsWith(monthKey(y,m));}); }
   function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
-  function projectedRevenue(planList) { return planList.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0); }
-  function estimateRevenue(p) {
-    const prods = p.products||[];
-    const mkt = prods.reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
-    return mkt * 1.5;
-  }
+  function planMktValue(p) { return (p.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0); }
+  function estimateRevenue(p, mult=1.5) { return planMktValue(p) * mult; }
+  function projectedRevenue(planList, mult=1.5) { return planList.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p,mult)),0); }
   function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
+  function totalMonthMkt(y,m) { return monthPlans(y,m).reduce((s,p)=>s+planMktValue(p),0); }
 
   // -- Inventory needs --
   const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
@@ -5497,7 +5549,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 ))}
                 {dayPlans.slice(0,compact?1:2).map(p=>(
                   <div key={p.id} style={{fontSize:8,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A",background:"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    📋 {p.streamName||p.breaker||"Plan"}
+                    {p.isRecurring?"🔁":"📋"} {p.streamName||p.breaker||"Plan"}
                   </div>
                 ))}
                 {dayPlans.length>2&&!compact&&<div style={{fontSize:7,color:"#555"}}>+{dayPlans.length-2} more</div>}
@@ -5779,6 +5831,60 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     );
   }
 
+  // -- Revenue Tiers --
+  function renderRevenueTiers() {
+    if (!canSeeFinancials) return null;
+    const mPlans = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    const mkt = totalMonthMkt(curYear, curMonth);
+    const actRev = actualRevenue(mActuals);
+    if (mkt === 0 && mPlans.length === 0) return null;
+
+    const tiers = [
+      { mult:1.5, label:"1.5x", sublabel:"Minimum",  color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
+      { mult:1.7, label:"1.7x", sublabel:"Good",      color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
+      { mult:1.9, label:"1.9x", sublabel:"🔥 Great",  color:"#E8317A", bg:"rgba(232,49,122,0.06)",  border:"rgba(232,49,122,0.2)"  },
+    ];
+
+    return (
+      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📊 Revenue Tiers — {MONTH_NAMES[curMonth]}</div>
+            {mkt > 0 && <div style={{fontSize:11,color:"#555",marginTop:2}}>Based on {fmt2(mkt)} total planned product market value</div>}
+          </div>
+          {actRev > 0 && <div style={{fontSize:11,color:"#555"}}>Actual so far: <strong style={{color:"#4ade80"}}>{fmt2(actRev)}</strong></div>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          {tiers.map(({mult,label,sublabel,color,bg,border})=>{
+            const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
+            const achieved = actRev >= tierRev;
+            const pct = tierRev > 0 ? Math.min(100, actRev/tierRev*100) : 0;
+            return (
+              <div key={mult} style={{background:bg,border:`1.5px solid ${achieved?"rgba(74,222,128,0.5)":border}`,borderRadius:10,padding:"14px 16px",textAlign:"center",position:"relative"}}>
+                {achieved && <div style={{position:"absolute",top:6,right:8,fontSize:10,fontWeight:800,color:"#4ade80"}}>✅ HIT</div>}
+                <div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} {sublabel}</div>
+                <div style={{fontSize:22,fontWeight:900,color,marginBottom:6}}>{fmt2(tierRev)}</div>
+                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden",marginBottom:4}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:2,transition:"width 0.4s"}}/>
+                </div>
+                <div style={{fontSize:10,color:"#555"}}>{pct.toFixed(0)}% there{actRev>0?` · ${fmt2(Math.max(0,tierRev-actRev))} to go`:""}</div>
+                {/* Set as target button */}
+                <button onClick={()=>setMonthTargets(p=>({...p,[monthKey(curYear,curMonth)]:tierRev.toFixed(2)}))}
+                  style={{marginTop:8,background:"transparent",border:`1px solid ${border}`,color,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>
+                  Set as Target
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {mkt === 0 && mPlans.length > 0 && (
+          <div style={{fontSize:11,color:"#555",marginTop:10,textAlign:"center"}}>Add products to your planned streams to see market-based tiers</div>
+        )}
+      </div>
+    );
+  }
+
   // -- Pace Report --
   function renderPaceReport() {
     const mPlans   = monthPlans(curYear, curMonth);
@@ -5943,8 +6049,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&p.estRevenue?" · "+fmt2(p.estRevenue):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
-                    <button onClick={()=>deletePlan(p.id)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
+                    {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
                   </div>
                 </div>
               ))}
@@ -5995,12 +6102,60 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
             {canSeeFinancials&&<div style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Est. Revenue ($)</div>
-              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value}))} placeholder="Leave blank to auto-estimate from products" style={S2.inp}/>
+              {(() => {
+                const mkt = (form.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
+                return mkt > 0 ? (
+                  <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
+                    {[[1.5,"1.5x","#FBBF24"],[1.7,"1.7x","#4ade80"],[1.9,"1.9x 🔥","#E8317A"]].map(([mult,label,color])=>(
+                      <button key={mult} onClick={()=>setForm(p=>({...p,estRevenue:(mkt*mult).toFixed(2)}))}
+                        style={{background:`${color}15`,color,border:`1px solid ${color}44`,borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                        {label} = {fmt2(mkt*mult)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value}))} placeholder="Tap a multiple above or enter manually" style={S2.inp}/>
             </div>}
-            <div style={{marginBottom:14}}>
+            <div style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
               <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes..." style={S2.inp}/>
             </div>
+
+            {/* Repeat section — only for new events */}
+            {!editingId && (
+              <div style={{marginBottom:14,padding:"12px 14px",background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#7B9CFF",marginBottom:10}}>🔁 Repeat</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:form.repeat!=="none"?10:0}}>
+                  {[["none","No repeat"],["weekly","Weekly"],["biweekly","Every 2 wks"],["daily","Daily"],["custom","Custom days"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setForm(p=>({...p,repeat:v,repeatDays:[]}))}
+                      style={{background:form.repeat===v?"rgba(123,156,255,0.2)":"transparent",color:form.repeat===v?"#7B9CFF":"rgba(255,255,255,0.3)",border:`1px solid ${form.repeat===v?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                {form.repeat==="custom"&&(
+                  <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>(
+                      <button key={i} onClick={()=>setForm(p=>({...p,repeatDays:p.repeatDays.includes(i)?p.repeatDays.filter(x=>x!==i):[...p.repeatDays,i]}))}
+                        style={{background:form.repeatDays.includes(i)?"rgba(123,156,255,0.25)":"rgba(255,255,255,0.03)",color:form.repeatDays.includes(i)?"#7B9CFF":"rgba(255,255,255,0.3)",border:`1px solid ${form.repeatDays.includes(i)?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {form.repeat!=="none"&&(
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{fontSize:11,color:"#555",flexShrink:0}}>Until:</div>
+                    <input type="date" value={form.repeatUntil||dateStr(curYear,curMonth,daysInMonth(curYear,curMonth))} onChange={e=>setForm(p=>({...p,repeatUntil:e.target.value}))} style={{...S2.inp,fontSize:12,padding:"6px 10px"}}/>
+                    {(() => {
+                      const dates = generateRepeatDates(modalDate||"", form.repeat, form.repeatDays, form.repeatUntil||dateStr(curYear,curMonth,daysInMonth(curYear,curMonth)));
+                      return dates.length>0 ? <span style={{fontSize:11,color:"#7B9CFF",fontWeight:700,flexShrink:0}}>+{dates.length} occurrences</span> : null;
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{display:"flex",gap:8}}>
               <button onClick={savePlan} disabled={saving} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>{saving?"Saving...":editingId?"💾 Update":"📋 Add to Calendar"}</button>
               <button onClick={closeModal} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -6041,6 +6196,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
       {viewMode==="month"&&(
         <>
+          {renderRevenueTiers()}
           {renderPaceReport()}
           {renderGapAdvisor()}
           {renderCalendar(curYear,curMonth)}
