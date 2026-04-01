@@ -5374,9 +5374,15 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName,   setTemplateName]   = useState("");
   const [copyWeekModal,  setCopyWeekModal]  = useState(false);
-  const [copyWeekSrc,    setCopyWeekSrc]    = useState(""); // "YYYY-MM-DD" of week's Sunday
-  const [copyWeekDst,    setCopyWeekDst]    = useState(""); // "YYYY-MM-DD" of target Sunday
+  const [copyWeekSrc,    setCopyWeekSrc]    = useState("");
+  const [copyWeekDst,    setCopyWeekDst]    = useState("");
   const [copyingWeek,    setCopyingWeek]    = useState(false);
+  const [shareWeekModal, setShareWeekModal] = useState(false);
+  const [shareWeekStart, setShareWeekStart] = useState(""); // Sunday of week to share
+  const [confettiActive, setConfettiActive] = useState(false);
+  const confettiCanvas   = useRef(null);
+  const confettiAnimRef  = useRef(null);
+  const confettiTriggered = useRef(new Set()); // track which milestones already fired
   const [monthTargets, setMonthTargets] = useState({});
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
@@ -5424,6 +5430,69 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     });
     return () => unsub();
   }, []);
+
+  // Confetti engine
+  function launchConfetti() {
+    const canvas = confettiCanvas.current;
+    if (!canvas) return;
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    setConfettiActive(true);
+    const ctx = canvas.getContext("2d");
+    const COLORS = ["#E8317A","#7B2FF7","#4ade80","#FBBF24","#22d3ee","#F0F0F0","#C084FC"];
+    const pieces = Array.from({length:150}, () => ({
+      x: Math.random()*canvas.width, y: -20,
+      w: 6+Math.random()*8, h: 10+Math.random()*6,
+      color: COLORS[Math.floor(Math.random()*COLORS.length)],
+      rot: Math.random()*360, rotV: (Math.random()-0.5)*8,
+      vx: (Math.random()-0.5)*6, vy: 2+Math.random()*5,
+      opacity: 1,
+    }));
+    let frame = 0;
+    function animate() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy + frame*0.02;
+        p.rot += p.rotV; p.vy += 0.08;
+        if (frame > 120) p.opacity = Math.max(0, p.opacity - 0.012);
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI/180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      });
+      frame++;
+      if (frame < 220) confettiAnimRef.current = requestAnimationFrame(animate);
+      else { ctx.clearRect(0,0,canvas.width,canvas.height); setConfettiActive(false); }
+    }
+    if (confettiAnimRef.current) cancelAnimationFrame(confettiAnimRef.current);
+    confettiAnimRef.current = requestAnimationFrame(animate);
+  }
+
+  // Watch for milestone hits — fire confetti once per milestone per month
+  useEffect(() => {
+    if (!canSeeFinancials) return;
+    const mKey      = monthKey(curYear, curMonth);
+    const mActuals  = monthActuals(curYear, curMonth);
+    const actRev    = actualRevenue(mActuals);
+    const target    = parseFloat(monthTargets[mKey]) || 0;
+    const mkt       = totalMonthMkt(curYear, curMonth);
+    const milestones = [
+      ...(target > 0    ? [`${mKey}-target-${Math.floor(target)}`]   : []),
+      ...(mkt > 0       ? [`${mKey}-1.5x-${Math.floor(mkt*1.5)}`]   : []),
+      ...(mkt > 0       ? [`${mKey}-1.7x-${Math.floor(mkt*1.7)}`]   : []),
+      ...(mkt > 0       ? [`${mKey}-1.9x-${Math.floor(mkt*1.9)}`]   : []),
+    ];
+    milestones.forEach(key => {
+      const threshold = parseFloat(key.split("-").pop());
+      if (actRev >= threshold && !confettiTriggered.current.has(key)) {
+        confettiTriggered.current.add(key);
+        setTimeout(launchConfetti, 300);
+      }
+    });
+  }, [streams, curYear, curMonth, monthTargets]); // eslint-disable-line
 
   // -- Helpers --
   function monthKey(y,m) { return `${y}-${String(m+1).padStart(2,"0")}`; }
@@ -6111,6 +6180,105 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // -- Streak Tracker --
+  function renderStreakTracker() {
+    if (!canSeeFinancials) return null;
+    if (streams.length === 0) return null;
+
+    // Group streams by month, calc weighted avg market multiple per month
+    const monthData = {};
+    streams.forEach(s => {
+      if (!s.date || !s.grossRevenue) return;
+      const mk = s.date.slice(0,7); // "YYYY-MM"
+      if (!monthData[mk]) monthData[mk] = { gross:0, weightedMult:0, count:0 };
+      const gross = parseFloat(s.grossRevenue)||0;
+      const mult  = parseFloat(s.marketMultiple)||0;
+      monthData[mk].gross += gross;
+      if (mult > 0) monthData[mk].weightedMult += gross * mult;
+      monthData[mk].count++;
+    });
+
+    // Resolve monthly multiple
+    const months = Object.keys(monthData).sort();
+    const monthResults = months.map(mk => {
+      const d = monthData[mk];
+      const avgMult = d.gross > 0 && d.weightedMult > 0 ? d.weightedMult / d.gross : null;
+      const tier = avgMult === null ? null : avgMult >= 1.9 ? 1.9 : avgMult >= 1.7 ? 1.7 : avgMult >= 1.5 ? 1.5 : null;
+      return { mk, gross:d.gross, avgMult, tier, count:d.count };
+    });
+
+    // Calculate streaks for each tier threshold
+    function calcStreak(threshold) {
+      let current = 0, best = 0, bestStart = "", curStart = "";
+      monthResults.forEach(r => {
+        if (r.tier !== null && r.tier >= threshold) {
+          if (current === 0) curStart = r.mk;
+          current++;
+          if (current > best) { best = current; bestStart = curStart; }
+        } else {
+          current = 0; curStart = "";
+        }
+      });
+      return { current, best, bestStart };
+    }
+
+    const s15 = calcStreak(1.5);
+    const s17 = calcStreak(1.7);
+    const s19 = calcStreak(1.9);
+
+    // Last 6 months for sparkline
+    const last6 = monthResults.slice(-6);
+
+    const TIER_CFG = [
+      { label:"1.5x+", sublabel:"Minimum", streak:s15, color:"#FBBF24" },
+      { label:"1.7x+", sublabel:"Good",    streak:s17, color:"#4ade80" },
+      { label:"1.9x+", sublabel:"Great",   streak:s19, color:"#E8317A" },
+    ];
+
+    return (
+      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"16px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>🔥 Streak Tracker</div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+          {TIER_CFG.map(({label,sublabel,streak,color})=>(
+            <div key={label} style={{background:`${color}08`,border:`1px solid ${color}22`,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+              <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{label} {sublabel}</div>
+              <div style={{fontSize:32,fontWeight:900,color,lineHeight:1}}>{streak.current}</div>
+              <div style={{fontSize:10,color:"#555",marginTop:4}}>month streak</div>
+              {streak.best > 0 && streak.best !== streak.current && (
+                <div style={{fontSize:10,color:"#333",marginTop:4}}>Best: {streak.best} mo.</div>
+              )}
+              {streak.current > 0 && streak.current === streak.best && streak.best > 1 && (
+                <div style={{fontSize:10,color,marginTop:4,fontWeight:700}}>🏆 Personal best!</div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Month-by-month history */}
+        {last6.length > 0 && (
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:"#333",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Last {last6.length} months</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {last6.map(r=>{
+                const color = r.tier===1.9?"#E8317A":r.tier===1.7?"#4ade80":r.tier===1.5?"#FBBF24":"#333";
+                const label = r.tier===1.9?"1.9x":r.tier===1.7?"1.7x":r.tier===1.5?"1.5x":r.avgMult?`${r.avgMult.toFixed(1)}x`:"—";
+                const [y,m] = r.mk.split("-");
+                return (
+                  <div key={r.mk} style={{flex:1,minWidth:60,background:`${color}12`,border:`1px solid ${color}33`,borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:"#555",marginBottom:4}}>{MONTH_NAMES[parseInt(m)-1].slice(0,3)} {y.slice(2)}</div>
+                    <div style={{fontSize:13,fontWeight:900,color}}>{label}</div>
+                    <div style={{fontSize:9,color:"#333",marginTop:3}}>{fmt2(r.gross)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -6844,9 +7012,104 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Confetti canvas */}
+      <canvas ref={confettiCanvas} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:99999,display:confettiActive?"block":"none"}}/>
       {renderModal()}
 
-      {/* Copy Week Modal */}
+      {/* Share Week Modal */}
+      {shareWeekModal && (() => {
+        const weekDays = Array.from({length:7},(_,i)=>{
+          const d = new Date(shareWeekStart+"T12:00:00"); d.setDate(d.getDate()+i);
+          return d.toISOString().slice(0,10);
+        });
+        const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+        const weekPlans = weekDays.map(ds=>({ds, plans:plansForDate(ds), actuals:actualForDate(ds)})).filter(d=>d.plans.length>0||d.actuals.length>0);
+
+        function openPrintWindow() {
+          const rows = weekDays.map((ds,i)=>{
+            const dayPlans = plansForDate(ds);
+            const dayActuals = actualForDate(ds);
+            if (dayPlans.length===0&&dayActuals.length===0) return "";
+            const items = [
+              ...dayActuals.map(a=>`<div style="margin:4px 0;padding:6px 10px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:4px;font-size:13px;">✅ <strong>${a.streamName||a.breaker||"Stream"}</strong>${a.breaker?` · ${a.breaker}`:""}</div>`),
+              ...dayPlans.map(p=>`<div style="margin:4px 0;padding:6px 10px;background:#e8eaf6;border-left:3px solid #5c6bc0;border-radius:4px;font-size:13px;">📋 <strong>${p.streamName||p.breaker||"Planned"}</strong>${p.breaker?` · ${p.breaker}`:""}${p.sessionType?` · ${p.sessionType}`:""}${(p.products||[]).filter(pr=>pr.type).length>0?` · ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}`:""}</div>`),
+            ].join("");
+            return `<tr><td style="padding:10px 14px;font-weight:700;color:#333;white-space:nowrap;vertical-align:top;width:110px;">${DOW_FULL[i]}<br/><span style="font-weight:400;font-size:12px;color:#888;">${ds.slice(5).replace("-","/")}</span></td><td style="padding:10px 14px;">${items}</td></tr>`;
+          }).join("");
+          const endSun = weekDays[6];
+          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
+          const w = window.open("","_blank");
+          w.document.write(html);
+          w.document.close();
+        }
+
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShareWeekModal(false)}>
+            <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:500,width:"100%",maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>📤 Share Weekly Schedule</div>
+                  <div style={{fontSize:11,color:"#555",marginTop:2}}>Week of {shareWeekStart}</div>
+                </div>
+                <button onClick={()=>setShareWeekModal(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
+              </div>
+
+              {/* Week picker */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                <span style={{fontSize:11,color:"#555"}}>Week starting:</span>
+                <input type="date" value={shareWeekStart} onChange={e=>setShareWeekStart(e.target.value)}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"5px 8px",fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+              </div>
+
+              {/* Preview */}
+              <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:6}}>
+                {weekDays.map((ds,i)=>{
+                  const dayPlans = plansForDate(ds);
+                  const dayActuals = actualForDate(ds);
+                  if (dayPlans.length===0&&dayActuals.length===0) return (
+                    <div key={ds} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:"#333",width:90,flexShrink:0}}>{DOW_FULL[i]} {ds.slice(5)}</span>
+                      <span style={{fontSize:11,color:"#2a2a2a"}}>—</span>
+                    </div>
+                  );
+                  return (
+                    <div key={ds} style={{padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#555",marginBottom:4}}>{DOW_FULL[i]} · {ds.slice(5).replace("-","/")}</div>
+                      {dayActuals.map(a=>(
+                        <div key={a.id} style={{fontSize:12,color:"#4ade80",marginBottom:2}}>✅ {a.streamName||a.breaker||"Stream"}</div>
+                      ))}
+                      {dayPlans.map(p=>(
+                        <div key={p.id} style={{fontSize:12,color:"#7B9CFF",marginBottom:2}}>
+                          📋 {p.streamName||p.breaker} {p.sessionType?`· ${p.sessionType}`:""} {(p.products||[]).filter(pr=>pr.type).length>0?`· ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}` :""}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={openPrintWindow}
+                  style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  🖨️ Open & Print
+                </button>
+                <button onClick={()=>{
+                  const lines = weekDays.flatMap((ds,i)=>{
+                    const dayPlans = plansForDate(ds);
+                    const dayActuals = actualForDate(ds);
+                    if (!dayPlans.length&&!dayActuals.length) return [];
+                    return [`${DOW_FULL[i]} ${ds.slice(5)}:`,...dayActuals.map(a=>`  ✅ ${a.streamName||a.breaker}`),...dayPlans.map(p=>`  📋 ${p.streamName||p.breaker}${p.sessionType?" · "+p.sessionType:""}${(p.products||[]).filter(pr=>pr.type).length>0?" · "+p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", "):""}`),""];
+                  });
+                  navigator.clipboard.writeText(`Bazooka Breaks — Week of ${shareWeekStart}\n\n${lines.join("\n")}`);
+                }}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#888",borderRadius:10,padding:"11px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                  📋 Copy Text
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {copyWeekModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setCopyWeekModal(false)}>
           <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
@@ -6910,6 +7173,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
             <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
             <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>
+            <button onClick={()=>{
+              const todayStr2 = dateStr(today.getFullYear(),today.getMonth(),today.getDate());
+              const dow = new Date(todayStr2+"T12:00:00").getDay();
+              const sun = new Date(todayStr2+"T12:00:00"); sun.setDate(sun.getDate()-dow);
+              setShareWeekStart(sun.toISOString().slice(0,10));
+              setShareWeekModal(true);
+            }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📤 Share Week</button>
           </>
         )}
       </div>
@@ -6926,6 +7196,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         <>
           {renderTomorrowAlert()}
           {renderRevenueTiers()}
+          {renderStreakTracker()}
           {renderMonthOverMonth()}
           {renderPaceReport()}
           {renderStreamScorecard()}
