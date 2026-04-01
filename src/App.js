@@ -2484,16 +2484,21 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   const usedInvIds = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
 
   function getPoolInventoryCounts(pool) {
-    // Match inventory cards where cardType matches AND cardName contains the pool's treatment name
-    const matching = inventory.filter(c => {
-      if (c.cardType !== pool.cardType) return false;
-      // Match if card name contains the pool name (treatment) — case insensitive
-      return pool.cardName ? c.cardName?.toLowerCase().includes(pool.cardName.toLowerCase()) : true;
-    });
-    const total = matching.length;
-    const used  = matching.filter(c => usedInvIds.has(c.id)).length;
+    const sameTypePools = cardPools.filter(p => p.cardType === pool.cardType);
+    // Try name-based match first
+    const nameMatch = pool.cardName
+      ? inventory.filter(c => c.cardType === pool.cardType && c.cardName?.toLowerCase().includes(pool.cardName.toLowerCase()))
+      : [];
+    // Fall back to all cards of that type only if:
+    // - name match found nothing AND
+    // - this is the only pool of that type (avoid double-counting across pools)
+    const matching = nameMatch.length > 0
+      ? nameMatch
+      : (sameTypePools.length === 1 ? inventory.filter(c => c.cardType === pool.cardType) : []);
+    const total     = matching.length;
+    const used      = matching.filter(c => usedInvIds.has(c.id)).length;
     const inTransit = matching.filter(c => c.cardStatus === "in_transit" && !usedInvIds.has(c.id)).length;
-    const avail = total - used - inTransit;
+    const avail     = total - used - inTransit;
     return { invTotal: total, invUsed: used, invInTransit: inTransit, invAvail: avail };
   }
 
