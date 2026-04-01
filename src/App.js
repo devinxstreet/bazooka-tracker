@@ -8108,9 +8108,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`\u2212 Stream Expenses`,                    v:"\u2212 "+fmt(parseFloat(s.whatnotPromo||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)), c:"#666", indent:true },
               { l:"= Net Revenue",                        v:fmt(c.netRev),                          c:"#F0F0F0", indent:false, bold:true },
               { l:"\u00D7 30% (Bazooka Share)",                v:fmt(c.bazNet),                          c:"#E8317A", indent:true  },
+              ...(c.collabAmt>0 ? [{ l:`\u2212 Collab Payout (${s.collabPartner}, ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }] : []),
+              { l:`= Bazooka Commission Base${c.collabAmt>0?" (after collab)":""}`, v:fmt(c.bazNet - c.collabAmt), c:"#7B9CFF", indent:false, bold:true },
               { l:`\u2212 Your Expenses (13.5% of stream costs)`, v:"\u2212 "+fmt(c.repExp),                 c:"#991b1b", indent:true  },
               ...(isAdmin ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(c.imcExpReimb||0),        c:"#166534", indent:true  }] : []),
-              { l:"= Commission Base",                    v:fmt(c.bazNet - c.repExp),               c:"#7B9CFF", indent:false, bold:true },
               { l:`\u00D7 Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`\u00D7 ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
