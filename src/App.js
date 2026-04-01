@@ -519,7 +519,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <tbody>
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                      <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                      <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"}}[s.sessionType]||""</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{fmt(s.netRev)}</td>
@@ -671,7 +671,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           const val = config.val(s);
                           return (
                             <tr key={s.id} style={{ background:"#111111" }}>
-                              <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                              <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                               <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.netRev)}</td>
@@ -925,7 +925,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now = new Date();
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
-        const ytdStreams  = streams.filter(s => new Date(s.date).getFullYear()===now.getFullYear());
+        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear());
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
@@ -2635,6 +2635,60 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Restock Alerts */}
+      {(() => {
+        const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
+        const totalStreams = streams.length || 1;
+        const burnPerStream = {};
+        CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=0; });
+        breaks.forEach(b=>{ const ct=USAGE_TO_CT2[b.usage]||b.cardType; if(ct&&burnPerStream[ct]!==undefined) burnPerStream[ct]+=b.isPoolLog?(parseInt(b.qty)||1):1; });
+        CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=burnPerStream[ct]/totalStreams; });
+        const invAvail = {};
+        CARD_TYPES.forEach(ct=>{
+          const indiv = inventory.filter(c=>c.cardType===ct&&!breaks.find(b=>!b.isPoolLog&&b.inventoryId===c.id)).length;
+          const pool  = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
+          invAvail[ct] = indiv + pool;
+        });
+        const MONTHLY_TARGETS = { "Giveaway Cards":2000, "Insurance Cards":2000, "First-Timer Cards":50, "Chaser Cards":30 };
+        const alerts = CARD_TYPES.map(ct=>{
+          const avail   = invAvail[ct];
+          const target  = MONTHLY_TARGETS[ct] || 0;
+          const burn    = burnPerStream[ct];
+          const runsOut = burn > 0 ? Math.floor(avail / burn) : 999;
+          const urgent  = avail < (target * 0.25);
+          const low     = avail < (target * 0.50);
+          if (!low && !urgent) return null;
+          return { ct, avail, target, runsOut, urgent };
+        }).filter(Boolean);
+        if (alerts.length === 0) return null;
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {alerts.map(({ct,avail,target,runsOut,urgent})=>{
+              const pct = target>0 ? Math.min(100,avail/target*100) : 100;
+              return (
+                <div key={ct} style={{ background:urgent?"rgba(220,38,38,0.06)":"rgba(251,191,36,0.05)", border:`1.5px solid ${urgent?"rgba(220,38,38,0.3)":"rgba(251,191,36,0.25)"}`, borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:16 }}>{urgent?"🚨":"⚠️"}</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:800, color:urgent?"#ef4444":"#FBBF24" }}>{ct.replace(" Cards","")} {urgent?"critically low":"running low"}</div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{avail.toLocaleString()} available · {target.toLocaleString()} monthly target · ~{runsOut} streams of runway</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:120, height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${pct}%`, background:urgent?"#ef4444":"#FBBF24", borderRadius:3 }}/>
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:700, color:urgent?"#ef4444":"#FBBF24" }}>{pct.toFixed(0)}%</span>
+                    <button onClick={()=>setInvTab("cards")} style={{ background:"transparent", border:`1px solid ${urgent?"rgba(220,38,38,0.3)":"rgba(251,191,36,0.25)"}`, color:urgent?"#ef4444":"#FBBF24", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>View Cards →</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       <div style={S.card}>
         <div style={{ display:"none" }}>
           {[["cards","\uD83D\uDCE6 Cards"],["pools","\uD83D\uDDC3 Card Pools"],...(["Admin","Procurement"].includes(userRole?.role)?[["lots","\uD83D\uDDC2 Lot History"]]:[]),["product","\uD83C\uDF81 Product"]].map(([id,label]) => (
@@ -7585,7 +7639,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
             <tbody>
               {(stub.streams||[]).map((s,i)=>(
                 <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                  <td style={S.td}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                  <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                   <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:11,color:"#7B9CFF"}}>{({day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"})[s.sessionType]||""}</span>:""}</td>
                   <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
                   <td style={{ ...S.td, color:"#7B9CFF" }}>{fmt(s.bazNet||0)}</td>
@@ -7775,7 +7829,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <button onClick={()=>setViewStream(null)} style={{ background:"#111111", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#AAAAAA" }}>{"\u2190 Back"}</button>
           <div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} &middot; ${(c.rate*100).toFixed(0)}% commission`}</span>
@@ -8000,7 +8054,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 const c = calcS(s);
                 return adminPDF ? `
                   <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
@@ -8011,7 +8065,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.bazTrueNet)}</td>
                   </tr>` : `
                   <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
@@ -8180,7 +8234,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                             {stubStreams.map((s,i)=>{
                               const c=calcS(s);
                               return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
-                                <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                                <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
@@ -8308,7 +8362,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
                 <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
