@@ -783,7 +783,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         return (
           <div style={{ ...S.card }}>
             <SectionLabel t="\uD83D\uDCE6 Ops Summary" />
-            <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
+            <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+              {[
+                { l:"MagPros",          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
                 { l:"Packaging",        v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"",        c:"#7B9CFF" },
                 { l:"Top Loaders",      v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",          c:"#7B9CFF" },
                 { l:"Chaser Cards",     v:`$${totChaser.toFixed(2)}`,   sub:"",                                           c:"#E8317A" },
