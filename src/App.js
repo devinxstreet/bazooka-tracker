@@ -2832,12 +2832,23 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
         CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=0; });
         breaks.forEach(b=>{ const ct=USAGE_TO_CT2[b.usage]||b.cardType; if(ct&&burnPerStream[ct]!==undefined) burnPerStream[ct]+=b.isPoolLog?(parseInt(b.qty)||1):1; });
         CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=burnPerStream[ct]/totalStreams; });
+
+        // Build used IDs set (fast)
+        const usedIds = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
+
         const invAvail = {};
         CARD_TYPES.forEach(ct=>{
-          const indiv = inventory.filter(c=>c.cardType===ct&&!breaks.find(b=>!b.isPoolLog&&b.inventoryId===c.id)).length;
-          const pool  = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
+          // Individual inventory cards available (not used, not in transit)
+          const indiv = inventory.filter(c=>
+            c.cardType===ct &&
+            !usedIds.has(c.id) &&
+            c.cardStatus !== "in_transit"
+          ).length;
+          // Pool cards available (pool totalQty - usedQty from pool logs)
+          const pool = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
           invAvail[ct] = indiv + pool;
         });
+
         const MONTHLY_TARGETS = { "Giveaway Cards":2000, "Insurance Cards":2000, "First-Timer Cards":50, "Chaser Cards":30 };
         const alerts = CARD_TYPES.map(ct=>{
           const avail   = invAvail[ct];
