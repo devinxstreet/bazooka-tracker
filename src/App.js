@@ -760,6 +760,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 )}
               </div>
             )}
+          </div>
+          {drillDown && <div className="drill-down">{renderDrillDown()}</div>}
           </>
         );
       })()}
