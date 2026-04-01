@@ -5518,6 +5518,16 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80",marginLeft:8}}>{fmt2(actRev)} actual</span>}
             </div>
           </div>
+          {!compact && canSeeFinancials && (() => {
+            const hs = getHealthScore();
+            return (
+              <div style={{textAlign:"center",background:hs.color+"15",border:`2px solid ${hs.color}33`,borderRadius:10,padding:"6px 14px",marginRight:8}}>
+                <div style={{fontSize:22,fontWeight:900,color:hs.color,lineHeight:1}}>{hs.grade}</div>
+                <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:2}}>Month Health</div>
+              </div>
+            );
+          })()}
+          </div>
           {!compact && (
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               {canSeeFinancials && <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -5561,11 +5571,27 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const dayActuals = actualForDate(ds);
             const isToday = ds===dateStr(today.getFullYear(),today.getMonth(),today.getDate());
             const isPast = new Date(ds) < new Date(dateStr(today.getFullYear(),today.getMonth(),today.getDate()));
+            // Heat map: estimate revenue for this day
+            const dayProjRev = dayPlans.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0);
+            const dayActRev  = dayActuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
+            const heatRev    = dayActRev || dayProjRev;
+            const maxRev     = Math.max(...Array.from({length:days},(_,j)=>{
+              const d2=dateStr(y,m,j+1);
+              const p2=plansForDate(d2).reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0);
+              const a2=actualForDate(d2).reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
+              return a2||p2;
+            }), 1);
+            const heatPct = maxRev > 0 ? heatRev/maxRev : 0;
+            const heatBg = heatRev > 0
+              ? dayActRev > 0
+                ? `rgba(74,222,128,${0.05+heatPct*0.18})`
+                : `rgba(232,49,122,${0.04+heatPct*0.14})`
+              : isPast ? "#0a0a0a" : "#111";
             return (
               <div key={day} onClick={()=>openModal(ds)}
-                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":isPast?"#0a0a0a":"#111",border:`1px solid ${isToday?"#E8317A33":"#1a1a1a"}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background=isToday?"#220a1a":"#161616"}
-                onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":isPast?"#0a0a0a":"#111"}>
+                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":heatBg,border:`1px solid ${isToday?"#E8317A44":heatRev>0?(dayActRev>0?"rgba(74,222,128,0.15)":"rgba(232,49,122,0.1)"):"#1a1a1a"}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#1e1e2a"}
+                onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":heatBg}>
                 <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
                 {dayActuals.slice(0,1).map(a=>(
                   <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -5814,6 +5840,145 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  // -- Month Health Score --
+  function getHealthScore() {
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    const mKey     = monthKey(curYear, curMonth);
+    const target   = parseFloat(monthTargets[mKey]) || 0;
+    const actRev   = actualRevenue(mActuals);
+    const projRev  = projectedRevenue(mPlans);
+    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const pastPlans = mPlans.filter(p=>p.date<=todayStr);
+    const projSoFar = projectedRevenue(pastPlans);
+    let score = 0;
+    if (pastPlans.length === 0) score += 30;
+    else if (projSoFar > 0) score += Math.min(40, Math.round((actRev/projSoFar)*40));
+    if (target > 0) score += Math.min(30, Math.round((projRev/target)*30));
+    else score += 20;
+    const planned = mPlans.length;
+    if (planned > 0) {
+      const invOk = CARD_TYPES.filter(ct=>{
+        const override = burnRateOverrides[ct];
+        const rate = override!==""&&override!==undefined ? parseFloat(override)||0 : burnPerStream[ct];
+        return invAvail[ct] >= Math.ceil(rate*planned);
+      }).length;
+      score += Math.round((invOk/CARD_TYPES.length)*30);
+    } else score += 20;
+    const grade = score>=90?"A":score>=75?"B":score>=60?"C":"D";
+    const color = score>=90?"#4ade80":score>=75?"#FBBF24":score>=60?"#F97316":"#E8317A";
+    return { score, grade, color };
+  }
+
+  // -- Tomorrow Alert --
+  function renderTomorrowAlert() {
+    const tmrw = new Date(today); tmrw.setDate(today.getDate()+1);
+    const tmrwStr = dateStr(tmrw.getFullYear(), tmrw.getMonth(), tmrw.getDate());
+    const tmrwPlans = plansForDate(tmrwStr);
+    if (tmrwPlans.length === 0) return null;
+    const issues = CARD_TYPES.filter(ct=>{
+      const override = burnRateOverrides[ct];
+      const rate = override!==""&&override!==undefined ? parseFloat(override)||0 : burnPerStream[ct];
+      return invAvail[ct] < Math.ceil(rate);
+    });
+    if (issues.length === 0) return null;
+    return (
+      <div style={{background:"rgba(251,191,36,0.06)",border:"2px solid rgba(251,191,36,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <span style={{fontSize:18}}>⚠️</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#FBBF24"}}>Stream tomorrow — inventory may be short</div>
+          <div style={{fontSize:11,color:"#555",marginTop:2}}>
+            {tmrwPlans.map(p=>p.streamName||p.breaker).join(", ")} · Short on: {issues.map(ct=>ct.replace(" Cards","")).join(", ")}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -- Stream Scorecard --
+  function renderStreamScorecard() {
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    if (mActuals.length === 0) return null;
+    const scored = mPlans.map(p=>{
+      const actuals = actualForDate(p.date);
+      if (!actuals.length) return null;
+      const actual = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
+      const planned = parseFloat(p.estRevenue)||estimateRevenue(p);
+      const pct = planned > 0 ? actual/planned : 1;
+      const grade = pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D";
+      const color = pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A";
+      return { ...p, actual, planned, pct, grade, color };
+    }).filter(Boolean).sort((a,b)=>b.date.localeCompare(a.date));
+    const latest = scored[0];
+    if (!latest) return null;
+    return (
+      <div style={{background:"rgba(0,0,0,0.3)",border:`2px solid ${latest.color}33`,borderRadius:12,padding:"14px 18px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🏆 Last Stream Scorecard</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>{latest.streamName||latest.breaker}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:2}}>{latest.date}</div>
+          </div>
+          <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Plan</div><div style={{fontSize:16,fontWeight:900,color:"#FBBF24"}}>{fmt2(latest.planned)}</div></div>
+            <div style={{fontSize:20,color:"#333"}}>→</div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Actual</div><div style={{fontSize:16,fontWeight:900,color:"#4ade80"}}>{fmt2(latest.actual)}</div></div>
+            <div style={{textAlign:"center",background:latest.color+"22",border:`2px solid ${latest.color}44`,borderRadius:10,padding:"8px 16px"}}>
+              <div style={{fontSize:28,fontWeight:900,color:latest.color,lineHeight:1}}>{latest.grade}</div>
+              <div style={{fontSize:10,color:"#555",marginTop:2}}>{(latest.pct*100).toFixed(0)}% of plan</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -- Best Day Predictor --
+  function renderBestDayPredictor() {
+    if (!canSeeFinancials) return null;
+    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const days = daysInMonth(curYear, curMonth);
+    const openDays = [];
+    for (let d=1; d<=days; d++) {
+      const ds = dateStr(curYear, curMonth, d);
+      if (ds <= todayStr) continue;
+      const dow = new Date(ds+"T12:00:00").getDay();
+      if (plansForDate(ds).length === 0) openDays.push({ ds, dow });
+    }
+    if (openDays.length === 0) return null;
+    const dowRevs = Array.from({length:7},()=>({count:0,total:0}));
+    streams.forEach(s=>{ if(!s.date||!s.grossRevenue)return; const d=new Date(s.date+"T12:00:00").getDay(); dowRevs[d].count++; dowRevs[d].total+=parseFloat(s.grossRevenue)||0; });
+    const dowAvg = dowRevs.map(d=>d.count>0?d.total/d.count:0);
+    const byDow = {};
+    openDays.forEach(d=>{ if(!byDow[d.dow])byDow[d.dow]=[]; byDow[d.dow].push(d); });
+    const insights = Object.entries(byDow)
+      .filter(([dow])=>dowAvg[dow]>0)
+      .map(([dow,days])=>({ dow:parseInt(dow), count:days.length, avg:dowAvg[dow], potential:days.length*dowAvg[dow], days }))
+      .sort((a,b)=>b.potential-a.potential).slice(0,3);
+    if (insights.length === 0) return null;
+    const DOW_FULL = ["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"];
+    return (
+      <div style={{background:"rgba(123,156,255,0.04)",border:"1px solid rgba(123,156,255,0.12)",borderRadius:12,padding:"14px 18px"}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#7B9CFF",marginBottom:10}}>💡 Best Day Opportunities</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {insights.map(({dow,count,avg,potential,days})=>(
+            <div key={dow} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:8}}>
+              <div>
+                <span style={{fontSize:12,fontWeight:700,color:"#7B9CFF"}}>{count} open {DOW_FULL[dow]}</span>
+                <span style={{fontSize:11,color:"#555",marginLeft:8}}>~{fmt2(avg)}/stream historically</span>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <span style={{fontSize:13,fontWeight:900,color:"#4ade80"}}>+{fmt2(potential)} potential</span>
+                <span style={{fontSize:10,color:"#555",display:"block"}}>{days.map(d=>d.ds.slice(5).replace("-","/")).join(", ")}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -6404,9 +6569,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
       {viewMode==="month"&&(
         <>
+          {renderTomorrowAlert()}
           {renderRevenueTiers()}
           {renderPaceReport()}
+          {renderStreamScorecard()}
           {renderGapAdvisor()}
+          {renderBestDayPredictor()}
           {renderCalendar(curYear,curMonth)}
           {renderProductSummary()}
           {renderMonthSummary()}
