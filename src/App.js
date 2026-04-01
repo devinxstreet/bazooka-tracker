@@ -1221,11 +1221,50 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })()}
 
+      {/* Card Type Migration Tool -- Admin only */}
+      {canSeeFinancials && (() => {
+        const USAGE_MAP = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
+        const mismatched = breaks.filter(b => {
+          if (b.isPoolLog || !b.usage) return false;
+          const correct = USAGE_MAP[b.usage];
+          return correct && b.cardType !== correct;
+        });
+        if (mismatched.length === 0) return null;
+        const [migrating, setMigrating] = useState(false);
+        const [migDone,   setMigDone]   = useState(false);
+        async function runMigration() {
+          setMigrating(true);
+          await Promise.all(mismatched.map(b =>
+            setDoc(doc(db,"breaks",b.id), { cardType: USAGE_MAP[b.usage] }, { merge:true })
+          ));
+          setMigrating(false); setMigDone(true);
+        }
+        return (
+          <div style={{ ...S.card, border:"2px solid rgba(251,191,36,0.3)", background:"rgba(251,191,36,0.04)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:4 }}>⚠️ Card Type Fix Available</div>
+                <div style={{ fontSize:12, color:"#555" }}>
+                  {mismatched.length} existing break {mismatched.length===1?"entry":"entries"} {mismatched.length===1?"has":"have"} a card type that doesn't match how the card was actually used.
+                  This is a one-time fix — it won't affect your inventory, just corrects the tracking labels.
+                </div>
+              </div>
+              {!migDone ? (
+                <button onClick={runMigration} disabled={migrating}
+                  style={{ background:"rgba(251,191,36,0.15)", color:"#FBBF24", border:"1px solid rgba(251,191,36,0.3)", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:migrating?"not-allowed":"pointer", fontFamily:"inherit", flexShrink:0 }}>
+                  {migrating?`Fixing ${mismatched.length} entries...`:`✅ Fix ${mismatched.length} Entries`}
+                </button>
+              ) : (
+                <div style={{ color:"#4ade80", fontWeight:700, fontSize:13 }}>✅ All fixed!</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
-}
-
-function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
+}({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
   useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
@@ -2980,7 +3019,9 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
             </div>
             <div style={{ display:"flex", gap:8, marginTop:16 }}>
               <Btn onClick={async()=>{
-                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:logOutCard.cardType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+                const USAGE_TO_CT_MAP = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
+                const resolvedType = USAGE_TO_CT_MAP[logOutForm.usage] || logOutCard.cardType;
+                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:resolvedType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
                 if (onAdd) await onAdd(entry);
                 setLogOutCard(null);
               }} variant="green">{"\u2705 Log Out"}</Btn>
@@ -3153,15 +3194,21 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const available = inventory.filter(c => !usedIds.has(c.id) && c.cardStatus !== "in_transit");
   const selCard   = inventory.find(c => c.id===cardId);
 
+  const USAGE_TO_CT_LOG = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
   function handleAdd() {
     if (!breaker||!cardId) return;
-    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:selCard?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
+    const resolvedType = USAGE_TO_CT_LOG[usage] || selCard?.cardType || "";
+    onAdd({ id:uid(), date, breaker, inventoryId:cardId, cardName:selCard?.cardName||"", cardType:resolvedType, usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" });
     setCardId(""); setCardSearch(""); setUsage(""); setNotes("");
   }
   function toggleBulk(id) { setBulkSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function handleBulkLog() {
     if (!breaker||bulkSel.size===0) return;
-    const entries = [...bulkSel].map(id => { const card=inventory.find(c=>c.id===id); return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:card?.cardType||"", usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" }; });
+    const entries = [...bulkSel].map(id => {
+      const card = inventory.find(c=>c.id===id);
+      const resolvedType = USAGE_TO_CT_LOG[usage] || card?.cardType || "";
+      return { id:uid(), date, breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage, notes, dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+    });
     onBulkAdd(entries); setBulkSel(new Set());
   }
   function toggleHistSel(id) { setHistSel(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
