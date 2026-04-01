@@ -803,6 +803,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
               <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Cards Used in Streams</div>
               <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+                {CARD_TYPES.map(ct => {
                   const cc = CC[ct]||{ text:"#888", bg:"#111" };
                   const qty  = cardQtyByType[ct]||0;
                   const cost = cardCostByType[ct]||0;
