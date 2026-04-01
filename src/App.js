@@ -5596,14 +5596,21 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               return a2||p2;
             }), 1);
             const heatPct = maxRev > 0 ? heatRev/maxRev : 0;
+            const isMissed = dayPlans.length > 0 && dayActuals.length === 0 && isPast;
             const heatBg = heatRev > 0
               ? dayActRev > 0
                 ? `rgba(74,222,128,${0.05+heatPct*0.18})`
-                : `rgba(232,49,122,${0.04+heatPct*0.14})`
+                : isMissed
+                  ? `rgba(251,191,36,0.08)`
+                  : `rgba(123,156,255,${0.06+heatPct*0.16})`
               : isPast ? "#0a0a0a" : "#111";
+            const heatBorder = isToday ? "#E8317A44"
+              : isMissed ? "rgba(251,191,36,0.25)"
+              : heatRev>0 ? (dayActRev>0 ? "rgba(74,222,128,0.15)" : "rgba(123,156,255,0.12)")
+              : "#1a1a1a";
             return (
               <div key={day} onClick={()=>openModal(ds)}
-                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":heatBg,border:`1px solid ${isToday?"#E8317A44":heatRev>0?(dayActRev>0?"rgba(74,222,128,0.15)":"rgba(232,49,122,0.1)"):"#1a1a1a"}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
+                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":heatBg,border:`1px solid ${heatBorder}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="#1e1e2a"}
                 onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":heatBg}>
                 <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
@@ -5613,8 +5620,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   </div>
                 ))}
                 {dayPlans.slice(0,compact?1:2).map(p=>(
-                  <div key={p.id} style={{fontSize:8,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A",background:"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {p.isRecurring?"🔁":"📋"} {p.streamName||p.breaker||"Plan"}
+                  <div key={p.id} style={{fontSize:8,fontWeight:700,color:isMissed?"#FBBF24":BC_COLORS[p.breaker]||"#E8317A",background:isMissed?"rgba(251,191,36,0.12)":"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {isMissed?"⚠️":p.isRecurring?"🔁":"📋"} {p.streamName||p.breaker||"Plan"}
                   </div>
                 ))}
                 {dayPlans.length>2&&!compact&&<div style={{fontSize:7,color:"#555"}}>+{dayPlans.length-2} more</div>}
@@ -6590,8 +6597,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
       {/* Legend */}
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#4ade80"}}/><span style={{fontSize:11,color:"#555"}}>Actual stream</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#E8317A"}}/><span style={{fontSize:11,color:"#555"}}>Planned stream</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#4ade80"}}/><span style={{fontSize:11,color:"#555"}}>Recap logged</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#7B9CFF"}}/><span style={{fontSize:11,color:"#555"}}>Planned</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)"}}/><span style={{fontSize:11,color:"#555"}}>No recap yet</span></div>
         <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#1a0a14",border:"1px solid #E8317A44"}}/><span style={{fontSize:11,color:"#555"}}>Today</span></div>
       </div>
 
