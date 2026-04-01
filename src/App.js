@@ -5327,6 +5327,756 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
+function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], cardPools=[], userRole }) {
+  const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const fmt2 = v => "$" + parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // -- State --
+  const today = new Date();
+  const [viewMode,     setViewMode]     = useState("month");
+  const [curYear,      setCurYear]      = useState(today.getFullYear());
+  const [curMonth,     setCurMonth]     = useState(today.getMonth());
+  const [plans,        setPlans]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [modalDate,    setModalDate]    = useState(null);
+  const [editingId,    setEditingId]    = useState(null);
+  const [saving,       setSaving]       = useState(false);
+  const [monthTargets, setMonthTargets] = useState({});
+
+  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"" };
+  const [form, setForm] = useState(EMPTY_PLAN);
+
+  const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
+
+  // -- Firestore --
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"planned_streams"), snap => {
+      setPlans(snap.docs.map(d=>({...d.data(),id:d.id})));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // -- Helpers --
+  function monthKey(y,m) { return `${y}-${String(m+1).padStart(2,"0")}`; }
+  function daysInMonth(y,m) { return new Date(y,m+1,0).getDate(); }
+  function firstDow(y,m) { return new Date(y,m,1).getDay(); }
+  function dateStr(y,m,d) { return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
+  function plansForDate(ds) { return plans.filter(p=>p.date===ds); }
+  function actualForDate(ds) { return streams.filter(s=>s.date===ds); }
+  function prevMonth() { if(curMonth===0){setCurYear(y=>y-1);setCurMonth(11);}else setCurMonth(m=>m-1); }
+  function nextMonth() { if(curMonth===11){setCurYear(y=>y+1);setCurMonth(0);}else setCurMonth(m=>m+1); }
+
+  function openModal(ds, plan=null) {
+    setModalDate(ds);
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||""}); }
+    else { setEditingId(null); setForm(EMPTY_PLAN); }
+  }
+  function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
+
+  async function savePlan() {
+    if (!modalDate) return;
+    setSaving(true);
+    const data = { ...form, date:modalDate, updatedAt:new Date().toISOString() };
+    const id = editingId || uid();
+    await setDoc(doc(db,"planned_streams",id), data);
+    closeModal(); setSaving(false);
+  }
+  async function deletePlan(id) {
+    if (window.confirm("Remove this planned stream?")) await deleteDoc(doc(db,"planned_streams",id));
+  }
+
+  // -- Revenue / stats calcs --
+  function monthPlans(y,m) { return plans.filter(p=>{const d=p.date||"";return d.startsWith(monthKey(y,m));}); }
+  function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
+  function projectedRevenue(planList) { return planList.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0); }
+  function estimateRevenue(p) {
+    const prods = p.products||[];
+    const mkt = prods.reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
+    return mkt * 1.5;
+  }
+  function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
+
+  // -- Inventory needs --
+  const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
+  const totalActualStreams = streams.length || 1;
+  const burnPerStream = {};
+  CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=0; });
+  breaks.forEach(b=>{ const ct=USAGE_TO_CT2[b.usage]||b.cardType; if(ct&&burnPerStream[ct]!==undefined)burnPerStream[ct]+=b.isPoolLog?(parseInt(b.qty)||1):1; });
+  CARD_TYPES.forEach(ct=>{ burnPerStream[ct]=burnPerStream[ct]/totalActualStreams; });
+  const invAvail = {};
+  CARD_TYPES.forEach(ct=>{
+    const indiv = inventory.filter(c=>c.cardType===ct&&!breaks.find(b=>!b.isPoolLog&&b.inventoryId===c.id)).length;
+    const poolAvail = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
+    invAvail[ct] = indiv + poolAvail;
+  });
+
+  // -- Quarter calcs --
+  const quarterMonths = [0,1,2].map(i=>{ const m=(curMonth+i)%12; const y=curYear+(curMonth+i>=12?1:0); return{y,m}; });
+
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const BC_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF" };
+
+  // -- Calendar grid --
+  function renderCalendar(y, m, compact=false) {
+    const days = daysInMonth(y,m);
+    const startDow = firstDow(y,m);
+    const mPlans = monthPlans(y,m);
+    const mActuals = monthActuals(y,m);
+    const mKey = monthKey(y,m);
+    const target = parseFloat(monthTargets[mKey])||0;
+    const projRev = projectedRevenue(mPlans);
+    const actRev = actualRevenue(mActuals);
+
+    return (
+      <div style={{ ...S2.card, padding:compact?"12px":"16px 20px" }}>
+        {/* Month header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:compact?14:18, fontWeight:900, color:"#F0F0F0" }}>{MONTH_NAMES[m]} {y}</div>
+            <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+              {mPlans.length} planned · {mActuals.length} done
+              {canSeeFinancials && projRev>0 && <span style={{color:"#E8317A",marginLeft:8}}>{fmt2(projRev)} projected</span>}
+              {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80",marginLeft:8}}>{fmt2(actRev)} actual</span>}
+            </div>
+          </div>
+          {!compact && (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {canSeeFinancials && <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{fontSize:11,color:"#555"}}>Target:</span>
+                <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
+              </div>}
+              <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>‹</button>
+              <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>›</button>
+            </div>
+          )}
+        </div>
+
+        {/* Target progress bar */}
+        {canSeeFinancials && target > 0 && !compact && (
+          <div style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:11,color:"#555"}}>Revenue progress</span>
+              <span style={{fontSize:11,fontWeight:700,color:actRev>=target?"#4ade80":projRev>=target?"#FBBF24":"#E8317A"}}>
+                {fmt2(actRev)} actual · {fmt2(projRev)} projected · {fmt2(target)} target
+              </span>
+            </div>
+            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",position:"relative"}}>
+              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,projRev/target*100)}%`,background:"rgba(251,191,36,0.3)",borderRadius:3,transition:"width 0.3s"}}/>
+              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,actRev/target*100)}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:3,transition:"width 0.3s"}}/>
+            </div>
+          </div>
+        )}
+
+        {/* DOW headers */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
+          {DOW.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#333",padding:"2px 0"}}>{d}</div>)}
+        </div>
+
+        {/* Day grid */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+          {Array.from({length:startDow}).map((_,i)=><div key={`e${i}`}/>)}
+          {Array.from({length:days}).map((_,i)=>{
+            const day = i+1;
+            const ds = dateStr(y,m,day);
+            const dayPlans = plansForDate(ds);
+            const dayActuals = actualForDate(ds);
+            const isToday = ds===dateStr(today.getFullYear(),today.getMonth(),today.getDate());
+            const isPast = new Date(ds) < new Date(dateStr(today.getFullYear(),today.getMonth(),today.getDate()));
+            return (
+              <div key={day} onClick={()=>openModal(ds)}
+                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":isPast?"#0a0a0a":"#111",border:`1px solid ${isToday?"#E8317A33":"#1a1a1a"}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=isToday?"#220a1a":"#161616"}
+                onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":isPast?"#0a0a0a":"#111"}>
+                <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
+                {dayActuals.slice(0,1).map(a=>(
+                  <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    ✅ {a.streamName||a.breaker||"Stream"}
+                  </div>
+                ))}
+                {dayPlans.slice(0,compact?1:2).map(p=>(
+                  <div key={p.id} style={{fontSize:8,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A",background:"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    📋 {p.streamName||p.breaker||"Plan"}
+                  </div>
+                ))}
+                {dayPlans.length>2&&!compact&&<div style={{fontSize:7,color:"#555"}}>+{dayPlans.length-2} more</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // -- Inventory needs section --
+  function renderInventoryNeeds() {
+    const mPlans = monthPlans(curYear, curMonth);
+    const planned = mPlans.length;
+    if (planned === 0) return null;
+    return (
+      <div style={S2.card}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>📦 Inventory Needs — {MONTH_NAMES[curMonth]}</div>
+        <div style={{fontSize:11,color:"#555",marginBottom:12}}>Based on {planned} planned streams × avg historical burn rate ({totalActualStreams} actual streams logged)</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+          {CARD_TYPES.map(ct=>{
+            const needed = Math.ceil(burnPerStream[ct]*planned);
+            const avail  = invAvail[ct];
+            const ok = avail >= needed;
+            const pct = needed > 0 ? Math.min(100,avail/needed*100) : 100;
+            const cc = CC[ct]||{text:"#888",bg:"#111",border:"#222"};
+            return (
+              <div key={ct} style={{background:"#1a1a1a",border:`1px solid ${ok?"#2a2a2a":"#E8317A33"}`,borderRadius:8,padding:"12px 14px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:700,color:cc.text}}>{ct.replace(" Cards","")}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:ok?"#4ade80":"#E8317A"}}>{avail}/{needed}</span>
+                </div>
+                <div style={{height:4,background:"#111",borderRadius:2,overflow:"hidden",marginBottom:4}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:ok?"#4ade80":"#E8317A",borderRadius:2,transition:"width 0.3s"}}/>
+                </div>
+                <div style={{fontSize:10,color:ok?"#555":"#E8317A"}}>{ok?`${avail-needed} buffer`:`⚠ Need ${needed-avail} more`}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // -- Month summary by breaker --
+  function renderMonthSummary() {
+    const mPlans = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    if (mPlans.length===0 && mActuals.length===0) return null;
+    const breakerPlan = {};
+    BREAKERS.forEach(b=>{ breakerPlan[b]={planned:0,projRev:0}; });
+    mPlans.forEach(p=>{ if(breakerPlan[p.breaker]){ breakerPlan[p.breaker].planned++; breakerPlan[p.breaker].projRev+=parseFloat(p.estRevenue)||estimateRevenue(p); } });
+    return (
+      <div style={S2.card}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>👥 By Breaker — {MONTH_NAMES[curMonth]}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
+          {BREAKERS.map(b=>{
+            const bp=breakerPlan[b];
+            const bc=BC[b]||{text:"#888"};
+            const bActuals=mActuals.filter(a=>a.breaker===b);
+            return (
+              <div key={b} style={{background:"#1a1a1a",border:`1px solid ${bc.border||"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
+                <div style={{fontSize:14,fontWeight:900,color:bc.text,marginBottom:8}}>{b}</div>
+                <div style={{fontSize:11,color:"#555",marginBottom:3}}>Planned: <strong style={{color:"#F0F0F0"}}>{bp.planned} streams</strong></div>
+                <div style={{fontSize:11,color:"#555",marginBottom:3}}>Actual: <strong style={{color:"#4ade80"}}>{bActuals.length} done</strong></div>
+                {canSeeFinancials && bp.projRev>0&&<div style={{fontSize:11,color:"#555"}}>Projected: <strong style={{color:"#E8317A"}}>{fmt2(bp.projRev)}</strong></div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // -- Revenue Gap Advisor --
+  function renderGapAdvisor() {
+    if (!canSeeFinancials) return null;
+    const mKey    = monthKey(curYear, curMonth);
+    const target  = parseFloat(monthTargets[mKey]) || 0;
+    if (target === 0) return null;
+
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    const actRev   = actualRevenue(mActuals);
+    const projRev  = projectedRevenue(mPlans);
+    const effectiveBase = actRev + projectedRevenue(mPlans.filter(p => p.date > dateStr(today.getFullYear(), today.getMonth(), today.getDate())));
+    const gap = target - effectiveBase;
+    const isStretch = gap <= 0; // already at or over target
+
+    // Historical avg revenue per stream
+    const histRevs = streams.filter(s => parseFloat(s.grossRevenue) > 0).map(s => parseFloat(s.grossRevenue));
+    const avgStreamRev = histRevs.length > 0 ? histRevs.reduce((a,b)=>a+b,0)/histRevs.length : 0;
+
+    // Revenue by day of week from history
+    const dowRevs = Array.from({length:7},()=>({count:0,total:0}));
+    streams.forEach(s => {
+      if (!s.date || !s.grossRevenue) return;
+      const d = new Date(s.date+"T12:00:00");
+      const dow = d.getDay();
+      dowRevs[dow].count++;
+      dowRevs[dow].total += parseFloat(s.grossRevenue)||0;
+    });
+    const dowAvg = dowRevs.map(d => d.count>0 ? d.total/d.count : avgStreamRev);
+    const DOW_NAMES2 = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+    // Find open days this month (future, no plan yet)
+    const todayStr2 = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const days = daysInMonth(curYear, curMonth);
+    const openDays = [];
+    for (let d=1; d<=days; d++) {
+      const ds = dateStr(curYear, curMonth, d);
+      if (ds <= todayStr2) continue;
+      const dow = new Date(ds+"T12:00:00").getDay();
+      const existingPlans = plansForDate(ds).length;
+      openDays.push({ ds, dow, avgRev: dowAvg[dow] || avgStreamRev, hasPlans: existingPlans > 0 });
+    }
+    // Sort open days by expected revenue desc
+    openDays.sort((a,b) => b.avgRev - a.avgRev);
+
+    // Option A: Add new streams
+    const topOpenDays = openDays.filter(d => !d.hasPlans).slice(0, 8);
+    let optAStreams = [], optARevenue = 0;
+    for (const d of topOpenDays) {
+      if (optARevenue >= gap) break;
+      optAStreams.push(d);
+      optARevenue += d.avgRev;
+    }
+    const optAGap = Math.max(0, gap - optARevenue);
+
+    // Option B: Upgrade existing planned streams (add a product box)
+    const avgBoxValue = Object.values(skuPrices).filter(v=>parseFloat(v)>0).map(v=>parseFloat(v));
+    const avgBoxMktVal = avgBoxValue.length > 0 ? avgBoxValue.reduce((a,b)=>a+b,0)/avgBoxValue.length : 0;
+    const avgBoxRevLift = avgBoxMktVal * 1.5; // 150% = typical market multiple
+    const futurePlans = mPlans.filter(p => p.date > todayStr2);
+    const upgradesNeeded = avgBoxRevLift > 0 ? Math.ceil(gap / avgBoxRevLift) : null;
+
+    // Best breaker by avg revenue
+    const breakerRevs = {};
+    BREAKERS.forEach(b=>{ breakerRevs[b]={count:0,total:0}; });
+    streams.forEach(s=>{ if(s.breaker&&s.grossRevenue){breakerRevs[s.breaker].count++;breakerRevs[s.breaker].total+=parseFloat(s.grossRevenue)||0;} });
+    const bestBreaker = BREAKERS.sort((a,b)=>(breakerRevs[b].total/Math.max(1,breakerRevs[b].count))-(breakerRevs[a].total/Math.max(1,breakerRevs[a].count)))[0];
+
+    const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+    return (
+      <div style={{background:"rgba(123,156,255,0.04)",border:"2px solid rgba(123,156,255,0.15)",borderRadius:14,padding:"20px 22px"}}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:900,color:isStretch?"#4ade80":"#7B9CFF"}}>
+              {isStretch ? "🔥 Stretch Mode — Let's Go Further" : "🎯 Revenue Gap Advisor"}
+            </div>
+            <div style={{fontSize:12,color:"#555",marginTop:3}}>
+              {isStretch
+                ? <>You're <strong style={{color:"#4ade80"}}>{fmt2(Math.abs(gap))} ahead</strong> of your {fmt2(target)} target — here's how to push even further</>
+                : <>You need <strong style={{color:"#E8317A"}}>{fmt2(gap)}</strong> more to hit your {fmt2(target)} target</>
+              }
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:22,fontWeight:900,color:isStretch?"#4ade80":"#E8317A"}}>{isStretch?"+":""}{fmt2(isStretch?Math.abs(gap):gap)}</div>
+            <div style={{fontSize:11,color:"#555"}}>{isStretch?"ahead of target":"gap to close"}</div>
+          </div>
+        </div>
+
+        {/* Gap bar */}
+        <div style={{marginBottom:18}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#555",marginBottom:4}}>
+            <span>Current projection: {fmt2(effectiveBase)}</span>
+            <span>Target: {fmt2(target)}</span>
+          </div>
+          <div style={{height:10,background:"rgba(255,255,255,0.04)",borderRadius:5,overflow:"hidden",position:"relative"}}>
+            <div style={{position:"absolute",height:"100%",width:`${Math.min(100,effectiveBase/Math.max(target,effectiveBase)*100)}%`,background:isStretch?"linear-gradient(90deg,#4ade80,#22d3ee)":"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:5,transition:"width 0.4s"}}/>
+            {!isStretch&&<div style={{position:"absolute",right:0,top:0,height:"100%",width:`${Math.min(100,gap/target*100)}%`,background:"rgba(232,49,122,0.25)",borderRadius:"0 5px 5px 0"}}/>}
+          </div>
+          <div style={{fontSize:11,fontWeight:700,marginTop:4,color:isStretch?"#4ade80":"#E8317A"}}>
+            {isStretch
+              ? `✅ ${(effectiveBase/target*100).toFixed(0)}% of target — already there! Here's how to go bigger:`
+              : `${(effectiveBase/target*100).toFixed(0)}% of target — ${fmt2(gap)} to go`
+            }
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+
+          {/* Option A: Add streams */}
+          {optAStreams.length > 0 && (
+            <div style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#4ade80",marginBottom:8}}>
+                📅 {isStretch ? `Stack ${optAStreams.length} More Stream${optAStreams.length!==1?"s":""}` : `Option A — Add ${optAStreams.length} Stream${optAStreams.length!==1?"s":""}`}
+              </div>
+              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
+                {isStretch
+                  ? `Best open days to pile on · est. +${fmt2(optARevenue)}`
+                  : `Based on your best open days · est. ${fmt2(optARevenue)} revenue${optAGap>0?` · still ${fmt2(optAGap)} short`:""}`
+                }
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {optAStreams.map((d,i)=>(
+                  <div key={d.ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",borderRadius:7}}>
+                    <div>
+                      <span style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{DOW_NAMES2[d.dow]} {d.ds.slice(5).replace("-","/")}</span>
+                      {bestBreaker&&i===0&&<span style={{fontSize:10,color:"#7B9CFF",marginLeft:6}}>→ {bestBreaker} (highest avg)</span>}
+                    </div>
+                    <span style={{fontSize:11,fontWeight:700,color:"#4ade80"}}>~{fmt2(d.avgRev)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Option B: Upgrade existing streams */}
+          {futurePlans.length > 0 && upgradesNeeded !== null && avgBoxRevLift > 0 && (
+            <div style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",marginBottom:8}}>
+                📦 {isStretch ? "Load Up Existing Streams" : `Option B — Upgrade ${Math.min(upgradesNeeded,futurePlans.length)} Existing Stream${Math.min(upgradesNeeded,futurePlans.length)!==1?"s":""}`}
+              </div>
+              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
+                {isStretch
+                  ? `Add more product to planned streams · ~+${fmt2(avgBoxRevLift)} lift each`
+                  : `Add ~1 more box to each · est. +${fmt2(avgBoxRevLift)} lift per stream`
+                }
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {futurePlans.slice(0,Math.min(isStretch?5:upgradesNeeded,5)).map(p=>(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",borderRadius:7}}>
+                    <div>
+                      <span style={{fontSize:11,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
+                      <span style={{fontSize:10,color:"#555",marginLeft:6}}>{p.date}</span>
+                    </div>
+                    <span style={{fontSize:11,fontWeight:700,color:"#FBBF24"}}>+~{fmt2(avgBoxRevLift)}</span>
+                  </div>
+                ))}
+                {!isStretch && upgradesNeeded > 5 && <div style={{fontSize:10,color:"#555",padding:"4px 10px"}}>+{upgradesNeeded-5} more upgrades needed to fully close gap</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Option C: Mix / Full Send */}
+          {optAStreams.length > 0 && futurePlans.length > 0 && (
+            <div style={{background:"rgba(232,49,122,0.04)",border:"1px solid rgba(232,49,122,0.12)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#E8317A",marginBottom:8}}>
+                {isStretch ? "🚀 Full Send — Both" : "⚡ Option C — Mix It Up"}
+              </div>
+              <div style={{fontSize:11,color:"#555",marginBottom:10}}>
+                {isStretch ? "New streams + loaded product = max month" : "Fastest path to close the gap"}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {optAStreams.slice(0,2).map(d=>(
+                  <div key={d.ds} style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
+                    <span style={{color:"#4ade80",fontWeight:700}}>+stream</span>
+                    <span style={{color:"#F0F0F0"}}>{DOW_NAMES2[d.dow]} {d.ds.slice(5).replace("-","/")} ~{fmt2(d.avgRev)}</span>
+                  </div>
+                ))}
+                {futurePlans.slice(0,Math.ceil((isStretch?3:upgradesNeeded)/2)).map(p=>(
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
+                    <span style={{color:"#FBBF24",fontWeight:700}}>+upgrade</span>
+                    <span style={{color:"#F0F0F0"}}>{p.streamName||p.breaker} {p.date} ~+{fmt2(avgBoxRevLift)}</span>
+                  </div>
+                ))}
+                <div style={{marginTop:6,fontSize:12,fontWeight:900,color:"#E8317A"}}>
+                  {isStretch
+                    ? `Could push to ~${fmt2(effectiveBase + optAStreams.slice(0,2).reduce((s,d)=>s+d.avgRev,0) + futurePlans.slice(0,3).length*avgBoxRevLift)}`
+                    : `Est. gap closed: ${fmt2(optAStreams.slice(0,2).reduce((s,d)=>s+d.avgRev,0)+futurePlans.slice(0,Math.ceil(upgradesNeeded/2)).length*avgBoxRevLift)} of ${fmt2(gap)} needed`
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {avgStreamRev > 0 && (
+          <div style={{marginTop:12,fontSize:11,color:"#333"}}>
+            Based on your historical avg of {fmt2(avgStreamRev)}/stream across {histRevs.length} logged streams · best day: <strong style={{color:"#7B9CFF"}}>{DOW_NAMES2[dowAvg.indexOf(Math.max(...dowAvg))]}</strong>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -- Pace Report --
+  function renderPaceReport() {
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    if (mPlans.length === 0 && mActuals.length === 0) return null;
+
+    const mKey     = monthKey(curYear, curMonth);
+    const target   = parseFloat(monthTargets[mKey]) || 0;
+    const projRev  = projectedRevenue(mPlans);
+    const actRev   = actualRevenue(mActuals);
+
+    // How many streams planned so far (up to today)
+    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const plannedSoFar = mPlans.filter(p => p.date <= todayStr).length;
+    const projSoFar    = projectedRevenue(mPlans.filter(p => p.date <= todayStr));
+
+    // Per-stream variance (planned streams that have an actual on same date)
+    const streamResults = mPlans.map(p => {
+      const actuals = actualForDate(p.date);
+      const planned = parseFloat(p.estRevenue) || estimateRevenue(p);
+      const actual  = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
+      const hasActual = actuals.length > 0;
+      return { date:p.date, breaker:p.breaker, streamName:p.streamName||p.breaker, planned, actual, hasActual, diff:actual-planned };
+    }).filter(r => r.hasActual);
+
+    const totalPlanned = streamResults.reduce((s,r)=>s+r.planned, 0);
+    const totalActual  = streamResults.reduce((s,r)=>s+r.actual, 0);
+    const totalDiff    = totalActual - totalPlanned;
+
+    // Pace: if we hit projSoFar with actRev, are we ahead or behind?
+    const paceStatus = projSoFar === 0
+      ? "no-data"
+      : actRev >= projSoFar * 1.05 ? "ahead"
+      : actRev >= projSoFar * 0.95 ? "on-pace"
+      : "behind";
+
+    const paceConfig = {
+      "ahead":   { label:"🟢 Ahead of pace",   color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
+      "on-pace": { label:"🟡 On pace",          color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
+      "behind":  { label:"🔴 Behind pace",      color:"#E8317A", bg:"rgba(232,49,122,0.06)",  border:"rgba(232,49,122,0.2)"  },
+      "no-data": { label:"📋 No streams yet",   color:"#555",    bg:"rgba(255,255,255,0.02)", border:"rgba(255,255,255,0.06)" },
+    }[paceStatus];
+
+    const targetPct   = target > 0 ? actRev / target * 100 : null;
+    const projPct     = target > 0 ? projRev / target * 100 : null;
+
+    return (
+      <div style={{background:paceConfig.bg, border:`2px solid ${paceConfig.border}`, borderRadius:14, padding:"18px 20px"}}>
+        {/* Header row */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:900,color:paceConfig.color}}>{paceConfig.label}</div>
+            <div style={{fontSize:12,color:"#555",marginTop:3}}>
+              {mActuals.length} of {mPlans.length} planned streams completed · {MONTH_NAMES[curMonth]} {curYear}
+            </div>
+          </div>
+          {canSeeFinancials && mActuals.length > 0 && (
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:26,fontWeight:900,color:paceConfig.color}}>{fmt2(actRev)}</div>
+              <div style={{fontSize:11,color:"#555"}}>actual vs {fmt2(projRev)} projected</div>
+            </div>
+          )}
+        </div>
+
+        {/* KPI row */}
+        {canSeeFinancials && (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:16}}>
+            {[
+              { l:"Streams Done",      v:`${mActuals.length} / ${mPlans.length}`,   c:"#7B9CFF"  },
+              { l:"Actual Revenue",    v:fmt2(actRev),                               c:"#4ade80"  },
+              { l:"Projected (full mo.)",v:fmt2(projRev),                            c:"#FBBF24"  },
+              ...(target>0 ? [{ l:"Target",v:fmt2(target),c:"#E8317A" }] : []),
+              ...(streamResults.length>0 ? [{ l:"vs Plan (completed)", v:(totalDiff>=0?"+":"")+fmt2(totalDiff), c:totalDiff>=0?"#4ade80":"#E8317A" }] : []),
+            ].map(({l,v,c})=>(
+              <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Progress bars */}
+        {canSeeFinancials && (target > 0 || projRev > 0) && (() => {
+          const barMax = Math.max(target, projRev, actRev, 1);
+          return (
+            <div style={{marginBottom:16}}>
+              {[
+                { label:"Actual",    val:actRev,   color:"#4ade80" },
+                { label:"Projected", val:projRev,  color:"rgba(251,191,36,0.5)" },
+                ...(target>0?[{ label:"Target", val:target, color:"rgba(232,49,122,0.3)" }]:[]),
+              ].map(({label,val,color})=>(
+                <div key={label} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <span style={{fontSize:11,color:"#555",width:70,flexShrink:0}}>{label}</span>
+                  <div style={{flex:1,height:8,background:"rgba(255,255,255,0.04)",borderRadius:4,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${Math.min(100,val/barMax*100)}%`,background:color,borderRadius:4,transition:"width 0.4s"}}/>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,color:"#888",width:90,textAlign:"right",flexShrink:0}}>{fmt2(val)}</span>
+                </div>
+              ))}
+              {target>0&&<div style={{fontSize:11,color:targetPct>=100?"#4ade80":targetPct>=80?"#FBBF24":"#E8317A",fontWeight:700,marginTop:4}}>
+                {targetPct>=100?`✅ Target hit! ${fmt2(actRev-target)} over`:`${fmt2(target-actRev)} remaining to hit target (${targetPct.toFixed(0)}% of the way there)`}
+              </div>}
+            </div>
+          );
+        })()}
+
+        {/* Per-stream results */}
+        {canSeeFinancials && streamResults.length > 0 && (
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Completed Stream Results</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {streamResults.map((r,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:6}}>
+                  <div>
+                    <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{r.streamName}</span>
+                    <span style={{fontSize:11,color:"#555",marginLeft:8}}>{r.date}</span>
+                  </div>
+                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                    <span style={{fontSize:11,color:"#555"}}>Plan: <strong style={{color:"#FBBF24"}}>{fmt2(r.planned)}</strong></span>
+                    <span style={{fontSize:11,color:"#555"}}>Actual: <strong style={{color:"#4ade80"}}>{fmt2(r.actual)}</strong></span>
+                    <span style={{fontSize:12,fontWeight:900,color:r.diff>=0?"#4ade80":"#E8317A"}}>{r.diff>=0?"+":""}{fmt2(r.diff)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -- Plan modal --
+  function renderModal() {
+    if (!modalDate) return null;
+    const dayPlans = plansForDate(modalDate);
+    const dayActuals = actualForDate(modalDate);
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeModal}>
+        <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0"}}>📅 {modalDate}</div>
+            <button onClick={closeModal} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
+          </div>
+
+          {/* Existing actuals */}
+          {dayActuals.length>0&&(
+            <div style={{marginBottom:14,padding:"10px 14px",background:"#0a1a0a",border:"1px solid #4ade8033",borderRadius:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#4ade80",marginBottom:6}}>✅ Actual Stream{dayActuals.length>1?"s":""} Logged</div>
+              {dayActuals.map(a=><div key={a.id} style={{fontSize:12,color:"#888"}}>{a.streamName||a.breaker} — {canSeeFinancials?fmt2(a.grossRevenue):"logged"}</div>)}
+            </div>
+          )}
+
+          {/* Existing plans for this date */}
+          {dayPlans.length>0&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Planned Streams</div>
+              {dayPlans.map(p=>(
+                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
+                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&p.estRevenue?" · "+fmt2(p.estRevenue):""}</div>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    <button onClick={()=>deletePlan(p.id)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add/edit form */}
+          <div style={{borderTop:"1px solid #1a1a1a",paddingTop:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#AAAAAA",marginBottom:12,textTransform:"uppercase",letterSpacing:1}}>{editingId?"Edit Plan":"+ Add Planned Stream"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
+                <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
+                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Session Type</div>
+                <select value={form.sessionType} onChange={e=>setForm(p=>({...p,sessionType:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
+                  <option value="">-- Select --</option>
+                  <option value="day">☀️ Day Break</option>
+                  <option value="night">🌙 Night Break</option>
+                  <option value="weekend">📅 Weekend Break</option>
+                  <option value="event">🎉 Event</option>
+                </select>
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Stream Name (optional)</div>
+              <input value={form.streamName} onChange={e=>setForm(p=>({...p,streamName:e.target.value}))} placeholder="e.g. Friday Night Break #12" style={S2.inp}/>
+            </div>
+            {/* Products */}
+            <div style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:11,color:"#555"}}>Products</div>
+                <button onClick={()=>setForm(p=>({...p,products:[...p.products,{id:uid(),type:"",qty:"1"}]}))} style={{background:"none",border:"1px solid #333",color:"#E8317A",borderRadius:6,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
+              </div>
+              {form.products.map((pr,i)=>(
+                <div key={pr.id} style={{display:"grid",gridTemplateColumns:"1fr 70px auto",gap:6,marginBottom:6,alignItems:"center"}}>
+                  <select value={pr.type} onChange={e=>setForm(p=>({...p,products:p.products.map(x=>x.id===pr.id?{...x,type:e.target.value}:x)}))} style={{...S2.inp,cursor:"pointer",fontSize:12}}>
+                    <option value="">-- Product --</option>
+                    {PRODUCT_TYPES.map(pt=><option key={pt} value={pt}>{pt}</option>)}
+                  </select>
+                  <input type="number" min="1" value={pr.qty} onChange={e=>setForm(p=>({...p,products:p.products.map(x=>x.id===pr.id?{...x,qty:e.target.value}:x)}))} placeholder="Qty" style={{...S2.inp,textAlign:"center",fontSize:12}}/>
+                  {form.products.length>1&&<button onClick={()=>setForm(p=>({...p,products:p.products.filter(x=>x.id!==pr.id)}))} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>}
+                </div>
+              ))}
+            </div>
+            {canSeeFinancials&&<div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Est. Revenue ($)</div>
+              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value}))} placeholder="Leave blank to auto-estimate from products" style={S2.inp}/>
+            </div>}
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
+              <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes..." style={S2.inp}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={savePlan} disabled={saving} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>{saving?"Saving...":editingId?"💾 Update":"📋 Add to Calendar"}</button>
+              <button onClick={closeModal} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) return <div style={{textAlign:"center",padding:60,color:"#555"}}>Loading calendar...</div>;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {renderModal()}
+
+      {/* View toggle */}
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        {[["month","📅 Month"],["quarter","📊 Quarter"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setViewMode(v)} style={{background:viewMode===v?"rgba(232,49,122,0.15)":"transparent",color:viewMode===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${viewMode===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
+        ))}
+        {viewMode==="month"&&(
+          <>
+            <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>‹ Prev</button>
+            <span style={{fontSize:13,fontWeight:700,color:"#F0F0F0",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
+            <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
+            <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
+          </>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#4ade80"}}/><span style={{fontSize:11,color:"#555"}}>Actual stream</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#E8317A"}}/><span style={{fontSize:11,color:"#555"}}>Planned stream</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#1a0a14",border:"1px solid #E8317A44"}}/><span style={{fontSize:11,color:"#555"}}>Today</span></div>
+      </div>
+
+      {viewMode==="month"&&(
+        <>
+          {renderPaceReport()}
+          {renderGapAdvisor()}
+          {renderCalendar(curYear,curMonth)}
+          {renderMonthSummary()}
+          {renderInventoryNeeds()}
+        </>
+      )}
+
+      {viewMode==="quarter"&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+          {quarterMonths.map(({y,m})=>(
+            <div key={`${y}-${m}`}>
+              {renderCalendar(y,m,true)}
+              {canSeeFinancials&&(()=>{
+                const mPlans=monthPlans(y,m),mActuals=monthActuals(y,m);
+                const projRev=projectedRevenue(mPlans),actRev=actualRevenue(mActuals);
+                if(mPlans.length===0&&mActuals.length===0) return null;
+                return(
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:6}}>
+                    {[{l:"Streams",v:mPlans.length,c:"#7B9CFF"},{l:"Projected",v:fmt2(projRev),c:"#FBBF24"},{l:"Actual",v:fmt2(actRev),c:"#4ade80"}].map(({l,v,c})=>(
+                      <div key={l} style={{background:"#1a1a1a",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:14,fontWeight:900,color:c}}>{v}</div>
+                        <div style={{fontSize:9,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
@@ -5335,6 +6085,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Procurement","Shipping"] },
     { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer","Procurement"] },
     { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","Procurement"] },
+    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer","Procurement"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -5356,6 +6107,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
+      {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
     </div>
   );
 }
