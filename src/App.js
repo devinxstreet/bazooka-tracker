@@ -5880,10 +5880,21 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const pastPlans = mPlans.filter(p=>p.date<=todayStr);
     const projSoFar = projectedRevenue(pastPlans);
     let score = 0;
-    if (pastPlans.length === 0) score += 30;
-    else if (projSoFar > 0) score += Math.min(40, Math.round((actRev/projSoFar)*40));
+
+    // Pace (40pts) — only judge streams that were DUE, not future ones
+    if (pastPlans.length === 0) {
+      score += 40; // no streams due yet, full marks
+    } else if (projSoFar > 0) {
+      score += Math.min(40, Math.round((actRev/projSoFar)*40));
+    } else {
+      score += 40; // due streams had no projected revenue, neutral
+    }
+
+    // Projection vs target (30pts) — full marks if no target set
     if (target > 0) score += Math.min(30, Math.round((projRev/target)*30));
-    else score += 20;
+    else score += 30;
+
+    // Inventory (30pts) — based on planned streams this month
     const planned = mPlans.length;
     if (planned > 0) {
       const invOk = CARD_TYPES.filter(ct=>{
@@ -5892,7 +5903,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         return invAvail[ct] >= Math.ceil(rate*planned);
       }).length;
       score += Math.round((invOk/CARD_TYPES.length)*30);
-    } else score += 20;
+    } else {
+      score += 30;
+    }
+
     const grade = score>=90?"A":score>=75?"B":score>=60?"C":"D";
     const color = score>=90?"#4ade80":score>=75?"#FBBF24":score>=60?"#F97316":"#E8317A";
     return { score, grade, color };
