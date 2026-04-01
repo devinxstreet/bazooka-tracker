@@ -5541,15 +5541,6 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {!compact && canSeeFinancials && (() => {
-              const hs = getHealthScore();
-              return (
-                <div style={{textAlign:"center",background:hs.color+"15",border:`2px solid ${hs.color}33`,borderRadius:10,padding:"6px 14px"}}>
-                  <div style={{fontSize:22,fontWeight:900,color:hs.color,lineHeight:1}}>{hs.grade}</div>
-                  <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:2}}>Month Health</div>
-                </div>
-              );
-            })()}
             {!compact && (
               <>
                 {canSeeFinancials && <div style={{display:"flex",alignItems:"center",gap:6}}>
