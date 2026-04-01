@@ -2777,7 +2777,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   );
 }
 
-function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
+function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, onBulkAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
@@ -2788,6 +2788,9 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [sortInv,  setSortInv]  = useState("date");
   const [logOutCard, setLogOutCard] = useState(null);
   const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
+  const [bulkLogMode, setBulkLogMode] = useState(false);
+  const [bulkLogSel,  setBulkLogSel]  = useState(new Set());
+  const [bulkLogForm, setBulkLogForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState(defaultTab);
   useEffect(()=>{setInvTab(defaultTab);},[defaultTab]);
@@ -3152,8 +3155,40 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
             {selected.size>0 && CAN_DELETE.includes(userRole?.role) && (
               <button onClick={handleBulkDelete} style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDDD1 Delete"}{selected.size} selected</button>
             )}
+            {selected.size>0 && onBulkAdd && (
+              <button onClick={()=>setBulkLogMode(p=>!p)} style={{ background:bulkLogMode?"rgba(74,222,128,0.15)":"#111111", color:"#4ade80", border:"1.5px solid #4ade8044", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {bulkLogMode?"✕ Cancel":"✅ Bulk Log Out"} {selected.size > 0 ? `${selected.size}` : ""}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Bulk Log Out bar */}
+        {bulkLogMode && selected.size > 0 && (
+          <div style={{ background:"rgba(74,222,128,0.06)", border:"1.5px solid rgba(74,222,128,0.2)", borderRadius:10, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <span style={{ fontSize:13, fontWeight:700, color:"#4ade80" }}>✅ Log Out {selected.size} card{selected.size!==1?"s":""}</span>
+            <select value={bulkLogForm.breaker} onChange={e=>setBulkLogForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+              {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+            </select>
+            <select value={bulkLogForm.usage} onChange={e=>setBulkLogForm(p=>({...p,usage:e.target.value}))} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+              {USAGE_TYPES.map(u=><option key={u} value={u}>{u}</option>)}
+            </select>
+            <input type="date" value={bulkLogForm.date} onChange={e=>setBulkLogForm(p=>({...p,date:e.target.value}))} style={{ ...S.inp, width:"auto" }}/>
+            <button onClick={()=>{
+              const USAGE_TO_CT_INV = {"Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards"};
+              const entries = [...selected].map(id=>{
+                const card = inventory.find(c=>c.id===id);
+                const resolvedType = USAGE_TO_CT_INV[bulkLogForm.usage] || card?.cardType || "";
+                return { id:uid(), date:bulkLogForm.date, breaker:bulkLogForm.breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage:bulkLogForm.usage, notes:"Bulk logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+              });
+              onBulkAdd(entries);
+              setSelected(new Set());
+              setBulkLogMode(false);
+            }} style={{ background:"linear-gradient(135deg,#4ade80,#22d3ee)", color:"#000", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+              Confirm Log Out
+            </button>
+          </div>
+        )}
         <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:900 }}>
@@ -16606,7 +16641,7 @@ export default function App() {
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
-        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} streams={streams} bobaCards={bobaCards}/>}
+        {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
