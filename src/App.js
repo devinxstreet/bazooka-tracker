@@ -5595,7 +5595,140 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     );
   }
 
-  // -- Month summary by breaker --
+  // -- Product / Boxes Summary --
+  function renderProductSummary() {
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    if (mPlans.length === 0) return null;
+
+    const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
+    const PT_EMOJI  = {"Double Mega":"📦","Hobby":"📬","Jumbo":"📫","Miscellaneous":"🗃️"};
+
+    // Planned boxes per type from plan.products
+    const plannedBoxes = {};
+    const plannedMkt   = {};
+    PRODUCT_TYPES.forEach(pt=>{ plannedBoxes[pt]=0; plannedMkt[pt]=0; });
+    mPlans.forEach(p=>{
+      (p.products||[]).forEach(pr=>{
+        if(!pr.type||!PRODUCT_TYPES.includes(pr.type)) return;
+        const qty = parseInt(pr.qty)||0;
+        plannedBoxes[pr.type] += qty;
+        plannedMkt[pr.type]   += qty * (parseFloat(skuPrices[pr.type])||0);
+      });
+    });
+
+    // Actual boxes ripped from logged streams (prod_Double Mega, prod_Hobby, etc.)
+    const actualBoxes = {};
+    PRODUCT_TYPES.forEach(pt=>{ actualBoxes[pt]=0; });
+    mActuals.forEach(s=>{
+      PRODUCT_TYPES.forEach(pt=>{
+        actualBoxes[pt] += parseInt(s[`prod_${pt}`])||0;
+      });
+    });
+
+    const totalPlannedBoxes = PRODUCT_TYPES.reduce((s,pt)=>s+plannedBoxes[pt],0);
+    const totalActualBoxes  = PRODUCT_TYPES.reduce((s,pt)=>s+actualBoxes[pt],0);
+    const totalPlannedMkt   = PRODUCT_TYPES.reduce((s,pt)=>s+plannedMkt[pt],0);
+    if (totalPlannedBoxes === 0) return null;
+
+    // Avg boxes per stream from history
+    const avgBoxesPerStream = {};
+    PRODUCT_TYPES.forEach(pt=>{ avgBoxesPerStream[pt] = streams.length > 0 ? streams.reduce((s,str)=>s+(parseInt(str[`prod_${pt}`])||0),0)/streams.length : 0; });
+
+    return (
+      <div style={S2.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📦 Boxes to Rip — {MONTH_NAMES[curMonth]}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:2}}>
+              {totalPlannedBoxes} total planned · {totalActualBoxes > 0 ? `${totalActualBoxes} ripped so far · ` : ""}{fmt2(totalPlannedMkt)} market value
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:22,fontWeight:900,color:"#7B9CFF"}}>{totalPlannedBoxes}</div>
+              <div style={{fontSize:10,color:"#555"}}>boxes planned</div>
+            </div>
+            {totalActualBoxes > 0 && (
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{totalActualBoxes}</div>
+                <div style={{fontSize:10,color:"#555"}}>ripped so far</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:14}}>
+          {PRODUCT_TYPES.filter(pt=>plannedBoxes[pt]>0).map(pt=>{
+            const planned = plannedBoxes[pt];
+            const actual  = actualBoxes[pt];
+            const mkt     = plannedMkt[pt];
+            const color   = PT_COLORS[pt]||"#888";
+            const pct     = planned > 0 ? Math.min(100, actual/planned*100) : 0;
+            return (
+              <div key={pt} style={{background:"#1a1a1a",border:`1px solid ${actual>=planned&&actual>0?"rgba(74,222,128,0.2)":"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:700,color}}>{PT_EMOJI[pt]||"📦"} {pt}</span>
+                  {actual >= planned && actual > 0 && <span style={{fontSize:10,color:"#4ade80",fontWeight:700}}>✅ Done</span>}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                  <div style={{textAlign:"center",background:"rgba(0,0,0,0.3)",borderRadius:6,padding:"6px 4px"}}>
+                    <div style={{fontSize:18,fontWeight:900,color}}>{planned}</div>
+                    <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Planned</div>
+                  </div>
+                  <div style={{textAlign:"center",background:"rgba(0,0,0,0.3)",borderRadius:6,padding:"6px 4px"}}>
+                    <div style={{fontSize:18,fontWeight:900,color:actual>0?"#4ade80":"#333"}}>{actual || "—"}</div>
+                    <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Ripped</div>
+                  </div>
+                </div>
+                {actual > 0 && (
+                  <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden",marginBottom:6}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:"#4ade80",borderRadius:2,transition:"width 0.3s"}}/>
+                  </div>
+                )}
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#555"}}>
+                  <span>{fmt2(mkt)} mkt value</span>
+                  {skuPrices[pt]&&<span>{fmt2(parseFloat(skuPrices[pt]))} /box</span>}
+                </div>
+                {avgBoxesPerStream[pt]>0&&<div style={{fontSize:10,color:"#444",marginTop:3}}>~{avgBoxesPerStream[pt].toFixed(1)}/stream historically</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Per-stream product breakdown */}
+        {mPlans.some(p=>(p.products||[]).some(pr=>pr.type&&parseInt(pr.qty)>0)) && (
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>By Stream</div>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              {mPlans.filter(p=>(p.products||[]).some(pr=>pr.type&&parseInt(pr.qty)>0)).sort((a,b)=>a.date.localeCompare(b.date)).map(p=>{
+                const streamBoxes = (p.products||[]).filter(pr=>pr.type&&parseInt(pr.qty)>0);
+                const streamMkt = streamBoxes.reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
+                const actual = actualForDate(p.date);
+                const wasLogged = actual.length > 0;
+                return (
+                  <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:wasLogged?"rgba(74,222,128,0.04)":"rgba(0,0,0,0.3)",border:`1px solid ${wasLogged?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)"}`,borderRadius:8,flexWrap:"wrap",gap:6}}>
+                    <div>
+                      <span style={{fontSize:12,fontWeight:700,color:wasLogged?"#4ade80":"#F0F0F0"}}>{wasLogged?"✅ ":""}{p.streamName||p.breaker}</span>
+                      <span style={{fontSize:10,color:"#555",marginLeft:8}}>{p.date}</span>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      {streamBoxes.map(pr=>(
+                        <span key={pr.id} style={{fontSize:11,fontWeight:700,color:PT_COLORS[pr.type]||"#888",background:"rgba(0,0,0,0.4)",borderRadius:5,padding:"2px 8px"}}>
+                          {pr.qty}× {pr.type}
+                        </span>
+                      ))}
+                      {streamMkt > 0 && <span style={{fontSize:11,color:"#555"}}>{fmt2(streamMkt)} mkt</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
   function renderMonthSummary() {
     const mPlans = monthPlans(curYear, curMonth);
     const mActuals = monthActuals(curYear, curMonth);
@@ -5891,127 +6024,107 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const mActuals = monthActuals(curYear, curMonth);
     if (mPlans.length === 0 && mActuals.length === 0) return null;
 
-    const mKey     = monthKey(curYear, curMonth);
-    const target   = parseFloat(monthTargets[mKey]) || 0;
-    const projRev  = projectedRevenue(mPlans);
-    const actRev   = actualRevenue(mActuals);
+    const actRev    = actualRevenue(mActuals);
+    const todayStr  = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const pastPlans = mPlans.filter(p => p.date <= todayStr);
+    const futurePlans = mPlans.filter(p => p.date > todayStr);
+    const projSoFar = projectedRevenue(pastPlans);
 
-    // How many streams planned so far (up to today)
-    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const plannedSoFar = mPlans.filter(p => p.date <= todayStr).length;
-    const projSoFar    = projectedRevenue(mPlans.filter(p => p.date <= todayStr));
-
-    // Per-stream variance (planned streams that have an actual on same date)
+    // Per-stream results — only streams with a logged actual
     const streamResults = mPlans.map(p => {
       const actuals = actualForDate(p.date);
+      if (!actuals.length) return null;
       const planned = parseFloat(p.estRevenue) || estimateRevenue(p);
       const actual  = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-      const hasActual = actuals.length > 0;
-      return { date:p.date, breaker:p.breaker, streamName:p.streamName||p.breaker, planned, actual, hasActual, diff:actual-planned };
-    }).filter(r => r.hasActual);
+      return { date:p.date, breaker:p.breaker, streamName:p.streamName||p.breaker, planned, actual, diff:actual-planned };
+    }).filter(Boolean);
+    const totalDiff = streamResults.reduce((s,r)=>s+r.diff,0);
 
-    const totalPlanned = streamResults.reduce((s,r)=>s+r.planned, 0);
-    const totalActual  = streamResults.reduce((s,r)=>s+r.actual, 0);
-    const totalDiff    = totalActual - totalPlanned;
+    // State machine — only "behind" if streams were DUE and not met
+    let paceStatus;
+    if (pastPlans.length === 0 && mActuals.length === 0) paceStatus = "future";
+    else if (pastPlans.length > 0 && mActuals.length === 0 && projSoFar > 0) paceStatus = "no-actuals-yet";
+    else if (projSoFar === 0) paceStatus = mActuals.length > 0 ? "ahead" : "future";
+    else paceStatus = actRev >= projSoFar*1.05 ? "ahead" : actRev >= projSoFar*0.95 ? "on-pace" : "behind";
 
-    // Pace: if we hit projSoFar with actRev, are we ahead or behind?
-    const paceStatus = projSoFar === 0
-      ? "no-data"
-      : actRev >= projSoFar * 1.05 ? "ahead"
-      : actRev >= projSoFar * 0.95 ? "on-pace"
-      : "behind";
-
-    const paceConfig = {
-      "ahead":   { label:"🟢 Ahead of pace",   color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
-      "on-pace": { label:"🟡 On pace",          color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
-      "behind":  { label:"🔴 Behind pace",      color:"#E8317A", bg:"rgba(232,49,122,0.06)",  border:"rgba(232,49,122,0.2)"  },
-      "no-data": { label:"📋 No streams yet",   color:"#555",    bg:"rgba(255,255,255,0.02)", border:"rgba(255,255,255,0.06)" },
+    const nextPlan = [...futurePlans].sort((a,b)=>a.date.localeCompare(b.date))[0];
+    const cfg = {
+      "future":         {label:"📅 Month hasn't started yet",      color:"#7B9CFF", bg:"rgba(123,156,255,0.04)", border:"rgba(123,156,255,0.12)"},
+      "no-actuals-yet": {label:"⏳ Streams due — log your recaps",  color:"#FBBF24", bg:"rgba(251,191,36,0.04)",  border:"rgba(251,191,36,0.15)"},
+      "ahead":          {label:"🟢 Ahead of pace",                  color:"#4ade80", bg:"rgba(74,222,128,0.04)",  border:"rgba(74,222,128,0.15)"},
+      "on-pace":        {label:"🟡 On pace",                        color:"#FBBF24", bg:"rgba(251,191,36,0.04)",  border:"rgba(251,191,36,0.15)"},
+      "behind":         {label:"🔴 Behind pace",                    color:"#E8317A", bg:"rgba(232,49,122,0.04)",  border:"rgba(232,49,122,0.15)"},
     }[paceStatus];
 
-    const targetPct   = target > 0 ? actRev / target * 100 : null;
-    const projPct     = target > 0 ? projRev / target * 100 : null;
-
     return (
-      <div style={{background:paceConfig.bg, border:`2px solid ${paceConfig.border}`, borderRadius:14, padding:"18px 20px"}}>
-        {/* Header row */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div style={{background:cfg.bg,border:`2px solid ${cfg.border}`,borderRadius:14,padding:"18px 20px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div>
-            <div style={{fontSize:16,fontWeight:900,color:paceConfig.color}}>{paceConfig.label}</div>
+            <div style={{fontSize:15,fontWeight:900,color:cfg.color}}>{cfg.label}</div>
             <div style={{fontSize:12,color:"#555",marginTop:3}}>
-              {mActuals.length} of {mPlans.length} planned streams completed · {MONTH_NAMES[curMonth]} {curYear}
+              {paceStatus==="future" && (nextPlan
+                ? <>First planned stream: <strong style={{color:"#F0F0F0"}}>{nextPlan.streamName||nextPlan.breaker}</strong> on {nextPlan.date} · {mPlans.length} planned this month</>
+                : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
+              )}
+              {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace</>}
+              {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{mActuals.length} of {mPlans.length} planned streams completed · {futurePlans.length} still ahead</>}
             </div>
           </div>
           {canSeeFinancials && mActuals.length > 0 && (
             <div style={{textAlign:"right"}}>
-              <div style={{fontSize:26,fontWeight:900,color:paceConfig.color}}>{fmt2(actRev)}</div>
-              <div style={{fontSize:11,color:"#555"}}>actual vs {fmt2(projRev)} projected</div>
+              <div style={{fontSize:24,fontWeight:900,color:cfg.color}}>{fmt2(actRev)}</div>
+              <div style={{fontSize:11,color:"#555"}}>{projSoFar>0?`vs ${fmt2(projSoFar)} expected by now`:"actual so far"}</div>
             </div>
           )}
         </div>
 
-        {/* KPI row */}
-        {canSeeFinancials && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:16}}>
-            {[
-              { l:"Streams Done",      v:`${mActuals.length} / ${mPlans.length}`,   c:"#7B9CFF"  },
-              { l:"Actual Revenue",    v:fmt2(actRev),                               c:"#4ade80"  },
-              { l:"Projected (full mo.)",v:fmt2(projRev),                            c:"#FBBF24"  },
-              ...(target>0 ? [{ l:"Target",v:fmt2(target),c:"#E8317A" }] : []),
-              ...(streamResults.length>0 ? [{ l:"vs Plan (completed)", v:(totalDiff>=0?"+":"")+fmt2(totalDiff), c:totalDiff>=0?"#4ade80":"#E8317A" }] : []),
-            ].map(({l,v,c})=>(
-              <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
-                <div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div>
-                <div style={{fontSize:10,color:"#555",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+        {/* Future: show potential tiers */}
+        {paceStatus==="future" && canSeeFinancials && mPlans.length > 0 && (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
+            {[{l:"Planned",v:mPlans.length+" streams",c:"#7B9CFF"},{l:"Min 1.5x",v:fmt2(projectedRevenue(mPlans,1.5)),c:"#FBBF24"},{l:"Good 1.7x",v:fmt2(projectedRevenue(mPlans,1.7)),c:"#4ade80"},{l:"Great 1.9x",v:fmt2(projectedRevenue(mPlans,1.9)),c:"#E8317A"}].map(({l,v,c})=>(
+              <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Progress bars */}
-        {canSeeFinancials && (target > 0 || projRev > 0) && (() => {
-          const barMax = Math.max(target, projRev, actRev, 1);
-          return (
-            <div style={{marginBottom:16}}>
+        {/* Active: KPIs + per-stream results */}
+        {canSeeFinancials && (paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && (
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:streamResults.length>0?12:0}}>
               {[
-                { label:"Actual",    val:actRev,   color:"#4ade80" },
-                { label:"Projected", val:projRev,  color:"rgba(251,191,36,0.5)" },
-                ...(target>0?[{ label:"Target", val:target, color:"rgba(232,49,122,0.3)" }]:[]),
-              ].map(({label,val,color})=>(
-                <div key={label} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <span style={{fontSize:11,color:"#555",width:70,flexShrink:0}}>{label}</span>
-                  <div style={{flex:1,height:8,background:"rgba(255,255,255,0.04)",borderRadius:4,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${Math.min(100,val/barMax*100)}%`,background:color,borderRadius:4,transition:"width 0.4s"}}/>
-                  </div>
-                  <span style={{fontSize:11,fontWeight:700,color:"#888",width:90,textAlign:"right",flexShrink:0}}>{fmt2(val)}</span>
-                </div>
-              ))}
-              {target>0&&<div style={{fontSize:11,color:targetPct>=100?"#4ade80":targetPct>=80?"#FBBF24":"#E8317A",fontWeight:700,marginTop:4}}>
-                {targetPct>=100?`✅ Target hit! ${fmt2(actRev-target)} over`:`${fmt2(target-actRev)} remaining to hit target (${targetPct.toFixed(0)}% of the way there)`}
-              </div>}
-            </div>
-          );
-        })()}
-
-        {/* Per-stream results */}
-        {canSeeFinancials && streamResults.length > 0 && (
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Completed Stream Results</div>
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {streamResults.map((r,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:6}}>
-                  <div>
-                    <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{r.streamName}</span>
-                    <span style={{fontSize:11,color:"#555",marginLeft:8}}>{r.date}</span>
-                  </div>
-                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:"#555"}}>Plan: <strong style={{color:"#FBBF24"}}>{fmt2(r.planned)}</strong></span>
-                    <span style={{fontSize:11,color:"#555"}}>Actual: <strong style={{color:"#4ade80"}}>{fmt2(r.actual)}</strong></span>
-                    <span style={{fontSize:12,fontWeight:900,color:r.diff>=0?"#4ade80":"#E8317A"}}>{r.diff>=0?"+":""}{fmt2(r.diff)}</span>
-                  </div>
+                {l:"Actual",         v:fmt2(actRev),                                                                   c:"#4ade80"},
+                ...(projSoFar>0?[{l:"Due by today",   v:fmt2(projSoFar),                                              c:"#FBBF24"}]:[]),
+                ...(projSoFar>0?[{l:"Variance",       v:(actRev-projSoFar>=0?"+":"")+fmt2(actRev-projSoFar),           c:actRev>=projSoFar?"#4ade80":"#E8317A"}]:[]),
+                ...(streamResults.length>0?[{l:"vs Plan",v:(totalDiff>=0?"+":"")+fmt2(totalDiff),                      c:totalDiff>=0?"#4ade80":"#E8317A"}]:[]),
+                ...(futurePlans.length>0?[{l:"Remaining",v:futurePlans.length+" streams",                              c:"#7B9CFF"}]:[]),
+              ].map(({l,v,c})=>(
+                <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
+                  <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
                 </div>
               ))}
             </div>
-          </div>
+            {streamResults.length > 0 && (
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {streamResults.map((r,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"rgba(0,0,0,0.3)",borderRadius:8,flexWrap:"wrap",gap:6}}>
+                    <div>
+                      <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{r.streamName}</span>
+                      <span style={{fontSize:10,color:"#555",marginLeft:8}}>{r.date}</span>
+                    </div>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <span style={{fontSize:11,color:"#555"}}>Plan: <strong style={{color:"#FBBF24"}}>{fmt2(r.planned)}</strong></span>
+                      <span style={{fontSize:11,color:"#555"}}>Actual: <strong style={{color:"#4ade80"}}>{fmt2(r.actual)}</strong></span>
+                      <span style={{fontSize:12,fontWeight:900,color:r.diff>=0?"#4ade80":"#E8317A"}}>{r.diff>=0?"+":""}{fmt2(r.diff)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -6200,6 +6313,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           {renderPaceReport()}
           {renderGapAdvisor()}
           {renderCalendar(curYear,curMonth)}
+          {renderProductSummary()}
           {renderMonthSummary()}
           {renderInventoryNeeds()}
         </>
