@@ -3274,6 +3274,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           );
         })()}
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <div>
             <label style={S.lbl}>Session Type</label>
             <select value={recap.sessionType||""} onChange={e=>rf("sessionType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
