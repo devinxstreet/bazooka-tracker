@@ -5910,6 +5910,15 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     </div>
                   );
                 })}
+                {/* Red slash overlay for vacation days */}
+                {vacationsForDate(ds).length > 0 && (
+                  <div style={{position:"absolute",inset:0,pointerEvents:"none",borderRadius:6,overflow:"hidden"}}>
+                    <svg width="100%" height="100%" style={{position:"absolute",inset:0}}>
+                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="rgba(220,38,38,0.35)" strokeWidth="1.5"/>
+                      <line x1="100%" y1="0" x2="0" y2="100%" stroke="rgba(220,38,38,0.35)" strokeWidth="1.5"/>
+                    </svg>
+                  </div>
+                )}
                 {dayActuals.slice(0,1).map(a=>(
                   <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     ✅ {a.streamName||a.breaker||"Stream"}
