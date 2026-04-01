@@ -5368,7 +5368,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet, rate };
   }
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -5394,7 +5394,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   function openModal(ds, plan=null) {
     setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
   }
   function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
@@ -5470,9 +5470,31 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   function monthActuals(y,m) { return streams.filter(s=>{const d=s.date||"";return d.startsWith(monthKey(y,m));}); }
   function planMktValue(p) { return (p.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0); }
   function estimateRevenue(p, mult=1.5) { return planMktValue(p) * mult; }
-  function projectedRevenue(planList, mult=1.5) { return planList.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p,mult)),0); }
+  function projectedRevenue(planList, mult=1.5) {
+    return planList.reduce((s,p) => {
+      const mkt = planMktValue(p);
+      if (mkt > 0) {
+        // Always recalculate from current SKU prices — use stored multiple, then estRevenue-inferred multiple, then fallback
+        const storedMult = parseFloat(p.estMultiple) || (p.estRevenue && mkt > 0 ? parseFloat(p.estRevenue)/mkt : mult);
+        const effectiveMult = storedMult > 0.5 && storedMult < 5 ? storedMult : mult;
+        return s + mkt * effectiveMult;
+      }
+      // No products — use manually entered estRevenue as-is
+      return s + (parseFloat(p.estRevenue)||0);
+    }, 0);
+  }
   function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
   function totalMonthMkt(y,m) { return monthPlans(y,m).reduce((s,p)=>s+planMktValue(p),0); }
+  // Always returns revenue based on current SKU prices when products exist
+  function liveRevenue(p) {
+    const mkt = planMktValue(p);
+    if (mkt > 0) {
+      const mult = parseFloat(p.estMultiple) || (p.estRevenue && mkt > 0 ? parseFloat(p.estRevenue)/mkt : 1.5);
+      const effectiveMult = mult > 0.5 && mult < 5 ? mult : 1.5;
+      return mkt * effectiveMult;
+    }
+    return parseFloat(p.estRevenue) || 0;
+  }
 
   // -- Inventory needs --
   const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
@@ -5572,12 +5594,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const isToday = ds===dateStr(today.getFullYear(),today.getMonth(),today.getDate());
             const isPast = new Date(ds) < new Date(dateStr(today.getFullYear(),today.getMonth(),today.getDate()));
             // Heat map: estimate revenue for this day
-            const dayProjRev = dayPlans.reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0);
+            const dayProjRev = dayPlans.reduce((s,p)=>s+(liveRevenue(p)),0);
             const dayActRev  = dayActuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
             const heatRev    = dayActRev || dayProjRev;
             const maxRev     = Math.max(...Array.from({length:days},(_,j)=>{
               const d2=dateStr(y,m,j+1);
-              const p2=plansForDate(d2).reduce((s,p)=>s+(parseFloat(p.estRevenue)||estimateRevenue(p)),0);
+              const p2=plansForDate(d2).reduce((s,p)=>s+(liveRevenue(p)),0);
               const a2=actualForDate(d2).reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
               return a2||p2;
             }), 1);
@@ -5822,7 +5844,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     if (mPlans.length===0 && mActuals.length===0) return null;
     const breakerPlan = {};
     BREAKERS.forEach(b=>{ breakerPlan[b]={planned:0,projRev:0}; });
-    mPlans.forEach(p=>{ if(breakerPlan[p.breaker]){ breakerPlan[p.breaker].planned++; breakerPlan[p.breaker].projRev+=parseFloat(p.estRevenue)||estimateRevenue(p); } });
+    mPlans.forEach(p=>{ if(breakerPlan[p.breaker]){ breakerPlan[p.breaker].planned++; breakerPlan[p.breaker].projRev+=liveRevenue(p); } });
     return (
       <div style={S2.card}>
         <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>👥 By Breaker — {MONTH_NAMES[curMonth]}</div>
@@ -5909,7 +5931,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       const actuals = actualForDate(p.date);
       if (!actuals.length) return null;
       const actual = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-      const planned = parseFloat(p.estRevenue)||estimateRevenue(p);
+      const planned = liveRevenue(p);
       const pct = planned > 0 ? actual/planned : 1;
       const grade = pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D";
       const color = pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A";
@@ -6294,7 +6316,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const streamResults = mPlans.map(p => {
       const actuals = actualForDate(p.date);
       if (!actuals.length) return null;
-      const planned = parseFloat(p.estRevenue) || estimateRevenue(p);
+      const planned = liveRevenue(p);
       const actual  = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
       return { date:p.date, breaker:p.breaker, streamName:p.streamName||p.breaker, planned, actual, diff:actual-planned };
     }).filter(Boolean);
@@ -6419,7 +6441,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
-                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&p.estRevenue?" · "+fmt2(p.estRevenue):""}</div>
+                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
@@ -6480,15 +6502,15 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 return mkt > 0 ? (
                   <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
                     {[[1.5,"1.5x","#FBBF24"],[1.7,"1.7x","#4ade80"],[1.9,"1.9x 🔥","#E8317A"]].map(([mult,label,color])=>(
-                      <button key={mult} onClick={()=>setForm(p=>({...p,estRevenue:(mkt*mult).toFixed(2)}))}
-                        style={{background:`${color}15`,color,border:`1px solid ${color}44`,borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                        {label} = {fmt2(mkt*mult)}
+                      <button key={mult} onClick={()=>setForm(p=>({...p,estRevenue:(mkt*mult).toFixed(2),estMultiple:String(mult)}))}
+                        style={{background:parseFloat(form.estMultiple)===mult?`${color}30`:`${color}15`,color,border:`1px solid ${parseFloat(form.estMultiple)===mult?color:color+"44"}`,borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                        {label} = {fmt2(mkt*mult)}{parseFloat(form.estMultiple)===mult?" ✓":""}
                       </button>
                     ))}
                   </div>
                 ) : null;
               })()}
-              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value}))} placeholder="Tap a multiple above or enter manually" style={S2.inp}/>
+              <input type="text" inputMode="decimal" value={form.estRevenue} onChange={e=>setForm(p=>({...p,estRevenue:e.target.value,estMultiple:""}))} placeholder="Tap a multiple above or enter manually" style={S2.inp}/>
             </div>}
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
