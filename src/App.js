@@ -1525,7 +1525,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
 
       {compMode==="history" && (() => {
-        const activeQuotes = quotes.filter(q => !["closed"].includes(q.status));
+        const activeQuotes = quotes.filter(q => !q.bazookaClosed);
 
         return (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -1623,7 +1623,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             })()}
                           </div>
                           <Btn onClick={()=>{ if(onBazookaCounter&&bzCounterAmt[q.id]) { onBazookaCounter(q.id,parseFloat(bzCounterAmt[q.id]),q.history||[]); setBzCounterAmt(p=>({...p,[q.id]:""})); }}} disabled={!bzCounterAmt[q.id]} variant="ghost">{"\uD83E\uDD1D Send Counter"}</Btn>
-                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">{"\u274C Decline"}</Btn>
+                          <Btn onClick={()=>{ if(onCloseQuote) onCloseQuote(q.id); }} variant="ghost">{"\u274C Close (admin only)"}</Btn>
                           {q.status==="countered" && (
                             <Btn onClick={async()=>{
                               // Accept their counter -- update offer to their counter amount
@@ -15581,7 +15581,7 @@ function PublicQuote({ quoteId }) {
   if (!quote) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#888", fontFamily:"'Trebuchet MS',sans-serif", fontSize:14 }}>Quote not found or has expired.</div>;
 
   const isExpired = new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000);
-  const isClosed  = quote.status === "closed";
+  const isClosed  = quote.status === "closed"; // legacy only — new closes use bazookaClosed which doesn't affect seller view
   const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
   const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
@@ -15926,7 +15926,7 @@ export default function App() {
     return id;
   }
 
-  async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { status:"closed" }, { merge:true }); }
+  async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { bazookaClosed:true }, { merge:true }); }
 
   async function handleBazookaCounter(quoteId, amount, history) {
     await setDoc(doc(db,"quotes",quoteId), { status:"pending", currentOffer:amount, history:[...history,{type:"bazooka_counter",amount,timestamp:new Date().toISOString()}], notified:false }, { merge:true });
