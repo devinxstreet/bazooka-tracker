@@ -448,7 +448,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
     const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
     const commBase=bazNet, commAmt=commBase*rate;
     const tips=parseFloat(s.tips)||0;
     return { gross, netRev, bazNet, imcNet, repExp, imcExpReimb, commBase, commAmt, tips, totalExp, collabAmt:bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0), bazTrueNet:bazNet-commAmt+imcExpReimb-repExp-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
@@ -595,7 +595,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const commBase = bazNet;
           const mm = parseFloat(s.marketMultiple)||0;
           const overrideRate = s.commissionOverride !== "" && s.commissionOverride != null ? parseFloat(s.commissionOverride)/100 : null;
-          const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const rate = overrideRate !== null ? overrideRate : s.binOnly ? 0.35 : Math.min(0.60, (mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35) + ((parseInt(s.newBuyers)||0)>=5 && !s.binOnly ? 0.05 : 0));
           const commAmt  = commBase * rate;
           const tips = parseFloat(s.tips)||0;
           const collabAmt = bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
@@ -3441,7 +3441,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const commBase = bazNet;
     const mm = parseFloat(recap.marketMultiple)||0;
     const overrideRate = recap.commissionOverride !== "" ? parseFloat(recap.commissionOverride)/100 : null;
-    const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const rate = overrideRate !== null ? overrideRate : recap.binOnly ? 0.35 : Math.min(0.60, (mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35) + ((parseInt(recap.newBuyers)||0)>=5 && !recap.binOnly ? 0.05 : 0));
     const commAmt = commBase * rate;
     const tips = parseFloat(recap.tips)||0;
     const collabAmt = recap.collabPartner && recap.collabPartner !== "_" ? bazNet * (parseFloat(recap.collabPct||0)/100) : 0;
@@ -4029,7 +4029,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
                   { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
-                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#4ade80" },
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5&&!recap.binOnly?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
                   ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
                   ...(rc.tips>0?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips), c:"#4ade80" }]:[]),
                 ].map(({l,v,c}) => (
@@ -4139,7 +4139,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const totalExp=fees+coupons+streamExp, netRev=gross-totalExp, bazNet=netRev*0.30, imcNet=netRev*0.70;
           const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
           const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
-          const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+          const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null, rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
           const commBase=bazNet, commAmt=commBase*rate;
           return { gross, netRev, bazNet, imcNet, commBase, commAmt, imcExpReimb, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet - commAmt+imcExpReimb-bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), rate };
         }
@@ -4181,7 +4181,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         onChange={()=>setStreamBulkSel(streamBulkSel.size===myStreams.length ? new Set() : new Set(myStreams.map(s=>s.id)))}
                       />
                     </th>
-                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers","Collab",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -4212,6 +4212,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
                         <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                         <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `\uD83C\uDF31 ${s.newBuyers}` : "--"}</td>
+                        <td style={S.td}>
+                          {s.collabPartner && s.collabPartner !== "_"
+                            ? <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>🤝 {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>
+                            : <span style={{ color:"#333" }}>--</span>
+                          }
+                        </td>
                         {PRODUCT_TYPES.map(pt => {
                           const qty = parseInt(s[`prod_${pt}`])||0;
                           const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
@@ -8082,8 +8088,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
-              <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} &middot; ${(c.rate*100).toFixed(0)}% commission`}</span>
+              <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
               {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new buyers</span>}
+              {s.collabPartner && s.collabPartner !== "_" && <span style={{ background:"rgba(123,156,255,0.12)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
             </div>
           </div>
 
@@ -8285,7 +8292,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const grossForComm=gross-streamExp-coupons, bazNetForComm=grossForComm*0.30;
               const repExp=streamExp*0.135, imcExpReimb=reimbExp*0.70;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
               const commAmt=bazNet*rate;
               const tips=parseFloat(s.tips)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0); const bazTrueNet=bazNet-repExp-commAmt+imcExpReimb-collabAmt;
@@ -8622,12 +8629,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                   <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                 </div>
-                <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#F0F0F0"}}>{fmt(c.gross)}</strong></span>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
                   {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
                   {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new</span>}
+                  {s.collabPartner && s.collabPartner !== "_" && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px" }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
