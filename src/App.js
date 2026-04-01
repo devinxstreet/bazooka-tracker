@@ -366,8 +366,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showHist,    setShowHist]    = useState(false);
   const [histForm,    setHistForm]    = useState({ yearMonth:"", grossRevenue:"", netRevenue:"", imcReimb:"", newBuyers:"", notes:"" });
   const [editingId,   setEditingId]   = useState(null);
-  const [imcAdjustment, setImcAdjustment] = useState("");
-  const [showImcAdj,    setShowImcAdj]    = useState(false);
+  const [imcAdjustments, setImcAdjustments] = useState({});
+  const [showImcAdj,     setShowImcAdj]     = useState(false);
   const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
@@ -719,7 +719,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc + (parseFloat(imcAdjustment)||0),  color:"#E8317A", sub:"70% of net revenue" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.values(imcAdjustments).reduce((s,v)=>s+(parseFloat(v)||0),0),  color:"#E8317A", sub:"70% of net revenue" },
                 { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
                 { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
                 { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet,   color:"#E8317A", sub:"after commission paid" },
@@ -737,25 +737,63 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               ))}
             </div>
 
-            {/* IMC Manual Adjustment */}
+            {/* IMC Manual Adjustment — per month */}
             {canSeeFinancials && (
               <div style={{marginTop:10}}>
                 {!showImcAdj ? (
                   <button onClick={()=>setShowImcAdj(true)} style={{background:"none",border:"1px dashed rgba(255,255,255,0.08)",color:"#555",borderRadius:7,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                    ✏️ Adjust IMC amount {parseFloat(imcAdjustment)?`(${parseFloat(imcAdjustment)>0?"+":""}${fmt(parseFloat(imcAdjustment))} applied)`:""}
+                    ✏️ Adjust IMC by month {Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length>0?`(${Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length} active)`:""}
                   </button>
                 ) : (
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:11,color:"#555"}}>IMC adjustment:</span>
-                    <input type="number" step="0.01" value={imcAdjustment} onChange={e=>setImcAdjustment(e.target.value)}
-                      placeholder="e.g. 838.86 or -100"
-                      style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:7,color:"#F0F0F0",padding:"5px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:160}}/>
-                    <span style={{fontSize:11,color:"#555"}}>
-                      Calc: {fmt(totals.imc)} → Adjusted: <strong style={{color:"#E8317A"}}>{fmt(totals.imc+(parseFloat(imcAdjustment)||0))}</strong>
-                      {parseFloat(imcAdjustment) ? <span style={{color:"#FBBF24",marginLeft:6}}>({parseFloat(imcAdjustment)>0?"+":""}{fmt(parseFloat(imcAdjustment))})</span> : ""}
-                    </span>
-                    <button onClick={()=>{setImcAdjustment("");setShowImcAdj(false);}} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>✕ Clear</button>
-                    <button onClick={()=>setShowImcAdj(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Done</button>
+                  <div style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>IMC Adjustment by Month</span>
+                      <button onClick={()=>setShowImcAdj(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>✕ Close</button>
+                    </div>
+                    <div style={{fontSize:11,color:"#555",marginBottom:10}}>Enter the difference between the invoice amount and calculated amount. Use negative to reduce.</div>
+                    {(() => {
+                      // Build list of months that have streams
+                      const monthsWithStreams = [...new Set(streams.filter(s=>s.date).map(s=>s.date.slice(0,7)))].sort().reverse().slice(0,12);
+                      if (monthsWithStreams.length === 0) return <div style={{fontSize:11,color:"#555"}}>No streams logged yet.</div>;
+                      const totalAdj = Object.values(imcAdjustments).reduce((s,v)=>s+(parseFloat(v)||0),0);
+                      return (
+                        <>
+                          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                            {monthsWithStreams.map(mk=>{
+                              const [y,m] = mk.split("-");
+                              const monthLabel = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m)-1]} ${y}`;
+                              const adj = imcAdjustments[mk]||"";
+                              const adjNum = parseFloat(adj)||0;
+                              // Calc IMC for this month from streams
+                              const monthStreams = streams.filter(s=>s.date&&s.date.startsWith(mk));
+                              const calcImc = monthStreams.reduce((s,str)=>{ const c=calcStreamDash(str); return s+c.imcNet; },0);
+                              return (
+                                <div key={mk} style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr auto",gap:8,alignItems:"center"}}>
+                                  <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{monthLabel}</span>
+                                  <span style={{fontSize:11,color:"#555"}}>Calc: <strong style={{color:"#888"}}>{fmt(calcImc)}</strong></span>
+                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                    <span style={{fontSize:11,color:"#555"}}>Adj:</span>
+                                    <input type="number" step="0.01" value={adj}
+                                      onChange={e=>setImcAdjustments(p=>({...p,[mk]:e.target.value}))}
+                                      placeholder="0.00"
+                                      style={{background:"#111",border:`1px solid ${adjNum?"rgba(251,191,36,0.4)":"#2a2a2a"}`,borderRadius:6,color:adjNum?"#FBBF24":"#F0F0F0",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:100}}/>
+                                  </div>
+                                  <span style={{fontSize:11,fontWeight:700,color:adjNum?"#FBBF24":"#333"}}>
+                                    {adjNum ? `→ ${fmt(calcImc+adjNum)}` : ""}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {totalAdj !== 0 && (
+                            <div style={{marginTop:10,padding:"8px 12px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:7,fontSize:12,color:"#FBBF24",fontWeight:700}}>
+                              Total adjustment: {totalAdj>0?"+":""}{fmt(totalAdj)} · Adjusted IMC total: {fmt(totals.imc+totalAdj)}
+                            </div>
+                          )}
+                          <button onClick={()=>setImcAdjustments({})} style={{marginTop:8,background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>✕ Clear all adjustments</button>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
