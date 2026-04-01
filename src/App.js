@@ -1168,7 +1168,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
-  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true })));
+  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
   const [quickPct,     setQuickPct]     = useState("");
@@ -1199,15 +1199,40 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
+  // Cost allocation: rows with costOverride use that; remaining offer splits among the rest
+  const manuallyAllocated = included.reduce((s,r) => {
+    const co = parseFloat(r.costOverride);
+    return s + (isNaN(co) ? 0 : co * (parseInt(r.qty)||1));
+  }, 0);
+  const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
+  const unoverriddenMkt = included.reduce((s,r) => {
+    const co = parseFloat(r.costOverride);
+    return isNaN(co) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
+  }, 0);
+  const unoverriddenCards = included.reduce((s,r) => {
+    const co = parseFloat(r.costOverride);
+    return isNaN(co) ? s + (parseInt(r.qty)||1) : s;
+  }, 0);
+  function getCostPerCard(r) {
+    const co = parseFloat(r.costOverride);
+    if (!isNaN(co)) return co;
+    const mv = parseFloat(r.mktVal)||0;
+    if (unoverriddenMkt > 0) return (mv / unoverriddenMkt) * remainingOffer;
+    if (unoverriddenCards > 0) return remainingOffer / unoverriddenCards;
+    return 0;
+  }
+  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
+  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
+
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
-  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }]); }
+  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" }]); }
 
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
     setRows(hasCards
-      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true }))
-      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true }))
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"" }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" }))
     );
     setFOffer(comp.offer ? String(comp.offer) : "");
     setLoadedCompId(comp.id);
@@ -1233,9 +1258,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
       const cardName = r.name === "__new__" ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
-      const weightedCost = totalMkt > 0 ? (mv / totalMkt) * dispOffer : (totalCards > 0 ? dispOffer/totalCards : 0);
+      const costPerCard = getCostPerCard(r);
       for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard:weightedCost, buyPct:mv>0?weightedCost/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
       }
     });
     onAccept(cards, seller, user, custNote);
@@ -1830,6 +1855,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={mInp}/>
                       </div>
                     </div>
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:11, color: r.costOverride?"#FBBF24":"#666", marginBottom:4, fontWeight:r.costOverride?700:400 }}>
+                        {r.costOverride?"★ ":""}Cost/Card Override (leave blank = auto)
+                      </div>
+                      <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid #2a2a2a", color:r.costOverride?"#FBBF24":"#888" }}/>
+                    </div>
                     {(mv > 0 || perCardOffer > 0) && (
                       <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"#1a1a1a", borderRadius:6, fontSize:12 }}>
                         <span style={{ color:"#888" }}>Total: <strong style={{ color:"#F0F0F0" }}>${(mv*qty).toFixed(2)}</strong></span>
@@ -1843,8 +1874,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             </div>
           ) : (
           <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
-              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Offer/Card ($)","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:750 }}>
+              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Cost/Card ($)","Offer/Card","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
@@ -1977,7 +2008,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F0F0F0", width:55 }}/></td>
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
-                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>${perCardOffer.toFixed(2)}</td>
+                      <td style={{ ...S.td, width:100 }}>
+                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder="auto" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.costOverride?"#FBBF24":"#555", width:75, border:r.costOverride?"1px solid #FBBF2488":"1px solid #2a2a2a" }}/>
+                      </td>
+                      <td style={{ ...S.td, color: r.costOverride?"#FBBF24":"#E8317A", fontWeight:700 }}>${getCostPerCard(r).toFixed(2)}{r.costOverride?<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>:""}</td>
                       <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
@@ -1988,6 +2022,19 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           </div>
           )}
           {!isMobile && <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>}
+          {dispOffer > 0 && included.length > 0 && (
+            <div style={{ marginTop:12, padding:"10px 14px", background: Math.abs(allocationDiff) < 0.01 ? "#0a1a0a" : allocationDiff > 0 ? "#1a0a0a" : "#1a1400", border:`1px solid ${Math.abs(allocationDiff)<0.01?"#4ade8033":allocationDiff>0?"#E8317A33":"#FBBF2433"}`, borderRadius:8, display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
+              <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#F0F0F0"}}>${dispOffer.toFixed(2)}</strong></span>
+              <span style={{ fontSize:12, color:"#AAAAAA" }}>Allocated: <strong style={{color: Math.abs(allocationDiff)<0.01?"#4ade80":allocationDiff>0?"#E8317A":"#FBBF24"}}>${totalAllocated.toFixed(2)}</strong></span>
+              {Math.abs(allocationDiff) >= 0.01 && (
+                <span style={{ fontSize:12, fontWeight:700, color:allocationDiff>0?"#E8317A":"#FBBF24" }}>
+                  {allocationDiff>0?`⚠ $${allocationDiff.toFixed(2)} over offer`:`$${Math.abs(allocationDiff).toFixed(2)} unallocated (auto-distributed)`}
+                </span>
+              )}
+              {Math.abs(allocationDiff) < 0.01 && <span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Perfectly balanced</span>}
+              {included.some(r=>r.costOverride) && <span style={{fontSize:11,color:"#FBBF24"}}>★ = manual override</span>}
+            </div>
+          )}
         </div>
 
         <div style={{ ...S.card, border:"2px solid #333333" }}>
