@@ -875,10 +875,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             inPrd = true;
           }
           if (!inPrd) return;
-          const inv = inventory.find(c => c.id === b.inventoryId);
+          const inv  = b.isPoolLog ? null : inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
-          cardCostByType[ct] += cost;
-          cardQtyByType[ct] += 1;
+          const qty  = b.isPoolLog ? (parseInt(b.qty)||1) : 1;
+          cardCostByType[ct] += cost * qty;
+          cardQtyByType[ct]  += qty;
         });
 
         return (
@@ -1282,7 +1283,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
-  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" })));
+  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
   const [quickPct,     setQuickPct]     = useState("");
@@ -1339,14 +1340,14 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
-  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" }]); }
+  function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
 
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
     setRows(hasCards
-      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"" }))
-      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"" }))
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"", manualEntry:false }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }))
     );
     setFOffer(comp.offer ? String(comp.offer) : "");
     setLoadedCompId(comp.id);
@@ -1916,8 +1917,14 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     {/* Card Name */}
                     {POOL_TYPES.includes(r.cardType) ? (
                       <div style={{marginBottom:8}}>
-                        {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && r.name !== "__manual__" ? (
-                          <select value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} style={{ ...mInp, cursor:"pointer" }}>
+                        {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
+                          <select value={r.name} onChange={e=>{
+                            if (e.target.value==="__manual__") {
+                              setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));
+                            } else {
+                              upd(r.id,"name",e.target.value);
+                            }
+                          }} style={{ ...mInp, cursor:"pointer" }}>
                             <option value="">-- Select Pool --</option>
                             <option value="__manual__">✏️ Type manually instead...</option>
                             {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
@@ -1926,9 +1933,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           </select>
                         ) : (
                           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                            <input value={r.name==="__manual__"?"":r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{...mInp,flex:1}}/>
+                            <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{...mInp,flex:1}}/>
                             {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
-                              <button onClick={()=>upd(r.id,"name","")} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"6px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩ Pool</button>
+                              <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"6px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩ Pool</button>
                             )}
                           </div>
                         )}
@@ -2013,10 +2020,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                           {POOL_TYPES.includes(r.cardType) ? (
                             <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
-                              {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && r.name !== "__manual__" ? (
+                              {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
                                 <select
                                   value={r.name}
-                                  onChange={e=>upd(r.id,"name",e.target.value)}
+                                  onChange={e=>{
+                                    if (e.target.value==="__manual__") {
+                                      setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));
+                                    } else {
+                                      upd(r.id,"name",e.target.value);
+                                    }
+                                  }}
                                   style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
                                 >
                                   <option value="">-- Select Pool --</option>
@@ -2027,9 +2040,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 </select>
                               ) : (
                                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                                  <input value={r.name==="__manual__"?"":r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
+                                  <input value={r.name} onChange={e=>upd(r.id,"name",e.target.value)} placeholder="Card name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1 }}/>
                                   {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
-                                    <button onClick={()=>upd(r.id,"name","")} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
+                                    <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
                                   )}
                                 </div>
                               )}
