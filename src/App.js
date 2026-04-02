@@ -2361,9 +2361,44 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               </div>
               <span style={{ fontSize:11, fontWeight:700, color:allowCounter?"#E8317A":"#666", whiteSpace:"nowrap" }}>Counter Offer {allowCounter?"ON":"OFF"}</span>
             </div>
+            {loadedCompId ? (
+              <div style={{ display:"flex", gap:6 }}>
+                <Btn onClick={async()=>{
+                  if (!onSaveQuote) return;
+                  await onSaveQuote({
+                    existingId: loadedCompId,
+                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                    dispOffer, dispPct, totalMkt, custNote,
+                    payment:seller.payment, paymentHandle:seller.paymentHandle,
+                    allowCounter,
+                  });
+                  const link = `${window.location.origin}/quote/${loadedCompId}`;
+                  setQuoteLink(link);
+                  navigator.clipboard?.writeText(link);
+                  setQuoteCopied(true);
+                  setTimeout(()=>setQuoteCopied(false), 3000);
+                }} variant="green" disabled={included.length===0}>{"📤 Send Offer Back"}</Btn>
+                <Btn onClick={async()=>{
+                  if (!onSaveQuote) return;
+                  const id = await onSaveQuote({
+                    existingId: null,
+                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                    dispOffer, dispPct, totalMkt, custNote,
+                    payment:seller.payment, paymentHandle:seller.paymentHandle,
+                    allowCounter,
+                  });
+                  const link = `${window.location.origin}/quote/${id}`;
+                  setQuoteLink(link);
+                  navigator.clipboard?.writeText(link);
+                  setQuoteCopied(true);
+                  setTimeout(()=>setQuoteCopied(false), 3000);
+                }} variant="ghost" disabled={included.length===0}>{"\uD83D\uDD17 Generate New Link"}</Btn>
+              </div>
+            ) : (
             <Btn onClick={async()=>{
               if (!onSaveQuote) return;
               const id = await onSaveQuote({
+                existingId: null,
                 seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
                 dispOffer, dispPct, totalMkt, custNote,
                 payment:seller.payment, paymentHandle:seller.paymentHandle,
@@ -2375,6 +2410,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               setQuoteCopied(true);
               setTimeout(()=>setQuoteCopied(false), 3000);
             }} variant="ghost" disabled={included.length===0}>{"\uD83D\uDD17 Share Quote"}</Btn>
+            )}
             {quoteLink && (
               <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"6px 12px", flex:1 }}>
                 <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{quoteCopied ? "\u2705 Copied!" : "\uD83D\uDD17"}</span>
@@ -16613,8 +16649,20 @@ export default function App() {
   async function handleDeleteComp(id) { await deleteDoc(doc(db,"comps",id)); showToast("\uD83D\uDDD1 Comp deleted"); }
 
   async function handleSaveQuote(quoteData) {
-    const id = uid();
-    await setDoc(doc(db,"quotes",id), { ...quoteData, id, status:"pending", createdAt:new Date().toISOString(), viewCount:0, notified:true, history:[] });
+    // If a quote was loaded (e.g. from a seller submission), update it instead of creating new
+    const existingId = quoteData.existingId;
+    const id = existingId || uid();
+    if (existingId) {
+      await setDoc(doc(db,"quotes",id), {
+        ...quoteData,
+        currentOffer: quoteData.dispOffer,
+        status: "pending",
+        notified: false,
+        updatedAt: new Date().toISOString(),
+      }, { merge:true });
+    } else {
+      await setDoc(doc(db,"quotes",id), { ...quoteData, id, status:"pending", createdAt:new Date().toISOString(), viewCount:0, notified:true, history:[] });
+    }
     return id;
   }
 
