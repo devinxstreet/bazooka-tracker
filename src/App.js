@@ -7931,11 +7931,11 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
-    { id:"recap",      label:"\uD83D\uDCCB Stream Recap", roles:["Admin","Streamer","Procurement"] },
-    { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Procurement","Shipping"] },
-    { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer","Procurement"] },
-    { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","Procurement"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer","Procurement"] },
+    { id:"recap",      label:"\uD83D\uDCCB Stream Recap", roles:["Admin","Streamer"] },
+    { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Shipping"] },
+    { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer"] },
+    { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer"] },
+    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -16023,6 +16023,207 @@ function parseLocalDate(dateStr) {
 
 
 // --- PUBLIC QUOTE PAGE --------------------------------------
+function PublicSellPage() {
+  const [seller, setSeller]   = useState({ name:"", contact:"", source:"Discord", payment:"", paymentHandle:"" });
+  const [rows, setRows]       = useState([{ id:uid(), name:"", qty:"1", askingPrice:"" }]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted]   = useState(false);
+  const [quoteLink, setQuoteLink]   = useState("");
+  const [copied, setCopied]         = useState(false);
+  const [error, setError]           = useState("");
+  const [acOpen, setAcOpen]         = useState(null);
+  const [acQuery, setAcQuery]       = useState({});
+  const [bobaCards, setBobaCards]   = useState([]);
+
+  useEffect(() => {
+    getDocs(collection(db, "boba_cards")).then(snap => {
+      setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+    }).catch(()=>{});
+  }, []);
+
+  function updRow(id,f,v) { setRows(p=>p.map(r=>r.id===id?{...r,[f]:v}:r)); }
+  function addRow() { setRows(p=>[...p,{id:uid(),name:"",qty:"1",askingPrice:""}]); }
+  function removeRow(id) { setRows(p=>p.filter(r=>r.id!==id)); }
+
+  async function handleSubmit() {
+    if (!seller.name.trim() || !seller.contact.trim()) { setError("Please fill in your name and contact info."); return; }
+    const validRows = rows.filter(r=>r.name.trim());
+    if (validRows.length === 0) { setError("Please add at least one card."); return; }
+    setError(""); setSubmitting(true);
+    try {
+      const qId = uid();
+      const cards = validRows.map(r=>({ cardName:r.name.trim(), name:r.name.trim(), cardType:"", qty:parseInt(r.qty)||1, mktVal:parseFloat(r.askingPrice)||0 }));
+      await setDoc(doc(db,"quotes",qId), {
+        id: qId,
+        seller: { name:seller.name.trim(), contact:seller.contact.trim(), source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle },
+        cards,
+        status: "pending",
+        source: seller.source,
+        dispOffer: 0,
+        currentOffer: 0,
+        allowCounter: true,
+        createdAt: new Date().toISOString(),
+        notified: false,
+        submittedBySeller: true,
+      });
+      const link = `${window.location.origin}/quote/${qId}`;
+      setQuoteLink(link);
+      setSubmitted(true);
+    } catch(e) {
+      setError("Something went wrong. Please try again or contact us on Discord.");
+    }
+    setSubmitting(false);
+  }
+
+  const S2 = {
+    inp: { background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 14px", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
+    lbl: { fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 },
+  };
+
+  if (submitted) return (
+    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ maxWidth:520, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
+        <div style={{ fontSize:24, fontWeight:900, color:"#4ade80", marginBottom:8 }}>Lot Submitted!</div>
+        <div style={{ fontSize:14, color:"#555", marginBottom:24 }}>We'll review your cards and send you an offer soon. Bookmark or copy the link below to check your quote status anytime.</div>
+        <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 18px", marginBottom:16, wordBreak:"break-all", fontSize:13, color:"#7B9CFF" }}>{quoteLink}</div>
+        <button onClick={()=>{ navigator.clipboard?.writeText(quoteLink); setCopied(true); setTimeout(()=>setCopied(false),2500); }}
+          style={{ background:"#4ade80", color:"#000", border:"none", borderRadius:10, padding:"12px 32px", fontSize:15, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
+          {copied?"✅ Copied!":"📋 Copy My Quote Link"}
+        </button>
+        <div style={{ marginTop:16, fontSize:12, color:"#333" }}>You'll receive an offer at the link above once we've reviewed your lot.</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", padding:"24px 16px" }}>
+      <div style={{ maxWidth:680, margin:"0 auto" }}>
+
+        {/* Header */}
+        <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:20, textAlign:"center", border:"1px solid #1a1a1a" }}>
+          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
+          <div style={{ fontSize:13, color:"#555", fontStyle:"italic", marginBottom:12 }}>Bo Jackson Battle Arena · Sell Your Cards</div>
+          <div style={{ fontSize:14, color:"#AAAAAA", lineHeight:1.7 }}>Fill out the form below with your cards and we'll send you an offer. No obligation — you can accept, decline, or counter.</div>
+        </div>
+
+        {/* Seller info */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px", marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:16 }}>Your Info</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={S2.lbl}>Name / Username *</label>
+              <input value={seller.name} onChange={e=>setSeller(p=>({...p,name:e.target.value}))} placeholder="WhatNot or Discord username" style={S2.inp}/>
+            </div>
+            <div>
+              <label style={S2.lbl}>Contact (email or Discord) *</label>
+              <input value={seller.contact} onChange={e=>setSeller(p=>({...p,contact:e.target.value}))} placeholder="email or Discord handle" style={S2.inp}/>
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div>
+              <label style={S2.lbl}>Preferred Payment</label>
+              <select value={seller.payment} onChange={e=>setSeller(p=>({...p,payment:e.target.value}))} style={{ ...S2.inp, cursor:"pointer", color:seller.payment?"#F0F0F0":"#555" }}>
+                <option value="">Select method...</option>
+                {["Venmo","PayPal","Zelle","Cash App","Other"].map(m=><option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S2.lbl}>Payment Handle (optional)</label>
+              <input value={seller.paymentHandle} onChange={e=>setSeller(p=>({...p,paymentHandle:e.target.value}))} placeholder={seller.payment==="Venmo"?"@handle":seller.payment==="PayPal"?"email or username":"handle / account"} style={S2.inp}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Card list */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px", marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>Your Cards</div>
+            <div style={{ fontSize:11, color:"#555" }}>Search by hero name, card #, or treatment</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"3fr 1fr 1fr auto", gap:8, marginBottom:8 }}>
+            {["Card Name","Qty","Your Asking Price",""].map(h=><div key={h} style={{ fontSize:10, fontWeight:700, color:"#444", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>)}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {rows.map((r,i)=>(
+              <div key={r.id} style={{ display:"grid", gridTemplateColumns:"3fr 1fr 1fr auto", gap:8, alignItems:"start" }}>
+                <div style={{ position:"relative" }}>
+                  <input
+                    value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
+                    onChange={e=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:e.target.value})); updRow(r.id,"name",e.target.value); }}
+                    onFocus={()=>{ setAcOpen(r.id); setAcQuery(q=>({...q,[r.id]:r.name})); }}
+                    onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                    placeholder="e.g. Bo Jackson Base #1"
+                    style={S2.inp}
+                  />
+                  {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
+                    const raw=(acQuery[r.id]||"").toLowerCase();
+                    const terms=raw.trim().split(/\s+/).filter(Boolean);
+                    const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,10);
+                    if(!hits.length) return null;
+                    return (
+                      <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#111", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:260, overflowY:"auto" }}>
+                        <div style={{ padding:"4px 10px", fontSize:10, color:"#555", borderBottom:"1px solid #1a1a1a" }}>{hits.length} match{hits.length!==1?"es":""}</div>
+                        {hits.map(c=>{
+                          const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#888";
+                          const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                          return (
+                            <div key={c.id} onMouseDown={()=>{ updRow(r.id,"name",label); setAcOpen(null); }}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                              className="inv-row">
+                              {c.imageUrl
+                                ? <img src={c.imageUrl} alt={c.hero} style={{ width:32, height:42, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>
+                                : <div style={{ width:32, height:42, background:"#2a2a2a", borderRadius:4, flexShrink:0 }}/>
+                              }
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{c.hero}</div>
+                                <div style={{ fontSize:11, color:"#555" }}>
+                                  {c.treatment&&<span style={{ marginRight:8 }}>{c.treatment}</span>}
+                                  {c.weapon&&<span style={{ color:wc, fontWeight:700, marginRight:8 }}>{c.weapon}</span>}
+                                  {c.cardNum&&<span>#{c.cardNum}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <input type="number" min="1" value={r.qty} onChange={e=>updRow(r.id,"qty",e.target.value)} placeholder="1" style={S2.inp}/>
+                <input type="number" step="0.01" value={r.askingPrice} onChange={e=>updRow(r.id,"askingPrice",e.target.value)} placeholder="0.00" style={{ ...S2.inp, color:"#4ade80" }}/>
+                <button onClick={()=>removeRow(r.id)} disabled={rows.length===1}
+                  style={{ background:"none", border:"none", color:rows.length===1?"#222":"#555", cursor:rows.length===1?"default":"pointer", fontSize:18, padding:"10px 4px", lineHeight:1 }}>✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addRow} style={{ marginTop:12, background:"transparent", border:"1.5px dashed #2a2a2a", color:"#555", borderRadius:8, padding:"10px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+            + Add Another Card
+          </button>
+        </div>
+
+        {/* Notes */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 24px", marginBottom:16 }}>
+          <label style={S2.lbl}>Condition Notes (optional)</label>
+          <textarea value={seller.notes||""} onChange={e=>setSeller(p=>({...p,notes:e.target.value}))} placeholder="Any condition notes, damage, or anything else we should know about..." rows={3}
+            style={{ ...S2.inp, resize:"vertical", lineHeight:1.5 }}/>
+        </div>
+
+        {error && <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#E8317A" }}>{error}</div>}
+
+        <button onClick={handleSubmit} disabled={submitting}
+          style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:submitting?"not-allowed":"pointer", fontFamily:"inherit", opacity:submitting?0.7:1 }}>
+          {submitting?"Submitting...":"🎯 Submit My Cards for an Offer"}
+        </button>
+
+        <div style={{ marginTop:16, textAlign:"center", fontSize:12, color:"#333" }}>
+          By submitting you agree to have Bazooka Breaks review your cards. No obligation to sell.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PublicQuote({ quoteId }) {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16559,12 +16760,12 @@ export default function App() {
   // -- NAV TABS -------------------------------------------------
   const ALL_TABS = [
     { id:"dashboard",  label:"Dashboard",   icon:"\uD83D\uDCCA", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Streamer","Shipping","Viewer"] },
+    { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Viewer"] },
     { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","Procurement","Shipping"] },
-    { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin","Streamer"] },
+    { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer"] },
+    { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
-    { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
@@ -16580,6 +16781,7 @@ export default function App() {
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
+  if (window.location.pathname === "/sell")     return <PublicSellPage />;
 
   // Auth gate -- only for the main app
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
