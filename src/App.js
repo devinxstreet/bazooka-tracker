@@ -741,8 +741,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),  color:"#E8317A", sub:"70% of net revenue" },
                 { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,       color:"#E8317A", sub:"before commission" },
+                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),   color:"#6B2D8B", sub:"after commission paid" },
                 { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
-                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),   color:"#E8317A", sub:"after commission paid" },
               ].map(({key,label,val,color,sub}) => (
                 <div
                   key={key}
