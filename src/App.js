@@ -16241,6 +16241,7 @@ function PublicQuote({ quoteId }) {
   const [payment, setPayment] = useState("");
   const [paymentHandle, setPaymentHandle] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!quoteId) return;
@@ -16261,12 +16262,10 @@ function PublicQuote({ quoteId }) {
   if (!quote) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#888", fontFamily:"'Trebuchet MS',sans-serif", fontSize:14 }}>Quote not found or has expired.</div>;
 
   const isExpired = new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000);
-  const isClosed  = quote.status === "closed"; // legacy only — new closes use bazookaClosed which doesn't affect seller view
+  const isClosed  = quote.status === "closed";
   const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
   const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
-
-  const [submitError, setSubmitError] = useState("");
 
   async function submitResponse(type) {
     setSubmitError("");
