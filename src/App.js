@@ -740,7 +740,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),  color:"#E8317A", sub:"70% of net revenue" },
-                { key:"bazooka",    label:"Bazooka Earnings",     val:totals.baz,       color:"#E8317A", sub:"before commission" },
+                { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,       color:"#E8317A", sub:"before commission" },
                 { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
                 { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),   color:"#E8317A", sub:"after commission paid" },
               ].map(({key,label,val,color,sub}) => (
@@ -8652,7 +8652,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#F0F0F0"}}>{fmt(c.gross)}</strong></span>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
-                  {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Bazooka: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
+                  {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Baz 30%: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
+                  {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>True Net: <strong style={{color:"#4ade80"}}>{fmt(c.bazTrueNet)}</strong></span>}
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
                   {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new</span>}
                   {s.collabPartner && s.collabPartner !== "_" && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px" }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
@@ -8661,6 +8662,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{fmt(c.commAmt)}</div>
                     <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
+                    {isAdmin && <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginTop:2 }}>True: {fmt(c.bazTrueNet)}</div>}
                   </div>
                   <span style={{ color:"#D1D5DB", fontSize:18 }}>{"\u203A"}</span>
                 </div>
@@ -15972,18 +15974,26 @@ function PublicQuote({ quoteId }) {
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
   const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
 
+  const [submitError, setSubmitError] = useState("");
+
   async function submitResponse(type) {
-    if (type === "accepted") {
-      await setDoc(doc(db,"quotes",quote.id), { status:"accepted", sellerPayment:payment, sellerHandle:paymentHandle, notified:false, respondedAt:new Date().toISOString() }, { merge:true });
-    } else if (type === "declined") {
-      await setDoc(doc(db,"quotes",quote.id), { status:"declined", notified:false, respondedAt:new Date().toISOString() }, { merge:true });
-    } else if (type === "countered") {
-      const amt = parseFloat(counterAmt);
-      if (!amt) return;
-      await setDoc(doc(db,"quotes",quote.id), { status:"countered", sellerCounter:amt, notified:false, respondedAt:new Date().toISOString(), history:[...(quote.history||[]),{type:"seller_counter",amount:amt,timestamp:new Date().toISOString()}] }, { merge:true });
+    setSubmitError("");
+    try {
+      if (type === "accepted") {
+        await setDoc(doc(db,"quotes",quote.id), { status:"accepted", sellerPayment:payment, sellerHandle:paymentHandle, notified:false, respondedAt:new Date().toISOString() }, { merge:true });
+      } else if (type === "declined") {
+        await setDoc(doc(db,"quotes",quote.id), { status:"declined", notified:false, respondedAt:new Date().toISOString() }, { merge:true });
+      } else if (type === "countered") {
+        const amt = parseFloat(counterAmt);
+        if (!amt) return;
+        await setDoc(doc(db,"quotes",quote.id), { status:"countered", sellerCounter:amt, notified:false, respondedAt:new Date().toISOString(), history:[...(quote.history||[]),{type:"seller_counter",amount:amt,timestamp:new Date().toISOString()}] }, { merge:true });
+      }
+      setSubmitted(true);
+      setQuote(prev => ({ ...prev, status: type }));
+    } catch(e) {
+      console.error("Submit error:", e);
+      setSubmitError("Something went wrong — please try again or contact Bazooka Breaks directly.");
     }
-    setSubmitted(true);
-    setQuote(prev => ({ ...prev, status: type }));
   }
 
   const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash App","Cash","Other"];
@@ -16089,6 +16099,11 @@ function PublicQuote({ quoteId }) {
               style={{ width:"100%", background:"#4ade80", color:"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
               {"\u2705 Accept Offer -- $"}{offer.toFixed(2)}
             </button>
+            {submitError && (
+              <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:13, color:"#E8317A" }}>
+                {submitError}
+              </div>
+            )}
 
             {/* Counter offer */}
             {quote.allowCounter && (
