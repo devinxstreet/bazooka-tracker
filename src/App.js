@@ -2843,6 +2843,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
 function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemove, onSaveCardCost, onPutBack, onAdd, onBulkAdd, user, userRole, streams=[], lotTracking={}, onSaveLotTracking, lotNotes={}, onSaveLotNotes, onDeleteLot, shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, skuPrices={}, onSaveSkuPrices, skuPriceHistory=[], onDeleteProductUsage, cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAddToPool, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
+  const [lotStatusFilter, setLotStatusFilter] = useState("all");
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
 
   const [search,   setSearch]   = useState("");
@@ -2969,6 +2970,10 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
             lots[key].cards.push(c);
           });
           const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
+          const filteredLots = lotStatusFilter==="all" ? lotList :
+            lotStatusFilter==="delivered"  ? lotList.filter(l=>lotTracking[l.key]?.status==="Delivered") :
+            lotStatusFilter==="in_transit" ? lotList.filter(l=>["In Transit","Shipped","Out for Delivery","Label Created"].includes(lotTracking[l.key]?.status)) :
+            lotList.filter(l=>!lotTracking[l.key]?.status||lotTracking[l.key]?.status==="Ordered");
 
           // Find any note keys that don't match a current lot key (orphaned from old format)
           const currentLotKeys = new Set(lotList.map(l => l.key));
@@ -3001,15 +3006,32 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:12 }}>
+              {/* Filter bar */}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:4 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Filter:</span>
+                {[["all","All Lots"],["in_transit","🚚 In Transit"],["delivered","✅ Delivered"],["other","📦 Other"]].map(([val,label])=>{
+                  const count = val==="all" ? lotList.length :
+                    val==="in_transit" ? lotList.filter(l=>["In Transit","Shipped","Out for Delivery","Label Created"].includes(lotTracking[l.key]?.status)).length :
+                    val==="delivered"  ? lotList.filter(l=>lotTracking[l.key]?.status==="Delivered").length :
+                    lotList.filter(l=>!lotTracking[l.key]?.status||lotTracking[l.key]?.status==="Ordered").length;
+                  const active = lotStatusFilter===val;
+                  return (
+                    <button key={val} onClick={()=>setLotStatusFilter(val)}
+                      style={{ background:active?"rgba(232,49,122,0.15)":"transparent", color:active?"#E8317A":"#555", border:`1.5px solid ${active?"#E8317A":"#333"}`, borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      {label} <span style={{color:active?"#E8317A":"#444"}}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
               {orphanedNotes.length > 0 && CAN_DELETE.includes(userRole?.role) && (
                 <div style={{ marginBottom:12, padding:"10px 16px", background:"#111111", border:"1.5px solid #92400e33", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
                   <span style={{ fontSize:12, color:"#AAAAAA" }}>{"\u26A0"}{orphanedNotes.length} note{orphanedNotes.length!==1?"s":""} from previous lots couldn't be matched automatically.</span>
                   <button onClick={migrateNotes} style={{ background:"#92400e", color:"#fff", border:"none", borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Fix Now</button>
                 </div>
               )}
-              {lotList.length===0
-                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>No lots yet</div>
-                : lotList.map((lot,i) => {
+              {filteredLots.length===0
+                ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"40px 0" }}>{lotStatusFilter==="all"?"No lots yet":"No lots match this filter"}</div>
+                : filteredLots.map((lot,i) => {
                     const usedInLot    = lot.cards.filter(c=>usedIds.has(c.id)).length;
                     const transitInLot = lot.cards.filter(c=>!usedIds.has(c.id) && c.cardStatus==="in_transit").length;
                     const availInLot   = lot.cards.length - usedInLot - transitInLot;
