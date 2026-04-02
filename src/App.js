@@ -16081,7 +16081,7 @@ function PublicSellPage() {
   const [bobaCards, setBobaCards]   = useState([]);
 
   useEffect(() => {
-    getDocs(collection(db, "boba_cards")).then(snap => {
+    getDocs(collection(db, "boba_checklist")).then(snap => {
       setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
     }).catch(()=>{});
   }, []);
@@ -16306,8 +16306,10 @@ function PublicQuote({ quoteId }) {
   async function submitResponse(type) {
     setSubmitError("");
     try {
+      const payMethod  = quote.seller?.payment  || payment;
+      const payHandle  = quote.seller?.paymentHandle || paymentHandle;
       if (type === "accepted") {
-        await setDoc(doc(db,"quotes",quote.id), { status:"accepted", sellerPayment:payment, sellerHandle:paymentHandle, notified:false, respondedAt:new Date().toISOString() }, { merge:true });
+        await setDoc(doc(db,"quotes",quote.id), { status:"accepted", sellerPayment:payMethod, sellerHandle:payHandle, notified:false, respondedAt:new Date().toISOString() }, { merge:true });
       } else if (type === "declined") {
         await setDoc(doc(db,"quotes",quote.id), { status:"declined", notified:false, respondedAt:new Date().toISOString() }, { merge:true });
       } else if (type === "countered") {
@@ -16406,20 +16408,26 @@ function PublicQuote({ quoteId }) {
           <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
 
-            {/* Payment method */}
-            <div style={{ marginBottom:14 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>How should Bazooka pay you?</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <select value={payment} onChange={e=>setPayment(e.target.value)}
-                  style={{ background:"#0a0a0a", border:`1px solid ${payment?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:payment?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
-                  <option value="">Select method...</option>
-                  {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
-                </select>
-                <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
-                  placeholder={payment==="Venmo"?"@yourhandle":payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":payment?"your info":"handle / account"}
-                  style={{ background:"#0a0a0a", border:`1px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            {/* Payment method — skip if already provided at submission */}
+            {quote.seller?.payment ? (
+              <div style={{ background:"#0a1a0a", border:"1px solid #4ade8022", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:12, color:"#4ade80" }}>
+                💳 Payment via <strong>{quote.seller.payment}</strong>{quote.seller.paymentHandle ? ` — ${quote.seller.paymentHandle}` : ""} <span style={{ color:"#555", fontWeight:400 }}>(provided when you submitted)</span>
               </div>
-            </div>
+            ) : (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>How should Bazooka pay you?</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <select value={payment} onChange={e=>setPayment(e.target.value)}
+                    style={{ background:"#0a0a0a", border:`1px solid ${payment?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:payment?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+                    <option value="">Select method...</option>
+                    {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
+                    placeholder={payment==="Venmo"?"@yourhandle":payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":payment?"your info":"handle / account"}
+                    style={{ background:"#0a0a0a", border:`1px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+                </div>
+              </div>
+            )}
 
             {/* Big Accept button */}
             <button onClick={()=>submitResponse("accepted")}
