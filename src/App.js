@@ -17063,32 +17063,82 @@ export default function App() {
     return onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
   }, []);
 
-  // Firestore listeners
+  const [dataLoaded, setDataLoaded] = useState({}); // tracks which tab groups have been subscribed
+
+  // Always-on listeners — needed by dashboard and multiple tabs
   useEffect(() => {
     if (!user) return;
+    const INV_CACHE = "bz_inventory_v1";
+    const BRK_CACHE = "bz_breaks_v1";
+    const STR_CACHE = "bz_streams_v1";
+
+    // Seed from cache immediately so dashboard renders fast
+    try {
+      const ci = localStorage.getItem(INV_CACHE); if (ci) setInventory(JSON.parse(ci));
+      const cb = localStorage.getItem(BRK_CACHE);  if (cb) setBreaks(JSON.parse(cb));
+      const cs = localStorage.getItem(STR_CACHE);  if (cs) setStreams(JSON.parse(cs));
+    } catch(e) {}
+
     const unsubs = [
-      onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")), snap => setInventory(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(query(collection(db,"breaks"), orderBy("dateAdded","asc")), snap => setBreaks(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(query(collection(db,"streams"), orderBy("date","asc")), snap => setStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))),
+      onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")), snap => {
+        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        setInventory(data);
+        try { localStorage.setItem(INV_CACHE, JSON.stringify(data)); } catch(e) {}
+      }),
+      onSnapshot(query(collection(db,"breaks"), orderBy("dateAdded","asc")), snap => {
+        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        setBreaks(data);
+        try { localStorage.setItem(BRK_CACHE, JSON.stringify(data)); } catch(e) {}
+      }),
+      onSnapshot(query(collection(db,"streams"), orderBy("date","asc")), snap => {
+        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        setStreams(data);
+        try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
+      }),
       onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))),
-      onSnapshot(collection(db,"shipments"), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)))),
-      onSnapshot(collection(db,"product_usage"), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
-      onSnapshot(collection(db,"sku_price_history"), snap => setSkuPriceHistory(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")))),
       onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(doc(db,"config","lotTracking"), snap => { if(snap.exists()) setLotTracking(snap.data()); }),
-      onSnapshot(doc(db,"config","lotNotes"), snap => { if(snap.exists()) setLotNotes(snap.data()); }),
-      onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
+      onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
+      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
       onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))),
       onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }),
-      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
     ];
     return () => unsubs.forEach(u => u());
   }, [user]);
+
+  // Lazy listeners — load when tab is first visited
+  useEffect(() => {
+    if (!user) return;
+    const unsubs = [];
+
+    if ((tab === "comp" || tab === "dashboard") && !dataLoaded.comp) {
+      setDataLoaded(p=>({...p, comp:true}));
+      unsubs.push(onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))));
+    }
+
+    if (tab === "buyers" && !dataLoaded.buyers) {
+      setDataLoaded(p=>({...p, buyers:true}));
+      unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
+      unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
+    }
+
+    if (tab === "inventory" && !dataLoaded.inventory) {
+      setDataLoaded(p=>({...p, inventory:true}));
+      unsubs.push(onSnapshot(collection(db,"shipments"), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)))));
+      unsubs.push(onSnapshot(collection(db,"product_usage"), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()})))));
+      unsubs.push(onSnapshot(collection(db,"sku_price_history"), snap => setSkuPriceHistory(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")))));
+      unsubs.push(onSnapshot(doc(db,"config","lotTracking"), snap => { if(snap.exists()) setLotTracking(snap.data()); }));
+      unsubs.push(onSnapshot(doc(db,"config","lotNotes"), snap => { if(snap.exists()) setLotNotes(snap.data()); }));
+    }
+
+    if (tab === "streams" && !dataLoaded.streams) {
+      setDataLoaded(p=>({...p, streams:true}));
+      unsubs.push(onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))));
+      unsubs.push(onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }));
+    }
+
+    if (unsubs.length === 0) return;
+    return () => unsubs.forEach(u => u());
+  }, [user, tab]);
 
   // Keyboard shortcut for global search
   useEffect(() => {
