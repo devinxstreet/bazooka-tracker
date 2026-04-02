@@ -4167,15 +4167,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             );
           })}
           {/* Add product dropdown */}
-          <select onChange={e=>{ if(e.target.value) rf(`prod_${e.target.value}`)("1"); e.target.value=""; }}
-            style={{ ...S.inp, color:"#9CA3AF", cursor:"pointer", marginTop:4 }}>
-            <option value="">+ Add product...</option>
+          <select onChange={e=>{ if(e.target.value) { rf(`prod_${e.target.value}`)("1"); e.target.value=""; } }}
+            style={{ ...S.inp, color:"#E8317A", cursor:"pointer", marginTop:4, border:"1.5px dashed #E8317A44", background:"rgba(232,49,122,0.05)" }}>
+            <option value="">➕ Add product to this stream...</option>
             {Object.entries(PRODUCT_SETS).map(([set,types])=>(
               <optgroup key={set} label={set}>
-                {types.map(t=>{ const key=`${set} - ${t}`; return <option key={key} value={key}>{t}</option>; })}
+                {types.map(t=>{ const key=`${set} - ${t}`; return <option key={key} value={key} style={{color:"#F0F0F0",background:"#1a1a1a"}}>{set} — {t}</option>; })}
               </optgroup>
             ))}
-            <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Miscellaneous" style={{color:"#F0F0F0",background:"#1a1a1a"}}>Miscellaneous</option>
           </select>
           {PRODUCT_TYPES.some(pt=>parseInt(recap[`prod_${pt}`])>0) && (
             <div style={{ marginTop:8, fontSize:12, color:"#555" }}>
@@ -5404,32 +5404,46 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
       {/* Stock summary — compact grouped by set */}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {Object.entries(PRODUCT_SETS).map(([set,types])=>{
+          const SET_GRADIENTS = {
+            "Alpha Edition":  "135deg, #1a0a2e, #2d1060",
+            "Alpha Update":   "135deg, #0a1a2e, #10306e",
+            "Alpha Blast":    "135deg, #1a0a0a, #6e1010",
+            "Griffey 2026":   "135deg, #0a1a0a, #106e30",
+            "Tecmo Bowl":     "135deg, #1a1a0a, #6e5510",
+          };
+          const SET_ACCENT = {
+            "Alpha Edition":  "#A855F7",
+            "Alpha Update":   "#60A5FA",
+            "Alpha Blast":    "#EF4444",
+            "Griffey 2026":   "#4ade80",
+            "Tecmo Bowl":     "#FBBF24",
+          };
+          const gradient = SET_GRADIENTS[set] || "135deg, #111, #222";
+          const accent   = SET_ACCENT[set]    || "#E8317A";
           const setTypes = types.map(t=>`${set} - ${t}`);
-          const hasAny = setTypes.some(pt => stock[pt]?.received > 0 || skuPrices[pt]);
-          if (!hasAny) return null;
           return (
-            <div key={set} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, overflow:"hidden" }}>
-              <div style={{ padding:"8px 16px", background:"rgba(232,49,122,0.06)", borderBottom:"1px solid #1a1a1a" }}>
-                <span style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{set}</span>
+            <div key={set} style={{ background:`linear-gradient(${gradient})`, border:`1px solid ${accent}22`, borderRadius:12, overflow:"hidden" }}>
+              <div style={{ padding:"8px 16px", borderBottom:`1px solid ${accent}22` }}>
+                <span style={{ fontSize:11, fontWeight:700, color:accent, textTransform:"uppercase", letterSpacing:1 }}>{set}</span>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(types.length,4)},1fr)` }}>
                 {setTypes.map((pt,i) => {
-                  const s   = stock[pt];
+                  const s   = stock[pt] || { current:0, received:0, used:0 };
                   const out = s.current <= 0;
                   const low = s.current <= 2 && !out;
                   const shortName = pt.replace(`${set} - `,"");
                   return (
-                    <div key={pt} style={{ padding:"12px 16px", borderRight: i < setTypes.length-1 ? "1px solid #1a1a1a" : "none", textAlign:"center" }}>
-                      <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{shortName}</div>
-                      <div style={{ fontSize:28, fontWeight:900, color: out?"#991b1b":low?"#92400e":"#F0F0F0", marginBottom:2 }}>{s.current}</div>
-                      <div style={{ fontSize:10, color:"#444" }}>in stock</div>
-                      <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:6 }}>
-                        <span style={{ fontSize:10, color:"#555" }}>↑{s.received}</span>
-                        <span style={{ fontSize:10, color:"#555" }}>↓{s.used}</span>
+                    <div key={pt} style={{ padding:"14px 12px", borderRight: i < setTypes.length-1 ? `1px solid ${accent}15` : "none", textAlign:"center" }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:`${accent}99`, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{shortName}</div>
+                      <div style={{ fontSize:26, fontWeight:900, color: out?"#ef4444":low?"#FBBF24":"#F0F0F0", marginBottom:2 }}>{s.current}</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>in stock</div>
+                      <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:5 }}>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>↑{s.received}</span>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>↓{s.used}</span>
                       </div>
-                      {skuPrices[pt] && <div style={{ marginTop:4, fontSize:10, color:"#E8317A", fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}</div>}
-                      {out  && <div style={{ marginTop:6, fontSize:9, fontWeight:700, color:"#991b1b", textTransform:"uppercase", letterSpacing:1 }}>🚨 Out</div>}
-                      {low  && <div style={{ marginTop:6, fontSize:9, fontWeight:700, color:"#92400e", textTransform:"uppercase", letterSpacing:1 }}>⚠ Low</div>}
+                      {skuPrices[pt] && <div style={{ marginTop:4, fontSize:10, color:accent, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}</div>}
+                      {out && <div style={{ marginTop:5, fontSize:9, fontWeight:700, color:"#ef4444" }}>🚨 Out</div>}
+                      {low && <div style={{ marginTop:5, fontSize:9, fontWeight:700, color:"#FBBF24" }}>⚠ Low</div>}
                     </div>
                   );
                 })}
@@ -5438,16 +5452,16 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
           );
         })}
         {/* Miscellaneous */}
-        {(() => { const s = stock["Miscellaneous"]; if (!s?.received && !skuPrices["Miscellaneous"]) return null;
+        {(() => { const s = stock["Miscellaneous"] || { current:0, received:0, used:0 };
           const out = s.current<=0, low = s.current<=2&&!out;
           return (
-            <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ background:"linear-gradient(135deg,#111,#1a1a1a)", border:"1px solid #2a2a2a", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:12, fontWeight:700, color:"#555" }}>Miscellaneous</span>
               <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-                <span style={{ fontSize:10, color:"#555" }}>↑{s.received} rcvd · ↓{s.used} used</span>
-                <span style={{ fontSize:22, fontWeight:900, color:out?"#991b1b":low?"#92400e":"#F0F0F0" }}>{s.current}</span>
+                <span style={{ fontSize:10, color:"#555" }}>↑{s.received} · ↓{s.used}</span>
+                <span style={{ fontSize:22, fontWeight:900, color:out?"#ef4444":low?"#FBBF24":"#F0F0F0" }}>{s.current}</span>
                 {skuPrices["Miscellaneous"]&&<span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>${parseFloat(skuPrices["Miscellaneous"]).toFixed(2)}</span>}
-                {out&&<span style={{ fontSize:10, color:"#991b1b", fontWeight:700 }}>🚨 Out</span>}
+                {out&&<span style={{ fontSize:10, color:"#ef4444", fontWeight:700 }}>🚨 Out</span>}
               </div>
             </div>
           );
