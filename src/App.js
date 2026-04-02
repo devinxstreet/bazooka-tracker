@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
@@ -14272,6 +14272,348 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
   );
 }
 
+// ── PACK RIP SIMULATOR ─────────────────────────────────────────
+const PACK_PRODUCTS = {
+  "Alpha Blaster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Booster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Hobby":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Jumbo":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+};
+
+const BIG_PLAYS = Array.from({length:32},(_,i)=>i+1);
+
+// Odds per foil slot — last foil in Hobby/Jumbo is "the hit"
+function rollTreatment(product, isHitSlot) {
+  const r = Math.random();
+  const isBooster = product.includes("Booster") || product.includes("Blaster");
+  const isHobby   = product.includes("Hobby");
+  const isJumbo   = product.includes("Jumbo");
+
+  // Ultra-rares first (check from rarest to most common)
+  if (r < 1/600)  return "Superfoil";
+  if (r < 2/600)  return "Pink Battlefoil";
+  if (isBooster && r < (2/600 + 1/120)) return "Hex";
+  if (isBooster && r < (2/600 + 2/120)) return "Gum";
+  if (isBooster && r < (2/600 + 3/120)) return "Green Battlefoil";
+  if (isHobby   && r < (2/600 + 1/20))  return "Auto";
+  if (isJumbo   && r < (2/600 + 3/50))  return "Auto";
+  if (isBooster && r < (2/600 + 2/120 + 2/120)) return "Auto";
+  // Standard treatments
+  if (r < 0.50) return "Silver";
+  // Remaining ~10% spread across nice treatments
+  const nice = ["Rainbow","Holo","Gold","Prizm","Refractor","Color Match","Optic"];
+  return nice[Math.floor(Math.random() * nice.length)];
+}
+
+function pickCard(cards, treatment, setName, exclude=new Set()) {
+  const pool = cards.filter(c =>
+    c.setName === setName &&
+    (c.treatment||"").toLowerCase() === treatment.toLowerCase() &&
+    c.weapon !== "Super" &&
+    !exclude.has(c.id)
+  );
+  if (pool.length === 0) {
+    // fallback — same set any treatment
+    const fallback = cards.filter(c => c.setName === setName && c.weapon !== "Super" && !exclude.has(c.id));
+    if (fallback.length === 0) return null;
+    return fallback[Math.floor(Math.random() * fallback.length)];
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function ripPack(product, cards) {
+  const cfg = PACK_PRODUCTS[product];
+  const setCards = cards.filter(c => c.setName && c.setName.toLowerCase().includes(cfg.set.toLowerCase()));
+  const hotdogs  = cards.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") || (c.hero||"").toLowerCase().includes("hot dog"));
+  const plays    = cards.filter(c => (c.treatment||"").toLowerCase().includes("play") || (c.cardType||"").toLowerCase().includes("play"));
+
+  const pulled = [];
+  const usedIds = new Set();
+
+  // Paper hero cards
+  const baseHeroes = setCards.filter(c => !c.treatment || c.treatment.toLowerCase() === "base");
+  for (let i = 0; i < cfg.paperSlots; i++) {
+    const available = baseHeroes.filter(c => !usedIds.has(c.id));
+    if (available.length === 0) break;
+    const card = available[Math.floor(Math.random() * available.length)];
+    pulled.push({ ...card, slotType:"paper" });
+    usedIds.add(card.id);
+  }
+
+  // Foil hero cards
+  for (let i = 0; i < cfg.foilSlots; i++) {
+    const isHit = cfg.foilIsHit && i === cfg.foilSlots - 1;
+    const treatment = rollTreatment(product, isHit);
+    const card = pickCard(setCards, treatment, setCards[0]?.setName, usedIds);
+    if (card) {
+      pulled.push({ ...card, treatment, slotType: isHit ? "hit" : "foil", isHit });
+      usedIds.add(card.id);
+    }
+  }
+
+  // Play cards (3 per pack — mix of big plays and bonus plays)
+  const bigPlays  = plays.filter(c => BIG_PLAYS.some(n => String(c.cardNum) === String(n)));
+  const bonusPlays = plays.filter(c => (c.treatment||"").toLowerCase().includes("bonus"));
+  const allPlays  = [...bigPlays, ...bonusPlays];
+  for (let i = 0; i < 3; i++) {
+    const available = allPlays.filter(c => !usedIds.has(c.id));
+    if (available.length === 0) break;
+    const card = available[Math.floor(Math.random() * available.length)];
+    pulled.push({ ...card, slotType:"play" });
+    usedIds.add(card.id);
+  }
+
+  // Hot dog — always last
+  if (hotdogs.length > 0) {
+    const hd = hotdogs[Math.floor(Math.random() * hotdogs.length)];
+    pulled.push({ ...hd, slotType:"hotdog" });
+  }
+
+  return pulled;
+}
+
+function PackRipSimulator({ cards, user }) {
+  const [product,    setProduct]    = useState("Alpha Hobby");
+  const [pack,       setPack]       = useState(null);
+  const [revealed,   setRevealed]   = useState([]);
+  const [revealing,  setRevealing]  = useState(false);
+  const [history,    setHistory]    = useState([]);   // personal pull history
+  const [community,  setCommunity]  = useState([]);   // Firestore best pulls
+  const [savingPull, setSavingPull] = useState(false);
+  const [activeView, setActiveView] = useState("rip"); // rip | history | community
+
+  // Load community best pulls
+  useEffect(() => {
+    getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
+      .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
+      .catch(()=>{});
+  }, []);
+
+  const WEAPON_GLOW = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
+    Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
+
+  function rarityScore(card) {
+    const t = (card.treatment||"").toLowerCase();
+    const w = (card.weapon||"").toLowerCase();
+    if (t.includes("superfoil"))      return 100;
+    if (t.includes("pink battlefoil"))return 90;
+    if (t.includes("auto"))           return 85;
+    if (t.includes("green battlefoil"))return 80;
+    if (w === "hex" || w === "gum")   return 75;
+    if (t.includes("rainbow"))        return 60;
+    if (t.includes("holo"))           return 55;
+    if (t.includes("gold"))           return 50;
+    if (t.includes("prizm"))          return 45;
+    if (t.includes("silver"))         return 20;
+    return 10;
+  }
+
+  async function doRip() {
+    if (revealing) return;
+    const pulled = ripPack(product, cards);
+    if (!pulled.length) return;
+    setPack(pulled);
+    setRevealed([]);
+    setRevealing(true);
+
+    // Reveal one by one
+    for (let i = 0; i < pulled.length; i++) {
+      await new Promise(r => setTimeout(r, i === 0 ? 300 : 500));
+      setRevealed(prev => [...prev, i]);
+    }
+    setRevealing(false);
+
+    // Save to history
+    const entry = { product, cards: pulled, pulledAt: new Date().toISOString() };
+    setHistory(prev => [entry, ...prev].slice(0, 50));
+
+    // Auto-save best hit to community
+    const hit = pulled.find(c => c.isHit) || pulled.reduce((best, c) => rarityScore(c) > rarityScore(best) ? c : best, pulled[0]);
+    if (hit && rarityScore(hit) >= 45) {
+      setSavingPull(true);
+      try {
+        await setDoc(doc(db,"sim_pulls",uid()), {
+          userName: user?.displayName || "Anonymous",
+          product,
+          cardName: hit.hero || hit.cardName || "Unknown",
+          treatment: hit.treatment || "",
+          weapon: hit.weapon || "",
+          imageUrl: hit.imageUrl || "",
+          rarity: rarityScore(hit),
+          pulledAt: new Date().toISOString(),
+        });
+        // Refresh community
+        getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
+          .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
+          .catch(()=>{});
+      } catch(e) {}
+      setSavingPull(false);
+    }
+  }
+
+  const wc = card => WEAPON_GLOW[card.weapon] || "#888";
+  const isRare = card => rarityScore(card) >= 45;
+
+  return (
+    <div style={{maxWidth:900,margin:"0 auto",padding:"20px 0"}}>
+      {/* Header */}
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <div style={{fontSize:28,fontWeight:900,color:"#F0F0F0",marginBottom:6}}>🎯 Pack Rip Simulator</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>Rip virtual packs · No cards will be harmed</div>
+      </div>
+
+      {/* View toggle */}
+      <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
+        {[["rip","🎯 Rip Packs"],["history","📋 My Pulls"],["community","🏆 Best Pulls"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setActiveView(v)}
+            style={{background:activeView===v?"rgba(232,49,122,0.15)":"transparent",color:activeView===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${activeView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* RIP VIEW */}
+      {activeView==="rip" && <>
+        {/* Product selector */}
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:28}}>
+          {Object.keys(PACK_PRODUCTS).map(p=>(
+            <button key={p} onClick={()=>{setProduct(p);setPack(null);setRevealed([]);}}
+              style={{background:product===p?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===p?"#E8317A":"rgba(255,255,255,0.5)",border:`1.5px solid ${product===p?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+              {p}
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2,fontWeight:400}}>
+                {PACK_PRODUCTS[p].foilSlots} foil · {PACK_PRODUCTS[p].paperSlots} paper
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Rip button */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <button onClick={doRip} disabled={revealing}
+            style={{background:revealing?"rgba(255,255,255,0.05)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"16px 48px",fontSize:18,fontWeight:900,cursor:revealing?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:1,transition:"all 0.3s",boxShadow:revealing?"none":"0 0 40px rgba(232,49,122,0.4)"}}>
+            {revealing ? "Revealing..." : pack ? "🎯 Rip Another" : "🎯 Rip Pack"}
+          </button>
+        </div>
+
+        {/* Cards */}
+        {pack && (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:16}}>
+            {pack.map((card,i)=>{
+              const show = revealed.includes(i);
+              const rare = isRare(card);
+              const glow = wc(card);
+              return (
+                <div key={i} style={{
+                  opacity: show ? 1 : 0,
+                  transform: show ? "translateY(0) scale(1)" : "translateY(30px) scale(0.9)",
+                  transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
+                  position:"relative"
+                }}>
+                  <div style={{
+                    background: card.slotType==="hotdog" ? "rgba(251,191,36,0.1)" :
+                                card.isHit ? `${glow}22` : "rgba(255,255,255,0.04)",
+                    border: card.isHit ? `2px solid ${glow}88` :
+                            card.slotType==="hotdog" ? "2px solid rgba(251,191,36,0.4)" :
+                            "1px solid rgba(255,255,255,0.08)",
+                    borderRadius:12, overflow:"hidden", textAlign:"center",
+                    boxShadow: card.isHit ? `0 0 30px ${glow}44` : "none",
+                  }}>
+                    {/* Rarity badge */}
+                    {card.isHit && (
+                      <div style={{background:`${glow}`,color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",textTransform:"uppercase",letterSpacing:1}}>
+                        🔥 HIT
+                      </div>
+                    )}
+                    {card.slotType==="hotdog" && (
+                      <div style={{background:"rgba(251,191,36,0.8)",color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",textTransform:"uppercase",letterSpacing:1}}>
+                        🌭 HOT DOG
+                      </div>
+                    )}
+                    {/* Card image */}
+                    {card.imageUrl ? (
+                      <img src={card.imageUrl} alt={card.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}}/>
+                    ) : (
+                      <div style={{width:"100%",aspectRatio:"3/4",background:"rgba(255,255,255,0.03)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:4}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"0 8px"}}>{card.hero||card.cardName||"?"}</div>
+                        {card.weapon && <div style={{fontSize:10,color:glow,fontWeight:700}}>{card.weapon}</div>}
+                      </div>
+                    )}
+                    {/* Card info */}
+                    <div style={{padding:"8px 6px"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.hero||card.cardName||"—"}</div>
+                      {card.treatment && <div style={{fontSize:10,color:card.isHit?glow:"rgba(255,255,255,0.3)"}}>{card.treatment}</div>}
+                      {card.weapon && card.slotType!=="hotdog" && <div style={{fontSize:10,color:glow,fontWeight:700}}>{card.weapon}</div>}
+                      {card.cardNum && <div style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>#{card.cardNum}</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>}
+
+      {/* HISTORY VIEW */}
+      {activeView==="history" && (
+        <div>
+          {history.length === 0
+            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0",fontSize:14}}>No pulls yet — rip some packs!</div>
+            : history.map((entry,ei)=>(
+              <div key={ei} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"#E8317A"}}>{entry.product}</span>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.25)"}}>{new Date(entry.pulledAt).toLocaleTimeString()}</span>
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {entry.cards.filter(c=>c.isHit||isRare(c)).map((c,ci)=>(
+                    <div key={ci} style={{display:"flex",alignItems:"center",gap:6,background:`${wc(c)}11`,border:`1px solid ${wc(c)}33`,borderRadius:8,padding:"4px 10px"}}>
+                      {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3}}/>}
+                      <div>
+                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{c.hero||c.cardName}</div>
+                        <div style={{fontSize:10,color:wc(c)}}>{c.treatment}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {!entry.cards.some(c=>c.isHit||isRare(c)) && <span style={{fontSize:12,color:"rgba(255,255,255,0.25)"}}>No notable pulls this pack</span>}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* COMMUNITY BEST PULLS */}
+      {activeView==="community" && (
+        <div>
+          <div style={{textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.25)",marginBottom:20}}>Top simulated pulls from the community (Rainbow and above)</div>
+          {community.length === 0
+            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0",fontSize:14}}>No community pulls yet — be the first!</div>
+            : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
+                {community.map((p,i)=>{
+                  const glow = WEAPON_GLOW[p.weapon] || "#888";
+                  return (
+                    <div key={p.id} style={{background:`${glow}11`,border:`1.5px solid ${glow}33`,borderRadius:12,overflow:"hidden",textAlign:"center"}}>
+                      {p.imageUrl
+                        ? <img src={p.imageUrl} alt={p.cardName} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover"}}/>
+                        : <div style={{width:"100%",aspectRatio:"3/4",background:"rgba(255,255,255,0.03)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"rgba(255,255,255,0.3)",padding:8}}>{p.cardName}</div>
+                      }
+                      <div style={{padding:"8px 8px"}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{p.cardName}</div>
+                        <div style={{fontSize:10,color:glow}}>{p.treatment}</div>
+                        <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:4}}>{p.userName} · {p.product}</div>
+                        {i < 3 && <div style={{fontSize:10,color:"#FBBF24",marginTop:2}}>{["🥇","🥈","🥉"][i]} #{i+1} all time</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -15398,6 +15740,7 @@ function PublicCardDatabase() {
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
             {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
+            {tabBtn("simulator","\uD83C\uDFAF Pack Rip",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
             {tabBtn("playbook","\uD83D\uDCD6 Playbook",0)}
@@ -15456,6 +15799,9 @@ function PublicCardDatabase() {
 
       {/* TAB CONTENT */}
       <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
+
+        {/* PACK RIP SIMULATOR TAB */}
+        {activeTab==="simulator" && <PackRipSimulator cards={cards} user={user} />}
 
         {/* SUPERS TAB */}
         {activeTab==="supers"&&(()=>{
