@@ -356,7 +356,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   // Pay stub notifications for this breaker
   const myStubs = payStubs.filter(s => s.breaker === myBreaker && !s.read);
   // Quote notifications for admins
-  const quoteNotifs = canSeeFinancials ? quotes.filter(q => !q.notified && ["accepted","declined","countered"].includes(q.status)) : [];
+  const quoteNotifs = canSeeFinancials ? quotes.filter(q => !q.notified && (["accepted","declined","countered"].includes(q.status) || q.submittedBySeller)) : [];
   const [viewStub,  setViewStub]  = useState(null);
   const [viewQuote, setViewQuote] = useState(null);
   const [financialPeriod, setFinancialPeriod] = useState("month");
@@ -469,7 +469,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           accepted: { icon:"\uD83C\uDF89", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
           declined: { icon:"\u274C", color:"#E8317A", bg:"#1a0a0a", border:"#E8317A33", title:"Offer Declined", body:`${q.seller?.name||"Seller"} declined your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
           countered:{ icon:"\uD83E\uDD1D", color:"#FBBF24", bg:"#1a1400", border:"#FBBF2433", title:"Counter Offer!", body:`${q.seller?.name||"Seller"} countered at $${parseFloat(q.sellerCounter||0).toFixed(2)} (you offered $${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)})` },
-        }[q.status];
+          pending:  q.submittedBySeller ? { icon:"📬", color:"#7B9CFF", bg:"#0a0a1a", border:"#7B9CFF33", title:"New Lot Submission!", body:`${q.seller?.name||"Someone"} submitted ${(q.cards||[]).length} card${(q.cards||[]).length!==1?"s":""} for a quote via bazookadash.com/sell` } : null,
+        }[q.status] || (q.submittedBySeller ? { icon:"📬", color:"#7B9CFF", bg:"#0a0a1a", border:"#7B9CFF33", title:"New Lot Submission!", body:`${q.seller?.name||"Someone"} submitted ${(q.cards||[]).length} card${(q.cards||[]).length!==1?"s":""} for a quote via bazookadash.com/sell` } : null);
         if (!cfg) return null;
         return (
           <div key={q.id} style={{ background:cfg.bg, border:`2px solid ${cfg.border}`, borderRadius:14, padding:"18px 20px" }}>
@@ -1630,6 +1631,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                           <button onClick={()=>{ navigator.clipboard?.writeText(quoteUrl); }} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDCCB Copy Link"}</button>
                           <a href={quoteUrl} target="_blank" rel="noreferrer" style={{ background:"none", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, textDecoration:"none" }}>{"View \u2197"}</a>
+                          {parseFloat(q.currentOffer||q.dispOffer) > 0 && (
+                            <button onClick={()=>{
+                              const msg = `Hey${q.seller?.name?" "+q.seller.name:""}! We reviewed your cards and have an offer ready. Check it out here and let us know what you think:\n\n${quoteUrl}`;
+                              navigator.clipboard?.writeText(msg);
+                            }} style={{ background:"rgba(74,222,128,0.12)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"📤 Send Offer to Seller"}</button>
+                          )}
                           <button onClick={()=>{
                             const cards = (q.cards||[]).map(c=>({ name:c.cardName||c.name||"", cardType:c.cardType||"", mktVal:c.mktVal||c.marketValue||0, qty:c.qty||1 }));
                             const totalMv = cards.reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
@@ -16125,12 +16132,12 @@ function PublicSellPage() {
               <label style={S2.lbl}>Preferred Payment</label>
               <select value={seller.payment} onChange={e=>setSeller(p=>({...p,payment:e.target.value}))} style={{ ...S2.inp, cursor:"pointer", color:seller.payment?"#F0F0F0":"#555" }}>
                 <option value="">Select method...</option>
-                {["Venmo","PayPal","Zelle","Cash App","Other"].map(m=><option key={m} value={m}>{m}</option>)}
+                {["PayPal","Zelle"].map(m=><option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>
               <label style={S2.lbl}>Payment Handle (optional)</label>
-              <input value={seller.paymentHandle} onChange={e=>setSeller(p=>({...p,paymentHandle:e.target.value}))} placeholder={seller.payment==="Venmo"?"@handle":seller.payment==="PayPal"?"email or username":"handle / account"} style={S2.inp}/>
+              <input value={seller.paymentHandle} onChange={e=>setSeller(p=>({...p,paymentHandle:e.target.value}))} placeholder={seller.payment==="PayPal"?"email or username":seller.payment==="Zelle"?"email or phone number":"email or account info"} style={S2.inp}/>
             </div>
           </div>
         </div>
