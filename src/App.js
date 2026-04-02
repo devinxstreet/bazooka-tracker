@@ -6644,7 +6644,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const mActuals = monthActuals(curYear, curMonth);
     if (mActuals.length === 0) return null;
     const scored = mPlans.map(p=>{
-      const actuals = actualForDate(p.date);
+      const actuals = streams.filter(s=>s.date===p.date&&s.breaker===p.breaker);
       if (!actuals.length) return null;
       const actual = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
       const planned = liveRevenue(p);
@@ -7283,7 +7283,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
               )}
               {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace</>}
-              {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{mActuals.length} of {mPlans.length} planned streams completed · {futurePlans.length} still ahead</>}
+              {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{streamResults.length} of {mPlans.length} planned streams completed · {mPlans.length - streamResults.length} still ahead</>}
             </div>
           </div>
           {canSeeFinancials && mActuals.length > 0 && (
@@ -7315,7 +7315,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 ...(projSoFar>0?[{l:"Due by today",   v:fmt2(projSoFar),                                              c:"#FBBF24"}]:[]),
                 ...(projSoFar>0?[{l:"Variance",       v:(actRev-projSoFar>=0?"+":"")+fmt2(actRev-projSoFar),           c:actRev>=projSoFar?"#4ade80":"#E8317A"}]:[]),
                 ...(streamResults.length>0?[{l:"vs Plan",v:(totalDiff>=0?"+":"")+fmt2(totalDiff),                      c:totalDiff>=0?"#4ade80":"#E8317A"}]:[]),
-                ...(futurePlans.length>0?[{l:"Remaining",v:futurePlans.length+" streams",                              c:"#7B9CFF"}]:[]),
+                ...(mPlans.length-streamResults.length>0?[{l:"Remaining",v:(mPlans.length-streamResults.length)+" streams", c:"#7B9CFF"}]:[]),
               ].map(({l,v,c})=>(
                 <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
                   <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
