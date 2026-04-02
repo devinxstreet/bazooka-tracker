@@ -8045,11 +8045,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     if (stream.commissionOverride !== "" && stream.commissionOverride != null) return parseFloat(stream.commissionOverride)/100;
     if (stream.binOnly) return 0.35;
     const mm = parseFloat(stream.marketMultiple) || 0;
-    if (mm >= 1.8) return 0.55;
-    if (mm >= 1.7) return 0.50;
-    if (mm >= 1.6) return 0.45;
-    if (mm >= 1.5) return 0.40;
-    return 0.35;
+    const base = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const bonus = (parseInt(stream.newBuyers)||0) >= 5 && !stream.binOnly ? 0.05 : 0;
+    return Math.min(0.60, base + bonus);
   }
 
   function calcStreamDash(s) {
