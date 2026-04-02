@@ -3148,6 +3148,90 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards} inventory={inventory} breaks={breaks}/>}
 
       {invTab==="cards" && <>
+
+        {/* Purchase Order */}
+        {(() => {
+          const MONTHLY_TARGETS = { "Giveaway Cards":2000, "Insurance Cards":2000, "First-Timer Cards":50, "Chaser Cards":30 };
+          const usedSet = new Set(breaks.filter(b=>!b.isPoolLog).map(b=>b.inventoryId));
+          const avail = {};
+          CARD_TYPES.forEach(ct => {
+            const indiv = inventory.filter(c => c.cardType===ct && !usedSet.has(c.id)).length;
+            const pool  = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+Math.max(0,(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)),0);
+            avail[ct] = indiv + pool;
+          });
+          const items = CARD_TYPES.map(ct => {
+            const have   = avail[ct] || 0;
+            const target = MONTHLY_TARGETS[ct] || 0;
+            const needed = Math.max(0, target - have);
+            const pct    = target > 0 ? (have/target*100) : 100;
+            const urgent = pct < 25;
+            const low    = pct < 50;
+            return { ct, have, target, needed, pct, urgent, low };
+          }).filter(i => i.low);
+
+          if (items.length === 0) return null;
+
+          const [copied, setCopied] = useState(false);
+
+          const poText = [
+            "BAZOOKA BREAKS — CARD PURCHASE ORDER",
+            `Generated: ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}`,
+            "─".repeat(40),
+            ...items.map(i => `${i.ct.replace(" Cards","").padEnd(18)} Need: ${i.needed.toLocaleString().padStart(6)}  (have ${i.have.toLocaleString()} of ${i.target.toLocaleString()} monthly target)`),
+            "─".repeat(40),
+            `Total cards needed: ${items.reduce((s,i)=>s+i.needed,0).toLocaleString()}`,
+            "",
+            "Sources: Facebook groups, Discord, local/estate sales",
+          ].join("\n");
+
+          return (
+            <div style={{ background:"rgba(107,45,139,0.06)", border:"1.5px solid rgba(107,45,139,0.25)", borderRadius:12, padding:"16px 18px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#6B2D8B" }}>📋 Purchase Order</div>
+                  <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{items.length} card type{items.length!==1?"s":""} need restocking</div>
+                </div>
+                <button onClick={()=>{ navigator.clipboard?.writeText(poText); setCopied(true); setTimeout(()=>setCopied(false),2500); }}
+                  style={{ background:"rgba(107,45,139,0.15)", color:"#6B2D8B", border:"1px solid rgba(107,45,139,0.3)", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {copied ? "✅ Copied!" : "📋 Copy List"}
+                </button>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {items.map(({ct,have,target,needed,pct,urgent}) => {
+                  const cc = CC[ct]||{text:"#888",bg:"#111"};
+                  return (
+                    <div key={ct} style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", alignItems:"center", gap:12, padding:"10px 14px", background:"#111", borderRadius:8, border:`1px solid ${urgent?"rgba(220,38,38,0.2)":"rgba(107,45,139,0.15)"}` }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color:cc.text }}>{ct.replace(" Cards","")}</div>
+                        <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+                          {have.toLocaleString()} on hand · {target.toLocaleString()} monthly target
+                        </div>
+                        <div style={{ marginTop:6, height:4, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${Math.min(pct,100)}%`, background:urgent?"#ef4444":"#FBBF24", borderRadius:2 }}/>
+                        </div>
+                      </div>
+                      <div style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:11, color:"#555" }}>Have</div>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#F0F0F0" }}>{have.toLocaleString()}</div>
+                      </div>
+                      <div style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:11, color:"#555" }}>Need</div>
+                        <div style={{ fontSize:16, fontWeight:900, color:urgent?"#ef4444":"#FBBF24" }}>{needed.toLocaleString()}</div>
+                      </div>
+                      <div style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:11, color:"#555" }}>Stock</div>
+                        <div style={{ fontSize:16, fontWeight:900, color:pct<25?"#ef4444":pct<50?"#FBBF24":"#4ade80" }}>{pct.toFixed(0)}%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a0a", borderRadius:8, fontFamily:"monospace", fontSize:11, color:"#555", whiteSpace:"pre-wrap" }}>
+                {poText}
+              </div>
+            </div>
+          );
+        })()}
         <div style={S.card}>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search card name..." style={{ ...S.inp, flex:1, minWidth:180 }}/>
@@ -8606,8 +8690,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           { l:"Total Commission",  v:fmt(totals.comm),    c:"#166534" },
           { l:"\uD83C\uDF31 New Buyers",     v:totals.newBuyers,                c:"#166534" },
           ...(isAdmin ? [
-            { l:"Total Gross",     v:fmt(totals.gross),   c:"#E8317A" },
-            { l:"Bazooka Net",     v:fmt(totals.baz),     c:"#6B2D8B" },
+            { l:"Total Gross",       v:fmt(totals.gross),       c:"#E8317A" },
+            { l:"Bazooka True Net",  v:fmt(totals.trueNet),     c:"#6B2D8B" },
           ] : []),
         ].map(({l,v,c}) => (
           <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
