@@ -8072,7 +8072,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const commBase = bazNet;
     const rate     = getCommRate(s);
     const commAmt  = commBase * rate;
-    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet - commAmt + imcExpReimb - bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0) };
+    return { gross, totalExp, netRev, bazNet, bobaNet, repExp, imcExpReimb, commBase, rate, commAmt, collabAmt:bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0), bazTrueNet: bazNet - commAmt + imcExpReimb - repExp - bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0) };
   }
 
   // Admins see all streams; streamers see only their own
