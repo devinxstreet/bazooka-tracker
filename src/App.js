@@ -3686,8 +3686,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
         {/* Link to planned stream */}
         {(() => {
-          const dayPlans = plannedStreams.filter(p=>p.date===date&&(!breaker||p.breaker===breaker));
-          if (!date || dayPlans.length === 0) return null;
+          // Only show plans that match the selected date AND breaker — never show cross-breaker plans
+          const dayPlans = plannedStreams.filter(p => p.date===date && p.breaker===breaker);
+          if (!date || !breaker || dayPlans.length === 0) return null;
           return (
             <div style={{marginBottom:14,padding:"10px 14px",background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               <span style={{fontSize:12,fontWeight:700,color:"#7B9CFF",flexShrink:0}}>📅 Link to planned stream:</span>
@@ -3696,6 +3697,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   <button key={p.id} onClick={()=>{
                     rf("streamName")(p.streamName||recap.streamName||"");
                     rf("sessionType")(p.sessionType||recap.sessionType||"");
+                    // Never overwrite the breaker — the recap breaker stays as-is
                   }}
                     style={{background:"rgba(123,156,255,0.1)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.25)",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                     {p.streamName||p.breaker||"Planned Stream"}
@@ -6247,7 +6249,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               return a2||p2;
             }), 1);
             const heatPct = maxRev > 0 ? heatRev/maxRev : 0;
-            const isMissed = dayPlans.length > 0 && dayActuals.length === 0 && isPast;
+            const isMissed = dayPlans.length > 0 && dayPlans.some(p => !streams.find(s=>s.date===ds&&s.breaker===p.breaker)) && isPast;
             const heatBg = heatRev > 0
               ? dayActRev > 0
                 ? `rgba(74,222,128,${0.05+heatPct*0.18})`
@@ -6278,7 +6280,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 })}
                 {dayActuals.slice(0,1).map(a=>(
                   <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    ✅ {a.streamName||a.breaker||"Stream"}
+                    ✅ {a.breaker||a.streamName||"Stream"}{a.streamName&&a.breaker?" · "+a.streamName:""}
                   </div>
                 ))}
                 {dayPlans.slice(0,compact?1:2).map(p=>(
@@ -7244,9 +7246,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const futurePlans = mPlans.filter(p => p.date > todayStr);
     const projSoFar = projectedRevenue(pastPlans);
 
-    // Per-stream results — only streams with a logged actual
+    // Per-stream results — match actual to planned stream by date AND breaker
     const streamResults = mPlans.map(p => {
-      const actuals = actualForDate(p.date);
+      const actuals = streams.filter(s => s.date===p.date && s.breaker===p.breaker);
       if (!actuals.length) return null;
       const planned = liveRevenue(p);
       const actual  = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
