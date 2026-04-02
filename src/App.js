@@ -9,7 +9,17 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal"];
-const PRODUCT_TYPES = ["Double Mega","Hobby","Jumbo","Miscellaneous"];
+const PRODUCT_SETS = {
+  "Alpha Edition":   ["Blaster","Booster","Hobby","Jumbo"],
+  "Alpha Update":    ["Blaster","Booster","Hobby","Jumbo"],
+  "Alpha Blast":     ["Blast Box"],
+  "Griffey 2026":    ["Blaster","Double Mega","Hobby","Jumbo"],
+  "Tecmo Bowl":      ["Double Mega","Hobby"],
+};
+const PRODUCT_TYPES = [
+  ...Object.entries(PRODUCT_SETS).flatMap(([set,types])=>types.map(t=>`${set} - ${t}`)),
+  "Miscellaneous",
+];
 const USAGE_TYPES = ["Giveaway","Insurance","First-Timer Pack","Chaser Pull"];
 const SOURCES = ["Discord","Facebook","Other"];
 const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
@@ -2844,6 +2854,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [trackingEdit,   setTrackingEdit]   = useState(null);
   const [lotStatusFilter, setLotStatusFilter] = useState("all");
+  const [expandedLot,    setExpandedLot]    = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
 
   const [search,   setSearch]   = useState("");
@@ -3054,6 +3065,10 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                                   style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
                                   title="Delete entire lot">{"\uD83D\uDDD1 Delete Lot"}</button>
                               )}
+                              <button onClick={()=>setExpandedLot(expandedLot===lot.key?null:lot.key)}
+                                style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:7, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                {expandedLot===lot.key?"▲ Hide Cards":"▼ See Cards"}
+                              </button>
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:8 }}>
@@ -3170,6 +3185,34 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                             </div>
                           )}
                         </div>
+
+                        {/* Expanded card list */}
+                        {expandedLot===lot.key && (
+                          <div style={{ borderTop:"1px solid #222", padding:"12px 18px", background:"#0d0d0d" }}>
+                            <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Cards in this lot ({lot.cards.length})</div>
+                            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                              {lot.cards.map(c => {
+                                const isUsed    = usedIds.has(c.id);
+                                const isTransit = !isUsed && c.cardStatus==="in_transit";
+                                const cc = CC[c.cardType]||{bg:"#111",text:"#888",border:"#333"};
+                                const statusColor = isUsed?"#555":isTransit?"#7B9CFF":"#4ade80";
+                                const statusLabel = isUsed?"Used":isTransit?"🚚 Transit":"✅ Avail";
+                                return (
+                                  <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 10px", background:"#111", border:"1px solid #1a1a1a", borderRadius:7, gap:8 }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+                                      <span style={{ fontWeight:700, fontSize:12, color:isUsed?"#444":"#F0F0F0", textDecoration:isUsed?"line-through":"none", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.cardName||"Unnamed"}</span>
+                                      <span style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap", flexShrink:0 }}>{(c.cardType||"").replace(" Cards","")}</span>
+                                    </div>
+                                    <div style={{ display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
+                                      {canSeeFinancials && c.costPerCard>0 && <span style={{ fontSize:11, color:"#555" }}>${parseFloat(c.costPerCard).toFixed(2)}</span>}
+                                      <span style={{ fontSize:11, fontWeight:700, color:statusColor }}>{statusLabel}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                       </div>
                     );
@@ -4090,55 +4133,55 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Product used this stream */}
         <div style={{ marginBottom:14 }}>
           <label style={{ ...S.lbl, marginBottom:8, display:"block" }}>{"\uD83D\uDCE6 Product Used This Stream"}</label>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-            {PRODUCT_TYPES.map(pt => {
-              const globalPrice = parseFloat(skuPrices[pt]) || 0;
-              const streamPrice = recap.streamSkuPrices?.[pt];
-              const effectivePrice = parseFloat(streamPrice ?? globalPrice) || 0;
-              const qty = parseInt(recap[`prod_${pt}`]) || 0;
-              const mktVal = qty * effectivePrice;
-              return (
-                <div key={pt}>
-                  <label style={{ ...S.lbl, color:"#E8317A" }}>{pt}</label>
-                  <input
-                    type="number" min="0" step="1"
-                    value={recap[`prod_${pt}`]||""}
-                    onChange={e=>rf(`prod_${pt}`)(e.target.value)}
-                    placeholder="0 boxes"
-                    style={{ ...S.inp, color:"#E8317A" }}
-                  />
-                  <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4 }}>
-                    <span style={{ fontSize:10, color:"#555" }}>$</span>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={streamPrice ?? globalPrice}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setRecap(p => {
-                          const newSku = { ...p.streamSkuPrices, [pt]: val };
-                          const gross = parseFloat(p.grossRevenue) || 0;
-                          const totalMktVal = PRODUCT_TYPES.reduce((sum, t) => {
-                            const q = parseInt(p[`prod_${t}`]) || 0;
-                            const pr = parseFloat(t === pt ? val : (newSku[t] ?? skuPrices[t])) || 0;
-                            return sum + q * pr;
-                          }, 0);
-                          const mm = gross > 0 && totalMktVal > 0 ? (gross / totalMktVal).toFixed(2) : p.marketMultiple;
-                          return { ...p, streamSkuPrices: newSku, marketMultiple: mm };
-                        });
-                        setRecapSaved(false);
-                      }}
-                      style={{ ...S.inp, fontSize:11, padding:"3px 6px", color: streamPrice !== undefined && streamPrice !== String(globalPrice) ? "#FBBF24" : "#555" }}
-                    />
-                    <span style={{ fontSize:10, color:"#555" }}>/box</span>
-                  </div>
-                  {qty > 0 && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>MV: ${mktVal.toFixed(0)}</div>}
-                  {streamPrice !== undefined && streamPrice !== String(globalPrice) && (
-                    <div style={{ fontSize:9, color:"#FBBF24", marginTop:1 }}>{"\u26A0 overriding global $"}{globalPrice}</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {/* Show rows for any product that has a qty set */}
+          {PRODUCT_TYPES.filter(pt => parseInt(recap[`prod_${pt}`]) > 0).map(pt => {
+            const globalPrice = parseFloat(skuPrices[pt]) || 0;
+            const streamPrice = recap.streamSkuPrices?.[pt];
+            const effectivePrice = parseFloat(streamPrice ?? globalPrice) || 0;
+            const qty = parseInt(recap[`prod_${pt}`]) || 0;
+            const mktVal = qty * effectivePrice;
+            return (
+              <div key={pt} style={{ display:"grid", gridTemplateColumns:"1fr 80px 80px auto", gap:8, alignItems:"center", marginBottom:8 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#E8317A" }}>{pt}</div>
+                <input type="number" min="0" step="1" value={recap[`prod_${pt}`]||""} onChange={e=>rf(`prod_${pt}`)(e.target.value)} placeholder="0 boxes" style={{ ...S.inp, color:"#E8317A", textAlign:"center" }}/>
+                <input type="number" min="0" step="0.01" value={streamPrice ?? globalPrice}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setRecap(p => {
+                      const newSku = { ...p.streamSkuPrices, [pt]: val };
+                      const gross = parseFloat(p.grossRevenue) || 0;
+                      const totalMktVal = PRODUCT_TYPES.reduce((sum, t) => {
+                        const q = parseInt(p[`prod_${t}`]) || 0;
+                        const pr = parseFloat(t === pt ? val : (newSku[t] ?? skuPrices[t])) || 0;
+                        return sum + q * pr;
+                      }, 0);
+                      const mm = gross > 0 && totalMktVal > 0 ? (gross / totalMktVal).toFixed(2) : p.marketMultiple;
+                      return { ...p, streamSkuPrices: newSku, marketMultiple: mm };
+                    });
+                    setRecapSaved(false);
+                  }}
+                  style={{ ...S.inp, fontSize:11, padding:"3px 6px", color: streamPrice !== undefined && streamPrice !== String(globalPrice) ? "#FBBF24" : "#555" }}
+                />
+                <button onClick={()=>rf(`prod_${pt}`)("")} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"\u2715"}</button>
+              </div>
+            );
+          })}
+          {/* Add product dropdown */}
+          <select onChange={e=>{ if(e.target.value) rf(`prod_${e.target.value}`)("1"); e.target.value=""; }}
+            style={{ ...S.inp, color:"#9CA3AF", cursor:"pointer", marginTop:4 }}>
+            <option value="">+ Add product...</option>
+            {Object.entries(PRODUCT_SETS).map(([set,types])=>(
+              <optgroup key={set} label={set}>
+                {types.map(t=>{ const key=`${set} - ${t}`; return <option key={key} value={key}>{t}</option>; })}
+              </optgroup>
+            ))}
+            <option value="Miscellaneous">Miscellaneous</option>
+          </select>
+          {PRODUCT_TYPES.some(pt=>parseInt(recap[`prod_${pt}`])>0) && (
+            <div style={{ marginTop:8, fontSize:12, color:"#555" }}>
+              Total MV: <strong style={{color:"#F0F0F0"}}>${PRODUCT_TYPES.reduce((sum,pt)=>{const q=parseInt(recap[`prod_${pt}`])||0;const pr=parseFloat(recap.streamSkuPrices?.[pt]??skuPrices[pt])||0;return sum+q*pr;},0).toFixed(0)}</strong>
+            </div>
+          )}
         </div>
 
         {/* Live commission preview */}
@@ -5286,31 +5329,34 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         <div style={{ ...S.card, border:"2px solid #333333" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: skuEditing ? 14 : 0 }}>
             <SectionLabel t="SKU Market Values" />
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {!skuEditing && PRODUCT_TYPES.map(pt => skuPrices[pt] ? (
-                <span key={pt} style={{ fontSize:11, color:"#AAAAAA" }}>{pt}: <strong style={{color:"#F0F0F0"}}>${parseFloat(skuPrices[pt]).toFixed(2)}</strong></span>
-              ) : null)}
-              <button onClick={()=>setSkuEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {skuEditing ? "Cancel" : "\u270F\uFE0F Edit"}
-              </button>
-            </div>
+            <button onClick={()=>setSkuEditing(p=>!p)} style={{ background:"transparent", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {skuEditing ? "Cancel" : "\u270F\uFE0F Edit"}
+            </button>
           </div>
           {skuEditing && (
             <>
-              <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:12 }}>Set the retail/market value per unit for each product type. Used to auto-calculate market multiple in Stream Recap.</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:14 }}>
-                {PRODUCT_TYPES.map(pt => (
-                  <div key={pt}>
-                    <label style={{ ...S.lbl, color:PT_COLORS[pt]?.text }}>{pt} ($)</label>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={skuForm[pt]||""}
-                      onChange={e=>setSkuForm(p=>({...p,[pt]:e.target.value}))}
-                      placeholder="0.00"
-                      style={{ ...S.inp, color:PT_COLORS[pt]?.text }}
-                    />
+              <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:16 }}>Set the retail/market value per unit for each product. Used to auto-calculate market multiple in Stream Recap.</div>
+              {Object.entries(PRODUCT_SETS).map(([set,types])=>(
+                <div key={set} style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{set}</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
+                    {types.map(t => { const key=`${set} - ${t}`; return (
+                      <div key={key}>
+                        <label style={{ ...S.lbl }}>{t} ($)</label>
+                        <input type="number" step="0.01" min="0" value={skuForm[key]||""} onChange={e=>setSkuForm(p=>({...p,[key]:e.target.value}))} placeholder="0.00" style={S.inp}/>
+                      </div>
+                    );})}
                   </div>
-                ))}
+                </div>
+              ))}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Other</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
+                  <div>
+                    <label style={S.lbl}>Miscellaneous ($)</label>
+                    <input type="number" step="0.01" min="0" value={skuForm["Miscellaneous"]||""} onChange={e=>setSkuForm(p=>({...p,Miscellaneous:e.target.value}))} placeholder="0.00" style={S.inp}/>
+                  </div>
+                </div>
               </div>
               <Btn onClick={async()=>{ await onSaveSkuPrices(skuForm); setSkuEditing(false); }} variant="green">{"\uD83D\uDCBE Save SKU Prices"}</Btn>
             </>
@@ -5832,9 +5878,12 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                   <div key={p.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px auto auto", gap:8, alignItems:"center" }}>
                     <select value={p.type} onChange={e=>updateProduct(p.id,"type",e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
                       <option value="">-- Select Product --</option>
-                      {PRODUCT_TYPES.map(pt=>(
-                        <option key={pt} value={pt}>{pt}{skuPrices[pt]?` ($${parseFloat(skuPrices[pt]).toFixed(2)}/box)`:" (no price set)"}</option>
+                      {Object.entries(PRODUCT_SETS).map(([set,types])=>(
+                        <optgroup key={set} label={set}>
+                          {types.map(t=>{const key=`${set} - ${t}`;return<option key={key} value={key}>{t}{skuPrices[key]?` ($${parseFloat(skuPrices[key]).toFixed(2)}/box)`:" (no price set)"}</option>;})}
+                        </optgroup>
                       ))}
+                      <option value="Miscellaneous">Miscellaneous{skuPrices["Miscellaneous"]?` ($${parseFloat(skuPrices["Miscellaneous"]).toFixed(2)}/box)`:" (no price set)"}</option>
                     </select>
                     <input type="number" min="1" value={p.qty} onChange={e=>updateProduct(p.id,"qty",e.target.value)} placeholder="Qty" style={{ ...S.inp, textAlign:"center" }}/>
                     <div style={{ fontSize:13, fontWeight:700, color:subtotal>0?"#E8317A":"#333", whiteSpace:"nowrap", minWidth:80, textAlign:"right" }}>
@@ -14296,10 +14345,21 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
 
 // ── PACK RIP SIMULATOR ─────────────────────────────────────────
 const PACK_PRODUCTS = {
-  "Alpha Blaster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
-  "Alpha Booster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
-  "Alpha Hobby":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
-  "Alpha Jumbo":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Edition - Blaster":  { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Edition - Booster":  { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Edition - Hobby":    { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Edition - Jumbo":    { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Update - Blaster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Update - Booster":   { set:"Alpha", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Alpha Update - Hobby":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Update - Jumbo":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Alpha Blast - Blast Box":  { set:"Alpha", foilSlots:2, paperSlots:4, foilIsHit:true  },
+  "Griffey 2026 - Blaster":   { set:"Griffey", foilSlots:1, paperSlots:5, foilIsHit:false },
+  "Griffey 2026 - Double Mega":{ set:"Griffey", foilSlots:3, paperSlots:3, foilIsHit:true },
+  "Griffey 2026 - Hobby":     { set:"Griffey", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Griffey 2026 - Jumbo":     { set:"Griffey", foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Tecmo Bowl - Double Mega": { set:"Tecmo",   foilSlots:3, paperSlots:3, foilIsHit:true  },
+  "Tecmo Bowl - Hobby":       { set:"Tecmo",   foilSlots:3, paperSlots:3, foilIsHit:true  },
 };
 
 function rollTreatment(product) {
@@ -14377,7 +14437,7 @@ const WEAPON_GLOW = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF
   Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
 
 function PackRipSimulator({ cards, user }) {
-  const [product,    setProduct]    = useState("Alpha Hobby");
+  const [product,    setProduct]    = useState("Alpha Edition - Hobby");
   const [phase,      setPhase]      = useState("select"); // select | ripping | cards | done
   const [pack,       setPack]       = useState(null);
   const [cardIndex,  setCardIndex]  = useState(0);
@@ -14480,15 +14540,20 @@ function PackRipSimulator({ cards, user }) {
             <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>🎯 Pick Your Pack</div>
             {phase==="done" && <div style={{fontSize:12,color:"#4ade80",marginBottom:8}}>✅ Pack complete! Rip another?</div>}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:28}}>
-            {Object.keys(PACK_PRODUCTS).map(p=>(
-              <button key={p} onClick={()=>setProduct(p)}
-                style={{background:product===p?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===p?"#E8317A":"rgba(255,255,255,0.5)",border:`2px solid ${product===p?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:12,padding:"14px 10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-                {p}
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:3,fontWeight:400}}>
-                  {PACK_PRODUCTS[p].foilSlots} foil · {PACK_PRODUCTS[p].paperSlots} paper
+          <div style={{marginBottom:24}}>
+            {Object.entries(PRODUCT_SETS).map(([set,types])=>(
+              <div key={set} style={{marginBottom:16}}>
+                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{set}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {types.map(t=>{ const key=`${set} - ${t}`; const cfg=PACK_PRODUCTS[key]; return (
+                    <button key={key} onClick={()=>{setProduct(key);setPack(null);}}
+                      style={{background:product===key?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===key?"#E8317A":"rgba(255,255,255,0.5)",border:`2px solid ${product===key?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"10px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                      {t}
+                      {cfg&&<div style={{fontSize:9,color:"rgba(255,255,255,0.25)",marginTop:2,fontWeight:400}}>{cfg.foilSlots} foil · {cfg.paperSlots} paper</div>}
+                    </button>
+                  );})}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
           <button onClick={startRip}
