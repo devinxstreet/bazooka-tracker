@@ -6436,16 +6436,30 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const projRev = projectedRevenue(mPlans);
     const actRev = actualRevenue(mActuals);
 
+    const BREAKER_GRADIENTS = {
+      Dev:     { from:"#4f46e5", to:"#7c3aed", dot:"#818cf8" },
+      Dre:     { from:"#7c3aed", to:"#a855f7", dot:"#c084fc" },
+      Krystal: { from:"#0d9488", to:"#0891b2", dot:"#2dd4bf" },
+    };
+
     return (
       <div style={{ ...S2.card, padding:compact?"12px":"16px 20px" }}>
+        <style>{`
+          @keyframes todayPulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,49,122,0.4)} 50%{box-shadow:0 0 0 4px rgba(232,49,122,0)} }
+          @keyframes chipSlide { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+          .cal-day:hover { transform: scale(1.04) !important; z-index:2; }
+          .cal-chip { animation: chipSlide 0.2s ease both; }
+          .cal-chip:hover { filter: brightness(1.2); transform: scale(1.02); }
+        `}</style>
+
         {/* Month header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
           <div>
-            <div style={{ fontSize:compact?14:18, fontWeight:900, color:"#F0F0F0" }}>{MONTH_NAMES[m]} {y}</div>
-            <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
-              {mPlans.length} planned · {mActuals.length} done
-              {canSeeFinancials && projRev>0 && <span style={{color:"#E8317A",marginLeft:8}}>{fmt2(projRev)} projected</span>}
-              {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80",marginLeft:8}}>{fmt2(actRev)} actual</span>}
+            <div style={{ fontSize:compact?14:20, fontWeight:900, color:"#F0F0F0", letterSpacing:-0.5 }}>{MONTH_NAMES[m]} {y}</div>
+            <div style={{ fontSize:11, color:"#555", marginTop:2, display:"flex", gap:10 }}>
+              <span>{mPlans.length} planned · {mActuals.length} done</span>
+              {canSeeFinancials && projRev>0 && <span style={{color:"#7B9CFF"}}>{fmt2(projRev)} projected</span>}
+              {canSeeFinancials && actRev>0 && <span style={{color:"#4ade80"}}>{fmt2(actRev)} actual</span>}
             </div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -6455,8 +6469,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <span style={{fontSize:11,color:"#555"}}>Target:</span>
                   <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
                 </div>}
-                <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>‹</button>
-                <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>›</button>
+                <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>‹</button>
+                <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>›</button>
               </>
             )}
           </div>
@@ -6464,27 +6478,27 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
         {/* Target progress bar */}
         {canSeeFinancials && target > 0 && !compact && (
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
               <span style={{fontSize:11,color:"#555"}}>Revenue progress</span>
               <span style={{fontSize:11,fontWeight:700,color:actRev>=target?"#4ade80":projRev>=target?"#FBBF24":"#E8317A"}}>
                 {fmt2(actRev)} actual · {fmt2(projRev)} projected · {fmt2(target)} target
               </span>
             </div>
-            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",position:"relative"}}>
-              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,projRev/target*100)}%`,background:"rgba(251,191,36,0.3)",borderRadius:3,transition:"width 0.3s"}}/>
-              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,actRev/target*100)}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:3,transition:"width 0.3s"}}/>
+            <div style={{height:7,background:"#1a1a1a",borderRadius:4,overflow:"hidden",position:"relative"}}>
+              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,projRev/target*100)}%`,background:"rgba(123,156,255,0.25)",borderRadius:4,transition:"width 0.6s ease"}}/>
+              <div style={{position:"absolute",height:"100%",width:`${Math.min(100,actRev/target*100)}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:4,transition:"width 0.6s ease",boxShadow:"0 0 8px rgba(74,222,128,0.4)"}}/>
             </div>
           </div>
         )}
 
         {/* DOW headers */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
-          {DOW.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#333",padding:"2px 0"}}>{d}</div>)}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
+          {DOW.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#333",padding:"3px 0",letterSpacing:1}}>{d}</div>)}
         </div>
 
         {/* Day grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
           {Array.from({length:startDow}).map((_,i)=><div key={`e${i}`}/>)}
           {Array.from({length:days}).map((_,i)=>{
             const day = i+1;
@@ -6493,7 +6507,6 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const dayActuals = actualForDate(ds);
             const isToday = ds===dateStr(today.getFullYear(),today.getMonth(),today.getDate());
             const isPast = new Date(ds) < new Date(dateStr(today.getFullYear(),today.getMonth(),today.getDate()));
-            // Heat map: estimate revenue for this day
             const dayProjRev = dayPlans.reduce((s,p)=>s+(liveRevenue(p)),0);
             const dayActRev  = dayActuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
             const heatRev    = dayActRev || dayProjRev;
@@ -6505,45 +6518,116 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             }), 1);
             const heatPct = maxRev > 0 ? heatRev/maxRev : 0;
             const isMissed = dayPlans.length > 0 && dayPlans.some(p => !streams.find(s=>s.date===ds&&s.breaker===p.breaker)) && isPast;
-            const heatBg = heatRev > 0
-              ? dayActRev > 0
-                ? `rgba(74,222,128,${0.05+heatPct*0.18})`
-                : isMissed
-                  ? `rgba(251,191,36,0.08)`
-                  : `rgba(123,156,255,${0.06+heatPct*0.16})`
-              : isPast ? "#0a0a0a" : "#111";
-            const heatBorder = isToday ? "#E8317A44"
-              : isMissed ? "rgba(251,191,36,0.25)"
-              : heatRev>0 ? (dayActRev>0 ? "rgba(74,222,128,0.15)" : "rgba(123,156,255,0.12)")
+            const hasActivity = dayActuals.length > 0 || dayPlans.length > 0;
+            const isWeekend = [0,6].includes(new Date(ds+"T12:00:00").getDay());
+
+            const heatBg = isToday
+              ? "radial-gradient(circle at 50% 0%, #2d0a1a, #1a0a14)"
+              : dayActRev > 0
+                ? `radial-gradient(circle at 50% 0%, rgba(74,222,128,${0.08+heatPct*0.18}), rgba(10,26,10,0.6))`
+                : dayProjRev > 0
+                  ? `radial-gradient(circle at 50% 0%, rgba(123,156,255,${0.07+heatPct*0.16}), rgba(10,10,26,0.6))`
+                  : isMissed
+                    ? "radial-gradient(circle at 50% 0%, rgba(251,191,36,0.1), rgba(26,20,0,0.6))"
+                    : isPast ? "#090909" : isWeekend ? "#0e0e0e" : "#111";
+
+            const borderCol = isToday ? "#E8317A66"
+              : dayActRev > 0 ? "rgba(74,222,128,0.2)"
+              : dayProjRev > 0 ? "rgba(123,156,255,0.15)"
+              : isMissed ? "rgba(251,191,36,0.2)"
               : "#1a1a1a";
+
             return (
-              <div key={day} onClick={()=>openModal(ds)}
-                style={{minHeight:compact?44:70,background:isToday?"#1a0a14":heatBg,border:`1px solid ${heatBorder}`,borderRadius:6,padding:"4px",cursor:"pointer",position:"relative",transition:"background 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="#1e1e2a"}
-                onMouseLeave={e=>e.currentTarget.style.background=isToday?"#1a0a14":heatBg}>
-                <div style={{fontSize:11,fontWeight:isToday?900:400,color:isToday?"#E8317A":"#444",marginBottom:2}}>{day}</div>
+              <div key={day} className="cal-day" onClick={()=>openModal(ds)}
+                style={{
+                  minHeight:compact?44:74,
+                  background:heatBg,
+                  border:`1px solid ${borderCol}`,
+                  borderRadius:8,
+                  padding:"5px 4px 4px",
+                  cursor:"pointer",
+                  position:"relative",
+                  transition:"transform 0.15s ease, box-shadow 0.15s ease",
+                  animation: isToday ? "todayPulse 2s ease-in-out infinite" : "none",
+                  boxShadow: isToday ? "0 0 12px rgba(232,49,122,0.25)" : dayActRev>0 ? "0 0 8px rgba(74,222,128,0.1)" : "none",
+                }}>
+                {/* Day number */}
+                <div style={{
+                  fontSize:11, fontWeight:isToday?900:500,
+                  color:isToday?"#E8317A":isPast?"#333":"#666",
+                  marginBottom:3, lineHeight:1,
+                  display:"flex", alignItems:"center", gap:3
+                }}>
+                  {day}
+                  {isToday && <div style={{width:4,height:4,borderRadius:"50%",background:"#E8317A",boxShadow:"0 0 4px #E8317A"}}/>}
+                </div>
+
                 {/* Vacation bands */}
                 {vacationsForDate(ds).map(v=>{
-                  const bc = BC_COLORS[v.breaker]||"#888";
                   const isStart = v.startDate===ds;
                   const isEnd   = v.endDate===ds;
                   return (
-                    <div key={v.id} style={{fontSize:8,fontWeight:700,color:"#fff",background:"rgba(220,38,38,0.75)",borderRadius:isStart&&isEnd?3:isStart?"3px 0 0 3px":isEnd?"0 3px 3px 0":0,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"line-through",textDecorationColor:"rgba(255,255,255,0.6)"}}>
+                    <div key={v.id} className="cal-chip" style={{
+                      fontSize:8,fontWeight:700,color:"#fff",
+                      background:"linear-gradient(90deg,rgba(220,38,38,0.85),rgba(185,28,28,0.85))",
+                      borderRadius:isStart&&isEnd?4:isStart?"4px 0 0 4px":isEnd?"0 4px 4px 0":0,
+                      padding:"2px 5px",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                      textDecoration:"line-through",textDecorationColor:"rgba(255,255,255,0.5)",
+                      borderLeft: isStart ? "2px solid rgba(255,255,255,0.3)" : "none",
+                    }}>
                       {isStart?`🏖 ${v.breaker}`:isEnd?"← back":"·· "+v.breaker}
                     </div>
                   );
                 })}
-                {dayActuals.slice(0,1).map(a=>(
-                  <div key={a.id} style={{fontSize:8,fontWeight:700,color:"#4ade80",background:"#0a1a0a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    ✅ {a.breaker||a.streamName||"Stream"}{a.streamName&&a.breaker?" · "+a.streamName:""}
-                  </div>
-                ))}
-                {dayPlans.slice(0,compact?1:2).map(p=>(
-                  <div key={p.id} style={{fontSize:8,fontWeight:700,color:isMissed?"#FBBF24":BC_COLORS[p.breaker]||"#E8317A",background:isMissed?"rgba(251,191,36,0.12)":"#1a1a1a",borderRadius:3,padding:"1px 4px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {isMissed?"⚠️":p.isRecurring?"🔁":"📋"} {p.streamName||p.breaker||"Plan"}
-                  </div>
-                ))}
-                {dayPlans.length>2&&!compact&&<div style={{fontSize:7,color:"#555"}}>+{dayPlans.length-2} more</div>}
+
+                {/* Actuals */}
+                {dayActuals.slice(0,1).map((a,ai)=>{
+                  const bg = BREAKER_GRADIENTS[a.breaker];
+                  return (
+                    <div key={a.id} className="cal-chip" style={{
+                      fontSize:8,fontWeight:700,color:"#fff",
+                      background: bg ? `linear-gradient(90deg,${bg.from},${bg.to})` : "linear-gradient(90deg,#166534,#15803d)",
+                      borderRadius:4,padding:"2px 5px",marginBottom:2,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                      boxShadow:"0 1px 4px rgba(0,0,0,0.4)",
+                      animationDelay:`${ai*0.05}s`,
+                      display:"flex",alignItems:"center",gap:3,
+                    }}>
+                      <span style={{opacity:0.8}}>✅</span>
+                      {a.breaker&&<span style={{opacity:0.7}}>{a.breaker}</span>}
+                      {a.streamName&&<span style={{opacity:0.9}}>{a.streamName}</span>}
+                    </div>
+                  );
+                })}
+
+                {/* Plans */}
+                {dayPlans.slice(0,compact?1:3).map((p,pi)=>{
+                  const bg = BREAKER_GRADIENTS[p.breaker];
+                  const missed = isMissed && !streams.find(s=>s.date===ds&&s.breaker===p.breaker);
+                  return (
+                    <div key={p.id} className="cal-chip" style={{
+                      fontSize:8,fontWeight:700,
+                      color: missed ? "#FBBF24" : "#fff",
+                      background: missed
+                        ? "linear-gradient(90deg,rgba(120,80,0,0.6),rgba(80,50,0,0.6))"
+                        : bg ? `linear-gradient(90deg,${bg.from}88,${bg.to}88)` : "rgba(255,255,255,0.07)",
+                      border: missed ? "1px solid rgba(251,191,36,0.3)" : `1px solid ${bg?bg.dot+"33":"rgba(255,255,255,0.1)"}`,
+                      borderRadius:4,padding:"2px 5px",marginBottom:2,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                      animationDelay:`${(pi+1)*0.05}s`,
+                      display:"flex",alignItems:"center",gap:3,
+                    }}>
+                      {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}</span>
+                    </div>
+                  );
+                })}
+                {dayPlans.length>3&&!compact&&<div style={{fontSize:7,color:"#444",marginTop:1}}>+{dayPlans.length-3} more</div>}
+
+                {/* Revenue micro-label */}
+                {!compact && dayActRev>0 && canSeeFinancials && (
+                  <div style={{fontSize:7,fontWeight:700,color:"#4ade80",marginTop:2,opacity:0.8}}>{fmt2(dayActRev)}</div>
+                )}
               </div>
             );
           })}
