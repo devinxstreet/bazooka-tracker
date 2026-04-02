@@ -396,21 +396,26 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const ct = p.cardType;
     if (ct && usedByType[ct] !== undefined) usedByType[ct] += (parseInt(p.usedQty)||0);
   });
-  const stats = {};
-  CARD_TYPES.forEach(ct => { stats[ct] = { total:0, used:0, inTransit:0, invested:0, market:0 }; });
+  CARD_TYPES.forEach(ct => { stats[ct] = { total:0, avail:0, used:0, inTransit:0, invested:0, investedAll:0, market:0 }; });
   inventory.forEach(c => {
     const s = stats[c.cardType]; if (!s) return;
-    s.total++; s.invested += (c.costPerCard||0); s.market += (c.marketValue||0);
-    if (c.cardStatus === "in_transit" && !usedIds.has(c.id)) s.inTransit++;
+    s.total++;
+    s.investedAll += (c.costPerCard||0);
+    if (usedIds.has(c.id)) return; // skip used cards for avail/cost/market
+    s.invested += (c.costPerCard||0);
+    s.market   += (c.marketValue||0);
+    if (c.cardStatus === "in_transit") { s.inTransit++; } else { s.avail++; }
   });
-  // Add pool totals (available pool cards) to the relevant card type
+  // Add pool available cards to the relevant card type
   cardPools.forEach(p => {
     const s = stats[p.cardType]; if (!s) return;
-    const poolTotal = parseInt(p.totalQty)||0;
-    s.total += poolTotal;
+    const poolAvail = Math.max(0, (parseInt(p.totalQty)||0) - (parseInt(p.usedQty)||0));
+    s.total += parseInt(p.totalQty)||0;
+    s.avail += poolAvail;
   });
   CARD_TYPES.forEach(ct => { stats[ct].used = usedByType[ct]; });
   const totInv      = Object.values(stats).reduce((a,b) => a+b.invested, 0);
+  const totInvAll   = Object.values(stats).reduce((a,b) => a+b.investedAll, 0);
   const totMkt      = Object.values(stats).reduce((a,b) => a+b.market, 0);
   const oPct        = totMkt > 0 ? totInv/totMkt : null;
   const oz          = getZone(oPct);
@@ -421,7 +426,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   const runway = {};
   CARD_TYPES.forEach(ct => {
-    const avail = stats[ct].total - stats[ct].used - stats[ct].inTransit;
+    const avail = stats[ct].avail;
     const ctBreaks = breaks.filter(b => !b.isPoolLog && (USAGE_TO_CT[b.usage] || b.cardType) === ct);
     // For pools, estimate daily usage from usedQty and pool creation date
     const poolUsed = cardPools.filter(p=>p.cardType===ct).reduce((s,p)=>s+(parseInt(p.usedQty)||0),0);
@@ -436,7 +441,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     runway[ct] = Math.floor(avail / (totalUsedForRate / days));
   });
 
-  const alerts = CARD_TYPES.filter(ct => (stats[ct].total - stats[ct].used - stats[ct].inTransit) < TARGETS[ct].buffer);
+  const alerts = CARD_TYPES.filter(ct => (stats[ct].avail) < TARGETS[ct].buffer);
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -1009,7 +1014,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{"\uD83D\uDEA8 Restock Needed"}</div>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {alerts.map(ct => {
-                const avail = stats[ct].total - stats[ct].used;
+                const avail = stats[ct].avail;
                 const cc = CC[ct];
                 return <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}`, borderRadius:8, padding:"8px 14px" }}>
                   <span style={{ fontWeight:700, color:cc.text, fontSize:12 }}>{ct}</span>
@@ -1022,7 +1027,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {CARD_TYPES.map(ct => {
             const cc = CC[ct];
-            const avail   = stats[ct].total - stats[ct].used - stats[ct].inTransit;
+            const avail   = stats[ct].avail;
             const transit = stats[ct].inTransit;
             const days = runway[ct];
             const pace = TARGETS[ct].monthly > 0 ? stats[ct].used / TARGETS[ct].monthly : 0;
@@ -1049,11 +1054,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           })}
         </div>
         {canSeeFinancials && (
-        <div className="dash-grid-3" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
+        <div className="dash-grid-3" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:14 }}>
           {[
-            { l:"Total Market Value", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
-            { l:"Total Invested",     v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
-            { l:"Cards Used (Total)", v:usedCount,               c:"#991b1b" },
+            { l:"Market Value (in stock)", v:`$${totMkt.toFixed(2)}`,    c:"#92400e" },
+            { l:"Cost of Current Stock",  v:`$${totInv.toFixed(2)}`,    c:"#6B2D8B" },
+            { l:"Total Spent (all time)", v:`$${totInvAll.toFixed(2)}`,  c:"#444" },
+            { l:"Cards Used (Total)",     v:usedCount,                   c:"#991b1b" },
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
               <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
@@ -1083,7 +1089,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <tbody>
             {CARD_TYPES.map((ct,i) => {
               const d = stats[ct]; const { buffer } = TARGETS[ct]; const cc = CC[ct];
-              const avail   = d.total - d.used - d.inTransit;
+              const avail   = d.avail;
               const transit = d.inTransit;
               const pct     = d.market > 0 ? d.invested/d.market : null;
               const ok = avail >= buffer; const warn = avail >= buffer*0.5;
