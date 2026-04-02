@@ -5401,28 +5401,57 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         </div>
       )}
 
-      {/* Stock summary */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-        {PRODUCT_TYPES.map(pt => {
-          const s  = stock[pt];
-          const pc = PT_COLORS[pt] || { bg:"#F3F4F6", text:"#6B7280", border:"#6B7280" };
-          const low = s.current <= 2;
-          const out = s.current <= 0;
+      {/* Stock summary — compact grouped by set */}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {Object.entries(PRODUCT_SETS).map(([set,types])=>{
+          const setTypes = types.map(t=>`${set} - ${t}`);
+          const hasAny = setTypes.some(pt => stock[pt]?.received > 0 || skuPrices[pt]);
+          if (!hasAny) return null;
           return (
-            <div key={pt} style={{ background:pc.bg, border:`2px solid ${out?"#991b1b":low?"#92400e":pc.border}33`, borderRadius:12, padding:"16px", textAlign:"center" }}>
-              <div style={{ fontSize:11, fontWeight:700, color:pc.text, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{pt}</div>
-              <div style={{ fontSize:36, fontWeight:900, color: out?"#991b1b":low?"#92400e":pc.text, marginBottom:4 }}>{s.current}</div>
-              <div style={{ fontSize:10, color:"#AAAAAA" }}>in stock</div>
-              <div style={{ display:"flex", justifyContent:"center", gap:12, marginTop:8 }}>
-                <span style={{ fontSize:10, color:"#AAAAAA" }}>{"\u2191"}{s.received} rcvd</span>
-                <span style={{ fontSize:10, color:"#AAAAAA" }}>{"\u2193"}{s.used} used</span>
+            <div key={set} style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, overflow:"hidden" }}>
+              <div style={{ padding:"8px 16px", background:"rgba(232,49,122,0.06)", borderBottom:"1px solid #1a1a1a" }}>
+                <span style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{set}</span>
               </div>
-              {skuPrices[pt] && <div style={{ marginTop:6, fontSize:10, color:pc.text, fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}/unit</div>}
-              {out  && <div style={{ marginTop:8, background:"#111111", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{"\uD83D\uDEA8 Out of Stock"}</div>}
-              {!out && low && <div style={{ marginTop:8, background:"#111111", color:"#AAAAAA", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700 }}>{"\u26A0 Low Stock"}</div>}
+              <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(types.length,4)},1fr)` }}>
+                {setTypes.map((pt,i) => {
+                  const s   = stock[pt];
+                  const out = s.current <= 0;
+                  const low = s.current <= 2 && !out;
+                  const shortName = pt.replace(`${set} - `,"");
+                  return (
+                    <div key={pt} style={{ padding:"12px 16px", borderRight: i < setTypes.length-1 ? "1px solid #1a1a1a" : "none", textAlign:"center" }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{shortName}</div>
+                      <div style={{ fontSize:28, fontWeight:900, color: out?"#991b1b":low?"#92400e":"#F0F0F0", marginBottom:2 }}>{s.current}</div>
+                      <div style={{ fontSize:10, color:"#444" }}>in stock</div>
+                      <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:6 }}>
+                        <span style={{ fontSize:10, color:"#555" }}>↑{s.received}</span>
+                        <span style={{ fontSize:10, color:"#555" }}>↓{s.used}</span>
+                      </div>
+                      {skuPrices[pt] && <div style={{ marginTop:4, fontSize:10, color:"#E8317A", fontWeight:700 }}>${parseFloat(skuPrices[pt]).toFixed(2)}</div>}
+                      {out  && <div style={{ marginTop:6, fontSize:9, fontWeight:700, color:"#991b1b", textTransform:"uppercase", letterSpacing:1 }}>🚨 Out</div>}
+                      {low  && <div style={{ marginTop:6, fontSize:9, fontWeight:700, color:"#92400e", textTransform:"uppercase", letterSpacing:1 }}>⚠ Low</div>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
+        {/* Miscellaneous */}
+        {(() => { const s = stock["Miscellaneous"]; if (!s?.received && !skuPrices["Miscellaneous"]) return null;
+          const out = s.current<=0, low = s.current<=2&&!out;
+          return (
+            <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontSize:12, fontWeight:700, color:"#555" }}>Miscellaneous</span>
+              <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                <span style={{ fontSize:10, color:"#555" }}>↑{s.received} rcvd · ↓{s.used} used</span>
+                <span style={{ fontSize:22, fontWeight:900, color:out?"#991b1b":low?"#92400e":"#F0F0F0" }}>{s.current}</span>
+                {skuPrices["Miscellaneous"]&&<span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>${parseFloat(skuPrices["Miscellaneous"]).toFixed(2)}</span>}
+                {out&&<span style={{ fontSize:10, color:"#991b1b", fontWeight:700 }}>🚨 Out</span>}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Add shipment */}
@@ -5496,30 +5525,35 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         <SectionLabel t="Usage Log (from Streams)" />
         {productUsage.length === 0
           ? <div style={{ textAlign:"center", color:"#D1D5DB", padding:"20px 0" }}>No product usage logged yet</div>
-          : <table style={{ width:"100%", borderCollapse:"collapse" }}>
-              <thead><tr>{["Date","Breaker",...PRODUCT_TYPES,""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-              <tbody>
-                {productUsage.map((u,i) => (
-                  <tr key={u.id} style={{ background:"#111111" }}>
-                    <td style={S.td}>{u.date}</td>
-                    <td style={S.td}><Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge></td>
-                    {PRODUCT_TYPES.map(pt => (
-                      <td key={pt} style={{ ...S.td, color:(parseInt(u[pt])||0)>0?"#991b1b":"#D1D5DB", fontWeight:(parseInt(u[pt])||0)>0?700:400 }}>
-                        {(parseInt(u[pt])||0)>0 ? `-${u[pt]}` : "--"}
-                      </td>
-                    ))}
-                    <td style={S.td}>
-                      {canEdit && onDeleteProductUsage && (
-                        <button
-                          onClick={()=>{ if(window.confirm("Delete this usage entry? Stock will be restored.")) onDeleteProductUsage(u.id); }}
-                          style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}
-                        >{"\uD83D\uDDD1"}</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          : <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {productUsage.map((u,i) => {
+                const usedProducts = PRODUCT_TYPES.filter(pt => (parseInt(u[pt])||0) > 0);
+                return (
+                  <div key={u.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:"#111", border:"1px solid #1a1a1a", borderRadius:8, gap:12, flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+                      <span style={{ fontSize:12, color:"#555" }}>{u.date}</span>
+                      <Badge bg={BC[u.breaker]?.bg||"#F3F4F6"} color={BC[u.breaker]?.text||"#6B7280"}>{u.breaker}</Badge>
+                    </div>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", flex:1 }}>
+                      {usedProducts.length === 0
+                        ? <span style={{ fontSize:12, color:"#444" }}>No products logged</span>
+                        : usedProducts.map(pt => (
+                            <span key={pt} style={{ fontSize:12, color:"#F0F0F0", background:"rgba(153,27,27,0.15)", border:"1px solid rgba(153,27,27,0.3)", borderRadius:6, padding:"2px 10px", fontWeight:700 }}>
+                              {pt.includes(" - ") ? pt.split(" - ").pop() : pt}: <span style={{color:"#E8317A"}}>−{u[pt]}</span>
+                            </span>
+                          ))
+                      }
+                    </div>
+                    {canEdit && onDeleteProductUsage && (
+                      <button onClick={()=>{ if(window.confirm("Delete this usage entry? Stock will be restored.")) onDeleteProductUsage(u.id); }}
+                        style={{ background:"none", border:"1px solid #FCA5A5", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>
+                        {"\uD83D\uDDD1"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
         }
       </div>
     </div>
