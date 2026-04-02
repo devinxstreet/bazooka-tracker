@@ -72,9 +72,11 @@ function AnimatedNumber({ value, format="dollar", duration=700 }) {
 }
 
 function getUserRole(user) {
-  if (!user) return { role:"Viewer", label:"Viewer", color:"#AAAAAA", bg:"#F3F4F6" };
-  const name = (user.displayName||"").toLowerCase();
+  if (!user) return null;
   const email = (user.email||"").toLowerCase();
+  // Only allow @bazookabreaks.com emails
+  if (!email.endsWith("@bazookabreaks.com")) return null;
+  const name = (user.displayName||"").toLowerCase();
   for (const [key, val] of Object.entries(ROLES)) {
     if (name.includes(key) || email.includes(key)) return val;
   }
@@ -16794,6 +16796,16 @@ export default function App() {
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
   if (!user) return <LoginScreen />;
+
+  // Block anyone not on the team
+  if (!userRole) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#000", fontFamily:"'Trebuchet MS',sans-serif", flexDirection:"column", gap:16, padding:24, textAlign:"center" }}>
+      <div style={{ fontSize:32 }}>🚫</div>
+      <div style={{ fontSize:18, fontWeight:800, color:"#E8317A" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#555", maxWidth:340 }}>This dashboard is for Bazooka Breaks team members only. If you think this is a mistake, contact Devin.</div>
+      <button onClick={()=>signOut(auth)} style={{ marginTop:8, background:"transparent", border:"1px solid #333", color:"#888", borderRadius:8, padding:"8px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button>
+    </div>
+  );
 
   return (
     <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
