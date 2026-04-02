@@ -14364,7 +14364,7 @@ function PackRipSimulator({ cards, user }) {
   const [history,    setHistory]    = useState([]);
   const [community,  setCommunity]  = useState([]);
   const [activeView, setActiveView] = useState("rip");
-  const touchStart = React.useRef(null);
+  const touchStart = useRef(null);
 
   useEffect(() => {
     getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
