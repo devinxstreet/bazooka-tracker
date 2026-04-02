@@ -14280,301 +14280,327 @@ const PACK_PRODUCTS = {
   "Alpha Jumbo":     { set:"Alpha", foilSlots:3, paperSlots:3, foilIsHit:true  },
 };
 
-const BIG_PLAYS = Array.from({length:32},(_,i)=>i+1);
-
-// Odds per foil slot — last foil in Hobby/Jumbo is "the hit"
-function rollTreatment(product, isHitSlot) {
+function rollTreatment(product) {
   const r = Math.random();
   const isBooster = product.includes("Booster") || product.includes("Blaster");
   const isHobby   = product.includes("Hobby");
   const isJumbo   = product.includes("Jumbo");
-
-  // Ultra-rares first (check from rarest to most common)
   if (r < 1/600)  return "Superfoil";
   if (r < 2/600)  return "Pink Battlefoil";
-  if (isBooster && r < (2/600 + 1/120)) return "Hex";
-  if (isBooster && r < (2/600 + 2/120)) return "Gum";
-  if (isBooster && r < (2/600 + 3/120)) return "Green Battlefoil";
-  if (isHobby   && r < (2/600 + 1/20))  return "Auto";
-  if (isJumbo   && r < (2/600 + 3/50))  return "Auto";
-  if (isBooster && r < (2/600 + 2/120 + 2/120)) return "Auto";
-  // Standard treatments
+  if (isBooster && r < 2/600 + 1/120) return "Hex";
+  if (isBooster && r < 2/600 + 2/120) return "Gum";
+  if (isBooster && r < 2/600 + 3/120) return "Green Battlefoil";
+  if (isHobby   && r < 2/600 + 1/20)  return "Auto";
+  if (isJumbo   && r < 2/600 + 3/50)  return "Auto";
+  if (isBooster && r < 2/600 + 2/120 + 2/120) return "Auto";
   if (r < 0.50) return "Silver";
-  // Remaining ~10% spread across nice treatments
   const nice = ["Rainbow","Holo","Gold","Prizm","Refractor","Color Match","Optic"];
   return nice[Math.floor(Math.random() * nice.length)];
 }
 
-function pickCard(cards, treatment, setName, exclude=new Set()) {
-  const pool = cards.filter(c =>
-    c.setName === setName &&
-    (c.treatment||"").toLowerCase() === treatment.toLowerCase() &&
-    c.weapon !== "Super" &&
-    !exclude.has(c.id)
-  );
-  if (pool.length === 0) {
-    // fallback — same set any treatment
-    const fallback = cards.filter(c => c.setName === setName && c.weapon !== "Super" && !exclude.has(c.id));
-    if (fallback.length === 0) return null;
-    return fallback[Math.floor(Math.random() * fallback.length)];
-  }
-  return pool[Math.floor(Math.random() * pool.length)];
+function pickCard(pool, usedIds) {
+  const avail = pool.filter(c => !usedIds.has(c.id));
+  if (!avail.length) return null;
+  return avail[Math.floor(Math.random() * avail.length)];
 }
 
 function ripPack(product, cards) {
   const cfg = PACK_PRODUCTS[product];
-  const setCards = cards.filter(c => c.setName && c.setName.toLowerCase().includes(cfg.set.toLowerCase()));
-  const hotdogs  = cards.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") || (c.hero||"").toLowerCase().includes("hot dog"));
-  const plays    = cards.filter(c => (c.treatment||"").toLowerCase().includes("play") || (c.cardType||"").toLowerCase().includes("play"));
+  const setCards  = cards.filter(c => c.setName && c.setName.toLowerCase().includes(cfg.set.toLowerCase()) && c.weapon !== "Super");
+  const hotdogs   = cards.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") || (c.hero||"").toLowerCase().includes("hot dog"));
+  const plays     = cards.filter(c => (c.treatment||"").toLowerCase().includes("play") || (c.cardType||"").toLowerCase().includes("play"));
+  const baseCards = setCards.filter(c => !c.treatment || c.treatment.toLowerCase() === "base" || c.treatment.toLowerCase() === "silver");
+  const usedIds   = new Set();
+  const pulled    = [];
 
-  const pulled = [];
-  const usedIds = new Set();
-
-  // Paper hero cards
-  const baseHeroes = setCards.filter(c => !c.treatment || c.treatment.toLowerCase() === "base");
   for (let i = 0; i < cfg.paperSlots; i++) {
-    const available = baseHeroes.filter(c => !usedIds.has(c.id));
-    if (available.length === 0) break;
-    const card = available[Math.floor(Math.random() * available.length)];
-    pulled.push({ ...card, slotType:"paper" });
-    usedIds.add(card.id);
+    const c = pickCard(baseCards, usedIds);
+    if (c) { pulled.push({...c, slotType:"paper"}); usedIds.add(c.id); }
   }
-
-  // Foil hero cards
   for (let i = 0; i < cfg.foilSlots; i++) {
     const isHit = cfg.foilIsHit && i === cfg.foilSlots - 1;
-    const treatment = rollTreatment(product, isHit);
-    const card = pickCard(setCards, treatment, setCards[0]?.setName, usedIds);
-    if (card) {
-      pulled.push({ ...card, treatment, slotType: isHit ? "hit" : "foil", isHit });
-      usedIds.add(card.id);
-    }
+    const treatment = rollTreatment(product);
+    const pool = setCards.filter(c => (c.treatment||"").toLowerCase() === treatment.toLowerCase());
+    const c = pickCard(pool.length ? pool : setCards, usedIds);
+    if (c) { pulled.push({...c, treatment, slotType: isHit ? "hit" : "foil", isHit}); usedIds.add(c.id); }
   }
-
-  // Play cards (3 per pack — mix of big plays and bonus plays)
-  const bigPlays  = plays.filter(c => BIG_PLAYS.some(n => String(c.cardNum) === String(n)));
-  const bonusPlays = plays.filter(c => (c.treatment||"").toLowerCase().includes("bonus"));
-  const allPlays  = [...bigPlays, ...bonusPlays];
   for (let i = 0; i < 3; i++) {
-    const available = allPlays.filter(c => !usedIds.has(c.id));
-    if (available.length === 0) break;
-    const card = available[Math.floor(Math.random() * available.length)];
-    pulled.push({ ...card, slotType:"play" });
-    usedIds.add(card.id);
+    const c = pickCard(plays, usedIds);
+    if (c) { pulled.push({...c, slotType:"play"}); usedIds.add(c.id); }
   }
-
-  // Hot dog — always last
-  if (hotdogs.length > 0) {
+  if (hotdogs.length) {
     const hd = hotdogs[Math.floor(Math.random() * hotdogs.length)];
-    pulled.push({ ...hd, slotType:"hotdog" });
+    pulled.push({...hd, slotType:"hotdog"});
   }
-
   return pulled;
 }
 
+function rarityScore(card) {
+  const t = (card.treatment||"").toLowerCase();
+  const w = (card.weapon||"").toLowerCase();
+  if (t.includes("superfoil"))       return 100;
+  if (t.includes("pink battlefoil")) return 90;
+  if (t.includes("auto"))            return 85;
+  if (t.includes("green battlefoil"))return 80;
+  if (w === "hex" || w === "gum")    return 75;
+  if (t.includes("rainbow"))         return 60;
+  if (t.includes("holo"))            return 55;
+  if (t.includes("gold"))            return 50;
+  if (t.includes("prizm"))           return 45;
+  if (t.includes("silver"))          return 20;
+  return 10;
+}
+
+const WEAPON_GLOW = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
+  Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
+
 function PackRipSimulator({ cards, user }) {
   const [product,    setProduct]    = useState("Alpha Hobby");
+  const [phase,      setPhase]      = useState("select"); // select | ripping | cards | done
   const [pack,       setPack]       = useState(null);
-  const [revealed,   setRevealed]   = useState([]);
-  const [revealing,  setRevealing]  = useState(false);
-  const [history,    setHistory]    = useState([]);   // personal pull history
-  const [community,  setCommunity]  = useState([]);   // Firestore best pulls
-  const [savingPull, setSavingPull] = useState(false);
-  const [activeView, setActiveView] = useState("rip"); // rip | history | community
+  const [cardIndex,  setCardIndex]  = useState(0);
+  const [flipped,    setFlipped]    = useState(false);
+  const [swipeDir,   setSwipeDir]   = useState(null); // null | left | right
+  const [history,    setHistory]    = useState([]);
+  const [community,  setCommunity]  = useState([]);
+  const [activeView, setActiveView] = useState("rip");
+  const touchStart = React.useRef(null);
 
-  // Load community best pulls
   useEffect(() => {
     getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
       .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
       .catch(()=>{});
   }, []);
 
-  const WEAPON_GLOW = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
-    Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
-
-  function rarityScore(card) {
-    const t = (card.treatment||"").toLowerCase();
-    const w = (card.weapon||"").toLowerCase();
-    if (t.includes("superfoil"))      return 100;
-    if (t.includes("pink battlefoil"))return 90;
-    if (t.includes("auto"))           return 85;
-    if (t.includes("green battlefoil"))return 80;
-    if (w === "hex" || w === "gum")   return 75;
-    if (t.includes("rainbow"))        return 60;
-    if (t.includes("holo"))           return 55;
-    if (t.includes("gold"))           return 50;
-    if (t.includes("prizm"))          return 45;
-    if (t.includes("silver"))         return 20;
-    return 10;
-  }
-
-  async function doRip() {
-    if (revealing) return;
+  async function startRip() {
+    setPhase("ripping");
+    await new Promise(r => setTimeout(r, 1800));
     const pulled = ripPack(product, cards);
-    if (!pulled.length) return;
     setPack(pulled);
-    setRevealed([]);
-    setRevealing(true);
+    setCardIndex(0);
+    setFlipped(false);
+    setPhase("cards");
+  }
 
-    // Reveal one by one
-    for (let i = 0; i < pulled.length; i++) {
-      await new Promise(r => setTimeout(r, i === 0 ? 300 : 500));
-      setRevealed(prev => [...prev, i]);
-    }
-    setRevealing(false);
-
-    // Save to history
-    const entry = { product, cards: pulled, pulledAt: new Date().toISOString() };
-    setHistory(prev => [entry, ...prev].slice(0, 50));
-
-    // Auto-save best hit to community
-    const hit = pulled.find(c => c.isHit) || pulled.reduce((best, c) => rarityScore(c) > rarityScore(best) ? c : best, pulled[0]);
-    if (hit && rarityScore(hit) >= 45) {
-      setSavingPull(true);
-      try {
-        await setDoc(doc(db,"sim_pulls",uid()), {
-          userName: user?.displayName || "Anonymous",
-          product,
-          cardName: hit.hero || hit.cardName || "Unknown",
-          treatment: hit.treatment || "",
-          weapon: hit.weapon || "",
-          imageUrl: hit.imageUrl || "",
-          rarity: rarityScore(hit),
-          pulledAt: new Date().toISOString(),
-        });
-        // Refresh community
-        getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
-          .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
-          .catch(()=>{});
-      } catch(e) {}
-      setSavingPull(false);
+  async function nextCard() {
+    if (!pack) return;
+    setSwipeDir("left");
+    await new Promise(r => setTimeout(r, 300));
+    if (cardIndex < pack.length - 1) {
+      setCardIndex(i => i + 1);
+      setFlipped(false);
+      setSwipeDir(null);
+    } else {
+      // Save best hit to community
+      const hit = pack.find(c=>c.isHit) || pack.reduce((b,c)=>rarityScore(c)>rarityScore(b)?c:b, pack[0]);
+      if (hit && rarityScore(hit) >= 45) {
+        try {
+          await setDoc(doc(db,"sim_pulls",uid()), {
+            userName: user?.displayName || "Anonymous",
+            product, cardName: hit.hero||hit.cardName||"Unknown",
+            treatment: hit.treatment||"", weapon: hit.weapon||"",
+            imageUrl: hit.imageUrl||"", rarity: rarityScore(hit),
+            pulledAt: new Date().toISOString(),
+          });
+          getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
+            .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
+            .catch(()=>{});
+        } catch(e) {}
+      }
+      setHistory(prev => [{product, cards:pack, pulledAt:new Date().toISOString()}, ...prev].slice(0,50));
+      setPhase("done");
     }
   }
 
-  const wc = card => WEAPON_GLOW[card.weapon] || "#888";
-  const isRare = card => rarityScore(card) >= 45;
+  function prevCard() {
+    if (cardIndex > 0) { setCardIndex(i=>i-1); setFlipped(false); setSwipeDir(null); }
+  }
+
+  function onTouchStart(e) { touchStart.current = e.touches[0].clientX; }
+  function onTouchEnd(e) {
+    if (!touchStart.current) return;
+    const dx = touchStart.current - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 50) { dx > 0 ? nextCard() : prevCard(); }
+    touchStart.current = null;
+  }
+
+  const card = pack?.[cardIndex];
+  const glow = card ? (WEAPON_GLOW[card.weapon] || "#888") : "#888";
+  const isHit = card?.isHit;
+  const isHotdog = card?.slotType === "hotdog";
 
   return (
-    <div style={{maxWidth:900,margin:"0 auto",padding:"20px 0"}}>
-      {/* Header */}
-      <div style={{textAlign:"center",marginBottom:32}}>
-        <div style={{fontSize:28,fontWeight:900,color:"#F0F0F0",marginBottom:6}}>🎯 Pack Rip Simulator</div>
-        <div style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>Rip virtual packs · No cards will be harmed</div>
-      </div>
+    <div style={{maxWidth:500,margin:"0 auto",padding:"20px 0"}}>
+      <style>{`
+        @keyframes packShake { 0%{transform:rotate(0deg)} 20%{transform:rotate(-3deg)} 40%{transform:rotate(3deg)} 60%{transform:rotate(-2deg)} 80%{transform:rotate(2deg)} 100%{transform:rotate(0deg)} }
+        @keyframes packRip { 0%{transform:scale(1) rotate(0deg);opacity:1} 30%{transform:scale(1.1) rotate(-5deg);opacity:1} 60%{transform:scale(0.8) rotate(15deg) translateY(-20px);opacity:0.5} 100%{transform:scale(0) rotate(30deg) translateY(-60px);opacity:0} }
+        @keyframes cardEntrance { from{transform:translateY(40px) scale(0.9);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
+        @keyframes swipeLeft { from{transform:translateX(0) rotate(0deg);opacity:1} to{transform:translateX(-120%) rotate(-15deg);opacity:0} }
+        @keyframes hitGlow { 0%,100%{box-shadow:0 0 30px ${glow}44} 50%{box-shadow:0 0 80px ${glow}99,0 0 120px ${glow}44} }
+        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+      `}</style>
 
       {/* View toggle */}
       <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
-        {[["rip","🎯 Rip Packs"],["history","📋 My Pulls"],["community","🏆 Best Pulls"]].map(([v,l])=>(
-          <button key={v} onClick={()=>setActiveView(v)}
+        {[["rip","🎯 Rip"],["history","📋 My Pulls"],["community","🏆 Best Pulls"]].map(([v,l])=>(
+          <button key={v} onClick={()=>{setActiveView(v);if(v==="rip"&&phase!=="cards")setPhase("select");}}
             style={{background:activeView===v?"rgba(232,49,122,0.15)":"transparent",color:activeView===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${activeView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {l}
           </button>
         ))}
       </div>
 
-      {/* RIP VIEW */}
       {activeView==="rip" && <>
-        {/* Product selector */}
-        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:28}}>
-          {Object.keys(PACK_PRODUCTS).map(p=>(
-            <button key={p} onClick={()=>{setProduct(p);setPack(null);setRevealed([]);}}
-              style={{background:product===p?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===p?"#E8317A":"rgba(255,255,255,0.5)",border:`1.5px solid ${product===p?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-              {p}
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2,fontWeight:400}}>
-                {PACK_PRODUCTS[p].foilSlots} foil · {PACK_PRODUCTS[p].paperSlots} paper
-              </div>
-            </button>
-          ))}
-        </div>
 
-        {/* Rip button */}
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <button onClick={doRip} disabled={revealing}
-            style={{background:revealing?"rgba(255,255,255,0.05)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"16px 48px",fontSize:18,fontWeight:900,cursor:revealing?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:1,transition:"all 0.3s",boxShadow:revealing?"none":"0 0 40px rgba(232,49,122,0.4)"}}>
-            {revealing ? "Revealing..." : pack ? "🎯 Rip Another" : "🎯 Rip Pack"}
+        {/* SELECT PHASE */}
+        {(phase==="select"||phase==="done") && <>
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>🎯 Pick Your Pack</div>
+            {phase==="done" && <div style={{fontSize:12,color:"#4ade80",marginBottom:8}}>✅ Pack complete! Rip another?</div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:28}}>
+            {Object.keys(PACK_PRODUCTS).map(p=>(
+              <button key={p} onClick={()=>setProduct(p)}
+                style={{background:product===p?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===p?"#E8317A":"rgba(255,255,255,0.5)",border:`2px solid ${product===p?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:12,padding:"14px 10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                {p}
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:3,fontWeight:400}}>
+                  {PACK_PRODUCTS[p].foilSlots} foil · {PACK_PRODUCTS[p].paperSlots} paper
+                </div>
+              </button>
+            ))}
+          </div>
+          <button onClick={startRip}
+            style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"18px",fontSize:18,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 40px rgba(232,49,122,0.4)",letterSpacing:1}}>
+            🎯 RIP PACK
           </button>
-        </div>
+        </>}
 
-        {/* Cards */}
-        {pack && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:16}}>
-            {pack.map((card,i)=>{
-              const show = revealed.includes(i);
-              const rare = isRare(card);
-              const glow = wc(card);
-              return (
-                <div key={i} style={{
-                  opacity: show ? 1 : 0,
-                  transform: show ? "translateY(0) scale(1)" : "translateY(30px) scale(0.9)",
-                  transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
-                  position:"relative"
-                }}>
+        {/* RIPPING ANIMATION */}
+        {phase==="ripping" && (
+          <div style={{textAlign:"center",padding:"60px 0"}}>
+            <div style={{
+              width:160,height:220,margin:"0 auto",
+              background:"linear-gradient(135deg,#E8317A,#7B2FF7)",
+              borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:40,
+              animation:"packShake 0.3s ease 0.2s, packRip 0.8s ease 1s forwards",
+              boxShadow:"0 0 60px rgba(232,49,122,0.6)",
+            }}>🃏</div>
+            <div style={{marginTop:24,fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.5)",letterSpacing:2,textTransform:"uppercase"}}>Ripping...</div>
+          </div>
+        )}
+
+        {/* CARD SWIPE PHASE */}
+        {phase==="cards" && pack && card && (
+          <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+
+            {/* Progress */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>{product}</span>
+              <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.5)"}}>{cardIndex+1} / {pack.length}</span>
+            </div>
+            <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2,marginBottom:24,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${((cardIndex+1)/pack.length)*100}%`,background:"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:2,transition:"width 0.3s"}}/>
+            </div>
+
+            {/* Card */}
+            <div style={{
+              animation: swipeDir==="left" ? "swipeLeft 0.3s ease forwards" : "cardEntrance 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+            }}>
+              <div style={{
+                background: isHit ? `radial-gradient(circle at 50% 30%, ${glow}22, #0a0a0a)` :
+                            isHotdog ? "radial-gradient(circle at 50% 30%, rgba(251,191,36,0.15), #0a0a0a)" :
+                            "rgba(255,255,255,0.04)",
+                border: isHit ? `2px solid ${glow}66` :
+                        isHotdog ? "2px solid rgba(251,191,36,0.4)" :
+                        "1px solid rgba(255,255,255,0.08)",
+                borderRadius:20,
+                overflow:"hidden",
+                animation: isHit ? "hitGlow 2s ease-in-out infinite" : "none",
+                position:"relative",
+              }}>
+                {/* Hit badge */}
+                {isHit && (
                   <div style={{
-                    background: card.slotType==="hotdog" ? "rgba(251,191,36,0.1)" :
-                                card.isHit ? `${glow}22` : "rgba(255,255,255,0.04)",
-                    border: card.isHit ? `2px solid ${glow}88` :
-                            card.slotType==="hotdog" ? "2px solid rgba(251,191,36,0.4)" :
-                            "1px solid rgba(255,255,255,0.08)",
-                    borderRadius:12, overflow:"hidden", textAlign:"center",
-                    boxShadow: card.isHit ? `0 0 30px ${glow}44` : "none",
-                  }}>
-                    {/* Rarity badge */}
-                    {card.isHit && (
-                      <div style={{background:`${glow}`,color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",textTransform:"uppercase",letterSpacing:1}}>
-                        🔥 HIT
-                      </div>
-                    )}
-                    {card.slotType==="hotdog" && (
-                      <div style={{background:"rgba(251,191,36,0.8)",color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",textTransform:"uppercase",letterSpacing:1}}>
-                        🌭 HOT DOG
-                      </div>
-                    )}
-                    {/* Card image */}
-                    {card.imageUrl ? (
-                      <img src={card.imageUrl} alt={card.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}}/>
-                    ) : (
-                      <div style={{width:"100%",aspectRatio:"3/4",background:"rgba(255,255,255,0.03)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:4}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"0 8px"}}>{card.hero||card.cardName||"?"}</div>
-                        {card.weapon && <div style={{fontSize:10,color:glow,fontWeight:700}}>{card.weapon}</div>}
-                      </div>
-                    )}
-                    {/* Card info */}
-                    <div style={{padding:"8px 6px"}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.hero||card.cardName||"—"}</div>
-                      {card.treatment && <div style={{fontSize:10,color:card.isHit?glow:"rgba(255,255,255,0.3)"}}>{card.treatment}</div>}
-                      {card.weapon && card.slotType!=="hotdog" && <div style={{fontSize:10,color:glow,fontWeight:700}}>{card.weapon}</div>}
-                      {card.cardNum && <div style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>#{card.cardNum}</div>}
+                    background:`linear-gradient(90deg,${glow},${glow}88)`,
+                    color:"#000",fontSize:11,fontWeight:900,padding:"6px 0",
+                    textAlign:"center",textTransform:"uppercase",letterSpacing:2,
+                    backgroundSize:"200% auto",animation:"shimmer 2s linear infinite",
+                  }}>🔥 HIT — {card.treatment}</div>
+                )}
+                {isHotdog && (
+                  <div style={{background:"rgba(251,191,36,0.8)",color:"#000",fontSize:11,fontWeight:900,padding:"6px 0",textAlign:"center",textTransform:"uppercase",letterSpacing:2}}>
+                    🌭 HOT DOG
+                  </div>
+                )}
+
+                {/* Card image */}
+                {card.imageUrl
+                  ? <img src={card.imageUrl} alt={card.hero}
+                      style={{width:"100%",maxHeight:420,objectFit:"contain",display:"block",
+                        filter: isHit ? `drop-shadow(0 0 20px ${glow})` : "none",
+                      }}/>
+                  : <div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8}}>
+                      <div style={{fontSize:48}}>{isHotdog?"🌭":"🃏"}</div>
+                      <div style={{fontSize:16,fontWeight:700,color:"#F0F0F0",textAlign:"center",padding:"0 24px"}}>{card.hero||card.cardName||"?"}</div>
+                      {card.weapon&&<div style={{fontSize:14,color:glow,fontWeight:700}}>{card.weapon}</div>}
                     </div>
+                }
+
+                {/* Card info footer */}
+                <div style={{padding:"16px 20px",background:"rgba(0,0,0,0.6)"}}>
+                  <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{card.hero||card.cardName||"—"}</div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+                    {card.treatment&&<span style={{fontSize:12,color:isHit?glow:"rgba(255,255,255,0.4)",fontWeight:isHit?700:400}}>{card.treatment}</span>}
+                    {card.weapon&&!isHotdog&&<span style={{fontSize:12,color:glow,fontWeight:700}}>{card.weapon}</span>}
+                    {card.cardNum&&<span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>#{card.cardNum}</span>}
+                    {card.slotType==="play"&&<span style={{fontSize:11,color:"#7B9CFF",background:"rgba(123,156,255,0.1)",borderRadius:6,padding:"2px 8px"}}>Play Card</span>}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div style={{display:"flex",gap:12,marginTop:20,alignItems:"center"}}>
+              <button onClick={prevCard} disabled={cardIndex===0}
+                style={{flex:1,background:"rgba(255,255,255,0.04)",color:cardIndex===0?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px",fontSize:20,cursor:cardIndex===0?"not-allowed":"pointer",fontFamily:"inherit"}}>
+                ←
+              </button>
+              <button onClick={nextCard}
+                style={{flex:3,background:cardIndex===pack.length-1?"linear-gradient(135deg,#4ade80,#22d3ee)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",letterSpacing:1}}>
+                {cardIndex===pack.length-1 ? "✅ DONE" : "NEXT →"}
+              </button>
+            </div>
+            <div style={{textAlign:"center",marginTop:10,fontSize:11,color:"rgba(255,255,255,0.2)"}}>Swipe left for next · swipe right to go back</div>
           </div>
         )}
       </>}
 
-      {/* HISTORY VIEW */}
+      {/* HISTORY */}
       {activeView==="history" && (
         <div>
-          {history.length === 0
-            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0",fontSize:14}}>No pulls yet — rip some packs!</div>
+          {history.length===0
+            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0"}}>No pulls yet — rip some packs!</div>
             : history.map((entry,ei)=>(
-              <div key={ei} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div key={ei} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"14px",marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
                   <span style={{fontSize:13,fontWeight:700,color:"#E8317A"}}>{entry.product}</span>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.25)"}}>{new Date(entry.pulledAt).toLocaleTimeString()}</span>
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {entry.cards.filter(c=>c.isHit||isRare(c)).map((c,ci)=>(
-                    <div key={ci} style={{display:"flex",alignItems:"center",gap:6,background:`${wc(c)}11`,border:`1px solid ${wc(c)}33`,borderRadius:8,padding:"4px 10px"}}>
-                      {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3}}/>}
-                      <div>
-                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{c.hero||c.cardName}</div>
-                        <div style={{fontSize:10,color:wc(c)}}>{c.treatment}</div>
+                  {entry.cards.filter(c=>rarityScore(c)>=45).map((c,ci)=>{
+                    const g=WEAPON_GLOW[c.weapon]||"#888";
+                    return (
+                      <div key={ci} style={{display:"flex",alignItems:"center",gap:6,background:`${g}11`,border:`1px solid ${g}33`,borderRadius:8,padding:"4px 10px"}}>
+                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3}}/>}
+                        <div>
+                          <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{c.hero||c.cardName}</div>
+                          <div style={{fontSize:10,color:g}}>{c.treatment}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {!entry.cards.some(c=>c.isHit||isRare(c)) && <span style={{fontSize:12,color:"rgba(255,255,255,0.25)"}}>No notable pulls this pack</span>}
+                    );
+                  })}
+                  {!entry.cards.some(c=>rarityScore(c)>=45)&&<span style={{fontSize:12,color:"rgba(255,255,255,0.2)"}}>No notable pulls</span>}
                 </div>
               </div>
             ))
@@ -14582,26 +14608,26 @@ function PackRipSimulator({ cards, user }) {
         </div>
       )}
 
-      {/* COMMUNITY BEST PULLS */}
+      {/* COMMUNITY */}
       {activeView==="community" && (
         <div>
-          <div style={{textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.25)",marginBottom:20}}>Top simulated pulls from the community (Rainbow and above)</div>
-          {community.length === 0
-            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0",fontSize:14}}>No community pulls yet — be the first!</div>
-            : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
+          <div style={{textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.25)",marginBottom:20}}>Top simulated hits from the community</div>
+          {community.length===0
+            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0"}}>Be the first to hit something big!</div>
+            : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12}}>
                 {community.map((p,i)=>{
-                  const glow = WEAPON_GLOW[p.weapon] || "#888";
+                  const g=WEAPON_GLOW[p.weapon]||"#888";
                   return (
-                    <div key={p.id} style={{background:`${glow}11`,border:`1.5px solid ${glow}33`,borderRadius:12,overflow:"hidden",textAlign:"center"}}>
+                    <div key={p.id} style={{background:`${g}11`,border:`1.5px solid ${g}33`,borderRadius:12,overflow:"hidden",textAlign:"center"}}>
+                      {i<3&&<div style={{background:["#FFD700","#C0C0C0","#CD7F32"][i],color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",letterSpacing:1}}>{["🥇 #1","🥈 #2","🥉 #3"][i]}</div>}
                       {p.imageUrl
                         ? <img src={p.imageUrl} alt={p.cardName} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover"}}/>
-                        : <div style={{width:"100%",aspectRatio:"3/4",background:"rgba(255,255,255,0.03)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"rgba(255,255,255,0.3)",padding:8}}>{p.cardName}</div>
+                        : <div style={{aspectRatio:"3/4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"rgba(255,255,255,0.3)",padding:8}}>{p.cardName}</div>
                       }
-                      <div style={{padding:"8px 8px"}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0",marginBottom:2}}>{p.cardName}</div>
-                        <div style={{fontSize:10,color:glow}}>{p.treatment}</div>
-                        <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:4}}>{p.userName} · {p.product}</div>
-                        {i < 3 && <div style={{fontSize:10,color:"#FBBF24",marginTop:2}}>{["🥇","🥈","🥉"][i]} #{i+1} all time</div>}
+                      <div style={{padding:"8px"}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{p.cardName}</div>
+                        <div style={{fontSize:10,color:g,marginBottom:2}}>{p.treatment}</div>
+                        <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{p.userName}</div>
                       </div>
                     </div>
                   );
