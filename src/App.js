@@ -7249,7 +7249,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
     const actRev    = actualRevenue(mActuals);
     const todayStr  = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
-    const pastPlans = mPlans.filter(p => p.date <= todayStr);
+    const pastPlans   = mPlans.filter(p => p.date < todayStr);  // strictly before today — today's streams aren't due yet
+    const todayPlans  = mPlans.filter(p => p.date === todayStr);
     const futurePlans = mPlans.filter(p => p.date > todayStr);
     const projSoFar = projectedRevenue(pastPlans);
 
@@ -7289,7 +7290,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 ? <>First planned stream: <strong style={{color:"#F0F0F0"}}>{nextPlan.streamName||nextPlan.breaker}</strong> on {nextPlan.date} · {mPlans.length} planned this month</>
                 : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
               )}
-              {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace</>}
+              {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace{todayPlans.length>0?` (${todayPlans.length} more planned today)`:""}</>}
               {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{streamResults.length} of {mPlans.length} planned streams completed · {mPlans.length - streamResults.length} still ahead</>}
             </div>
           </div>
@@ -7322,7 +7323,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 ...(projSoFar>0?[{l:"Due by today",   v:fmt2(projSoFar),                                              c:"#FBBF24"}]:[]),
                 ...(projSoFar>0?[{l:"Variance",       v:(actRev-projSoFar>=0?"+":"")+fmt2(actRev-projSoFar),           c:actRev>=projSoFar?"#4ade80":"#E8317A"}]:[]),
                 ...(streamResults.length>0?[{l:"vs Plan",v:(totalDiff>=0?"+":"")+fmt2(totalDiff),                      c:totalDiff>=0?"#4ade80":"#E8317A"}]:[]),
-                ...(mPlans.length-streamResults.length>0?[{l:"Remaining",v:(mPlans.length-streamResults.length)+" streams", c:"#7B9CFF"}]:[]),
+                ...(mPlans.length-streamResults.length>0?[{l:"Remaining",v:(mPlans.length-streamResults.length)+" streams (incl. today)", c:"#7B9CFF"}]:[]),
               ].map(({l,v,c})=>(
                 <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
                   <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
