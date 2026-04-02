@@ -396,6 +396,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const ct = p.cardType;
     if (ct && usedByType[ct] !== undefined) usedByType[ct] += (parseInt(p.usedQty)||0);
   });
+  const stats = {};
   CARD_TYPES.forEach(ct => { stats[ct] = { total:0, avail:0, used:0, inTransit:0, invested:0, investedAll:0, market:0 }; });
   inventory.forEach(c => {
     const s = stats[c.cardType]; if (!s) return;
