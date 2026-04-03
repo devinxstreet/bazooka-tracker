@@ -24,12 +24,13 @@ const USAGE_TYPES = ["Giveaway","Insurance","First-Timer Pack","Chaser Pull"];
 const SOURCES = ["Discord","Facebook","Other"];
 const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
 const ROLES = {
-  "devin":   { role:"Admin",       label:"CEO",                color:"#E8317A", bg:"#FFF0F5" },
-  "derrik":  { role:"Admin",       label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
-  "dre":     { role:"Streamer",    label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
-  "krystal": { role:"Streamer",    label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
-  "john":    { role:"Procurement", label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
-  "jake":    { role:"Shipping",    label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
+  "devin":   { role:"Admin",         label:"CEO",                color:"#E8317A", bg:"#FFF0F5" },
+  "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
+  "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
+  "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
+  "denver":  { role:"StreamerLite",  label:"Streamer",           color:"#F97316", bg:"#FFF4ED" },
+  "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
+  "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
 const TARGETS = {
   "Giveaway Cards":   { monthly:2000, buffer:300 },
@@ -364,6 +365,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
+  const GOAL_KEY   = `bz_yeargoals_${new Date().getFullYear()}`;
+  const [goals,     setGoals]     = useState(()=>{ try { return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}"); } catch(e) { return {}; } });
+  const [editGoals, setEditGoals] = useState(false);
+  const [goalForm,  setGoalForm]  = useState(()=>{ try { return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}"); } catch(e) { return {}; } });
 
   // Pay stub notifications for this breaker
   const myStubs = payStubs.filter(s => s.breaker === myBreaker && !s.read);
@@ -964,11 +969,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
         const pct  = Math.round(dayOfYear / daysInYear * 100);
         const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
-
-        const GOAL_KEY = `bz_yeargoals_${now.getFullYear()}`;
-        const [goals, setGoals] = useState(()=>{ try { return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}"); } catch(e) { return {}; } });
-        const [editGoals, setEditGoals] = useState(false);
-        const [goalForm, setGoalForm] = useState(goals);
 
         function saveGoals() {
           setGoals(goalForm);
@@ -8240,11 +8240,11 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
-    { id:"recap",      label:"\uD83D\uDCCB Stream Recap", roles:["Admin","Streamer"] },
-    { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Shipping"] },
-    { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer"] },
-    { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer"] },
+    { id:"recap",      label:"\uD83D\uDCCB Stream Recap", roles:["Admin","Streamer","StreamerLite"] },
+    { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Shipping","StreamerLite"] },
+    { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer","StreamerLite"] },
+    { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","StreamerLite"] },
+    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer","StreamerLite"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -17528,7 +17528,7 @@ export default function App() {
     { id:"dashboard",  label:"Dashboard",   icon:"\uD83D\uDCCA", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Viewer"] },
     { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer"] },
+    { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
     { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
