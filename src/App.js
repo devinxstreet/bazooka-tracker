@@ -10,11 +10,12 @@ const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","Denver"];
 const PRODUCT_SETS = {
-  "Alpha Edition":   ["Blaster","Booster","Hobby","Jumbo"],
-  "Alpha Update":    ["Blaster","Booster","Hobby","Jumbo"],
-  "Alpha Blast":     ["Blast Box"],
-  "Griffey 2026":    ["Blaster","Double Mega","Hobby","Jumbo"],
-  "Tecmo Bowl":      ["Double Mega","Hobby"],
+  "Alpha Edition":        ["Blaster","Booster","Hobby","Jumbo"],
+  "Alpha Update":         ["Blaster","Booster","Hobby","Jumbo"],
+  "Alpha Blast":          ["Blast Box"],
+  "Griffey 2026":         ["Blaster","Double Mega","Hobby","Jumbo"],
+  "Tecmo Bowl":           ["Double Mega","Hobby"],
+  "Wonders of The First": ["Dragon Box","Collector Booster","Play Booster"],
 };
 const PRODUCT_TYPES = [
   ...Object.entries(PRODUCT_SETS).flatMap(([set,types])=>types.map(t=>`${set} - ${t}`)),
@@ -5467,18 +5468,20 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {Object.entries(PRODUCT_SETS).map(([set,types])=>{
           const SET_GRADIENTS = {
-            "Alpha Edition":  "135deg, #1a0a2e, #2d1060",
-            "Alpha Update":   "135deg, #0a1a2e, #10306e",
-            "Alpha Blast":    "135deg, #1a0a0a, #6e1010",
-            "Griffey 2026":   "135deg, #0a1a0a, #106e30",
-            "Tecmo Bowl":     "135deg, #1a1a0a, #6e5510",
+            "Alpha Edition":        "135deg, #1a0a2e, #2d1060",
+            "Alpha Update":         "135deg, #0a1a2e, #10306e",
+            "Alpha Blast":          "135deg, #1a0a0a, #6e1010",
+            "Griffey 2026":         "135deg, #0a1a0a, #106e30",
+            "Tecmo Bowl":           "135deg, #1a1a0a, #6e5510",
+            "Wonders of The First": "135deg, #0a1a1a, #0e5a5a",
           };
           const SET_ACCENT = {
-            "Alpha Edition":  "#A855F7",
-            "Alpha Update":   "#60A5FA",
-            "Alpha Blast":    "#EF4444",
-            "Griffey 2026":   "#4ade80",
-            "Tecmo Bowl":     "#FBBF24",
+            "Alpha Edition":        "#A855F7",
+            "Alpha Update":         "#60A5FA",
+            "Alpha Blast":          "#EF4444",
+            "Griffey 2026":         "#4ade80",
+            "Tecmo Bowl":           "#FBBF24",
+            "Wonders of The First": "#2DD4BF",
           };
           const gradient = SET_GRADIENTS[set] || "135deg, #111, #222";
           const accent   = SET_ACCENT[set]    || "#E8317A";
