@@ -962,41 +962,102 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
-        const pct        = Math.round(dayOfYear / daysInYear * 100);
+        const pct  = Math.round(dayOfYear / daysInYear * 100);
         const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
+
+        const GOAL_KEY = `bz_yeargoals_${now.getFullYear()}`;
+        const [goals, setGoals] = useState(()=>{ try { return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}"); } catch(e) { return {}; } });
+        const [editGoals, setEditGoals] = useState(false);
+        const [goalForm, setGoalForm] = useState(goals);
+
+        function saveGoals() {
+          setGoals(goalForm);
+          try { localStorage.setItem(GOAL_KEY, JSON.stringify(goalForm)); } catch(e) {}
+          setEditGoals(false);
+        }
+
+        const metrics = [
+          { key:"gross",    l:"Gross Revenue",    v:proj(ytdGross),    ytd:ytdGross,    c:"#E8317A" },
+          { key:"net",      l:"Net Revenue",       v:proj(ytdNet),      ytd:ytdNet,      c:"#7B9CFF" },
+          { key:"baz",      l:"Bazooka Earnings",  v:proj(ytdBaz),      ytd:ytdBaz,      c:"#6B2D8B" },
+          { key:"trueNet",  l:"Bazooka True Net",  v:proj(ytdTrueNet),  ytd:ytdTrueNet,  c:"#4ade80" },
+          { key:"buyers",   l:"New Buyers",        v:proj(ytdNewBuyers),ytd:ytdNewBuyers,c:"#FBBF24", count:true },
+        ];
+
         return (
-          <div style={{ background:"#111111", border:"1px solid #E8317A", borderRadius:14, padding:"18px 20px" }}>
+          <div style={{ background:"#111111", border:"1px solid #E8317A33", borderRadius:14, padding:"18px 20px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:6 }}>
               <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:2.5, display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }}/>
-                {"\uD83D\uDCC8 Year-End Projections"}</div>
-              <span style={{ fontSize:11, color:"#AAAAAA" }}>
-                {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
-                {ytdHist.length>0 ? ` + ${ytdHist.length} historical month${ytdHist.length!==1?"s":""}` : ""} · {pct}% through {now.getFullYear()}
-              </span>
+                📈 {now.getFullYear()} Year-End Projections
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <span style={{ fontSize:11, color:"#AAAAAA" }}>
+                  {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
+                  {ytdHist.length>0 ? ` + ${ytdHist.length} historical` : ""} · {pct}% through {now.getFullYear()}
+                </span>
+                <button onClick={()=>{ setGoalForm(goals); setEditGoals(p=>!p); }}
+                  style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:7, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                  {editGoals ? "Cancel" : "🎯 Set Goals"}
+                </button>
+              </div>
             </div>
-            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
-              {[
-                { l:"Gross Revenue",       v:proj(ytdGross),    ytd:ytdGross,    c:"#E8317A" },
-                { l:"Net Revenue",         v:proj(ytdNet),      ytd:ytdNet,      c:"#1B4F8A" },
-                { l:"Bazooka Earnings",    v:proj(ytdBaz),      ytd:ytdBaz,      c:"#E8317A" },
-                { l:"Bazooka True Net",    v:proj(ytdTrueNet),  ytd:ytdTrueNet,  c:"#166534" },
-                { l:"New Buyers",          v:proj(ytdNewBuyers),ytd:ytdNewBuyers,c:"#166534", count:true },
-              ].map(({l,v,ytd,c,count}) => (
-                <div key={l} style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:20, fontWeight:900, color:c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
-                  <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
-                  <div style={{ fontSize:10, color:"#AAAAAA", marginTop:3 }}>{count ? Math.round(ytd).toLocaleString() : fmt(ytd)} YTD</div>
+
+            {/* Goal editor */}
+            {editGoals && (
+              <div style={{ background:"#0a0a0a", border:"1px solid #222", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Set {now.getFullYear()} Goals</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, marginBottom:12 }}>
+                  {metrics.map(({key,l})=>(
+                    <div key={key}>
+                      <label style={{ fontSize:10, fontWeight:700, color:"#444", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>{l}</label>
+                      <input type="number" value={goalForm[key]||""} onChange={e=>setGoalForm(p=>({...p,[key]:e.target.value}))}
+                        placeholder="0" style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"7px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <button onClick={saveGoals} style={{ background:"#166534", color:"#fff", border:"none", borderRadius:8, padding:"7px 20px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💾 Save Goals</button>
+              </div>
+            )}
+
+            {/* Metric tiles */}
+            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:14 }}>
+              {metrics.map(({key,l,v,ytd,c,count}) => {
+                const goal = parseFloat(goals[key]) || 0;
+                const projPct = goal > 0 ? Math.min(100, v/goal*100) : 0;
+                const ytdPct  = goal > 0 ? Math.min(100, ytd/goal*100) : 0;
+                const onTrack = goal > 0 && v >= goal;
+                return (
+                  <div key={l} style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:20, fontWeight:900, color:onTrack?"#4ade80":c }}>{count ? Math.round(v).toLocaleString() : fmt(v)}</div>
+                    <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:3 }}>{count ? Math.round(ytd).toLocaleString() : fmt(ytd)} YTD</div>
+                    {goal > 0 && (
+                      <>
+                        <div style={{ fontSize:10, color:onTrack?"#4ade80":"#555", marginTop:3, fontWeight:700 }}>
+                          {onTrack ? "✅ On track" : `${projPct.toFixed(0)}% of goal`}
+                        </div>
+                        <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:5, overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${ytdPct}%`, background:onTrack?"#4ade80":c, borderRadius:2, transition:"width 0.6s ease" }}/>
+                        </div>
+                        <div style={{ fontSize:9, color:"#444", marginTop:2 }}>
+                          {count ? Math.round(goal).toLocaleString() : fmt(goal)} goal
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ height:6, background:"#333", borderRadius:10, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10 }}/>
+
+            {/* Year progress bar */}
+            <div style={{ height:6, background:"#1a1a1a", borderRadius:10, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10, transition:"width 0.6s ease" }}/>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-              <span style={{ fontSize:10, color:"#999999" }}>Jan 1</span>
+              <span style={{ fontSize:10, color:"#555" }}>Jan 1</span>
               <span style={{ fontSize:10, color:"#E8317A", fontWeight:700 }}>Today ({pct}%)</span>
-              <span style={{ fontSize:10, color:"#999999" }}>Dec 31</span>
+              <span style={{ fontSize:10, color:"#555" }}>Dec 31</span>
             </div>
           </div>
         );
@@ -17652,7 +17713,7 @@ export default function App() {
                   {label:"\uD83C\uDF81 Product",sub:"Product inventory",action:()=>{setTab("inventory");setInvTabDefault("product");setHoverTab(null);}},
                 ],
                 "streams": [
-                  {label:"\uD83C\uDFAF Streams",sub:"All streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
+                  {label:"\uD83D\uDCCB Stream Recap",sub:"Log & review streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Stream Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
