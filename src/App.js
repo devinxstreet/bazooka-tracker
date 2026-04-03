@@ -961,10 +961,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
         const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0), 0);
-        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
+        const ytdBaz     = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazNet, 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30, 0);
         const ytdTrueNet  = ytdStreams.reduce((sum,s) => sum+calcStreamDash(s).bazTrueNet, 0)
-                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30+(parseFloat(h.imcReimb)||0), 0);
+                         + ytdHist.reduce((sum,h) => sum+(parseFloat(h.netRevenue)||0)*0.30-(parseFloat(h.commPaid)||0)+(parseFloat(h.imcReimb)||0), 0);
         const ytdNewBuyers = ytdStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
