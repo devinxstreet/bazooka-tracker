@@ -8,7 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
-const BREAKERS = ["Dev","Dre","Krystal"];
+const BREAKERS = ["Dev","Dre","Krystal","Denver"];
 const PRODUCT_SETS = {
   "Alpha Edition":   ["Blaster","Booster","Hobby","Jumbo"],
   "Alpha Update":    ["Blaster","Booster","Hobby","Jumbo"],
@@ -48,6 +48,7 @@ const BC = {
   Dev:     { bg:"#0a0a1a", text:"#7B9CFF", border:"#3730a3" },
   Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
   Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
+  Denver:  { bg:"#1a0f08", text:"#FB923C", border:"#c2410c" },
 };
 const CAN_DELETE        = ["Admin"];
 const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
@@ -6501,6 +6502,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       Dev:     { from:"#4f46e5", to:"#7c3aed", dot:"#818cf8" },
       Dre:     { from:"#7c3aed", to:"#a855f7", dot:"#c084fc" },
       Krystal: { from:"#0d9488", to:"#0891b2", dot:"#2dd4bf" },
+      Denver:  { from:"#c2410c", to:"#ea580c", dot:"#fb923c" },
     };
 
     return (
