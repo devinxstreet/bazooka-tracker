@@ -623,11 +623,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const c = calcStream(s);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += c.commAmt;
+          acc.comm     += c.commAmt - c.repExpShare; // net commission after rep expense deduction
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
+          acc.imcReimb += (c.imcReimb||0);
           return acc;
-        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, imcReimb:0 });
 
         // Merge historical monthly summaries into totals
         const histFiltered = historicalData.filter(h => {
@@ -648,11 +649,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
         const totals = {
-          gross:   streamTotals.gross   + histTotals.gross,
-          imc:     streamTotals.imc     + histTotals.imc,
-          comm:    streamTotals.comm    + histTotals.comm,
-          baz:     streamTotals.baz     + histTotals.baz,
-          trueNet: streamTotals.trueNet + histTotals.trueNet,
+          gross:    streamTotals.gross    + histTotals.gross,
+          imc:      streamTotals.imc      + histTotals.imc,
+          comm:     streamTotals.comm     + histTotals.comm,
+          baz:      streamTotals.baz      + histTotals.baz,
+          trueNet:  streamTotals.trueNet  + histTotals.trueNet,
+          imcReimb: streamTotals.imcReimb || 0,
         };
 
         const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
@@ -748,11 +750,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",       val:totals.gross,     color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),  color:"#E8317A", sub:"70% of net revenue" },
-                { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,       color:"#E8317A", sub:"before commission" },
-                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0),   color:"#6B2D8B", sub:"after commission paid" },
-                { key:"commission", label:"Commission Owed",      val:totals.comm,      color:"#E8317A", sub:"click to see per rep" },
+                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#E8317A", sub:"70% of split base" },
+                { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
+                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#6B2D8B", sub:"after commission + expenses" },
+                { key:"commission", label:"Net Commission Owed",  val:totals.comm,                 color:"#4ade80", sub:"after rep expense share" },
               ].map(({key,label,val,color,sub}) => (
                 <div
                   key={key}
@@ -3697,7 +3699,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const tips=parseFloat(recap.tips)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
     const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, tips, collabAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, collabAmt, bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4266,11 +4268,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 2: bazooka true net */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, paddingTop:10, borderTop:"1px solid #222222" }}>
                   {[
-                    { l:"Bazooka Earnings",          v:fmt(rc.bazNet),              c:"#E8317A" },
-                    { l:"\u2212 Rep Commission",           v:"\u2212 "+fmt(rc.commAmt),        c:"#991b1b" },
+                    { l:"Bazooka Earnings",            v:fmt(rc.bazNet),               c:"#E8317A" },
+                    { l:"\u2212 Rep Commission",             v:"\u2212 "+fmt(rc.commAmt),         c:"#991b1b" },
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
-                    ...(canSeeFinancials ? [{ l:"2212 Bazooka Expense Share",  v:"+ "+fmt(rc.bazExpShare||0), c:"#166534" }] : []),
-                    ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),          c:"#166534" }] : []),
+                    ...(canSeeFinancials ? [{ l:"+ IMC Reimburses 70%",       v:"+ "+fmt(rc.imcReimb||0),     c:"#4ade80" }] : []),
+                    ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
+                    ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
+                    ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background: l==="Bazooka True Net"?"#D6F4E3":"#FFFFFF", borderRadius:8, padding:"10px 8px", border:`1px solid ${l==="Bazooka True Net"?"#16653444":"#F0E0E8"}` }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
@@ -8677,15 +8681,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
     const c = calcStreamDash(s);
-    acc.gross    += c.gross;
-    acc.net      += c.netRev;
-    acc.baz      += c.bazNet;
-    acc.comm     += c.commAmt;
-    acc.trueNet  += c.bazTrueNet||0;
-    acc.reimb    += c.bazExpShare||0;
+    acc.gross     += c.gross;
+    acc.net       += c.netRev;
+    acc.baz       += c.bazNet;
+    acc.comm      += c.commAmt - c.repExpShare; // net commission after rep expense share
+    acc.trueNet   += c.bazTrueNet||0;
+    acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, reimb:0, newBuyers:0 });
+  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, newBuyers:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
