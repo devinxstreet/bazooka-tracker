@@ -5224,6 +5224,264 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
           </div>
         );
       })}
+      <WhatnotFollowerTracker isAdmin={isAdmin} />
+    </div>
+  );
+}
+
+// --- WHATNOT FOLLOWER TRACKER ------------------------------------
+const WN_CHANNELS = [
+  { key:"bazookavault",   label:"Bazooka Vault",      url:"https://www.whatnot.com/user/bazookavault",   color:"#E8317A" },
+  { key:"pullsandpars",   label:"Pulls & Pars",        url:"https://www.whatnot.com/user/pullsandpars",   color:"#60A5FA" },
+  { key:"valleyhithouse", label:"Valley Hit House",    url:"https://www.whatnot.com/user/valleyhithouse", color:"#4ade80" },
+];
+
+function WhatnotFollowerTracker({ isAdmin }) {
+  const STORE_KEY = "bz_wn_followers_v1";
+  const [entries,    setEntries]    = useState(()=>{ try { return JSON.parse(localStorage.getItem(STORE_KEY)||"[]"); } catch(e){ return []; } });
+  const [form,       setForm]       = useState({ date:new Date().toISOString().split("T")[0], ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
+  const [adding,     setAdding]     = useState(false);
+  const [saved,      setSaved]      = useState(false);
+  const [activeView, setActiveView] = useState("chart"); // chart | table
+
+  // Persist to localStorage + Firestore
+  async function saveEntry() {
+    const hasAny = WN_CHANNELS.some(c => form[c.key] !== "");
+    if (!form.date || !hasAny) return;
+    const entry = { id:uid(), date:form.date, ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key, parseInt(form[c.key])||null])) };
+    const next = [...entries.filter(e=>e.date!==form.date), entry].sort((a,b)=>a.date.localeCompare(b.date));
+    setEntries(next);
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)); } catch(e){}
+    try { await setDoc(doc(db,"follower_snapshots",entry.id), entry); } catch(e){}
+    setAdding(false);
+    setSaved(true);
+    setTimeout(()=>setSaved(false), 2500);
+    setForm({ date:new Date().toISOString().split("T")[0], ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
+  }
+
+  async function deleteEntry(id) {
+    const next = entries.filter(e=>e.id!==id);
+    setEntries(next);
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)); } catch(e){}
+    try { await deleteDoc(doc(db,"follower_snapshots",id)); } catch(e){}
+  }
+
+  // Load from Firestore on mount
+  useEffect(()=>{
+    getDocs(query(collection(db,"follower_snapshots"), orderBy("date","asc"))).then(snap=>{
+      if (snap.docs.length > 0) {
+        const data = snap.docs.map(d=>({...d.data(),id:d.id}));
+        setEntries(data);
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch(e){}
+      }
+    }).catch(()=>{});
+  },[]);
+
+  // Build chart data
+  const chartW = 600, chartH = 180, padL = 50, padR = 20, padT = 16, padB = 32;
+  const innerW = chartW - padL - padR;
+  const innerH = chartH - padT - padB;
+
+  const allVals = entries.flatMap(e => WN_CHANNELS.map(c=>e[c.key]).filter(Boolean));
+  const maxVal = allVals.length ? Math.max(...allVals) : 1000;
+  const minVal = allVals.length ? Math.max(0, Math.min(...allVals) - Math.round(Math.max(...allVals)*0.05)) : 0;
+  const range  = maxVal - minVal || 1;
+
+  function px(i)   { return padL + (i/(Math.max(entries.length-1,1))) * innerW; }
+  function py(val) { return padT + innerH - ((val-minVal)/range)*innerH; }
+
+  function fmtK(n) { return n>=1000 ? `${(n/1000).toFixed(1)}k` : String(n); }
+
+  // Week-over-week delta for latest entry
+  const latest = entries[entries.length-1];
+  const prev   = entries[entries.length-2];
+
+  return (
+    <div style={{ marginTop:24 }}>
+      <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8 }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>📡 Whatnot Follower Tracker</div>
+            <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+              {entries.length} snapshot{entries.length!==1?"s":""} · log weekly for best trends
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {["chart","table"].map(v=>(
+              <button key={v} onClick={()=>setActiveView(v)}
+                style={{ background:activeView===v?"rgba(232,49,122,0.15)":"transparent", color:activeView===v?"#E8317A":"#555", border:`1px solid ${activeView===v?"#E8317A":"#333"}`, borderRadius:20, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {v==="chart"?"📈 Chart":"📋 Table"}
+              </button>
+            ))}
+            {isAdmin && (
+              <button onClick={()=>setAdding(p=>!p)}
+                style={{ background:adding?"transparent":"rgba(232,49,122,0.12)", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:20, padding:"5px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {adding ? "Cancel" : saved ? "✅ Saved!" : "+ Log Counts"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Log form */}
+        {adding && isAdmin && (
+          <div style={{ background:"#0a0a0a", border:"1px solid #222", borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
+            <div style={{ display:"grid", gridTemplateColumns:`auto repeat(${WN_CHANNELS.length},1fr) auto`, gap:10, alignItems:"end" }}>
+              <div>
+                <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>Date</label>
+                <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))}
+                  style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"8px 10px", fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+              </div>
+              {WN_CHANNELS.map(c=>(
+                <div key={c.key}>
+                  <label style={{ fontSize:10, fontWeight:700, color:c.color, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>{c.label}</label>
+                  <input type="number" value={form[c.key]} onChange={e=>setForm(p=>({...p,[c.key]:e.target.value}))}
+                    placeholder="e.g. 12400"
+                    style={{ background:"#111", border:`1px solid ${c.color}44`, borderRadius:7, color:"#F0F0F0", padding:"8px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                </div>
+              ))}
+              <button onClick={saveEntry}
+                style={{ background:"#166534", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                💾 Save
+              </button>
+            </div>
+          </div>
+        )}
+
+        {entries.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"#555" }}>
+            <div style={{ fontSize:32, marginBottom:8 }}>📡</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"#444" }}>No snapshots yet</div>
+            <div style={{ fontSize:11, color:"#333", marginTop:4 }}>Log your first follower counts to start tracking growth</div>
+          </div>
+        ) : <>
+
+          {/* Current counts + deltas */}
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${WN_CHANNELS.length},1fr)`, gap:12, marginBottom:16 }}>
+            {WN_CHANNELS.map(c=>{
+              const cur  = latest?.[c.key];
+              const prv  = prev?.[c.key];
+              const delta = cur!=null && prv!=null ? cur-prv : null;
+              const firstEntry = entries.find(e=>e[c.key]!=null)?.[c.key];
+              const totalGrowth = cur!=null && firstEntry!=null ? cur-firstEntry : null;
+              return (
+                <div key={c.key} style={{ background:`${c.color}0d`, border:`1px solid ${c.color}22`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:c.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{c.label}</div>
+                  <div style={{ fontSize:24, fontWeight:900, color:"#F0F0F0" }}>{cur!=null ? fmtK(cur) : "—"}</div>
+                  {delta!=null && (
+                    <div style={{ fontSize:11, fontWeight:700, color:delta>0?"#4ade80":delta<0?"#ef4444":"#555", marginTop:4 }}>
+                      {delta>0?"+":""}{delta.toLocaleString()} since last log
+                    </div>
+                  )}
+                  {totalGrowth!=null && entries.length>1 && (
+                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                      +{totalGrowth.toLocaleString()} total · {entries.length} snapshots
+                    </div>
+                  )}
+                  <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:c.color, opacity:0.6, textDecoration:"none", marginTop:4, display:"block" }}>
+                    View on Whatnot ↗
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Chart */}
+          {activeView==="chart" && entries.length >= 2 && (
+            <div style={{ overflowX:"auto" }}>
+              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width:"100%", maxWidth:chartW, display:"block" }}>
+                {/* Grid lines */}
+                {[0,0.25,0.5,0.75,1].map(t=>{
+                  const y = padT + innerH*t;
+                  const val = Math.round(maxVal - t*range);
+                  return (
+                    <g key={t}>
+                      <line x1={padL} y1={y} x2={chartW-padR} y2={y} stroke="#1a1a1a" strokeWidth={1}/>
+                      <text x={padL-6} y={y+4} textAnchor="end" fontSize={9} fill="#444">{fmtK(val)}</text>
+                    </g>
+                  );
+                })}
+                {/* X axis labels */}
+                {entries.map((e,i)=>{
+                  if (entries.length>8 && i%Math.ceil(entries.length/6)!==0 && i!==entries.length-1) return null;
+                  return <text key={e.id} x={px(i)} y={chartH-4} textAnchor="middle" fontSize={9} fill="#444">{e.date.slice(5)}</text>;
+                })}
+                {/* Lines + dots per channel */}
+                {WN_CHANNELS.map(c=>{
+                  const pts = entries.map((e,i)=>e[c.key]!=null ? {x:px(i),y:py(e[c.key]),val:e[c.key],date:e.date} : null).filter(Boolean);
+                  if (pts.length < 2) return null;
+                  const d = pts.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+                  return (
+                    <g key={c.key}>
+                      <path d={d} fill="none" stroke={c.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={0.8}/>
+                      {pts.map((p,i)=>(
+                        <g key={i}>
+                          <circle cx={p.x} cy={p.y} r={3} fill={c.color} opacity={0.9}/>
+                          {i===pts.length-1&&(
+                            <text x={p.x+5} y={p.y+4} fontSize={9} fill={c.color} fontWeight="bold">{fmtK(p.val)}</text>
+                          )}
+                        </g>
+                      ))}
+                    </g>
+                  );
+                })}
+              </svg>
+              {/* Legend */}
+              <div style={{ display:"flex", gap:16, justifyContent:"center", marginTop:8 }}>
+                {WN_CHANNELS.map(c=>(
+                  <div key={c.key} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <div style={{ width:12, height:3, background:c.color, borderRadius:2 }}/>
+                    <span style={{ fontSize:11, color:"#555" }}>{c.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {activeView==="chart" && entries.length < 2 && (
+            <div style={{ textAlign:"center", color:"#555", fontSize:12, padding:"20px 0" }}>Log at least 2 snapshots to see the chart</div>
+          )}
+
+          {/* Table */}
+          {activeView==="table" && (
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr style={{ borderBottom:"1px solid #1a1a1a" }}>
+                  <th style={{ textAlign:"left", padding:"6px 10px", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Date</th>
+                  {WN_CHANNELS.map(c=><th key={c.key} style={{ textAlign:"right", padding:"6px 10px", fontSize:10, fontWeight:700, color:c.color, textTransform:"uppercase", letterSpacing:1 }}>{c.label}</th>)}
+                  {isAdmin && <th/>}
+                </tr>
+              </thead>
+              <tbody>
+                {[...entries].reverse().map((e,i)=>{
+                  const prevE = [...entries].reverse()[i+1];
+                  return (
+                    <tr key={e.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#111":"#0d0d0d" }}>
+                      <td style={{ padding:"8px 10px", fontSize:12, color:"#AAAAAA" }}>{e.date}</td>
+                      {WN_CHANNELS.map(c=>{
+                        const cur = e[c.key]; const prv = prevE?.[c.key];
+                        const delta = cur!=null&&prv!=null ? cur-prv : null;
+                        return (
+                          <td key={c.key} style={{ padding:"8px 10px", textAlign:"right" }}>
+                            <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cur!=null?fmtK(cur):"—"}</div>
+                            {delta!=null && <div style={{ fontSize:10, color:delta>0?"#4ade80":delta<0?"#ef4444":"#555" }}>{delta>0?"+":""}{delta.toLocaleString()}</div>}
+                          </td>
+                        );
+                      })}
+                      {isAdmin && (
+                        <td style={{ padding:"8px 10px", textAlign:"center" }}>
+                          <button onClick={()=>{ if(window.confirm("Delete this snapshot?")) deleteEntry(e.id); }}
+                            style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13 }}>🗑</button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </>}
+      </div>
     </div>
   );
 }
