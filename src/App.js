@@ -8777,9 +8777,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               </div>
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:10 }} className="save-flash">
-            <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"\uD83D\uDCB5 Commission Earned"}</span>
-            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt)}</span>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:4 }} className="save-flash">
+            <div>
+              <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"\uD83D\uDCB5 Commission Earned"}</span>
+              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{fmt(c.commAmt)} gross − {fmt(c.repExpShare)} expenses ({(c.rate*0.30*100).toFixed(1)}%)</div>
+            </div>
+            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare)}</span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
@@ -9300,9 +9303,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ textAlign:"right" }}>
-                    <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{fmt(c.commAmt)}</div>
-                    <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
-                    {isAdmin && <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginTop:2 }}>True: {fmt(c.bazTrueNet)}</div>}
+                    <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{fmt(c.commAmt - c.repExpShare)}</div>
+                    <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Rep Net</div>
+                    <div style={{ fontSize:10, color:"#555", marginTop:1 }}>{fmt(c.commAmt)} − {fmt(c.repExpShare)}</div>
+                    {isAdmin && <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginTop:2 }}>Baz: {fmt(c.bazTrueNet)}</div>}
                   </div>
                   <span style={{ color:"#D1D5DB", fontSize:18 }}>{"\u203A"}</span>
                 </div>
