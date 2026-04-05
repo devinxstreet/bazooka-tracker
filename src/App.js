@@ -477,8 +477,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
-    const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
-    return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+    return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
   }
 
   return (
@@ -614,7 +614,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
+          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
         }
 
@@ -3696,7 +3696,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(recap.tips)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
-    const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, tips, collabAmt, bazTrueNet };
   }
 
@@ -4400,7 +4400,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
+          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
@@ -8627,7 +8627,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-    const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
   }
 
@@ -8767,7 +8767,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               ...(c.collabAmt>0 ? [{ l:`\u2212 Collab Payout (${s.collabPartner}, ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }] : []),
               { l:`= Bazooka Commission Base${c.collabAmt>0?" (after collab)":""}`, v:fmt(c.bazNet - c.collabAmt), c:"#7B9CFF", indent:false, bold:true },
               { l:`\u00D7 Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`\u00D7 ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
-              { l:`\u2212 Rep Expense Share (${(c.rate*100).toFixed(0)}% \u00D7 30% = ${(c.rate*0.30*100).toFixed(1)}% of expenses)`, v:"\u2212 "+fmt(c.repExpShare||0), c:"#991b1b", indent:true },
+              { l:`\u2212 Rep Expense Share (${(c.rate*100).toFixed(0)}% × 30% = ${(c.rate*0.30*100).toFixed(1)}% of expenses)`, v:"\u2212 "+fmt(c.repExpShare||0), c:"#991b1b", indent:true },
+              { l:`+ IMC Reimburses 70% of expenses`,                                v:"+ "+fmt(c.imcReimb||0),       c:"#4ade80", indent:true },
+              { l:`+ Rep expense share returned`,                                     v:"+ "+fmt(c.repExpShare||0),    c:"#4ade80", indent:true },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
@@ -8954,7 +8956,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
               const tips=parseFloat(s.tips)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
+              const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, bazTrueNet, rate };
             }
 
