@@ -2919,6 +2919,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [lotStatusFilter, setLotStatusFilter] = useState("all");
   const [expandedLot,    setExpandedLot]    = useState(null);
   const [trackingForm,   setTrackingForm]   = useState({ carrier:"", trackingNum:"", status:"", eta:"", notes:"" });
+  const [poCopied,       setPoCopied]       = useState(false);
 
   const [search,   setSearch]   = useState("");
   const [typeF,    setTypeF]    = useState("");
@@ -3344,7 +3345,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
           if (items.length === 0) return null;
 
-          const [copied, setCopied] = useState(false);
+          const [copied, setCopied] = [poCopied, setPoCopied];
 
           const poText = [
             "BAZOOKA BREAKS — CARD PURCHASE ORDER",
@@ -4456,7 +4457,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         onChange={()=>setStreamBulkSel(streamBulkSel.size===myStreams.length ? new Set() : new Set(myStreams.map(s=>s.id)))}
                       />
                     </th>
-                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers","Collab",...PRODUCT_TYPES.map(pt=>pt.replace(" ","")),""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {["Date","Breaker","Stream Name","Gross","Net Rev",canSeeFinancials?"Owed to IM":null,canSeeFinancials?"Baz Earnings":null,"Commission",canSeeFinancials?"True Net":null,"Rate","New Buyers","Collab","Product",""].filter(Boolean).map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -4493,15 +4494,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                             : <span style={{ color:"#333" }}>--</span>
                           }
                         </td>
-                        {PRODUCT_TYPES.map(pt => {
-                          const qty = parseInt(s[`prod_${pt}`])||0;
-                          const PT_COLORS = {"Double Mega":"#C2410C","Hobby":"#2C3E7A","Jumbo":"#166534","Miscellaneous":"#6B2D8B"};
-                          return (
-                            <td key={pt} style={{ ...S.td, color: qty>0?PT_COLORS[pt]:"#D1D5DB", fontWeight:qty>0?700:400, textAlign:"center" }}>
-                              {qty>0 ? qty : "--"}
-                            </td>
-                          );
-                        })}
+                        <td style={{ ...S.td, fontSize:10, color:"#AAAAAA", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {PRODUCT_TYPES.filter(pt=>(parseInt(s[`prod_${pt}`])||0)>0).map(pt=>`${pt.split(" - ").pop()}×${s[`prod_${pt}`]}`).join(", ")||"--"}
+                        </td>
                         <td style={S.td}>
                           <button
                             onClick={e=>{ e.stopPropagation(); if(window.confirm("Delete this stream?")) { if(onDeleteStream) onDeleteStream(s.id); if(existingStream?.id===s.id){ setRecap({...EMPTY_RECAP}); setRecapSaved(false); setEditingStreamId(null); } }}}
