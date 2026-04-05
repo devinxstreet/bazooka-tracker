@@ -473,8 +473,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
     const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
     const commAmt=bazNet*rate;
-    const repExpShare=streamExp*(rate*0.30);   // rep pays (commRate × 30%) of expenses
-    const bazExpShare=streamExp*(1-rate*0.30); // Bazooka covers the rest
+    const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+    const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
     const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
@@ -611,8 +611,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
           const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
           const commAmt=bazNet*rate;
-          const repExpShare=streamExp*(rate*0.30);
-          const bazExpShare=streamExp*(1-rate*0.30);
+          const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+          const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
@@ -3692,8 +3692,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const overrideRate=recap.commissionOverride!==""?parseFloat(recap.commissionOverride)/100:null;
     const rate=overrideRate!==null?overrideRate:recap.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(recap.newBuyers)||0)>=5&&!recap.binOnly?0.05:0));
     const commAmt=bazNet*rate;
-    const repExpShare=streamExp*(rate*0.30);
-    const bazExpShare=streamExp*(1-rate*0.30);
+    const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+    const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(recap.tips)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
     const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
@@ -4396,8 +4396,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
           const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
           const commAmt=bazNet*rate;
-          const repExpShare=streamExp*(rate*0.30);
-          const bazExpShare=streamExp*(1-rate*0.30);
+          const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+          const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
@@ -8624,8 +8624,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const rate=getCommRate(s);
     const commAmt=bazNet*rate;
-    const repExpShare=streamExp*(rate*0.30);
-    const bazExpShare=streamExp*(1-rate*0.30);
+    const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+    const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
@@ -8950,8 +8950,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
               const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
               const commAmt=bazNet*rate;
-              const repExpShare=streamExp*(rate*0.30);
-              const bazExpShare=streamExp*(1-rate*0.30);
+              const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
+              const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
               const tips=parseFloat(s.tips)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
               const bazTrueNet=bazNet-commAmt-bazExpShare-collabAmt;
