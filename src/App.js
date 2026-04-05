@@ -4979,6 +4979,7 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
   useEffect(()=>{setPerfPeriod(defaultPeriod);},[defaultPeriod]);
   const [perfFrom,   setPerfFrom]   = useState("");
   const [perfTo,     setPerfTo]     = useState("");
+  const [perfTab,    setPerfTab]    = useState("stats");
 
   function getPerfStreams() {
     return streams.filter(s => {
@@ -5053,6 +5054,20 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+      {/* Tab nav */}
+      <div style={{ display:"flex", gap:8 }}>
+        {[["stats","📊 Stats"],["followers","📡 Followers"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setPerfTab(id)}
+            style={{ background:perfTab===id?"rgba(232,49,122,0.15)":"transparent", color:perfTab===id?"#E8317A":"#555", border:`1.5px solid ${perfTab===id?"#E8317A":"#333"}`, borderRadius:20, padding:"7px 20px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {perfTab==="followers" && <WhatnotFollowerTracker isAdmin={isAdmin} />}
+
+      {perfTab==="stats" && <>
 
       {/* Period Filter */}
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -5224,7 +5239,7 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
           </div>
         );
       })}
-      <WhatnotFollowerTracker isAdmin={isAdmin} />
+      </>}
     </div>
   );
 }
