@@ -678,31 +678,31 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
-                    {["Date","Breaker","Gross","Net","Rate",
-                      ...(drillDown==="trueNet" ? ["Baz Earnings","\u2212 Commission","Baz Exp Share","True Net"] : [
+                    {["Date","Breaker","Gross","Rate",
+                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","+ Reimb Back","= True Net"] : [
                         drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
                       ])
                     ].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?9:6}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?8:5}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
+                          const netReimb = (c.imcReimb||0) + (c.repExpShare||0) - (c.bazExpShare||0);
                           return (
                             <tr key={s.id} style={{ background:"#111111" }}>
                               <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.netRev)}</td>
                               <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
-                                <td style={{ ...S.td, color:"#E8317A" }}>{"\u2212"}{fmt(c.commAmt)}</td>
-                                <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>+ {fmt(c.bazExpShare||0)}</td>
-                                <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
+                                <td style={{ ...S.td, color:"#991b1b" }}>{"\u2212"}{fmt(c.commAmt)}</td>
+                                <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>+ {fmt(netReimb)}</td>
+                                <td style={{ ...S.td, color:"#6B2D8B", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
                               </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
                             </tr>
                           );
@@ -711,12 +711,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </tbody>
                   <tfoot>
                     <tr style={{ background:"#111111", borderTop:"2px solid #333333" }}>
-                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                      <td colSpan={4} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{"\u2212"}{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>+ {fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazExpShare||0),0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#991b1b", fontSize:14 }}>{"\u2212"}{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#4ade80", fontSize:14 }}>+ {fmt(filtered.reduce((a,s)=>a+((calcStream(s).imcReimb||0)+(calcStream(s).repExpShare||0)-(calcStream(s).bazExpShare||0)),0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#6B2D8B", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
                       </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
                   </tfoot>
@@ -8762,7 +8762,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         <div style={{ ...S.card, border:"2px solid #166534" }}>
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:16 }}>
-            {[
+            {(isAdmin ? [
               { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
@@ -8773,7 +8773,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
               { l:`+ IMC Reimburses 70% of expenses`,                                v:"+ "+fmt(c.imcReimb||0),                           c:"#4ade80", indent:true  },
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
-            ].map(({l,v,c:clr,indent,bold}) => (
+            ] : [
+              { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
+              { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
+              { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
+              { l:"= Net Revenue",                                                    v:fmt(c.netRev),                                     c:"#F0F0F0", indent:false, bold:true },
+              ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
+              { l:`Your Commission (${(c.rate*100).toFixed(0)}%)`,                    v:fmt(c.commAmt),                                    c:"#4ade80", indent:true  },
+              { l:`\u2212 Your Expense Share (${(c.rate*0.30*100).toFixed(1)}%)`,         v:"\u2212 "+fmt(c.repExpShare||0),                    c:"#991b1b", indent:true  },
+            ]).map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
                 <span style={{ fontSize:13, fontWeight:700, color:clr }}>{v}</span>
@@ -8794,7 +8802,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           </div>
           )}
           {s.marketMultiple && !s.binOnly && (
-            <div style={{ marginTop:10, fontSize:12, color:"#AAAAAA", textAlign:"right" }}>Market multiple: {s.marketMultiple}x \u2192 {(c.rate*100).toFixed(0)}% rate</div>
+            <div style={{ marginTop:10, fontSize:12, color:"#AAAAAA", textAlign:"right" }}>Market multiple: {s.marketMultiple}x → {(c.rate*100).toFixed(0)}% rate</div>
           )}
           {s.notes && <div style={{ marginTop:10, padding:"8px 12px", background:"#111111", borderRadius:7, fontSize:12, color:"#AAAAAA", fontStyle:"italic" }}>{s.notes}</div>}
         </div>
