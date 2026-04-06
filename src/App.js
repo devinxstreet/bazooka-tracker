@@ -4405,7 +4405,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
+          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
           .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker);
@@ -9122,7 +9122,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         totalBaz: totals.baz,
                         totalComm: totals.comm,
                         totalTips: totals.tips,
-                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExpShareShare, rate:c.rate, commAmt:c.commAmt, tips:c.tips }; }),
+                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExpShare, rate:c.rate, commAmt:c.commAmt, tips:c.tips }; }),
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
