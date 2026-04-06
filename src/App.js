@@ -615,7 +615,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
+          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -8632,7 +8632,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
   }
 
   // Admins see all streams; streamers see only their own
@@ -8763,17 +8763,16 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:16 }}>
             {[
-              { l:"Gross Revenue",                        v:fmt(c.gross),                          c:"#F0F0F0", indent:false },
-              { l:`\u2212 Whatnot Fees`,                       v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0), c:"#666",    indent:true  },
-              { l:`\u2212 Coupons`,                            v:"\u2212 "+fmt(parseFloat(s.coupons)||0),     c:"#666",    indent:true  },
-              { l:"= Split Base (70/30 applied here)",    v:fmt(c.splitBase),                       c:"#F0F0F0", indent:false, bold:true },
-              { l:"\u00D7 30% (Bazooka Share)",                v:fmt(c.bazNet),                          c:"#E8317A", indent:true  },
-              ...(c.collabAmt>0 ? [{ l:`\u2212 Collab Payout (${s.collabPartner}, ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }] : []),
-              { l:`= Bazooka Commission Base${c.collabAmt>0?" (after collab)":""}`, v:fmt(c.bazNet - c.collabAmt), c:"#7B9CFF", indent:false, bold:true },
-              { l:`\u00D7 Rate (${(c.rate*100).toFixed(0)}%${s.binOnly?" -- BIN flat":s.marketMultiple?" -- "+s.marketMultiple+"x":""})`, v:`\u00D7 ${(c.rate*100).toFixed(0)}%`, c:"#6B7280", indent:true },
-              { l:`\u2212 Rep Expense Share (${(c.rate*100).toFixed(0)}% × 30% = ${(c.rate*0.30*100).toFixed(1)}% of expenses)`, v:"\u2212 "+fmt(c.repExpShare||0), c:"#991b1b", indent:true },
-              { l:`+ IMC Reimburses 70% of expenses`,                                v:"+ "+fmt(c.imcReimb||0),       c:"#4ade80", indent:true },
-              { l:`+ Rep expense share returned`,                                     v:"+ "+fmt(c.repExpShare||0),    c:"#4ade80", indent:true },
+              { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
+              { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
+              { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
+              { l:"= Split Base (70/30 applied here)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
+              { l:"\u00D7 30% \u2192 Bazooka Share",                                       v:fmt(c.bazNet),                                     c:"#E8317A", indent:true  },
+              ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
+              { l:`\u2212 Rep Commission (${(c.rate*100).toFixed(0)}%)`,                   v:"\u2212 "+fmt(c.commAmt),                           c:"#991b1b", indent:true  },
+              { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
+              { l:`+ IMC Reimburses 70% of expenses`,                                v:"+ "+fmt(c.imcReimb||0),                           c:"#4ade80", indent:true  },
+              { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
             ].map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
