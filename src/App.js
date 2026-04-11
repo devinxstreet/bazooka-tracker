@@ -1448,7 +1448,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
       source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle, totalCards, totalMarket:totalMkt,
       offer:dispOffer, blendedPct:totalMkt>0?dispOffer/totalMkt:0,
       zone:lotZone?.label||"--", status,
-      cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 }))
+      cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) }))
     });
   }
 
@@ -2458,7 +2458,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   if (!onSaveQuote) return;
                   await onSaveQuote({
                     existingId: loadedCompId,
-                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                     dispOffer, dispPct, totalMkt, custNote,
                     payment:seller.payment, paymentHandle:seller.paymentHandle,
                     allowCounter,
@@ -2473,7 +2473,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   if (!onSaveQuote) return;
                   const id = await onSaveQuote({
                     existingId: null,
-                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                    seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                     dispOffer, dispPct, totalMkt, custNote,
                     payment:seller.payment, paymentHandle:seller.paymentHandle,
                     allowCounter,
@@ -2490,7 +2490,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               if (!onSaveQuote) return;
               const id = await onSaveQuote({
                 existingId: null,
-                seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0 })),
+                seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                 dispOffer, dispPct, totalMkt, custNote,
                 payment:seller.payment, paymentHandle:seller.paymentHandle,
                 allowCounter,
@@ -17312,14 +17312,20 @@ function PublicQuote({ quoteId }) {
               <tbody>
                 {quote.cards.map((c,i) => {
                   const mv = parseFloat(c.mktVal)||0;
+                  const qty = parseInt(c.qty)||1;
                   const dispPct = totalMkt > 0 ? offer/totalMkt : 0;
+                  const cardOffer = c.offerPerCard != null ? parseFloat(c.offerPerCard) : mv*dispPct;
+                  const isCustom = c.pctOverride || (c.offerPerCard != null && Math.abs(cardOffer - mv*dispPct) > 0.01);
                   return (
                     <tr key={i} style={{ borderBottom:"1px solid #1a1a1a" }}>
                       <td style={{ padding:"10px 12px", color:"#555", fontSize:12 }}>{i+1}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:"#F0F0F0", fontSize:13 }}>{c.name}</td>
-                      <td style={{ padding:"10px 12px", color:"#888", fontSize:12, textAlign:"center" }}>{parseInt(c.qty)||1}</td>
+                      <td style={{ padding:"10px 12px", color:"#888", fontSize:12, textAlign:"center" }}>{qty}</td>
                       <td style={{ padding:"10px 12px", color:"#888", fontSize:12 }}>${mv.toFixed(2)}</td>
-                      <td style={{ padding:"10px 12px", color:"#E8317A", fontWeight:700, fontSize:12 }}>${(mv*dispPct).toFixed(2)}</td>
+                      <td style={{ padding:"10px 12px", color: isCustom?"#A78BFA":"#E8317A", fontWeight:700, fontSize:12 }}>
+                        ${cardOffer.toFixed(2)}
+                        {isCustom && <span style={{ fontSize:9, color:"#A78BFA", marginLeft:4 }}>★</span>}
+                      </td>
                     </tr>
                   );
                 })}
