@@ -1377,7 +1377,15 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
   const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
-  const calcOffer = totalMkt * pctNum;
+  // calcOffer: locked cards use their own pct/cost, remaining use global pct
+  const calcOffer = included.reduce((s,r) => {
+    const mv  = (parseFloat(r.mktVal)||0) * (parseInt(r.qty)||1);
+    const co  = parseFloat(r.costOverride);
+    const po  = parseFloat(r.pctOverride);
+    if (!isNaN(co)) return s + co*(parseInt(r.qty)||1);
+    if (!isNaN(po)) return s + mv*(po/100);
+    return s + mv*pctNum;
+  }, 0);
   const offerAmt  = finalOffer !== "" ? parseFloat(finalOffer) : null;
   const counterAmt = counterOffer !== "" ? parseFloat(counterOffer) : null;
   // Priority: counter > manual override > calculated
@@ -1391,38 +1399,21 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
-  // Cost allocation: rows with costOverride OR pctOverride use those; remaining offer splits among the rest
-  const manuallyAllocated = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    const po = parseFloat(r.pctOverride);
-    const mv = (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1);
-    if (!isNaN(co)) return s + co*(parseInt(r.qty)||1);
-    if (!isNaN(po)) return s + mv*(po/100);
-    return s;
-  }, 0);
-  const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
-  const unoverriddenMkt = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    const po = parseFloat(r.pctOverride);
-    return (isNaN(co) && isNaN(po)) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
-  }, 0);
-  const unoverriddenCards = included.reduce((s,r) => {
-    const co = parseFloat(r.costOverride);
-    const po = parseFloat(r.pctOverride);
-    return (isNaN(co) && isNaN(po)) ? s + (parseInt(r.qty)||1) : s;
-  }, 0);
+  // Cost allocation per card — locked cards use override, others use global pct
+  const manuallyAllocated = 0; // no longer needed — calcOffer handles it
+  const remainingOffer = 0;    // no longer needed
+  const unoverriddenMkt = 0;   // no longer needed
+  const unoverriddenCards = 0; // no longer needed
   function getCostPerCard(r) {
     const co = parseFloat(r.costOverride);
     if (!isNaN(co)) return co;
     const po = parseFloat(r.pctOverride);
     const mv = parseFloat(r.mktVal)||0;
     if (!isNaN(po)) return mv*(po/100);
-    if (unoverriddenMkt > 0) return (mv / unoverriddenMkt) * remainingOffer;
-    if (unoverriddenCards > 0) return remainingOffer / unoverriddenCards;
-    return 0;
+    return mv*pctNum;
   }
-  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
-  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
+  const totalAllocated = calcOffer; // sum of all per-card offers
+  const allocationDiff = 0; // always balanced now
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
