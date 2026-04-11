@@ -1360,7 +1360,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
-  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false })));
+  const [rows,         setRows]         = useState(() => Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", pctOverride:"", manualEntry:false })));
   const [quickCards,   setQuickCards]   = useState("");
   const [quickMktVal,  setQuickMktVal]  = useState("");
   const [quickPct,     setQuickPct]     = useState("");
@@ -1391,24 +1391,32 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
-  // Cost allocation: rows with costOverride use that; remaining offer splits among the rest
+  // Cost allocation: rows with costOverride OR pctOverride use those; remaining offer splits among the rest
   const manuallyAllocated = included.reduce((s,r) => {
     const co = parseFloat(r.costOverride);
-    return s + (isNaN(co) ? 0 : co * (parseInt(r.qty)||1));
+    const po = parseFloat(r.pctOverride);
+    const mv = (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1);
+    if (!isNaN(co)) return s + co*(parseInt(r.qty)||1);
+    if (!isNaN(po)) return s + mv*(po/100);
+    return s;
   }, 0);
   const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
   const unoverriddenMkt = included.reduce((s,r) => {
     const co = parseFloat(r.costOverride);
-    return isNaN(co) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
+    const po = parseFloat(r.pctOverride);
+    return (isNaN(co) && isNaN(po)) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
   }, 0);
   const unoverriddenCards = included.reduce((s,r) => {
     const co = parseFloat(r.costOverride);
-    return isNaN(co) ? s + (parseInt(r.qty)||1) : s;
+    const po = parseFloat(r.pctOverride);
+    return (isNaN(co) && isNaN(po)) ? s + (parseInt(r.qty)||1) : s;
   }, 0);
   function getCostPerCard(r) {
     const co = parseFloat(r.costOverride);
     if (!isNaN(co)) return co;
+    const po = parseFloat(r.pctOverride);
     const mv = parseFloat(r.mktVal)||0;
+    if (!isNaN(po)) return mv*(po/100);
     if (unoverriddenMkt > 0) return (mv / unoverriddenMkt) * remainingOffer;
     if (unoverriddenCards > 0) return remainingOffer / unoverriddenCards;
     return 0;
@@ -1423,8 +1431,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
     setRows(hasCards
-      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"", manualEntry:false }))
-      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }))
+      ? comp.cards.map(c => ({ id:uid(), name:c.name||"", cardType:c.cardType||"", mktVal:String(c.mktVal||""), qty:String(c.qty||1), include:true, costOverride:"", pctOverride:"", manualEntry:false }))
+      : Array.from({ length:8 }, () => ({ id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", pctOverride:"", manualEntry:false }))
     );
     setFOffer(comp.offer ? String(comp.offer) : "");
     setCounterOffer("");
@@ -2149,11 +2157,23 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={mInp}/>
                       </div>
                     </div>
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:11, color: r.costOverride?"#FBBF24":"#666", marginBottom:4, fontWeight:r.costOverride?700:400 }}>
-                        {r.costOverride?"★ ":""}Cost/Card Override (leave blank = auto)
+                    <div style={{ marginBottom:8, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:11, color: r.costOverride?"#FBBF24":"#666", marginBottom:4, fontWeight:r.costOverride?700:400 }}>
+                          {r.costOverride?"★ ":""}Cost/Card Override
+                        </div>
+                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid #2a2a2a", color:r.costOverride?"#FBBF24":"#888" }}/>
                       </div>
-                      <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid #2a2a2a", color:r.costOverride?"#FBBF24":"#888" }}/>
+                      <div>
+                        <div style={{ fontSize:11, color: r.pctOverride?"#A78BFA":"#666", marginBottom:4, fontWeight:r.pctOverride?700:400 }}>
+                          {r.pctOverride?"★ ":""}Custom Comp % (e.g. 70)
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); upd(r.id,"costOverride","");}} placeholder="global %" style={{ ...mInp, border:r.pctOverride?"1.5px solid #A78BFA88":"1px solid #2a2a2a", color:r.pctOverride?"#A78BFA":"#888", flex:1 }}/>
+                          <span style={{ fontSize:11, color:"#555" }}>%</span>
+                        </div>
+                        {r.pctOverride && <div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>${((parseFloat(r.mktVal)||0)*(parseFloat(r.pctOverride)/100)).toFixed(2)}/card</div>}
+                      </div>
                     </div>
                     {(mv > 0 || perCardOffer > 0) && (
                       <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"#1a1a1a", borderRadius:6, fontSize:12 }}>
@@ -2169,7 +2189,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:750 }}>
-              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Cost/Card ($)","Offer/Card","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Cost/Card ($)","Comp %","Offer/Card","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
@@ -2347,9 +2367,15 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
                       <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
                       <td style={{ ...S.td, width:100 }}>
-                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder="auto" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.costOverride?"#FBBF24":"#555", width:75, border:r.costOverride?"1px solid #FBBF2488":"1px solid #2a2a2a" }}/>
+                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>{upd(r.id,"costOverride",e.target.value); if(e.target.value) upd(r.id,"pctOverride","");}} placeholder="auto" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.costOverride?"#FBBF24":"#555", width:75, border:r.costOverride?"1px solid #FBBF2488":"1px solid #2a2a2a" }}/>
                       </td>
-                      <td style={{ ...S.td, color: r.costOverride?"#FBBF24":"#E8317A", fontWeight:700 }}>${getCostPerCard(r).toFixed(2)}{r.costOverride?<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>:""}</td>
+                      <td style={{ ...S.td, width:80 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); if(e.target.value) upd(r.id,"costOverride","");}} placeholder="%" style={{ ...S.inp, padding:"5px 6px", fontSize:12, color:r.pctOverride?"#A78BFA":"#555", width:48, border:r.pctOverride?"1px solid #A78BFA88":"1px solid #2a2a2a" }}/>
+                          <span style={{ fontSize:11, color:"#555" }}>%</span>
+                        </div>
+                      </td>
+                      <td style={{ ...S.td, color: r.pctOverride?"#A78BFA":r.costOverride?"#FBBF24":"#E8317A", fontWeight:700 }}>${getCostPerCard(r).toFixed(2)}{r.pctOverride?<span style={{fontSize:9,color:"#A78BFA",marginLeft:3}}>%</span>:r.costOverride?<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>:""}</td>
                       <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
                     </tr>
