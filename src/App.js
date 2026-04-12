@@ -5088,7 +5088,102 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
         )}
       </div>
 
-      {/* Boxes Ripped Summary */}
+      {/* Combined Team Recap */}
+      {isAdmin && thisMonth.length > 0 && (() => {
+        const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0);
+        const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
+        const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
+        const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
+        const mmBuckets = { "< 1.5x":0, "1.5–1.6x":0, "1.6–1.7x":0, "1.7–1.8x":0, "1.8x+":0 };
+        mmStreams.forEach(s => {
+          const mm = parseFloat(s.marketMultiple);
+          if (mm < 1.5)       mmBuckets["< 1.5x"]++;
+          else if (mm < 1.6)  mmBuckets["1.5–1.6x"]++;
+          else if (mm < 1.7)  mmBuckets["1.6–1.7x"]++;
+          else if (mm < 1.8)  mmBuckets["1.7–1.8x"]++;
+          else                mmBuckets["1.8x+"]++;
+        });
+        const mmColor = !avgMM ? "#555" : avgMM >= 1.8 ? "#4ade80" : avgMM >= 1.6 ? "#FBBF24" : "#E8317A";
+        const breakerBreakdown = BREAKERS.map(b => {
+          const bStreams = thisMonth.filter(s => s.breaker === b);
+          const bMM = bStreams.filter(s=>parseFloat(s.marketMultiple)>0);
+          const bAvgMM = bMM.length > 0 ? bMM.reduce((sum,s)=>sum+(parseFloat(s.marketMultiple)||0),0)/bMM.length : null;
+          const bGross = bStreams.reduce((sum,s)=>sum+(parseFloat(s.grossRevenue)||0),0);
+          return { breaker:b, streams:bStreams.length, gross:bGross, avgMM:bAvgMM };
+        }).filter(b => b.streams > 0);
+
+        return (
+          <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:12, padding:"18px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8 }}>
+              <SectionLabel t="🏆 Team Recap" />
+              <span style={{ fontSize:11, color:"#555" }}>{thisMonth.length} stream{thisMonth.length!==1?"s":""} · all breakers</span>
+            </div>
+
+            {/* Top KPIs */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:16 }}>
+              {[
+                { l:"Avg Market Multiple", v:avgMM ? `${avgMM.toFixed(2)}x` : "--", c:mmColor, big:true },
+                { l:"Gross Revenue",       v:`$${totalGross.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}`, c:"#E8317A" },
+                { l:"Streams",             v:thisMonth.length, c:"#F0F0F0" },
+                { l:"New Buyers",          v:totalNewBuyers, c:"#4ade80" },
+              ].map(({l,v,c,big})=>(
+                <div key={l} style={{ background:"#0d0d0d", borderRadius:10, padding:"12px 14px", textAlign:"center", border:`1px solid ${c}22` }}>
+                  <div style={{ fontSize:big?28:22, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Market multiple distribution */}
+            {mmStreams.length > 0 && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Market Multiple Distribution</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {Object.entries(mmBuckets).map(([label,count])=>{
+                    if (!count) return null;
+                    const pct = mmStreams.length > 0 ? count/mmStreams.length : 0;
+                    const col = label==="1.8x+"?"#4ade80":label==="1.7–1.8x"?"#86efac":label==="1.6–1.7x"?"#FBBF24":label==="1.5–1.6x"?"#F97316":"#E8317A";
+                    return (
+                      <div key={label} style={{ background:`${col}15`, border:`1px solid ${col}33`, borderRadius:8, padding:"6px 12px", textAlign:"center", minWidth:80 }}>
+                        <div style={{ fontSize:16, fontWeight:900, color:col }}>{count}</div>
+                        <div style={{ fontSize:10, color:col, opacity:0.7 }}>{label}</div>
+                        <div style={{ fontSize:10, color:"#555" }}>{(pct*100).toFixed(0)}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Per-breaker breakdown */}
+            {breakerBreakdown.length > 1 && (
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>By Breaker</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {breakerBreakdown.map(b => {
+                    const bc = BC[b.breaker]||{text:"#888",bg:"#111",border:"#333"};
+                    const mmCol = !b.avgMM?"#555":b.avgMM>=1.8?"#4ade80":b.avgMM>=1.6?"#FBBF24":"#E8317A";
+                    return (
+                      <div key={b.breaker} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#0d0d0d", borderRadius:8, border:`1px solid #1a1a1a` }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                          <span style={{ background:bc.bg, color:bc.text, border:`1px solid ${bc.border}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{b.breaker}</span>
+                          <span style={{ fontSize:12, color:"#555" }}>{b.streams} stream{b.streams!==1?"s":""}</span>
+                        </div>
+                        <div style={{ display:"flex", gap:20, alignItems:"center" }}>
+                          <span style={{ fontSize:12, color:"#AAAAAA" }}>${b.gross.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                          <span style={{ fontSize:14, fontWeight:900, color:mmCol }}>{b.avgMM?`${b.avgMM.toFixed(2)}x`:"--"}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+
       {(monthTotal > 0 || yearTotal > 0 || monthGross > 0 || monthNewBuyers > 0) && (
       <div style={S.card}>
         <SectionLabel t={`\uD83D\uDCE6 ${perfPeriod==="month"?"This Month's":perfPeriod==="week"?"This Week's":perfPeriod==="year"?"This Year's":perfPeriod==="quarter"?"This Quarter's":perfPeriod==="custom"?"Selected Period":""} Key Metrics`} />
