@@ -40,8 +40,7 @@ const ROLES = {
   "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
-  "orbital":  { role:"Streamer",  label:"Orbital Society",    color:"#34d399", bg:"#ECFDF5" },
-  "wonders":  { role:"Streamer",  label:"Orbital Society",    color:"#34d399", bg:"#ECFDF5" },
+  "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
