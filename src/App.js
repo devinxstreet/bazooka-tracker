@@ -8,7 +8,18 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
-const BREAKERS = ["Dev","Dre","Krystal","Denver"];
+const BREAKERS = ["Dev","Dre","Krystal","Orbital Society"];
+const FLAT_RATE_BREAKERS = ["Orbital Society"]; // 50/50 split, not tiered
+
+function getRate(s) {
+  if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
+  if (s.binOnly) return 0.35;
+  const newBuyerBonus = (parseInt(s.newBuyers)||0) >= 5 ? 0.05 : 0;
+  if (FLAT_RATE_BREAKERS.includes(s.breaker)) return Math.min(0.60, 0.50 + newBuyerBonus);
+  const mm = parseFloat(s.marketMultiple)||0;
+  const base = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+  return Math.min(0.60, base + newBuyerBonus);
+}
 const PRODUCT_SETS = {
   "Alpha Edition":        ["Blaster","Booster","Hobby","Jumbo"],
   "Alpha Update":         ["Blaster","Booster","Hobby","Jumbo"],
@@ -29,7 +40,7 @@ const ROLES = {
   "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
-  "denver":  { role:"StreamerLite",  label:"Streamer",           color:"#F97316", bg:"#FFF4ED" },
+  "orbital":  { role:"StreamerLite",  label:"Orbital Society",    color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
@@ -49,7 +60,7 @@ const BC = {
   Dev:     { bg:"#0a0a1a", text:"#7B9CFF", border:"#3730a3" },
   Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
   Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
-  Denver:  { bg:"#1a0f08", text:"#FB923C", border:"#c2410c" },
+  "Orbital Society": { bg:"#0a1a10", text:"#34d399", border:"#065f46" },
 };
 const CAN_DELETE        = ["Admin"];
 const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
@@ -471,7 +482,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const netRev=splitBase-streamExp; // for display only
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-    const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+    const rate=getRate(s);
     const commAmt=bazNet*rate;
     const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
@@ -609,7 +620,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
           const mm=parseFloat(s.marketMultiple)||0;
           const overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-          const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+          const rate=getRate(s);
           const commAmt=bazNet*rate;
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
@@ -3708,8 +3719,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const netRev=splitBase-streamExp;
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const mm=parseFloat(recap.marketMultiple)||0;
-    const overrideRate=recap.commissionOverride!==""?parseFloat(recap.commissionOverride)/100:null;
-    const rate=overrideRate!==null?overrideRate:recap.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(recap.newBuyers)||0)>=5&&!recap.binOnly?0.05:0));
+    const rate=getRate({...recap, breaker});
     const commAmt=bazNet*rate;
     const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
@@ -4415,7 +4425,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const netRev=splitBase-streamExp;
           const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-          const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+          const rate=getRate(s);
           const commAmt=bazNet*rate;
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
@@ -6873,7 +6883,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       Dev:     { from:"#4f46e5", to:"#7c3aed", dot:"#818cf8" },
       Dre:     { from:"#7c3aed", to:"#a855f7", dot:"#c084fc" },
       Krystal: { from:"#0d9488", to:"#0891b2", dot:"#2dd4bf" },
-      Denver:  { from:"#c2410c", to:"#ea580c", dot:"#fb923c" },
+      "Orbital Society": { from:"#065f46", to:"#0d9488", dot:"#34d399" },
     };
 
     return (
@@ -8723,14 +8733,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [stubTo,      setStubTo]      = useState("");
 
   // Commission rate from comp plan
-  function getCommRate(stream) {
-    if (stream.commissionOverride !== "" && stream.commissionOverride != null) return parseFloat(stream.commissionOverride)/100;
-    if (stream.binOnly) return 0.35;
-    const mm = parseFloat(stream.marketMultiple) || 0;
-    const base = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
-    const bonus = (parseInt(stream.newBuyers)||0) >= 5 && !stream.binOnly ? 0.05 : 0;
-    return Math.min(0.60, base + bonus);
-  }
+  function getCommRate(stream) { return getRate(stream); }
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -9076,7 +9079,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const netRev=splitBase-streamExp;
               const bazNet=splitBase*0.30;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
-              const rate=overrideRate!==null?overrideRate:s.binOnly?0.35:Math.min(0.60,(mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35)+((parseInt(s.newBuyers)||0)>=5&&!s.binOnly?0.05:0));
+              const rate=getRate(s);
               const commAmt=bazNet*rate;
               const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
               const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
