@@ -34,7 +34,7 @@ const PRODUCT_TYPES = [
 ];
 const USAGE_TYPES = ["Giveaway","Insurance","First-Timer Pack","Chaser Pull"];
 const SOURCES = ["Discord","Facebook","Other"];
-const PAYMENT_METHODS = ["Cash","Venmo","PayPal","Zelle","Other"];
+const PAYMENT_METHODS = ["PayPal","Zelle"];
 const ROLES = {
   "devin":   { role:"Admin",         label:"CEO",                color:"#E8317A", bg:"#FFF0F5" },
   "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
@@ -1936,7 +1936,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <TextInput label="Date" type="date" value={seller.date}    onChange={v=>setSeller(p=>({...p,date:v}))} />
             <SelectInput label="Payment Method" value={seller.payment} onChange={v=>setSeller(p=>({...p,payment:v,paymentHandle:""}))} options={PAYMENT_METHODS} />
             <TextInput
-              label={seller.payment==="Venmo" ? "Venmo Handle (e.g. @username)" : seller.payment==="PayPal" ? "PayPal Username / Email" : seller.payment==="Zelle" ? "Zelle Email or Phone" : "Payment Handle / Info"}
+              label={seller.payment==="PayPal" ? "PayPal Username / Email" : seller.payment==="Zelle" ? "Zelle Email or Phone" : "Payment Handle / Info"}
               value={seller.paymentHandle}
               onChange={v=>setSeller(p=>({...p,paymentHandle:v}))}
               placeholder={seller.payment==="Venmo" ? "@theirhandle" : seller.payment==="PayPal" ? "username or email" : seller.payment==="Zelle" ? "email or phone" : "handle or account info"}
@@ -17356,7 +17356,7 @@ function PublicQuote({ quoteId }) {
     }
   }
 
-  const PAYMENT_METHODS = ["Venmo","PayPal","Zelle","Cash App","Cash","Other"];
+  const PAYMENT_METHODS = ["PayPal","Zelle"];
 
   return (
     <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", padding:"24px 16px" }}>
@@ -17460,7 +17460,7 @@ function PublicQuote({ quoteId }) {
                     {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
                   </select>
                   <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
-                    placeholder={payment==="Venmo"?"@yourhandle":payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":payment?"your info":"handle / account"}
+                    placeholder={payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":"handle / account"}
                     style={{ background:"#0a0a0a", border:`1px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
                 </div>
               </div>
