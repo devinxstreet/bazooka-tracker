@@ -1368,6 +1368,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [custView,     setCustView]     = useState(false);
   const [custNote,     setCustNote]     = useState("");
   const [quoteLink,    setQuoteLink]    = useState(null);
+  const [savedQuoteRef, setSavedQuoteRef] = useState(null);
   const [quoteCopied,  setQuoteCopied]  = useState(false);
   const [allowCounter, setAllowCounter] = useState(false);
   const [bzCounterAmt, setBzCounterAmt] = useState({});
@@ -2481,6 +2482,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     allowCounter,
                   });
                   const link = `${window.location.origin}/quote/${id}`;
+                  const savedQ = quotes.find(q=>q.id===id);
+                  setSavedQuoteRef(savedQ?.quoteRef || null);
                   setQuoteLink(link);
                   navigator.clipboard?.writeText(link);
                   setQuoteCopied(true);
@@ -2498,6 +2501,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 allowCounter,
               });
               const link = `${window.location.origin}/quote/${id}`;
+              const savedQ = quotes.find(q=>q.id===id);
+              setSavedQuoteRef(savedQ?.quoteRef || null);
               setQuoteLink(link);
               navigator.clipboard?.writeText(link);
               setQuoteCopied(true);
@@ -2505,11 +2510,21 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             }} variant="ghost" disabled={included.length===0}>{"\uD83D\uDD17 Share Quote"}</Btn>
             )}
             {quoteLink && (
-              <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"6px 12px", flex:1 }}>
-                <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{quoteCopied ? "\u2705 Copied!" : "\uD83D\uDD17"}</span>
-                <span style={{ fontSize:11, color:"#888", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{quoteLink}</span>
-                <button onClick={()=>{ navigator.clipboard?.writeText(quoteLink); setQuoteCopied(true); setTimeout(()=>setQuoteCopied(false),3000); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#888", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit", whiteSpace:"nowrap" }}>Copy</button>
-                <a href={quoteLink} target="_blank" rel="noreferrer" style={{ color:"#E8317A", fontSize:11, textDecoration:"none", whiteSpace:"nowrap" }}>{"Open \u2197"}</a>
+              <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1 }}>
+                {savedQuoteRef && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a0a1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"6px 12px" }}>
+                    <span style={{ fontSize:11, color:"#7B9CFF", fontWeight:700 }}>📋 Quote Ref:</span>
+                    <span style={{ fontSize:14, fontWeight:900, color:"#F0F0F0", letterSpacing:1 }}>{savedQuoteRef}</span>
+                    <button onClick={()=>{ navigator.clipboard?.writeText(savedQuoteRef); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#555", cursor:"pointer", fontSize:10, padding:"2px 8px", fontFamily:"inherit" }}>Copy</button>
+                    <span style={{ fontSize:10, color:"#555", marginLeft:"auto" }}>Use this in payment notes</span>
+                  </div>
+                )}
+                <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"6px 12px" }}>
+                  <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>{quoteCopied ? "\u2705 Copied!" : "\uD83D\uDD17"}</span>
+                  <span style={{ fontSize:11, color:"#888", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{quoteLink}</span>
+                  <button onClick={()=>{ navigator.clipboard?.writeText(quoteLink); setQuoteCopied(true); setTimeout(()=>setQuoteCopied(false),3000); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#888", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit", whiteSpace:"nowrap" }}>Copy</button>
+                  <a href={quoteLink} target="_blank" rel="noreferrer" style={{ color:"#E8317A", fontSize:11, textDecoration:"none", whiteSpace:"nowrap" }}>{"Open \u2197"}</a>
+                </div>
               </div>
             )}
             <Btn onClick={()=>saveComp("saved")} variant="ghost">{"\uD83D\uDCBE Save Comp"}</Btn>
@@ -8130,6 +8145,90 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     );
   }
 
+  // -- Month Projection --
+  function renderMonthProjection() {
+    if (!canSeeFinancials) return null;
+    const mPlans   = monthPlans(curYear, curMonth);
+    const mActuals = monthActuals(curYear, curMonth);
+    if (mActuals.length === 0 || mPlans.length === 0) return null;
+
+    const todayStr    = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const pastPlans   = mPlans.filter(p => p.date < todayStr);
+    const futurePlans = mPlans.filter(p => p.date >= todayStr);
+
+    const actRev    = actualRevenue(mActuals);
+    const projSoFar = projectedRevenue(pastPlans);
+    if (projSoFar === 0 || futurePlans.length === 0) return null;
+
+    // Pace ratio: how much above/below expectation are we so far
+    const paceRatio = actRev / projSoFar; // e.g. 1.12 = 12% above expectation
+
+    // Project remaining planned streams at the same pace ratio
+    const projRemaining = projectedRevenue(futurePlans) * paceRatio;
+    const projMonthTotal = actRev + projRemaining;
+
+    // Also compute a flat projection (remaining at face value, no adjustment)
+    const projRemainingFlat = projectedRevenue(futurePlans);
+    const projMonthFlat = actRev + projRemainingFlat;
+
+    const pctAbove = (paceRatio - 1) * 100;
+    const isAhead  = paceRatio >= 1;
+    const color    = paceRatio >= 1.05 ? "#4ade80" : paceRatio >= 0.95 ? "#FBBF24" : "#E8317A";
+
+    const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
+    const dayOfMonth  = curYear === today.getFullYear() && curMonth === today.getMonth() ? today.getDate() : daysInMonth;
+    const pctMonthElapsed = dayOfMonth / daysInMonth;
+
+    return (
+      <div style={{ background:"#111", border:`1px solid ${color}22`, borderRadius:12, padding:"16px 18px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>📈 Month Projection</div>
+          <div style={{ fontSize:11, fontWeight:700, color:color, background:`${color}15`, border:`1px solid ${color}33`, borderRadius:20, padding:"3px 12px" }}>
+            {isAhead ? "+" : ""}{pctAbove.toFixed(1)}% vs expectation
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+            <span style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Month Progress</span>
+            <span style={{ fontSize:10, color:"#555" }}>{dayOfMonth}/{daysInMonth} days</span>
+          </div>
+          <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pctMonthElapsed*100}%`, background:"#333", borderRadius:3 }}/>
+          </div>
+        </div>
+
+        {/* Key numbers */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+          <div style={{ background:"#0d0d0d", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+            <div style={{ fontSize:15, fontWeight:900, color:"#4ade80" }}>{fmt2(actRev)}</div>
+            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>Actual So Far</div>
+            <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{mActuals.length} stream{mActuals.length!==1?"s":""}</div>
+          </div>
+          <div style={{ background:"#0d0d0d", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+            <div style={{ fontSize:15, fontWeight:900, color:color }}>{fmt2(projMonthTotal)}</div>
+            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>Projected Total</div>
+            <div style={{ fontSize:10, color:color, marginTop:2 }}>at current pace</div>
+          </div>
+          <div style={{ background:"#0d0d0d", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+            <div style={{ fontSize:15, fontWeight:900, color:"#AAAAAA" }}>{fmt2(projMonthFlat)}</div>
+            <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>Base Projection</div>
+            <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{futurePlans.length} streams left</div>
+          </div>
+        </div>
+
+        {/* Variance explanation */}
+        <div style={{ marginTop:10, fontSize:11, color:"#555", textAlign:"center" }}>
+          {isAhead
+            ? `Running ${pctAbove.toFixed(1)}% above plan — projecting ${fmt2(projMonthTotal - projMonthFlat)} extra this month`
+            : `Running ${Math.abs(pctAbove).toFixed(1)}% below plan — ${fmt2(projMonthFlat - projMonthTotal)} gap to close`
+          }
+        </div>
+      </div>
+    );
+  }
+
   // -- Vacation Modal --
   function renderVacationModal() {
     if (!vacModal) return null;
@@ -8580,6 +8679,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         <>
           {renderTomorrowAlert()}
           {renderPaceReport()}
+          {renderMonthProjection()}
           {renderStreamScorecard()}
           {renderCalendar(curYear,curMonth)}
           {renderBestDayPredictor()}
@@ -9410,32 +9510,51 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ color:"#AAAAAA" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
-            const c    = calcStreamDash(s);
-            const bc   = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+            const c  = calcStreamDash(s);
+            const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="inv-row fade-in" className="card-hover" style={{ ...S.card, cursor:"pointer", display:"grid", gridTemplateColumns:"140px 1fr auto", gap:16, alignItems:"center" }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
-                  <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
-                </div>
-                <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Gross: <strong style={{color:"#F0F0F0"}}>{fmt(c.gross)}</strong></span>
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Net: <strong style={{color:"#F0F0F0"}}>{fmt(c.netRev)}</strong></span>
-                  {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>Baz 30%: <strong style={{color:"#E8317A"}}>{fmt(c.bazNet)}</strong></span>}
-                  {isAdmin && <span style={{ fontSize:12, color:"#AAAAAA" }}>True Net: <strong style={{color:"#4ade80"}}>{fmt(c.bazTrueNet)}</strong></span>}
-                  <span style={{ fontSize:12, color:"#AAAAAA" }}>Rate: <strong style={{color:"#AAAAAA"}}>{(c.rate*100).toFixed(0)}%{s.binOnly?" (BIN)":s.marketMultiple?" ("+s.marketMultiple+"x)":""}</strong></span>
-                  {s.newBuyers>0 && <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new</span>}
-                  {s.collabPartner && s.collabPartner !== "_" && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px" }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{fmt(c.commAmt - c.repExpShare)}</div>
-                    <div style={{ fontSize:9, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Rep Net</div>
-                    <div style={{ fontSize:10, color:"#555", marginTop:1 }}>{fmt(c.commAmt)} − {fmt(c.repExpShare)}</div>
-                    {isAdmin && <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginTop:2 }}>Baz: {fmt(c.bazTrueNet)}</div>}
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer" }}>
+                {/* Row 1: date + breaker + arrow */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+                    <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
+                    {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
                   </div>
-                  <span style={{ color:"#D1D5DB", fontSize:18 }}>{"\u203A"}</span>
+                  <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
+                {/* Row 2: key numbers */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom: isAdmin ? 8 : 0 }}>
+                  <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross)}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
+                  </div>
+                  <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
+                  </div>
+                  <div style={{ background:"#0a1a0a", borderRadius:8, padding:"8px 10px", border:"1px solid #4ade8022" }}>
+                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare)}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net</div>
+                  </div>
+                </div>
+                {/* Row 3: admin financials */}
+                {isAdmin && (
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#E8317A" }}>{fmt(c.bazNet)}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Baz 30%</div>
+                    </div>
+                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#6B2D8B" }}>{fmt(c.bazTrueNet)}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>True Net</div>
+                    </div>
+                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
+                      <div style={{ fontSize:12, fontWeight:700, color: s.newBuyers>0?"#4ade80":"#333" }}>{s.newBuyers>0?`+${s.newBuyers} 🌱`:"--"}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>New Buyers</div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
@@ -17437,7 +17556,10 @@ function PublicQuote({ quoteId }) {
             <span style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>Bazooka's Offer</span>
             <span style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
           </div>
-          <div style={{ fontSize:12, color:"#555", marginTop:4 }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+            <div style={{ fontSize:12, color:"#555" }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
+            {quote.quoteRef && <div style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 10px", letterSpacing:1 }}>Ref: {quote.quoteRef}</div>}
+          </div>
         </div>
 
         {/* -- RESPONSE AREA -- right after the offer, impossible to miss -- */}
@@ -17744,7 +17866,6 @@ export default function App() {
   async function handleDeleteComp(id) { await deleteDoc(doc(db,"comps",id)); showToast("\uD83D\uDDD1 Comp deleted"); }
 
   async function handleSaveQuote(quoteData) {
-    // If a quote was loaded (e.g. from a seller submission), update it instead of creating new
     const existingId = quoteData.existingId;
     const id = existingId || uid();
     if (existingId) {
@@ -17756,7 +17877,14 @@ export default function App() {
         updatedAt: new Date().toISOString(),
       }, { merge:true });
     } else {
-      await setDoc(doc(db,"quotes",id), { ...quoteData, id, status:"pending", createdAt:new Date().toISOString(), viewCount:0, notified:true, history:[] });
+      // Generate human-readable quote ref: BZ-YYMM-NNN
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(2);
+      const mm = String(now.getMonth()+1).padStart(2,"0");
+      const existing = quotes.filter(q => q.quoteRef?.startsWith(`BZ-${yy}${mm}-`));
+      const nextNum = String(existing.length + 1).padStart(3,"0");
+      const quoteRef = `BZ-${yy}${mm}-${nextNum}`;
+      await setDoc(doc(db,"quotes",id), { ...quoteData, id, quoteRef, status:"pending", createdAt:now.toISOString(), viewCount:0, notified:true, history:[] });
     }
     return id;
   }
