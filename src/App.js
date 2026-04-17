@@ -1539,31 +1539,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           {seller.payment && seller.paymentHandle && (() => {
             const handle = seller.paymentHandle.trim();
             const amt    = dispOffer > 0 ? dispOffer.toFixed(2) : "";
-            const note   = encodeURIComponent(`Bazooka card purchase - ${seller.name||"lot"}`);
-            const cleanHandle = handle.replace(/^@/,"");
 
             const paymentConfig = {
               PayPal: {
                 color: "#003087",
-                label: "Send via PayPal",
                 hint:  `To: ${handle}`,
-                href:  `https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}`,
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .761-.641h6.927c2.34 0 4.02.646 4.956 1.92.434.588.676 1.24.728 1.98.056.812-.07 1.766-.376 2.838-.79 2.764-2.723 4.168-5.745 4.168H9.87a.77.77 0 0 0-.761.641l-.87 5.49a.641.641 0 0 1-.633.54l-.53.001z" fill="#003087"/><path d="M19.612 8.2c-.056-.392-.163-.758-.32-1.094-.62 3.4-2.76 5.13-6.354 5.13H10.71l-1.04 6.567h2.197a.641.641 0 0 0 .633-.54l.87-5.49a.77.77 0 0 1 .761-.641h1.325c2.594 0 4.325-1.068 5.03-3.208.323-.98.37-1.822.126-2.724z" fill="#0070E0"/></svg>,
-              },
-              Venmo: {
-                color: "#3D95CE",
-                label: "Send via Venmo",
-                hint:  `To: @${cleanHandle}`,
-                href:  `venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}`,
-                webHref: `https://venmo.com/u/${cleanHandle}`,
-                webHref: `https://venmo.com/${cleanHandle}`,
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#3D95CE"/><path d="M18.5 5.5c.4.7.6 1.4.6 2.3 0 2.9-2.5 6.6-4.5 9.2H10L8 5.8l4-.4 1 7.2c.9-1.5 2-3.8 2-5.4 0-.9-.2-1.5-.4-2l3.9-.7z" fill="white"/></svg>,
               },
               Zelle: {
                 color: "#6D1ED4",
-                label: "Send via Zelle",
                 hint:  `To: ${handle}`,
-                href:  null, // Zelle has no deep link
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#6D1ED4"/><path d="M16.5 6H7.5L6 9h7.2L6 15h1.8L16.5 9v-.5L18 6h-1.5zm0 3h-7.2L16.5 15H18L16.5 9z" fill="white"/></svg>,
               },
             };
@@ -1584,18 +1569,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>}
                     </div>
                   </div>
-                  {cfg.href
-                    ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                        <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", border:"none", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textDecoration:"none", cursor:"pointer" }}>
-                          {cfg.icon} {cfg.label} \u2192
-                        </a>
-                        {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
-                      </div>
-                    : <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
-                        <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800, textAlign:"center" }}>Open Zelle App</div>
-                        <div style={{ fontSize:11, color:"#AAAAAA" }}>Send to: <strong style={{color:"#F0F0F0"}}>{handle}</strong></div>
-                      </div>
-                  }
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+                    <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"10px 20px", fontSize:13, fontWeight:800 }}>Open {seller.payment} App</div>
+                    <div style={{ fontSize:11, color:"#AAAAAA" }}>Send to: <strong style={{color:"#F0F0F0"}}>{handle}</strong></div>
+                  </div>
                 </div>
               </div>
             );
@@ -2438,13 +2415,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             const handle      = seller.paymentHandle.trim();
             const cleanHandle = handle.replace(/^@/,"");
             const amt         = dispOffer > 0 ? dispOffer.toFixed(2) : "";
-            const note        = encodeURIComponent(`Bazooka card purchase - ${seller.name||"lot"}`);
             const PCFG = {
-              Venmo:      { color:"#3D95CE", bg:"#E8F5FF", label:"Send via Venmo",    hint:`@${cleanHandle}`, href:`venmo://paycharge?txn=pay&recipients=${cleanHandle}&amount=${amt}&note=${note}`, webHref:`https://venmo.com/u/${cleanHandle}` },
-              PayPal:     { color:"#003087", bg:"#E8EEFF", label:"Send via PayPal",   hint:handle,            href:`https://www.paypal.com/paypalme/${cleanHandle}${amt?"/"+amt:""}` },
-              Zelle:      { color:"#6D1ED4", bg:"#F3EEFF", label:"Open Zelle",        hint:handle,            href:null },
-              "Cash App": { color:"#00C244", bg:"#E6FFF0", label:"Send via Cash App", hint:`$${cleanHandle}`, href:`https://cash.app/$${cleanHandle}${amt?"/"+amt:""}` },
-              Cash:       { color:"#E8317A", bg:"#D6F4E3", label:"Cash Payment",      hint:`$${amt||"--"} cash`, href:null },
+              PayPal: { color:"#003087", bg:"#E8EEFF", hint:handle },
+              Zelle:  { color:"#6D1ED4", bg:"#F3EEFF", hint:handle },
             };
             const cfg = PCFG[seller.payment];
             if (!cfg) return null;
@@ -2455,13 +2428,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   <div style={{ fontWeight:800, fontSize:16, color:cfg.color }}>{cfg.hint}</div>
                   {amt && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2 }}>Amount: <strong style={{color:"#F0F0F0"}}>${amt}</strong></div>}
                 </div>
-                {cfg.href
-                  ? <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                      <a href={cfg.href} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:8, background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>{cfg.label} \u2192</a>
-                      {cfg.webHref && <a href={cfg.webHref} target="_blank" rel="noreferrer" style={{ fontSize:11, color:cfg.color, textDecoration:"underline" }}>Open in browser instead</a>}
-                    </div>
-                  : <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>{seller.payment==="Cash"?`Pay $${amt} cash`:`Open ${seller.payment} \u2192 ${cfg.hint}`}</div>
-                }
+                <div style={{ background:cfg.color, color:"#F0F0F0", borderRadius:9, padding:"12px 24px", fontSize:14, fontWeight:800 }}>
+                  {`Open ${seller.payment} \u2192 ${cfg.hint}`}
+                </div>
               </div>
             );
           })()}
@@ -2478,7 +2447,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               <div style={{ display:"flex", gap:6 }}>
                 <Btn onClick={async()=>{
                   if (!onSaveQuote) return;
-                  await onSaveQuote({
+                  const { id } = await onSaveQuote({
                     existingId: loadedCompId,
                     seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                     dispOffer, dispPct, totalMkt, custNote,
@@ -2493,7 +2462,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 }} variant="green" disabled={included.length===0}>{"📤 Send Offer Back"}</Btn>
                 <Btn onClick={async()=>{
                   if (!onSaveQuote) return;
-                  const id = await onSaveQuote({
+                  const { id, quoteRef } = await onSaveQuote({
                     existingId: null,
                     seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                     dispOffer, dispPct, totalMkt, custNote,
@@ -2501,8 +2470,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     allowCounter,
                   });
                   const link = `${window.location.origin}/quote/${id}`;
-                  const savedQ = quotes.find(q=>q.id===id);
-                  setSavedQuoteRef(savedQ?.quoteRef || null);
+                  setSavedQuoteRef(quoteRef || null);
                   setQuoteLink(link);
                   navigator.clipboard?.writeText(link);
                   setQuoteCopied(true);
@@ -2512,7 +2480,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             ) : (
             <Btn onClick={async()=>{
               if (!onSaveQuote) return;
-              const id = await onSaveQuote({
+              const { id, quoteRef } = await onSaveQuote({
                 existingId: null,
                 seller, cards:included.map(r=>({ name:r.name, cardType:r.cardType, qty:parseInt(r.qty)||1, mktVal:parseFloat(r.mktVal)||0, pctOverride:r.pctOverride||"", offerPerCard:getCostPerCard(r) })),
                 dispOffer, dispPct, totalMkt, custNote,
@@ -2520,8 +2488,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 allowCounter,
               });
               const link = `${window.location.origin}/quote/${id}`;
-              const savedQ = quotes.find(q=>q.id===id);
-              setSavedQuoteRef(savedQ?.quoteRef || null);
+              setSavedQuoteRef(quoteRef || null);
               setQuoteLink(link);
               navigator.clipboard?.writeText(link);
               setQuoteCopied(true);
@@ -17897,6 +17864,7 @@ export default function App() {
         updatedAt: new Date().toISOString(),
         lastUpdatedBy: quotedBy,
       }, { merge:true });
+      return { id };
     } else {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(2);
@@ -17905,8 +17873,8 @@ export default function App() {
       const nextNum = String(existing.length + 1).padStart(3,"0");
       const quoteRef = `BZ-${yy}${mm}-${nextNum}`;
       await setDoc(doc(db,"quotes",id), { ...quoteData, id, quoteRef, quotedBy, status:"pending", createdAt:now.toISOString(), viewCount:0, notified:true, history:[] });
+      return { id, quoteRef };
     }
-    return id;
   }
 
   async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { bazookaClosed:true }, { merge:true }); }
