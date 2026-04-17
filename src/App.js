@@ -510,10 +510,14 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
                 <div style={{ fontSize:28 }}>{cfg.icon}</div>
                 <div>
-                  <div style={{ fontSize:14, fontWeight:800, color:cfg.color, marginBottom:4 }}>{cfg.title}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:14, fontWeight:800, color:cfg.color }}>{cfg.title}</span>
+                    {q.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{q.quoteRef}</span>}
+                  </div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
+                  {q.quotedBy && <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Quoted by <strong style={{color:"#AAAAAA"}}>{q.quotedBy.split(" ")[0]}</strong></div>}
                   {q.status==="accepted" && q.sellerPayment && (
-                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>{"\uD83D\uDCB3 Wants payment via"}<strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` -- ${q.sellerHandle}` : ""}</div>
+                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>{"\uD83D\uDCB3 Wants payment via "}<strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
                   )}
                 </div>
               </div>
@@ -1690,11 +1694,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             {q.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{q.quoteRef}</span>}
                           </div>
                           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
-                            {q.quotedBy && (
-                              <span style={{ fontSize:11, color:"#555" }}>
-                                Quoted by <strong style={{ color:"#AAAAAA" }}>{q.quotedBy.split(" ")[0]}</strong>
-                              </span>
-                            )}
+                            <span style={{ fontSize:11, color:"#555" }}>
+                              Quoted by <strong style={{ color:"#AAAAAA" }}>{q.quotedBy?.split(" ")[0] || "Unknown"}</strong>
+                            </span>
                             {q.lastUpdatedBy && q.lastUpdatedBy !== q.quotedBy && (
                               <span style={{ fontSize:11, color:"#555" }}>· Updated by <strong style={{ color:"#AAAAAA" }}>{q.lastUpdatedBy.split(" ")[0]}</strong></span>
                             )}
@@ -1831,7 +1833,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
                           {c.quotedBy && c.quotedBy !== c.savedBy && <>
                             <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
-                            <span style={{ fontSize:11, color:"#555" }}>Quoted by <strong style={{ color:"#AAAAAA" }}>{c.quotedBy.split(" ")[0]}</strong></span>
+                            <span style={{ fontSize:11, color:"#555" }}>Quoted by <strong style={{ color:"#AAAAAA" }}>{c.quotedBy?.split(" ")[0] || "Unknown"}</strong></span>
                           </>}
                           <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>{savedAt}</span>
