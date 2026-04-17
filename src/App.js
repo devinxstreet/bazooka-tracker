@@ -1684,9 +1684,21 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     <div key={q.id} style={{ background:statusCfg.bg, border:`1px solid ${statusCfg.color}33`, borderRadius:10, padding:"14px 16px" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, flexWrap:"wrap", gap:8 }}>
                         <div>
-                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
                             <span style={{ fontWeight:800, fontSize:14, color:"#F0F0F0" }}>{q.seller?.name||"Unknown Seller"}</span>
                             <span style={{ background:statusCfg.bg, color:statusCfg.color, border:`1px solid ${statusCfg.color}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{statusCfg.label}</span>
+                            {q.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{q.quoteRef}</span>}
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
+                            {q.quotedBy && (
+                              <span style={{ fontSize:11, color:"#555" }}>
+                                Quoted by <strong style={{ color:"#AAAAAA" }}>{q.quotedBy.split(" ")[0]}</strong>
+                              </span>
+                            )}
+                            {q.lastUpdatedBy && q.lastUpdatedBy !== q.quotedBy && (
+                              <span style={{ fontSize:11, color:"#555" }}>· Updated by <strong style={{ color:"#AAAAAA" }}>{q.lastUpdatedBy.split(" ")[0]}</strong></span>
+                            )}
+                            {q.createdAt && <span style={{ fontSize:11, color:"#444" }}>· {new Date(q.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                           </div>
                           <div style={{ fontSize:11, color:"#666" }}>
                             {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
@@ -1817,8 +1829,13 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>Saved by</span>
                           <span style={{ fontWeight:700, fontSize:12, color:"#F0F0F0" }}>{c.savedBy||"--"}</span>
                           {savedByRole && <span style={{ background:savedByRole.bg, color:savedByRole.color, border:`1px solid ${savedByRole.color}33`, borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{savedByRole.label}</span>}
+                          {c.quotedBy && c.quotedBy !== c.savedBy && <>
+                            <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
+                            <span style={{ fontSize:11, color:"#555" }}>Quoted by <strong style={{ color:"#AAAAAA" }}>{c.quotedBy.split(" ")[0]}</strong></span>
+                          </>}
                           <span style={{ fontSize:11, color:"#D1D5DB" }}>·</span>
                           <span style={{ fontSize:11, color:"#AAAAAA" }}>{savedAt}</span>
+                          {c.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{c.quoteRef}</span>}
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
@@ -17868,6 +17885,7 @@ export default function App() {
   async function handleSaveQuote(quoteData) {
     const existingId = quoteData.existingId;
     const id = existingId || uid();
+    const quotedBy = user?.displayName || user?.email || "Admin";
     if (existingId) {
       await setDoc(doc(db,"quotes",id), {
         ...quoteData,
@@ -17875,16 +17893,16 @@ export default function App() {
         status: "pending",
         notified: false,
         updatedAt: new Date().toISOString(),
+        lastUpdatedBy: quotedBy,
       }, { merge:true });
     } else {
-      // Generate human-readable quote ref: BZ-YYMM-NNN
       const now = new Date();
       const yy = String(now.getFullYear()).slice(2);
       const mm = String(now.getMonth()+1).padStart(2,"0");
       const existing = quotes.filter(q => q.quoteRef?.startsWith(`BZ-${yy}${mm}-`));
       const nextNum = String(existing.length + 1).padStart(3,"0");
       const quoteRef = `BZ-${yy}${mm}-${nextNum}`;
-      await setDoc(doc(db,"quotes",id), { ...quoteData, id, quoteRef, status:"pending", createdAt:now.toISOString(), viewCount:0, notified:true, history:[] });
+      await setDoc(doc(db,"quotes",id), { ...quoteData, id, quoteRef, quotedBy, status:"pending", createdAt:now.toISOString(), viewCount:0, notified:true, history:[] });
     }
     return id;
   }
