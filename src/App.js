@@ -9175,7 +9175,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,repExp:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,repExp:0,imcReimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -9236,7 +9236,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   .footer { text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
                   .print-btn { background:#E8317A; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; }
                 </style></head><body>
-                <button class="no-print print-btn" onclick="window.print()">{"\uD83D\uDDA8 Print / Save as PDF"}</button>
+                <button class="no-print print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
                 <div class="header">
                   <div>
                     <div class="logo">BAZOOKA</div>
@@ -9248,12 +9248,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div>Streams: <strong>${stubStreams.length}</strong></div>
                   </div>
                 </div>
-                <div class="breaker-badge">{"\uD83C\uDFAF $"}{targetBreaker}</div>
+                <div class="breaker-badge">🎯 ${targetBreaker}</div>
                 ${stubStreams.length === 0 ? '<p style="color:#888;text-align:center;padding:40px 0;">No streams found for this period.</p>' : `
                 <table>
                   <thead><tr>
                     ${adminPDF
-                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">{"\u2212 Commission"}</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
+                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
                       : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
                     }
                   </tr></thead>
@@ -9266,7 +9266,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
                     ${adminPDF ? `
                     <div class="tot-item"><div class="tot-val" style="color:#991b1b;">-${fmt(totals.comm)}</div><div class="tot-lbl">Commission Paid</div></div>
-                    <div class="tot-item"><div class="tot-val" style="color:#166534;">+${fmt(totals.reimb)}</div><div class="tot-lbl">IMC Reimb</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#166534;">+${fmt(totals.imcReimb||0)}</div><div class="tot-lbl">IMC Reimb</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
                     ` : `
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
@@ -9275,7 +9275,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   </div>
                 </div>
                 <div class="payout">
-                  <div class="payout-label">{"\uD83D\uDCB5 Total Earned This Period"}</div>
+                  <div class="payout-label">💵 Total Earned This Period</div>
                   <div class="payout-amt">${fmt(totals.comm+totals.tips)}</div>
                   ${totals.tips>0?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">(${fmt(totals.comm)} commission + ${fmt(totals.tips)} tips)</div>`:""}
                 </div>`}
