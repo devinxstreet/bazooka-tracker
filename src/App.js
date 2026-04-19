@@ -8850,8 +8850,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
+    const salesBonus=parseFloat(s.salesBonus)||0;
     const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, bazTrueNet };
   }
 
   // Admins see all streams; streamers see only their own
@@ -9011,8 +9012,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div>
               <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"\uD83D\uDCB5 Commission Earned"}</span>
               <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{fmt(c.commAmt)} gross − {fmt(c.repExpShare)} expenses ({(c.rate*0.30*100).toFixed(1)}%)</div>
+              {c.salesBonus>0 && <div style={{ fontSize:11, color:"#A78BFA", marginTop:2 }}>🎁 +{fmt(c.salesBonus)} sales bonus{s.salesBonusNote?" — "+s.salesBonusNote:""}</div>}
             </div>
-            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare)}</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
@@ -9539,8 +9541,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
                   </div>
                   <div style={{ background:"#0a1a0a", borderRadius:8, padding:"8px 10px", border:"1px solid #4ade8022" }}>
-                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare)}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net</div>
+                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net{c.salesBonus>0?" + Bonus":""}</div>
+                    {c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
                   </div>
                 </div>
                 {/* Row 3: admin financials */}
