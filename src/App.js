@@ -3643,7 +3643,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3670,7 +3670,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -3725,9 +3725,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(recap.tips)||0;
+    const salesBonus=parseFloat(recap.salesBonus)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
     const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, collabAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4036,6 +4037,21 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
         </div>
 
+        {/* Sales Bonus — flat bonus on top of commission, 100% to rep */}
+        <div style={{ background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#A78BFA", marginBottom:2 }}>🎁 Sales Bonus</div>
+              <div style={{ fontSize:10, color:"#555" }}>Flat bonus on top of commission — Whatnot promos, incentives, etc.</div>
+            </div>
+            <input type="number" step="0.01" value={recap.salesBonus||""} onChange={e=>rf("salesBonus")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#A78BFA", fontWeight:700 }}/>
+            {parseFloat(recap.salesBonus)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#A78BFA" }}>+${parseFloat(recap.salesBonus).toFixed(2)} to rep</div>}
+          </div>
+          {parseFloat(recap.salesBonus)>0 && (
+            <input type="text" value={recap.salesBonusNote||""} onChange={e=>rf("salesBonusNote")(e.target.value)} placeholder="Reason (e.g. Whatnot promo, performance bonus...)" style={{ ...S.inp, marginTop:8, fontSize:11, color:"#A78BFA" }}/>
+          )}
+        </div>
+
         {/* Zion Cases Revenue -- auto-filled, read-only, Bazooka only */}
         {parseFloat(recap.zionRevenue||0) > 0 && (
           <div style={{ background:"#0a1a0a", border:"1px solid #4ade8033", borderRadius:8, padding:"10px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -4299,6 +4315,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     { l:"Bazooka Earnings",            v:fmt(rc.bazNet),               c:"#E8317A" },
                     { l:"\u2212 Rep Commission",             v:"\u2212 "+fmt(rc.commAmt),         c:"#991b1b" },
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
+                    ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Reimburses 70%",       v:"+ "+fmt(rc.imcReimb||0),     c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
@@ -4317,7 +4334,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
                   { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
                   ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
-                  ...(rc.tips>0?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips), c:"#4ade80" }]:[]),
+                  ...(rc.salesBonus>0?[{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+"+fmt(rc.salesBonus), c:"#A78BFA" }]:[]),
+                  ...((rc.tips>0||rc.salesBonus>0)?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips+rc.salesBonus), c:"#4ade80" }]:[]),
                 ].map(({l,v,c}) => (
                   <div key={l} style={{ textAlign:"center" }}>
                     <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -9170,12 +9188,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
               const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
               const tips=parseFloat(s.tips)||0;
+              const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
               const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, bazTrueNet, rate };
+              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, salesBonus, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,repExp:0,imcReimb:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,imcReimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -9253,7 +9272,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 <table>
                   <thead><tr>
                     ${adminPDF
-                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">+ IMC Reimb</th><th style="text-align:right">True Net</th>`
+                      ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">True Net</th>`
                       : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
                     }
                   </tr></thead>
@@ -9261,23 +9280,23 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 </table>
                 <div class="totals">
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
-                  <div class="totals-grid" style="grid-template-columns:${adminPDF?"repeat(5,1fr)":"repeat(3,1fr)"}">
+                  <div class="totals-grid" style="grid-template-columns:${adminPDF?"repeat(4,1fr)":"repeat(3,1fr)"}">
                     <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
                     ${adminPDF ? `
                     <div class="tot-item"><div class="tot-val" style="color:#991b1b;">-${fmt(totals.comm)}</div><div class="tot-lbl">Commission Paid</div></div>
-                    <div class="tot-item"><div class="tot-val" style="color:#166534;">+${fmt(totals.imcReimb||0)}</div><div class="tot-lbl">IMC Reimb</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
                     ` : `
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.comm)}</div><div class="tot-lbl">Total Commission</div></div>
                     ${totals.tips>0?`<div class="tot-item"><div class="tot-val" style="color:#d97706;">${fmt(totals.tips)}</div><div class="tot-lbl">Tips (100% yours)</div></div>`:""}
+                    ${totals.salesBonus>0?`<div class="tot-item"><div class="tot-val" style="color:#A78BFA;">${fmt(totals.salesBonus)}</div><div class="tot-lbl">Sales Bonus</div></div>`:""}
                     `}
                   </div>
                 </div>
                 <div class="payout">
                   <div class="payout-label">💵 Total Earned This Period</div>
-                  <div class="payout-amt">${fmt(totals.comm+totals.tips)}</div>
-                  ${totals.tips>0?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">(${fmt(totals.comm)} commission + ${fmt(totals.tips)} tips)</div>`:""}
+                  <div class="payout-amt">${fmt(totals.comm+totals.tips+totals.salesBonus)}</div>
+                  ${(totals.tips>0||totals.salesBonus>0)?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">${fmt(totals.comm)} commission${totals.tips>0?" + "+fmt(totals.tips)+" tips":""}${totals.salesBonus>0?" + "+fmt(totals.salesBonus)+" bonus":""}</div>`:""}
                 </div>`}
                 <div class="footer">Bazooka Breaks, LLC &nbsp;·&nbsp; This document is confidential and intended for the named recipient only.</div>
               </body></html>`);
@@ -9351,12 +9370,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                             { l:"Bazooka Net (30%)",    v:fmt(totals.baz),     c:"#1B4F8A" },
                             ...(isAdmin ? [
                               { l:"\u2212 Commission",       v:fmt(totals.comm),    c:"#991b1b" },
-                              { l:"+ IMC Reimb",        v:fmt(totals.reimb),   c:"#166534" },
                               { l:"Bazooka True Net",   v:fmt(totals.trueNet), c:"#4ade80" },
                             ] : [
                               { l:"Commission",         v:fmt(totals.comm),    c:"#4ade80" },
                               ...(totals.tips>0?[{ l:"Tips (100% yours)", v:fmt(totals.tips), c:"#FBBF24" }]:[]),
-                              ...(totals.tips>0?[{ l:"Total Earned",      v:fmt(totals.comm+totals.tips), c:"#4ade80" }]:[]),
+                              ...(totals.salesBonus>0?[{ l:"🎁 Sales Bonus", v:"+"+fmt(totals.salesBonus), c:"#A78BFA" }]:[]),
+                              ...((totals.tips>0||totals.salesBonus>0)?[{ l:"Total Earned", v:fmt(totals.comm+totals.tips+totals.salesBonus), c:"#4ade80" }]:[]),
                             ]),
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
