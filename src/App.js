@@ -13,9 +13,9 @@ const FLAT_RATE_BREAKERS = ["Orbital Society"]; // 50/50 split, not tiered
 
 function getRate(s) {
   if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
-  if (s.binOnly) return 0.35;
   const newBuyerBonus = (parseInt(s.newBuyers)||0) >= 5 ? 0.05 : 0;
-  if (FLAT_RATE_BREAKERS.includes(s.breaker)) return Math.min(0.60, 0.50 + newBuyerBonus);
+  if (FLAT_RATE_BREAKERS.includes(s.breaker)) return Math.min(0.55, 0.50 + newBuyerBonus);
+  if (s.binOnly) return 0.35;
   const mm = parseFloat(s.marketMultiple)||0;
   const base = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
   return Math.min(0.60, base + newBuyerBonus);
@@ -4315,7 +4315,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
                   { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
-                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5&&!recap.binOnly?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
                   ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
                   ...(rc.tips>0?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips), c:"#4ade80" }]:[]),
                 ].map(({l,v,c}) => (
