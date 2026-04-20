@@ -1393,15 +1393,24 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
   const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
-  // calcOffer: locked cards use their own pct/cost, remaining use global pct
-  const calcOffer = included.reduce((s,r) => {
-    const mv  = (parseFloat(r.mktVal)||0) * (parseInt(r.qty)||1);
-    const co  = parseFloat(r.costOverride);
-    const po  = parseFloat(r.pctOverride);
+  // Base offer from global pct — this is the fixed total
+  const baseOffer = totalMkt * pctNum;
+  // Locked cards: those with costOverride OR pctOverride
+  const lockedAmt = included.reduce((s,r) => {
+    const mv = (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1);
+    const co = parseFloat(r.costOverride);
+    const po = parseFloat(r.pctOverride);
     if (!isNaN(co)) return s + co*(parseInt(r.qty)||1);
     if (!isNaN(po)) return s + mv*(po/100);
-    return s + mv*pctNum;
+    return s;
   }, 0);
+  const unlockedMkt = included.reduce((s,r) => {
+    const co = parseFloat(r.costOverride);
+    const po = parseFloat(r.pctOverride);
+    return (isNaN(co) && isNaN(po)) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
+  }, 0);
+  // Total offer = locked amounts + unlocked cards at global pct
+  const calcOffer = lockedAmt + unlockedMkt * pctNum;
   const offerAmt  = finalOffer !== "" ? parseFloat(finalOffer) : null;
   const counterAmt = counterOffer !== "" ? parseFloat(counterOffer) : null;
   // Priority: counter > manual override > calculated
@@ -1415,21 +1424,21 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
-  // Cost allocation per card — locked cards use override, others use global pct
-  const manuallyAllocated = 0; // no longer needed — calcOffer handles it
-  const remainingOffer = 0;    // no longer needed
-  const unoverriddenMkt = 0;   // no longer needed
-  const unoverriddenCards = 0; // no longer needed
+  // Cost allocation per card
+  const manuallyAllocated = lockedAmt;
+  const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
   function getCostPerCard(r) {
     const co = parseFloat(r.costOverride);
     if (!isNaN(co)) return co;
     const po = parseFloat(r.pctOverride);
     const mv = parseFloat(r.mktVal)||0;
     if (!isNaN(po)) return mv*(po/100);
-    return mv*pctNum;
+    // Unlocked: proportional share of remaining offer
+    if (unlockedMkt > 0) return (mv / unlockedMkt) * remainingOffer;
+    return 0;
   }
-  const totalAllocated = calcOffer; // sum of all per-card offers
-  const allocationDiff = 0; // always balanced now
+  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
+  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
