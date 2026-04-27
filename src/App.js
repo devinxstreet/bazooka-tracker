@@ -13,6 +13,7 @@ const FLAT_RATE_BREAKERS = ["Orbital Society"]; // 50/50 split, not tiered
 
 function getRate(s) {
   if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
+  if (s.isEvent) return 0.15; // Event break — 15% of Bazooka's revenue
   const newBuyerBonus = (parseInt(s.newBuyers)||0) >= 5 ? 0.05 : 0;
   if (FLAT_RATE_BREAKERS.includes(s.breaker)) return Math.min(0.55, 0.50 + newBuyerBonus);
   if (s.binOnly) return 0.35;
@@ -712,7 +713,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
+                              <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 <td style={{ ...S.td, color:"#991b1b" }}>{"\u2212"}{fmt(c.commAmt)}</td>
@@ -3652,7 +3653,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3679,7 +3680,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4179,8 +4180,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
         <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-            <input type="checkbox" checked={recap.binOnly||false} onChange={e=>rf("binOnly")(e.target.checked)} style={{ width:16, height:16 }}/>
-            <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break -- flat 35% commission</span>
+            <input type="checkbox" checked={recap.binOnly||false} onChange={e=>{rf("binOnly")(e.target.checked); if(e.target.checked) rf("isEvent")(false);}} style={{ width:16, height:16 }}/>
+            <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break — flat 35% commission</span>
+          </div>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <input type="checkbox" checked={recap.isEvent||false} onChange={e=>{rf("isEvent")(e.target.checked); if(e.target.checked) rf("binOnly")(false);}} style={{ width:16, height:16, accentColor:"#A78BFA" }}/>
+            <span style={{ fontSize:12, color: recap.isEvent?"#A78BFA":"#AAAAAA", fontWeight: recap.isEvent?700:400 }}>🎪 Event Break — 15% event fee</span>
+            {recap.isEvent && rc && <span style={{ fontSize:12, fontWeight:800, color:"#A78BFA" }}>{fmt(rc.commAmt)} to {recap.breaker||breaker||"rep"}</span>}
           </div>
           {canSeeFinancials && (
             <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
@@ -4529,7 +4535,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.bazNet)}</td>}
                         <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.commAmt)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>}
-                        <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.binOnly?" BIN":""}</td>
+                        <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
                         <td style={{ ...S.td, color:"#E8317A" }}>{parseInt(s.newBuyers)||0 > 0 ? `\uD83C\uDF31 ${s.newBuyers}` : "--"}</td>
                         <td style={S.td}>
                           {s.collabPartner && s.collabPartner !== "_"
@@ -8007,9 +8013,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     if (mkt === 0 && mPlans.length === 0) return null;
 
     const tiers = [
-      { mult:1.5, label:"1.5x", sublabel:"Minimum",  color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
-      { mult:1.7, label:"1.7x", sublabel:"Good",      color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
-      { mult:1.9, label:"1.9x", sublabel:"🔥 Great",  color:"#E8317A", bg:"rgba(232,49,122,0.06)",  border:"rgba(232,49,122,0.2)"  },
+      { mult:1.0, label:"1.0x", sublabel:"At Market",   color:"#6B7280", bg:"rgba(107,114,128,0.06)", border:"rgba(107,114,128,0.2)" },
+      { mult:1.5, label:"1.5x", sublabel:"Minimum",     color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
+      { mult:1.7, label:"1.7x", sublabel:"Good",        color:"#86efac", bg:"rgba(134,239,172,0.06)", border:"rgba(134,239,172,0.2)" },
+      { mult:1.9, label:"1.9x", sublabel:"🔥 Great",    color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
     ];
 
     return (
@@ -8021,7 +8028,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           </div>
           {actRev > 0 && <div style={{fontSize:11,color:"#555"}}>Actual so far: <strong style={{color:"#4ade80"}}>{fmt2(actRev)}</strong></div>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
           {tiers.map(({mult,label,sublabel,color,bg,border})=>{
             const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
             const achieved = actRev >= tierRev;
@@ -8156,7 +8163,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         {/* Future: show potential tiers */}
         {paceStatus==="future" && canSeeFinancials && mPlans.length > 0 && (
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
-            {[{l:"Planned",v:mPlans.length+" streams",c:"#7B9CFF"},{l:"Min 1.5x",v:fmt2(projectedRevenue(mPlans,1.5)),c:"#FBBF24"},{l:"Good 1.7x",v:fmt2(projectedRevenue(mPlans,1.7)),c:"#4ade80"},{l:"Great 1.9x",v:fmt2(projectedRevenue(mPlans,1.9)),c:"#E8317A"}].map(({l,v,c})=>(
+            {[{l:"Planned",v:mPlans.length+" streams",c:"#7B9CFF"},{l:"1.0x Market",v:fmt2(projectedRevenue(mPlans,1.0)),c:"#555"},{l:"Min 1.5x",v:fmt2(projectedRevenue(mPlans,1.5)),c:"#FBBF24"},{l:"Good 1.7x",v:fmt2(projectedRevenue(mPlans,1.7)),c:"#86efac"},{l:"Great 1.9x",v:fmt2(projectedRevenue(mPlans,1.9)),c:"#4ade80"}].map(({l,v,c})=>(
               <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"10px",textAlign:"center"}}>
                 <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
                 <div style={{fontSize:10,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
@@ -9026,7 +9033,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
-              <span>{s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
+              <span>{s.isEvent ? "🎪 Event Break (15% event fee)" : s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
               {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new buyers</span>}
               {s.collabPartner && s.collabPartner !== "_" && <span style={{ background:"rgba(123,156,255,0.12)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
             </div>
