@@ -6752,33 +6752,41 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     // If editing a recurring stream, ask if they want to update the whole series
     if (editingId) {
       const thisPlan = plans.find(p => p.id === editingId);
-      const seriesId = thisPlan?.recurringFrom || (thisPlan?.isRecurring ? editingId : null) || (plans.some(p=>p.recurringFrom===editingId) ? editingId : null);
+      // seriesId = the root ID of the series (either this plan if it's the parent, or its recurringFrom)
+      const seriesId = thisPlan?.recurringFrom ||
+        (plans.some(p => p.recurringFrom === editingId) ? editingId : null);
 
       if (seriesId) {
+        // All plans in the series (parent + all children)
         const seriesPlans = plans.filter(p =>
-          p.recurringFrom === seriesId || p.id === seriesId
+          p.id === seriesId || p.recurringFrom === seriesId
         );
-        const futureSeriesPlans = seriesPlans.filter(p => p.date >= modalDate && p.id !== editingId);
+        // Future streams = same or later date, excluding the one being edited
+        const today = new Date().toISOString().split("T")[0];
+        const futureSeriesPlans = seriesPlans.filter(p =>
+          p.date >= today && p.id !== editingId
+        );
 
         if (futureSeriesPlans.length > 0) {
           const updateAll = window.confirm(
-            `This is part of a recurring series.\n\nUpdate just this stream, or update all ${futureSeriesPlans.length + 1} future streams in the series with the same products, breaker, and details?\n\nOK = Update all future streams\nCancel = Update this stream only`
+            `This is part of a recurring series with ${futureSeriesPlans.length} other upcoming stream${futureSeriesPlans.length !== 1 ? "s" : ""}.\n\nOK = Update all upcoming streams in this series\nCancel = Update this stream only`
           );
           if (updateAll) {
-            // Update this stream + all future ones in the series
             await Promise.all([
               setDoc(doc(db, "planned_streams", editingId), data),
               ...futureSeriesPlans.map(p =>
                 setDoc(doc(db, "planned_streams", p.id), {
                   ...p,
-                  breaker: planData.breaker,
-                  products: planData.products,
-                  estRevenue: planData.estRevenue,
+                  breaker:     planData.breaker,
+                  brand:       planData.brand,
+                  startTime:   planData.startTime,
+                  products:    planData.products,
+                  estRevenue:  planData.estRevenue,
                   estMultiple: planData.estMultiple,
                   sessionType: planData.sessionType,
-                  streamName: planData.streamName,
-                  notes: planData.notes,
-                  updatedAt: new Date().toISOString(),
+                  streamName:  planData.streamName,
+                  notes:       planData.notes,
+                  updatedAt:   new Date().toISOString(),
                 })
               ),
             ]);
@@ -6787,6 +6795,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           }
         }
       }
+
       // Single stream save
       await setDoc(doc(db, "planned_streams", id), data);
       closeModal(); setSaving(false);
