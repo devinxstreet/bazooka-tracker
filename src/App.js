@@ -4011,7 +4011,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {recap.marketMultiple && !recap.binOnly && (() => {
               const mm = parseFloat(recap.marketMultiple);
               const pct = Math.round(mm * 100);
-              const color = mm>=1.8?"#4ade80":mm>=1.5?"#FBBF24":"#E8317A";
+              const color = mm>=1.9?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":"#E8317A";
               return <div style={{ fontSize:11, color, fontWeight:700, marginTop:3 }}>{pct}% to market</div>;
             })()}
           </div>
@@ -5132,16 +5132,15 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
         const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
         const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
         const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
-        const mmBuckets = { "< 1.5x":0, "1.5–1.6x":0, "1.6–1.7x":0, "1.7–1.8x":0, "1.8x+":0 };
+        const mmBuckets = { "< 1.5x":0, "1.5–1.7x":0, "1.7–1.9x":0, "1.9x+":0 };
         mmStreams.forEach(s => {
           const mm = parseFloat(s.marketMultiple);
           if (mm < 1.5)       mmBuckets["< 1.5x"]++;
-          else if (mm < 1.6)  mmBuckets["1.5–1.6x"]++;
-          else if (mm < 1.7)  mmBuckets["1.6–1.7x"]++;
-          else if (mm < 1.8)  mmBuckets["1.7–1.8x"]++;
-          else                mmBuckets["1.8x+"]++;
+          else if (mm < 1.7)  mmBuckets["1.5–1.7x"]++;
+          else if (mm < 1.9)  mmBuckets["1.7–1.9x"]++;
+          else                mmBuckets["1.9x+"]++;
         });
-        const mmColor = !avgMM ? "#555" : avgMM >= 1.8 ? "#4ade80" : avgMM >= 1.6 ? "#FBBF24" : "#E8317A";
+        const mmColor = !avgMM ? "#555" : avgMM >= 1.9 ? "#4ade80" : avgMM >= 1.7 ? "#86efac" : avgMM >= 1.5 ? "#FBBF24" : "#E8317A";
         const breakerBreakdown = BREAKERS.map(b => {
           const bStreams = thisMonth.filter(s => s.breaker === b);
           const bMM = bStreams.filter(s=>parseFloat(s.marketMultiple)>0);
@@ -5180,7 +5179,7 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
                   {Object.entries(mmBuckets).map(([label,count])=>{
                     if (!count) return null;
                     const pct = mmStreams.length > 0 ? count/mmStreams.length : 0;
-                    const col = label==="1.8x+"?"#4ade80":label==="1.7–1.8x"?"#86efac":label==="1.6–1.7x"?"#FBBF24":label==="1.5–1.6x"?"#F97316":"#E8317A";
+                    const col = label==="1.9x+"?"#4ade80":label==="1.7–1.9x"?"#86efac":label==="1.5–1.7x"?"#FBBF24":"#E8317A";
                     return (
                       <div key={label} style={{ background:`${col}15`, border:`1px solid ${col}33`, borderRadius:8, padding:"6px 12px", textAlign:"center", minWidth:80 }}>
                         <div style={{ fontSize:16, fontWeight:900, color:col }}>{count}</div>
@@ -5200,7 +5199,7 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {breakerBreakdown.map(b => {
                     const bc = BC[b.breaker]||{text:"#888",bg:"#111",border:"#333"};
-                    const mmCol = !b.avgMM?"#555":b.avgMM>=1.8?"#4ade80":b.avgMM>=1.6?"#FBBF24":"#E8317A";
+                    const mmCol = !b.avgMM?"#555":b.avgMM>=1.9?"#4ade80":b.avgMM>=1.7?"#86efac":b.avgMM>=1.5?"#FBBF24":"#E8317A";
                     return (
                       <div key={b.breaker} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#0d0d0d", borderRadius:8, border:`1px solid #1a1a1a` }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
