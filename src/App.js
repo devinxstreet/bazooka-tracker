@@ -8481,6 +8481,14 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               </div>
             )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
+                <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
+                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Brand</div>
                 <select value={form.brand||"BoBA"} onChange={e=>setForm(p=>({...p,brand:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
                   <option value="BoBA">🃏 BoBA</option>
                   <option value="WotF">🐉 Wonders of The First</option>
