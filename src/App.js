@@ -6566,6 +6566,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const confettiTriggered = useRef(new Set()); // track which milestones already fired
   const [monthTargets, setMonthTargets] = useState({});
   const [boxesCollapsed, setBoxesCollapsed] = useState(false);
+  const [paceCollapsed,  setPaceCollapsed]  = useState(false);
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
   });
@@ -8125,16 +8126,21 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
     return (
       <div style={{background:cfg.bg,border:`2px solid ${cfg.border}`,borderRadius:14,padding:"18px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:900,color:cfg.color}}>{cfg.label}</div>
-            <div style={{fontSize:12,color:"#555",marginTop:3}}>
-              {paceStatus==="future" && (nextPlan
-                ? <>First planned stream: <strong style={{color:"#F0F0F0"}}>{nextPlan.streamName||nextPlan.breaker}</strong> on {nextPlan.date} · {mPlans.length} planned this month</>
-                : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
-              )}
-              {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace{todayPlans.length>0?` (${todayPlans.length} more planned today)`:""}</>}
-              {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{streamResults.length} of {mPlans.length} planned streams completed · {mPlans.length - streamResults.length} still ahead</>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom: paceCollapsed ? 0 : 12,flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>setPaceCollapsed(p=>!p)} style={{background:"none",border:"none",cursor:"pointer",color:cfg.color,fontSize:13,padding:"2px 4px",fontFamily:"inherit",lineHeight:1}}>
+              {paceCollapsed ? "▶" : "▼"}
+            </button>
+            <div>
+              <div style={{fontSize:15,fontWeight:900,color:cfg.color}}>{cfg.label}</div>
+              <div style={{fontSize:12,color:"#555",marginTop:3}}>
+                {paceStatus==="future" && (nextPlan
+                  ? <>First planned stream: <strong style={{color:"#F0F0F0"}}>{nextPlan.streamName||nextPlan.breaker}</strong> on {nextPlan.date} · {mPlans.length} planned this month</>
+                  : <>{mPlans.length} stream{mPlans.length!==1?"s":""} planned — none due yet</>
+                )}
+                {paceStatus==="no-actuals-yet" && <>{pastPlans.length} stream{pastPlans.length!==1?"s":""} on {pastPlans.map(p=>p.date.slice(5)).join(", ")} — log their recaps to update pace{todayPlans.length>0?` (${todayPlans.length} more planned today)`:""}</>}
+                {(paceStatus==="ahead"||paceStatus==="on-pace"||paceStatus==="behind") && <>{streamResults.length} of {mPlans.length} planned streams completed · {mPlans.length - streamResults.length} still ahead</>}
+              </div>
             </div>
           </div>
           {canSeeFinancials && mActuals.length > 0 && (
@@ -8144,6 +8150,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
           )}
         </div>
+
+        {!paceCollapsed && <>
 
         {/* Future: show potential tiers */}
         {paceStatus==="future" && canSeeFinancials && mPlans.length > 0 && (
@@ -8193,6 +8201,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             )}
           </>
         )}
+        </>}
       </div>
     );
   }
