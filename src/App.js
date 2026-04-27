@@ -6943,7 +6943,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 </div>}
                 <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>‹</button>
                 <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>›</button>
-                {isAdmin && mPlans.length > 0 && (
+                {canSeeFinancials && mPlans.length > 0 && (
                   <button onClick={async()=>{
                     if (!window.confirm(`Delete all ${mPlans.length} planned streams for ${MONTH_NAMES[m]} ${y}?`)) return;
                     await Promise.all(mPlans.map(p => deleteDoc(doc(db,"planned_streams",p.id))));
