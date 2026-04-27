@@ -6747,11 +6747,56 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     setSaving(true);
     const { repeat, repeatDays, repeatUntil, ...planData } = form;
     const data = { ...planData, date:modalDate, updatedAt:new Date().toISOString() };
-    // Save the main event
     const id = editingId || uid();
+
+    // If editing a recurring stream, ask if they want to update the whole series
+    if (editingId) {
+      const thisPlan = plans.find(p => p.id === editingId);
+      const seriesId = thisPlan?.recurringFrom || (thisPlan?.isRecurring ? editingId : null) || (plans.some(p=>p.recurringFrom===editingId) ? editingId : null);
+
+      if (seriesId) {
+        const seriesPlans = plans.filter(p =>
+          p.recurringFrom === seriesId || p.id === seriesId
+        );
+        const futureSeriesPlans = seriesPlans.filter(p => p.date >= modalDate && p.id !== editingId);
+
+        if (futureSeriesPlans.length > 0) {
+          const updateAll = window.confirm(
+            `This is part of a recurring series.\n\nUpdate just this stream, or update all ${futureSeriesPlans.length + 1} future streams in the series with the same products, breaker, and details?\n\nOK = Update all future streams\nCancel = Update this stream only`
+          );
+          if (updateAll) {
+            // Update this stream + all future ones in the series
+            await Promise.all([
+              setDoc(doc(db, "planned_streams", editingId), data),
+              ...futureSeriesPlans.map(p =>
+                setDoc(doc(db, "planned_streams", p.id), {
+                  ...p,
+                  breaker: planData.breaker,
+                  products: planData.products,
+                  estRevenue: planData.estRevenue,
+                  estMultiple: planData.estMultiple,
+                  sessionType: planData.sessionType,
+                  streamName: planData.streamName,
+                  notes: planData.notes,
+                  updatedAt: new Date().toISOString(),
+                })
+              ),
+            ]);
+            closeModal(); setSaving(false);
+            return;
+          }
+        }
+      }
+      // Single stream save
+      await setDoc(doc(db, "planned_streams", id), data);
+      closeModal(); setSaving(false);
+      return;
+    }
+
+    // New stream save
     await setDoc(doc(db,"planned_streams",id), data);
     // Save repeating occurrences
-    if (!editingId && repeat !== "none") {
+    if (repeat !== "none") {
       const repeatDates = generateRepeatDates(modalDate, repeat, repeatDays, repeatUntil);
       await Promise.all(repeatDates.map(ds =>
         setDoc(doc(db,"planned_streams",uid()), { ...planData, date:ds, updatedAt:new Date().toISOString(), isRecurring:true, recurringFrom:id })
