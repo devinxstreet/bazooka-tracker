@@ -6599,7 +6599,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet, rate };
   }
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], brand:"BoBA", startTime:"", products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -6702,7 +6702,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   function openModal(ds, plan=null) {
     setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],brand:plan.brand||"BoBA",startTime:plan.startTime||"",products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
   }
   function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
@@ -7150,7 +7150,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       display:"flex",alignItems:"center",gap:3,
                     }}>
                       {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}</span>
+                      {p.brand && p.brand !== "BoBA" && <span style={{fontSize:7,fontWeight:900,color:p.brand==="WotF"?"#5eead4":"#7B9CFF",flexShrink:0}}>{p.brand==="WotF"?"🐉":"✨"}</span>}
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis",flex:1}}>{p.startTime?`${p.startTime} · `:""}{p.streamName||p.breaker||"Plan"}</span>
                     </div>
                   );
                 })}
@@ -8430,11 +8431,14 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {dayPlans.map(p=>(
                 <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
                   <div>
-                    <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
-                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
+                      {p.brand && <span style={{fontSize:10,fontWeight:700,color:p.brand==="WotF"?"#5eead4":p.brand==="Both"?"#7B9CFF":"#E8317A",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 6px"}}>{p.brand==="WotF"?"🐉 WotF":p.brand==="Both"?"✨ Both":"🃏 BoBA"}</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.startTime?" · ⏰ "+p.startTime:""}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],brand:p.brand||"BoBA",startTime:p.startTime||"",products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
                     <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
                     {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
                   </div>
@@ -8477,10 +8481,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               </div>
             )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
-                <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
-                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                <select value={form.brand||"BoBA"} onChange={e=>setForm(p=>({...p,brand:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
+                  <option value="BoBA">🃏 BoBA</option>
+                  <option value="WotF">🐉 Wonders of The First</option>
+                  <option value="Both">✨ Both</option>
                 </select>
               </div>
               <div>
@@ -8491,6 +8495,15 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <option value="night">🌙 Night Break</option>
                   <option value="weekend">📅 Weekend Break</option>
                   <option value="event">🎉 Event</option>
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Start Time</div>
+                <select value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
+                  <option value="">-- No time set --</option>
+                  {["6:00 AM","7:00 AM","8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM","8:00 PM","9:00 PM","10:00 PM","11:00 PM"].map(t=>(
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
               </div>
             </div>
