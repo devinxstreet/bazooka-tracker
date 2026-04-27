@@ -6566,6 +6566,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const confettiAnimRef  = useRef(null);
   const confettiTriggered = useRef(new Set()); // track which milestones already fired
   const [monthTargets, setMonthTargets] = useState({});
+  const [boxesCollapsed, setBoxesCollapsed] = useState(false);
   const [burnRateOverrides, setBurnRateOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem("stream_burn_rates")||"{}"); } catch(e) { return {}; }
   });
@@ -7267,11 +7268,17 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
     return (
       <div style={S2.card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📦 Boxes to Rip — {MONTH_NAMES[curMonth]}</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>
-              {totalPlannedBoxes} total planned · {totalActualBoxes > 0 ? `${totalActualBoxes} ripped so far · ` : ""}{fmt2(totalPlannedMkt)} market value
+        {/* Header with collapse toggle */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom: boxesCollapsed ? 0 : 14,flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setBoxesCollapsed(p=>!p)} style={{background:"none",border:"none",cursor:"pointer",color:"#555",fontSize:14,padding:"2px 4px",fontFamily:"inherit",lineHeight:1}}>
+              {boxesCollapsed ? "▶" : "▼"}
+            </button>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>📦 Boxes to Rip — {MONTH_NAMES[curMonth]}</div>
+              <div style={{fontSize:11,color:"#555",marginTop:2}}>
+                {totalPlannedBoxes} total planned · {totalActualBoxes > 0 ? `${totalActualBoxes} ripped so far · ` : ""}{fmt2(totalPlannedMkt)} market value
+              </div>
             </div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -7288,6 +7295,29 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           </div>
         </div>
 
+        {/* Pink progress bar — gets brighter/deeper as progress increases */}
+        {totalActualBoxes > 0 && !boxesCollapsed && (() => {
+          const pct = Math.min(100, totalActualBoxes / totalPlannedBoxes * 100);
+          // Shade transitions: pale pink → mid pink → deep pink → hot pink
+          const barColor = pct >= 100 ? "#4ade80"
+            : pct >= 75 ? "#E8317A"
+            : pct >= 50 ? "#f472b6"
+            : pct >= 25 ? "#fbb6ce"
+            : "#fce7f3";
+          return (
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <span style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Boxes Ripped</span>
+                <span style={{fontSize:11,fontWeight:700,color:barColor}}>{totalActualBoxes} / {totalPlannedBoxes} ({pct.toFixed(0)}%)</span>
+              </div>
+              <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg, #fce7f3, ${barColor})`,borderRadius:4,transition:"width 0.4s ease"}}/>
+              </div>
+            </div>
+          );
+        })()}
+
+        {!boxesCollapsed && <>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:14}}>
           {PRODUCT_TYPES.filter(pt=>plannedBoxes[pt]>0).map(pt=>{
             const planned = plannedBoxes[pt];
@@ -7295,6 +7325,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const mkt     = plannedMkt[pt];
             const color   = PT_COLORS[pt]||"#888";
             const pct     = planned > 0 ? Math.min(100, actual/planned*100) : 0;
+            const barColor = pct >= 100 ? "#4ade80" : pct >= 75 ? "#E8317A" : pct >= 50 ? "#f472b6" : pct >= 25 ? "#fbb6ce" : "#fce7f3";
             return (
               <div key={pt} style={{background:"#1a1a1a",border:`1px solid ${actual>=planned&&actual>0?"rgba(74,222,128,0.2)":"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -7313,7 +7344,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 </div>
                 {actual > 0 && (
                   <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden",marginBottom:6}}>
-                    <div style={{height:"100%",width:`${pct}%`,background:"#4ade80",borderRadius:2,transition:"width 0.3s"}}/>
+                    <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,#fce7f3,${barColor})`,borderRadius:2,transition:"width 0.3s"}}/>
                   </div>
                 )}
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#555"}}>
@@ -7356,6 +7387,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
           </div>
         )}
+        </>}
       </div>
     );
   }
