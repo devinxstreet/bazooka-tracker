@@ -6749,64 +6749,46 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const data = { ...planData, date:modalDate, updatedAt:new Date().toISOString() };
     const id = editingId || uid();
 
-    // If editing a recurring stream, ask if they want to update the whole series
+    // If editing, check for series
     if (editingId) {
       const thisPlan = plans.find(p => p.id === editingId);
-      console.log("savePlan editingId:", editingId, "thisPlan:", thisPlan);
 
-      // seriesId = the root ID of the series
-      const seriesId = thisPlan?.recurringFrom ||
-        (plans.some(p => p.recurringFrom === editingId) ? editingId : null);
-
-      console.log("seriesId:", seriesId, "plans count:", plans.length);
-      console.log("children found:", plans.filter(p => p.recurringFrom === editingId).length);
-
-      if (seriesId) {
-        const seriesPlans = plans.filter(p =>
-          p.id === seriesId || p.recurringFrom === seriesId
-        );
-        const today = new Date().toISOString().split("T")[0];
-        const futureSeriesPlans = seriesPlans.filter(p =>
-          p.date >= today && p.id !== editingId
-        );
-
-        console.log("seriesPlans:", seriesPlans.length, "futureSeriesPlans:", futureSeriesPlans.length);
-
-        if (futureSeriesPlans.length > 0) {
-          const updateAll = window.confirm(
-            `This is part of a recurring series with ${futureSeriesPlans.length} other upcoming stream${futureSeriesPlans.length !== 1 ? "s" : ""}.\n\nOK = Update all upcoming streams in this series\nCancel = Update this stream only`
-          );
-          if (updateAll) {
-            await Promise.all([
-              setDoc(doc(db, "planned_streams", editingId), data),
-              ...futureSeriesPlans.map(p =>
-                setDoc(doc(db, "planned_streams", p.id), {
-                  ...p,
-                  breaker:     planData.breaker,
-                  brand:       planData.brand,
-                  startTime:   planData.startTime,
-                  products:    planData.products,
-                  estRevenue:  planData.estRevenue,
-                  estMultiple: planData.estMultiple,
-                  sessionType: planData.sessionType,
-                  streamName:  planData.streamName,
-                  notes:       planData.notes,
-                  updatedAt:   new Date().toISOString(),
-                })
-              ),
-            ]);
-            closeModal(); setSaving(false);
-            return;
-          }
-        } else {
-          console.log("No future series plans found — saving single stream");
-        }
-      } else {
-        console.log("No seriesId found — not a recurring stream or plans not loaded yet");
+      // Get the root series ID
+      let seriesRootId = null;
+      if (thisPlan?.recurringFrom) {
+        seriesRootId = thisPlan.recurringFrom; // this is a child
+      } else if (plans.some(p => p.recurringFrom === editingId)) {
+        seriesRootId = editingId; // this is the parent
       }
 
-      // Single stream save
-      await setDoc(doc(db, "planned_streams", id), data);
+      if (seriesRootId) {
+        const today = new Date().toISOString().split("T")[0];
+        const siblings = plans.filter(p =>
+          (p.id === seriesRootId || p.recurringFrom === seriesRootId) &&
+          p.id !== editingId &&
+          p.date >= today
+        );
+
+        if (siblings.length > 0 && window.confirm(
+          `Recurring series — ${siblings.length} upcoming stream${siblings.length !== 1 ? "s" : ""} found.\n\nOK = Update ALL upcoming in series\nCancel = This stream only`
+        )) {
+          await Promise.all([
+            setDoc(doc(db, "planned_streams", editingId), data),
+            ...siblings.map(p => setDoc(doc(db, "planned_streams", p.id), {
+              ...p,
+              breaker: planData.breaker, brand: planData.brand, startTime: planData.startTime,
+              products: planData.products, estRevenue: planData.estRevenue,
+              estMultiple: planData.estMultiple, sessionType: planData.sessionType,
+              streamName: planData.streamName, notes: planData.notes,
+              updatedAt: new Date().toISOString(),
+            })),
+          ]);
+          closeModal(); setSaving(false);
+          return;
+        }
+      }
+
+      await setDoc(doc(db, "planned_streams", editingId), data);
       closeModal(); setSaving(false);
       return;
     }
@@ -8456,7 +8438,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.startTime?" · ⏰ "+p.startTime:""}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],brand:p.brand||"BoBA",startTime:p.startTime||"",products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],brand:p.brand||"BoBA",startTime:p.startTime||"",products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:"",estMultiple:"",});}} style={{background:"#222",border:`1px solid ${(p.isRecurring||p.recurringFrom)?"#7B9CFF55":"#333"}`,color:(p.isRecurring||p.recurringFrom)?"#7B9CFF":"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{(p.isRecurring||p.recurringFrom)?"🔁 Edit":"Edit"}</button>
                     <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
                     {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
                   </div>
