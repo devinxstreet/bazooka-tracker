@@ -6752,20 +6752,25 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     // If editing a recurring stream, ask if they want to update the whole series
     if (editingId) {
       const thisPlan = plans.find(p => p.id === editingId);
-      // seriesId = the root ID of the series (either this plan if it's the parent, or its recurringFrom)
+      console.log("savePlan editingId:", editingId, "thisPlan:", thisPlan);
+
+      // seriesId = the root ID of the series
       const seriesId = thisPlan?.recurringFrom ||
         (plans.some(p => p.recurringFrom === editingId) ? editingId : null);
 
+      console.log("seriesId:", seriesId, "plans count:", plans.length);
+      console.log("children found:", plans.filter(p => p.recurringFrom === editingId).length);
+
       if (seriesId) {
-        // All plans in the series (parent + all children)
         const seriesPlans = plans.filter(p =>
           p.id === seriesId || p.recurringFrom === seriesId
         );
-        // Future streams = same or later date, excluding the one being edited
         const today = new Date().toISOString().split("T")[0];
         const futureSeriesPlans = seriesPlans.filter(p =>
           p.date >= today && p.id !== editingId
         );
+
+        console.log("seriesPlans:", seriesPlans.length, "futureSeriesPlans:", futureSeriesPlans.length);
 
         if (futureSeriesPlans.length > 0) {
           const updateAll = window.confirm(
@@ -6793,7 +6798,11 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             closeModal(); setSaving(false);
             return;
           }
+        } else {
+          console.log("No future series plans found — saving single stream");
         }
+      } else {
+        console.log("No seriesId found — not a recurring stream or plans not loaded yet");
       }
 
       // Single stream save
