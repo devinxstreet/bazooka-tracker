@@ -7150,7 +7150,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       display:"flex",alignItems:"center",gap:3,
                     }}>
                       {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
-                      {p.brand && p.brand !== "BoBA" && <span style={{fontSize:7,fontWeight:900,color:p.brand==="WotF"?"#5eead4":"#7B9CFF",flexShrink:0}}>{p.brand==="WotF"?"🐉":"✨"}</span>}
+                      {p.brand && <span style={{fontSize:7,fontWeight:900,color:p.brand==="WotF"?"#5eead4":p.brand==="Both"?"#7B9CFF":"#E8317A",flexShrink:0}}>{p.brand==="WotF"?"🐉":p.brand==="Both"?"✨":"🃏"}</span>}
                       <span style={{overflow:"hidden",textOverflow:"ellipsis",flex:1}}>{p.startTime?`${p.startTime} · `:""}{p.streamName||p.breaker||"Plan"}</span>
                     </div>
                   );
