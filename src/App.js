@@ -489,7 +489,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
-    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
     return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
   }
 
@@ -630,7 +630,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
         }
 
@@ -3653,7 +3653,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", eventStaff:[] };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3680,7 +3680,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", eventStaff:existingStream.eventStaff||[], ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -3737,8 +3737,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const tips=parseFloat(recap.tips)||0;
     const salesBonus=parseFloat(recap.salesBonus)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
-    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, bazTrueNet };
+    const eventStaffAmt=(recap.eventStaff||[]).reduce((s,es)=>s+bazNet*(parseFloat(es.pct)||15)/100,0);
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, eventStaffAmt, eventStaff:recap.eventStaff||[], bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4206,6 +4207,44 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
+        {/* Event Staff — add reps who get 15% event fee */}
+        <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: (recap.eventStaff||[]).length > 0 ? 10 : 0 }}>
+            <div>
+              <span style={{ fontSize:12, fontWeight:700, color:"#A78BFA" }}>🎪 Event Staff</span>
+              <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>Each rep earns 15% of Bazooka Net as an event fee</span>
+            </div>
+            <button onClick={()=>rf("eventStaff")([...(recap.eventStaff||[]),{id:uid(),breaker:BREAKERS[0],pct:15}])}
+              style={{ background:"rgba(167,139,250,0.15)", border:"1px solid rgba(167,139,250,0.3)", color:"#A78BFA", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              + Add Rep
+            </button>
+          </div>
+          {(recap.eventStaff||[]).map((es,i) => {
+            const esAmt = rc ? (rc.bazNet * (parseFloat(es.pct)||15) / 100) : 0;
+            return (
+              <div key={es.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px 80px auto", gap:8, alignItems:"center", marginBottom:6 }}>
+                <select value={es.breaker} onChange={e=>rf("eventStaff")((recap.eventStaff||[]).map((x,j)=>j===i?{...x,breaker:e.target.value}:x))} style={{ ...S.inp, fontSize:12, cursor:"pointer" }}>
+                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+                <div style={{ position:"relative" }}>
+                  <input type="number" min="0" max="100" value={es.pct} onChange={e=>rf("eventStaff")((recap.eventStaff||[]).map((x,j)=>j===i?{...x,pct:e.target.value}:x))}
+                    style={{ ...S.inp, fontSize:12, textAlign:"center", color:"#A78BFA" }}/>
+                  <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:11, color:"#555" }}>%</span>
+                </div>
+                <div style={{ fontSize:13, fontWeight:800, color:"#A78BFA", textAlign:"center" }}>{rc ? fmt(esAmt) : "--"}</div>
+                <button onClick={()=>rf("eventStaff")((recap.eventStaff||[]).filter((_,j)=>j!==i))}
+                  style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
+              </div>
+            );
+          })}
+          {(recap.eventStaff||[]).length > 0 && rc && (
+            <div style={{ marginTop:8, fontSize:11, color:"#555", borderTop:"1px solid rgba(167,139,250,0.1)", paddingTop:8 }}>
+              Total event fees: <strong style={{color:"#A78BFA"}}>{fmt((recap.eventStaff||[]).reduce((s,es)=>s+rc.bazNet*(parseFloat(es.pct)||15)/100,0))}</strong>
+              {" · "}Bazooka net after fees: <strong style={{color:"#E8317A"}}>{fmt(rc.bazNet - (recap.eventStaff||[]).reduce((s,es)=>s+rc.bazNet*(parseFloat(es.pct)||15)/100,0) - (rc.commAmt||0))}</strong>
+            </div>
+          )}
+        </div>
+
         {/* Collab Stream */}
         <div style={{ background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -4332,6 +4371,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Reimburses 70%",       v:"+ "+fmt(rc.imcReimb||0),     c:"#4ade80" }] : []),
+                    ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff Fees (${(rc.eventStaff||[]).map(es=>es.breaker+"@"+es.pct+"%").join(", ")})`, v:"− "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
@@ -4465,7 +4505,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
@@ -8965,9 +9005,49 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [stubAdminView,  setStubAdminView]  = useState(false); // false = rep view (default for sending)
   const [stubFrom,    setStubFrom]    = useState("");
   const [stubTo,      setStubTo]      = useState("");
+  const [repNotes,    setRepNotes]    = useState({});       // { [breaker]: [{id,text,createdAt,author}] }
+  const [noteInput,   setNoteInput]   = useState("");
+  const [noteBreaker, setNoteBreaker] = useState(null);     // which rep's notes panel is open
+  const [noteSaving,  setNoteSaving]  = useState(false);
+
+  // Load rep notes from Firestore
+  useEffect(() => {
+    if (!isAdmin) return;
+    const unsub = onSnapshot(collection(db, "rep_notes"), snap => {
+      const grouped = {};
+      snap.docs.forEach(d => {
+        const data = { ...d.data(), id:d.id };
+        if (!grouped[data.breaker]) grouped[data.breaker] = [];
+        grouped[data.breaker].push(data);
+      });
+      // Sort each breaker's notes newest first
+      Object.keys(grouped).forEach(b => grouped[b].sort((a,z) => z.createdAt.localeCompare(a.createdAt)));
+      setRepNotes(grouped);
+    });
+    return () => unsub();
+  }, [isAdmin]);
 
   // Commission rate from comp plan
   function getCommRate(stream) { return getRate(stream); }
+
+  async function saveNote(breaker) {
+    if (!noteInput.trim()) return;
+    setNoteSaving(true);
+    const id = uid();
+    await setDoc(doc(db, "rep_notes", id), {
+      id, breaker,
+      text: noteInput.trim(),
+      createdAt: new Date().toISOString(),
+      author: user?.displayName || "Admin",
+    });
+    setNoteInput("");
+    setNoteSaving(false);
+  }
+
+  async function deleteNote(noteId) {
+    if (!window.confirm("Delete this note?")) return;
+    await deleteDoc(doc(db, "rep_notes", noteId));
+  }
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -8981,7 +9061,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
-    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, bazTrueNet };
   }
 
@@ -8990,7 +9070,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const isCEO = CEO_NAMES.some(n => curUser.toLowerCase().includes(n.toLowerCase()));
   const visibleStreams = isAdmin
     ? streams
-    : streams.filter(s => s.breaker === myBreaker);
+    : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker));
 
   // Period filter -- available to everyone
   const [period,        setPeriod]        = useState("all");
@@ -9025,16 +9105,20 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
   const filteredStreams = isAdmin && breakerFilter !== "all"
-    ? periodFiltered.filter(s => s.breaker === breakerFilter)
+    ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter))
     : periodFiltered;
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
     const c = calcStreamDash(s);
+    const targetBreaker = breakerFilter !== "all" ? breakerFilter : myBreaker;
+    const myStaff = (s.eventStaff||[]).find(es => es.breaker === targetBreaker);
+    const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+    const myEventFee = isEventOnly ? c.bazNet * (parseFloat(myStaff.pct)||15) / 100 : 0;
     acc.gross     += c.gross;
     acc.net       += c.netRev;
     acc.baz       += c.bazNet;
-    acc.comm      += c.commAmt - c.repExpShare; // net commission after rep expense share
+    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - c.repExpShare);
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
@@ -9322,11 +9406,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const tips=parseFloat(s.tips)||0;
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, salesBonus, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,imcReimb:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=(c.commAmt - c.repExpShare); acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,imcReimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -9354,7 +9438,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt - c.repExpShare)}</td>
                     ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
                   </tr>`;
               }).join("");
@@ -9405,7 +9489,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <thead><tr>
                     ${adminPDF
                       ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">True Net</th>`
-                      : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
+                      : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Net Commission</th>`
                     }
                   </tr></thead>
                   <tbody>${streamRows}</tbody>
@@ -9640,7 +9724,78 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         </div>
       )}
 
-      {/* Stream list */}
+      {/* Breaker filter -- admin only */}
+      {isAdmin && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+          {["all", ...BREAKERS].map(b => (
+            <div key={b} style={{ display:"flex", alignItems:"center", gap:3 }}>
+              <button onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
+                style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {b === "all" ? "\uD83D\uDC65 All Breakers" : b}
+                {b !== "all" && <span style={{ marginLeft:6, background:"#111111", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
+                  {visibleStreams.filter(s=>s.breaker===b).length}
+                </span>}
+              </button>
+              {b !== "all" && (
+                <button onClick={()=>setNoteBreaker(noteBreaker===b?null:b)}
+                  title={`Notes for ${b}`}
+                  style={{ background:noteBreaker===b?"rgba(251,191,36,0.15)":"transparent", color:noteBreaker===b?"#FBBF24":"#555", border:`1px solid ${noteBreaker===b?"#FBBF2444":"#2a2a2a"}`, borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", position:"relative" }}>
+                  📝{(repNotes[b]||[]).length > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FBBF24", color:"#000", borderRadius:"50%", width:14, height:14, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{(repNotes[b]||[]).length}</span>}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Rep Notes Panel -- admin only */}
+      {isAdmin && noteBreaker && (
+        <div style={{ background:"#0d0d0d", border:"1px solid #FBBF2422", borderRadius:12, padding:"16px 18px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>📝 Notes — {noteBreaker}</div>
+              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Admin only · use for weekly/monthly reviews</div>
+            </div>
+            <button onClick={()=>setNoteBreaker(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:18 }}>×</button>
+          </div>
+
+          {/* Add note input */}
+          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+            <textarea
+              value={noteInput}
+              onChange={e=>setNoteInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)) saveNote(noteBreaker); }}
+              placeholder={`Add a note about ${noteBreaker}... (Cmd+Enter to save)`}
+              rows={2}
+              style={{ flex:1, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", resize:"vertical" }}
+            />
+            <button onClick={()=>saveNote(noteBreaker)} disabled={noteSaving||!noteInput.trim()}
+              style={{ background:"rgba(251,191,36,0.15)", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", alignSelf:"flex-end" }}>
+              {noteSaving ? "Saving..." : "💾 Save"}
+            </button>
+          </div>
+
+          {/* Notes list */}
+          {(repNotes[noteBreaker]||[]).length === 0
+            ? <div style={{ textAlign:"center", color:"#333", fontSize:12, padding:"20px 0" }}>No notes yet — start building a review history</div>
+            : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {(repNotes[noteBreaker]||[]).map(n => (
+                  <div key={n.id} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", position:"relative" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                      <div style={{ fontSize:13, color:"#F0F0F0", lineHeight:1.5, flex:1, whiteSpace:"pre-wrap" }}>{n.text}</div>
+                      <button onClick={()=>deleteNote(n.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, padding:"0 2px", flexShrink:0 }}>🗑</button>
+                    </div>
+                    <div style={{ fontSize:10, color:"#444", marginTop:6 }}>
+                      {new Date(n.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})} · {n.author}
+                    </div>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+
+
       {filteredStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>{"\uD83D\uDCB5"}</div>
@@ -9649,14 +9804,18 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         : filteredStreams.map(s => {
             const c  = calcStreamDash(s);
             const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+            const myEventStaff = (s.eventStaff||[]).find(es => es.breaker === myBreaker);
+            const myEventFee = myEventStaff ? c.bazNet * (parseFloat(myEventStaff.pct)||15) / 100 : 0;
+            const isEventStaffStream = !!myEventStaff && s.breaker !== myBreaker;
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer" }}>
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventStaffStream ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
                     <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                     {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
+                    {isEventStaffStream && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                   </div>
                   <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
@@ -9667,13 +9826,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
                   </div>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{isEventStaffStream ? `${parseFloat(myEventStaff.pct)||15}% Event` : `${(c.rate*100).toFixed(0)}%${s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}`}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
                   </div>
-                  <div style={{ background:"#0a1a0a", borderRadius:8, padding:"8px 10px", border:"1px solid #4ade8022" }}>
-                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net{c.salesBonus>0?" + Bonus":""}</div>
-                    {c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
+                  <div style={{ background: isEventStaffStream ? "rgba(167,139,250,0.06)" : "#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventStaffStream ? "rgba(167,139,250,0.2)" : "#4ade8022"}` }}>
+                    <div style={{ fontSize:13, fontWeight:900, color: isEventStaffStream ? "#A78BFA" : "#4ade80" }}>{fmt(isEventStaffStream ? myEventFee : c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventStaffStream ? "Event Fee" : `Rep Net${c.salesBonus>0?" + Bonus":""}`}</div>
+                    {!isEventStaffStream && c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
                   </div>
                 </div>
                 {/* Row 3: admin financials */}
