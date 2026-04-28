@@ -9711,21 +9711,6 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
       {/* Breaker filter -- admin only */}
       {isAdmin && (
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {["all", ...BREAKERS].map(b => (
-            <button key={b} onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
-              style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              {b === "all" ? "\uD83D\uDC65 All Breakers" : b}
-              {b !== "all" && <span style={{ marginLeft:6, background:"#111111", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
-                {visibleStreams.filter(s=>s.breaker===b).length}
-              </span>}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Breaker filter -- admin only */}
-      {isAdmin && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {["all", ...BREAKERS].map(b => (
             <div key={b} style={{ display:"flex", alignItems:"center", gap:3 }}>
