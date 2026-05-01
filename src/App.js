@@ -9001,10 +9001,6 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
     }
   });
 
-  const tierOptions = selectedSet in HERO_SETS
-    ? ["all", "Featured Auto", "Highlighted", "Base"]
-    : ["all", ...new Set(heroes.map(h => h.tier).filter(Boolean))].slice(0, 10);
-
   const tierCounts = tierOptions.reduce((acc, t) => {
     acc[t] = t === "all" ? heroes.length : heroes.filter(h => h.tier === t).length;
     return acc;
