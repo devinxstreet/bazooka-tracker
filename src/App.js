@@ -637,14 +637,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const filtered = streams.filter(s => inPeriod(s.date));
         const streamTotals = filtered.reduce((acc,s) => {
           const c = calcStream(s);
+          const exp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += c.commAmt - c.repExpShare; // net commission after rep expense deduction
+          acc.comm     += c.commAmt - c.repExpShare;
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
-          acc.imcReimb += (c.imcReimb||0);
+          acc.expenses += exp;
           return acc;
-        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, imcReimb:0 });
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0 });
 
         // Merge historical monthly summaries into totals
         const histFiltered = historicalData.filter(h => {
@@ -670,7 +671,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           comm:     streamTotals.comm     + histTotals.comm,
           baz:      streamTotals.baz      + histTotals.baz,
           trueNet:  streamTotals.trueNet  + histTotals.trueNet,
-          imcReimb: streamTotals.imcReimb || 0,
+          expenses: streamTotals.expenses || 0,
         };
 
         const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
@@ -763,10 +764,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
 
-            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
               {[
                 { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#E8317A", sub:"70% of split base" },
+                { key:"expenses",   label:"Stream Expenses",     val:totals.expenses,             color:"#991b1b", sub:"deducted before split" },
+                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#E8317A", sub:"70% of (gross − fees − coupons − expenses)" },
                 { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
                 { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#6B2D8B", sub:"after commission + expenses" },
                 { key:"commission", label:"Net Commission Owed",  val:totals.comm,                 color:"#4ade80", sub:"after rep expense share" },
