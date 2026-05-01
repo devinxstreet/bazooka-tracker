@@ -694,30 +694,30 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
-                    {["Date","Breaker","Gross","Rate",
-                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","+ Reimb Back","= True Net"] : [
+                    {["Date","Breaker","Gross","Expenses","Rate",
+                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","= True Net"] : [
                         drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
                       ])
                     ].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?8:5}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?8:6}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
-                          const netReimb = (c.imcReimb||0) + (c.repExpShare||0) - (c.bazExpShare||0);
+                          const streamExp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
                           return (
                             <tr key={s.id} style={{ background:"#111111" }}>
                               <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
+                              <td style={{ ...S.td, color:"#991b1b" }}>{streamExp>0?"\u2212"+fmt(streamExp):"—"}</td>
                               <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 <td style={{ ...S.td, color:"#991b1b" }}>{"\u2212"}{fmt(c.commAmt)}</td>
-                                <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>+ {fmt(netReimb)}</td>
                                 <td style={{ ...S.td, color:"#6B2D8B", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
                               </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
                             </tr>
@@ -727,11 +727,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </tbody>
                   <tfoot>
                     <tr style={{ background:"#111111", borderTop:"2px solid #333333" }}>
-                      <td colSpan={4} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#991b1b", fontSize:14 }}>{"\u2212"}{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#4ade80", fontSize:14 }}>+ {fmt(filtered.reduce((a,s)=>a+((calcStream(s).imcReimb||0)+(calcStream(s).repExpShare||0)-(calcStream(s).bazExpShare||0)),0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#6B2D8B", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
                       </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
