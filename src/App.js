@@ -489,7 +489,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
-    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
     return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
   }
 
@@ -630,7 +630,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
         }
 
@@ -3653,7 +3653,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", eventStaff:[] };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3680,7 +3680,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", eventStaff:existingStream.eventStaff||[], ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -3737,9 +3737,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const tips=parseFloat(recap.tips)||0;
     const salesBonus=parseFloat(recap.salesBonus)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
-    const eventStaffAmt=(recap.eventStaff||[]).reduce((s,es)=>s+bazNet*(parseFloat(es.pct)||15)/100,0);
-    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, eventStaffAmt, eventStaff:recap.eventStaff||[], bazTrueNet };
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4207,44 +4206,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
-        {/* Event Staff — add reps who get 15% event fee */}
-        <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: (recap.eventStaff||[]).length > 0 ? 10 : 0 }}>
-            <div>
-              <span style={{ fontSize:12, fontWeight:700, color:"#A78BFA" }}>🎪 Event Staff</span>
-              <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>Each rep earns 15% of Bazooka Net as an event fee</span>
-            </div>
-            <button onClick={()=>rf("eventStaff")([...(recap.eventStaff||[]),{id:uid(),breaker:BREAKERS[0],pct:15}])}
-              style={{ background:"rgba(167,139,250,0.15)", border:"1px solid rgba(167,139,250,0.3)", color:"#A78BFA", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              + Add Rep
-            </button>
-          </div>
-          {(recap.eventStaff||[]).map((es,i) => {
-            const esAmt = rc ? (rc.bazNet * (parseFloat(es.pct)||15) / 100) : 0;
-            return (
-              <div key={es.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px 80px auto", gap:8, alignItems:"center", marginBottom:6 }}>
-                <select value={es.breaker} onChange={e=>rf("eventStaff")((recap.eventStaff||[]).map((x,j)=>j===i?{...x,breaker:e.target.value}:x))} style={{ ...S.inp, fontSize:12, cursor:"pointer" }}>
-                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
-                </select>
-                <div style={{ position:"relative" }}>
-                  <input type="number" min="0" max="100" value={es.pct} onChange={e=>rf("eventStaff")((recap.eventStaff||[]).map((x,j)=>j===i?{...x,pct:e.target.value}:x))}
-                    style={{ ...S.inp, fontSize:12, textAlign:"center", color:"#A78BFA" }}/>
-                  <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:11, color:"#555" }}>%</span>
-                </div>
-                <div style={{ fontSize:13, fontWeight:800, color:"#A78BFA", textAlign:"center" }}>{rc ? fmt(esAmt) : "--"}</div>
-                <button onClick={()=>rf("eventStaff")((recap.eventStaff||[]).filter((_,j)=>j!==i))}
-                  style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
-              </div>
-            );
-          })}
-          {(recap.eventStaff||[]).length > 0 && rc && (
-            <div style={{ marginTop:8, fontSize:11, color:"#555", borderTop:"1px solid rgba(167,139,250,0.1)", paddingTop:8 }}>
-              Total event fees: <strong style={{color:"#A78BFA"}}>{fmt((recap.eventStaff||[]).reduce((s,es)=>s+rc.bazNet*(parseFloat(es.pct)||15)/100,0))}</strong>
-              {" · "}Bazooka net after fees: <strong style={{color:"#E8317A"}}>{fmt(rc.bazNet - (recap.eventStaff||[]).reduce((s,es)=>s+rc.bazNet*(parseFloat(es.pct)||15)/100,0) - (rc.commAmt||0))}</strong>
-            </div>
-          )}
-        </div>
-
         {/* Collab Stream */}
         <div style={{ background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -4371,7 +4332,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Reimburses 70%",       v:"+ "+fmt(rc.imcReimb||0),     c:"#4ade80" }] : []),
-                    ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff Fees (${(rc.eventStaff||[]).map(es=>es.breaker+"@"+es.pct+"%").join(", ")})`, v:"− "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
@@ -4505,7 +4465,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+          const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
@@ -6639,7 +6599,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return { gross, netRev, bazNet, imcNet, commAmt, bazTrueNet, rate };
   }
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], brand:"BoBA", startTime:"", products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -6742,7 +6702,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   function openModal(ds, plan=null) {
     setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],brand:plan.brand||"BoBA",startTime:plan.startTime||"",products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
   }
   function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
@@ -6787,56 +6747,11 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     setSaving(true);
     const { repeat, repeatDays, repeatUntil, ...planData } = form;
     const data = { ...planData, date:modalDate, updatedAt:new Date().toISOString() };
+    // Save the main event
     const id = editingId || uid();
-
-    // If editing, check for series
-    if (editingId) {
-      const thisPlan = plans.find(p => p.id === editingId);
-
-      // Get the root series ID
-      let seriesRootId = null;
-      if (thisPlan?.recurringFrom) {
-        seriesRootId = thisPlan.recurringFrom; // this is a child
-      } else if (plans.some(p => p.recurringFrom === editingId)) {
-        seriesRootId = editingId; // this is the parent
-      }
-
-      if (seriesRootId) {
-        const today = new Date().toISOString().split("T")[0];
-        const siblings = plans.filter(p =>
-          (p.id === seriesRootId || p.recurringFrom === seriesRootId) &&
-          p.id !== editingId &&
-          p.date >= today
-        );
-
-        if (siblings.length > 0 && window.confirm(
-          `Recurring series — ${siblings.length} upcoming stream${siblings.length !== 1 ? "s" : ""} found.\n\nOK = Update ALL upcoming in series\nCancel = This stream only`
-        )) {
-          await Promise.all([
-            setDoc(doc(db, "planned_streams", editingId), data),
-            ...siblings.map(p => setDoc(doc(db, "planned_streams", p.id), {
-              ...p,
-              breaker: planData.breaker, brand: planData.brand, startTime: planData.startTime,
-              products: planData.products, estRevenue: planData.estRevenue,
-              estMultiple: planData.estMultiple, sessionType: planData.sessionType,
-              streamName: planData.streamName, notes: planData.notes,
-              updatedAt: new Date().toISOString(),
-            })),
-          ]);
-          closeModal(); setSaving(false);
-          return;
-        }
-      }
-
-      await setDoc(doc(db, "planned_streams", editingId), data);
-      closeModal(); setSaving(false);
-      return;
-    }
-
-    // New stream save
     await setDoc(doc(db,"planned_streams",id), data);
     // Save repeating occurrences
-    if (repeat !== "none") {
+    if (!editingId && repeat !== "none") {
       const repeatDates = generateRepeatDates(modalDate, repeat, repeatDays, repeatUntil);
       await Promise.all(repeatDates.map(ds =>
         setDoc(doc(db,"planned_streams",uid()), { ...planData, date:ds, updatedAt:new Date().toISOString(), isRecurring:true, recurringFrom:id })
@@ -7190,8 +7105,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       display:"flex",alignItems:"center",gap:3,
                     }}>
                       {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
-                      {p.brand && <span style={{fontSize:7,fontWeight:900,color:p.brand==="WotF"?"#5eead4":p.brand==="Both"?"#7B9CFF":"#E8317A",flexShrink:0}}>{p.brand==="WotF"?"🐉":p.brand==="Both"?"✨":"🃏"}</span>}
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis",flex:1}}>{p.startTime?`${p.startTime} · `:""}{p.streamName||p.breaker||"Plan"}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}</span>
                     </div>
                   );
                 })}
@@ -8115,7 +8029,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           {actRev > 0 && <div style={{fontSize:11,color:"#555"}}>Actual so far: <strong style={{color:"#4ade80"}}>{fmt2(actRev)}</strong></div>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-          {tiers.map(({mult,label,sublabel,color,bg,border})=>{
+          {tierOptions.map(({mult,label,sublabel,color,bg,border})=>{
             const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
             const achieved = actRev >= tierRev;
             const pct = tierRev > 0 ? Math.min(100, actRev/tierRev*100) : 0;
@@ -8155,7 +8069,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   </tr>
                 </thead>
                 <tbody>
-                  {tiers.map(({mult,label,sublabel,color})=>{
+                  {tierOptions.map(({mult,label,sublabel,color})=>{
                     const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
                     const e = calcPlanEarnings(tierRev);
                     if (!e) return null;
@@ -8471,14 +8385,11 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {dayPlans.map(p=>(
                 <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
                   <div>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
-                      {p.brand && <span style={{fontSize:10,fontWeight:700,color:p.brand==="WotF"?"#5eead4":p.brand==="Both"?"#7B9CFF":"#E8317A",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 6px"}}>{p.brand==="WotF"?"🐉 WotF":p.brand==="Both"?"✨ Both":"🃏 BoBA"}</span>}
-                    </div>
-                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.startTime?" · ⏰ "+p.startTime:""}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
+                    <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],brand:p.brand||"BoBA",startTime:p.startTime||"",products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:"",estMultiple:"",});}} style={{background:"#222",border:`1px solid ${(p.isRecurring||p.recurringFrom)?"#7B9CFF55":"#333"}`,color:(p.isRecurring||p.recurringFrom)?"#7B9CFF":"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{(p.isRecurring||p.recurringFrom)?"🔁 Edit":"Edit"}</button>
+                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
                     <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
                     {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
                   </div>
@@ -8528,14 +8439,6 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 </select>
               </div>
               <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Brand</div>
-                <select value={form.brand||"BoBA"} onChange={e=>setForm(p=>({...p,brand:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
-                  <option value="BoBA">🃏 BoBA</option>
-                  <option value="WotF">🐉 Wonders of The First</option>
-                  <option value="Both">✨ Both</option>
-                </select>
-              </div>
-              <div>
                 <div style={{fontSize:11,color:"#555",marginBottom:4}}>Session Type</div>
                 <select value={form.sessionType} onChange={e=>setForm(p=>({...p,sessionType:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
                   <option value="">-- Select --</option>
@@ -8543,15 +8446,6 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <option value="night">🌙 Night Break</option>
                   <option value="weekend">📅 Weekend Break</option>
                   <option value="event">🎉 Event</option>
-                </select>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Start Time</div>
-                <select value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
-                  <option value="">-- No time set --</option>
-                  {["6:00 AM","7:00 AM","8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM","8:00 PM","9:00 PM","10:00 PM","11:00 PM"].map(t=>(
-                    <option key={t} value={t}>{t}</option>
-                  ))}
                 </select>
               </div>
             </div>
@@ -8893,15 +8787,620 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   );
 }
 
-function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[] }) {
+// ── HERO BREAK DATA ──────────────────────────────────────────────────────────
+const HERO_SETS = {
+  "Tecmo Bowl": [
+    // Featured Autos
+    {hero:"BoJax",inspired:"Bo Jackson",tier:"Featured Auto",power:250},
+    {hero:"Attak",inspired:"Dak Prescott",tier:"Featured Auto",power:200},
+    {hero:"Pukadot",inspired:"Puka Nacua",tier:"Featured Auto",power:200},
+    {hero:"Brees",inspired:"Drew Brees",tier:"Featured Auto",power:200},
+    {hero:"Fear Himself",inspired:"Lawrence Taylor",tier:"Featured Auto",power:200},
+    {hero:"Mossed",inspired:"Randy Moss",tier:"Featured Auto",power:200},
+    {hero:"Nigerian Nightmare",inspired:"Christian Okoye",tier:"Featured Auto",power:200},
+    {hero:"Marino",inspired:"Dan Marino",tier:"Featured Auto",power:195},
+    {hero:"Young-Gunner",inspired:"Steve Young",tier:"Featured Auto",power:195},
+    {hero:"Gronk",inspired:"Rob Gronkowski",tier:"Featured Auto",power:195},
+    {hero:"Hitt Man",inspired:"Ronnie Lott",tier:"Featured Auto",power:195},
+    {hero:"Island Time",inspired:"Darrelle Revis",tier:"Featured Auto",power:195},
+    {hero:"Emmitt-164",inspired:"Emmitt Smith",tier:"Featured Auto",power:195},
+    {hero:"Troy of Dallas",inspired:"Troy Aikman",tier:"Featured Auto",power:190},
+    {hero:"Goggles",inspired:"Eric Dickerson",tier:"Featured Auto",power:190},
+    {hero:"Howietzer",inspired:"Howie Long",tier:"Featured Auto",power:190},
+    {hero:"Thurmanator",inspired:"Thurman Thomas",tier:"Featured Auto",power:190},
+    {hero:"Bus",inspired:"Jerome Bettis",tier:"Featured Auto",power:190},
+    {hero:"Machine Gun",inspired:"Jim Kelly",tier:"Featured Auto",power:190},
+    {hero:"Cutback",inspired:"Barry Sanders",tier:"Featured Auto",power:185},
+    {hero:"Sea-Largent",inspired:"Steve Largent",tier:"Featured Auto",power:185},
+    {hero:"Boz",inspired:"Brian Bosworth",tier:"Featured Auto",power:185},
+    {hero:"Allenwrench",inspired:"Marcus Allen",tier:"Featured Auto",power:185},
+    {hero:"Ultimate Weapon",inspired:"Randall Cunningham",tier:"Featured Auto",power:185},
+    {hero:"Shuffler",inspired:"Jim McMahon",tier:"Featured Auto",power:185},
+    {hero:"Boom",inspired:"Boomer Esiason",tier:"Featured Auto",power:180},
+    {hero:"Dentist",inspired:"Richard Dent",tier:"Featured Auto",power:180},
+    {hero:"Vinniverde",inspired:"Vinny Testaverde",tier:"Featured Auto",power:180},
+    {hero:"Afterbern",inspired:"Bernie Kosar",tier:"Featured Auto",power:180},
+    {hero:"Sack King",inspired:"Bruce Smith",tier:"Featured Auto",power:180},
+    {hero:"Incredible Faulk",inspired:"Marshall Faulk",tier:"Featured Auto",power:180},
+    {hero:"Mann-O-War",inspired:"Charles Mann",tier:"Featured Auto",power:175},
+    {hero:"Timmy",inspired:"Tim Brown",tier:"Featured Auto",power:175},
+    {hero:"Haley's Comet",inspired:"Charles Haley",tier:"Featured Auto",power:175},
+    {hero:"Ickey",inspired:"Ickey Woods",tier:"Featured Auto",power:175},
+    {hero:"Full Moon",inspired:"Warren Moon",tier:"Featured Auto",power:175},
+    {hero:"Philament",inspired:"Phil Simms",tier:"Featured Auto",power:175},
+    {hero:"Key Keeper",inspired:"Luke Kuechly",tier:"Featured Auto",power:170},
+    {hero:"T.D.",inspired:"Tony Dorsett",tier:"Featured Auto",power:170},
+    {hero:"Sterling",inspired:"Sterling Sharpe",tier:"Featured Auto",power:170},
+    {hero:"Too Tall",inspired:'Ed "Too Tall" Jones',tier:"Featured Auto",power:170},
+    {hero:"Fridge",inspired:"William Perry",tier:"Featured Auto",power:170},
+    {hero:"Samurai Mike",inspired:"Mike Singletary",tier:"Featured Auto",power:170},
+    {hero:"Monk",inspired:"Art Monk",tier:"Featured Auto",power:165},
+    {hero:"Krieghawk",inspired:"Dave Krieg",tier:"Featured Auto",power:165},
+    {hero:"Undrafted Wrecking Ball",inspired:"Gary Clark",tier:"Featured Auto",power:165},
+    {hero:"Highjump",inspired:"Alonzo Highsmith",tier:"Featured Auto",power:165},
+    {hero:"Curt Locker",inspired:"Curt Warner",tier:"Featured Auto",power:165},
+    {hero:"Calf Roper",inspired:"Eric Metcalf",tier:"Featured Auto",power:165},
+    {hero:"Novacaine",inspired:"Jay Novacek",tier:"Featured Auto",power:160},
+    {hero:"Carrier",inspired:"Mark Carrier",tier:"Featured Auto",power:160},
+    {hero:"Amigo One",inspired:"Mark Jackson",tier:"Featured Auto",power:160},
+    {hero:"Quick Draw",inspired:"Mike Quick",tier:"Featured Auto",power:160},
+    {hero:"Bank Robber",inspired:"Carl Banks",tier:"Featured Auto",power:160},
+    {hero:"Claymore",inspired:"Clay Matthews Jr.",tier:"Featured Auto",power:160},
+    {hero:"Biscuit",inspired:"Cornelius Bennett",tier:"Featured Auto",power:155},
+    {hero:"Underdoug",inspired:"Doug Williams",tier:"Featured Auto",power:155},
+    {hero:"Mountain Drew",inspired:"Drew Bledsoe",tier:"Featured Auto",power:155},
+    {hero:"Dwight Noise",inspired:"Dwight Stephenson",tier:"Featured Auto",power:155},
+    {hero:"Green Light",inspired:"Harold Green",tier:"Featured Auto",power:155},
+    {hero:"K-Mack",inspired:"Kevin Mack",tier:"Featured Auto",power:155},
+    {hero:"Pepper Spray",inspired:"Pepper Johnson",tier:"Featured Auto",power:150},
+    {hero:"The Manster",inspired:"Randy White",tier:"Featured Auto",power:150},
+    {hero:"Woodchipper",inspired:"Rod Woodson",tier:"Featured Auto",power:150},
+    {hero:"Gaultfather",inspired:"Willie Gault",tier:"Featured Auto",power:150},
+    {hero:"Jolly Roger",inspired:"Roger Craig",tier:"Featured Auto",power:150},
+    // Highlighted
+    {hero:"Severning",inspired:"Tom Brady",tier:"Highlighted",power:200},
+    {hero:"Sweetest of Sweet",inspired:"Walter Payton",tier:"Highlighted",power:200},
+    {hero:"Neon",inspired:"Deion Sanders",tier:"Highlighted",power:195},
+    {hero:"Sheriff",inspired:"Peyton Manning",tier:"Highlighted",power:195},
+    {hero:"Joe Cool",inspired:"Joe Montana",tier:"Highlighted",power:195},
+    {hero:"Hands",inspired:"Jerry Rice",tier:"Highlighted",power:190},
+    // Base
+    {hero:"Joe Cool",inspired:"Joe Montana",tier:"Base",power:190},
+    {hero:"Hands",inspired:"Jerry Rice",tier:"Base",power:185},
+    {hero:"Merlomes",inspired:"Patrick Mahomes",tier:"Base",power:185},
+    {hero:"Dart-Board",inspired:"Jaxson Dart",tier:"Base",power:185},
+    {hero:"Bison",inspired:"Josh Allen",tier:"Base",power:185},
+    {hero:"Warp",inspired:"Lamar Jackson",tier:"Base",power:185},
+    {hero:"Bayou",inspired:"Ja'Marr Chase",tier:"Base",power:185},
+    {hero:"J-Jetts",inspired:"Justin Jefferson",tier:"Base",power:185},
+    {hero:"Reindeer Hunter",inspired:"Myles Garrett",tier:"Base",power:180},
+    {hero:"Swervin'",inspired:"Michael Irvin",tier:"Base",power:180},
+    {hero:"MoD",inspired:"Reggie White",tier:"Base",power:180},
+    {hero:"Quads",inspired:"Saquon Barkley",tier:"Base",power:180},
+    {hero:"Darn Old",inspired:"Sam Darnold",tier:"Base",power:180},
+    {hero:"Phoenix",inspired:"Bo Nix",tier:"Base",power:180},
+    {hero:"Jax-In-The-Box",inspired:"Jaxon Smith-Njigba",tier:"Base",power:175},
+    {hero:"Eagle-Eye",inspired:"Jalen Hurts",tier:"Base",power:175},
+    {hero:"Shrouded",inspired:"C.J. Stroud",tier:"Base",power:175},
+    {hero:"Myracle",inspired:"Jahmyr Gibbs",tier:"Base",power:175},
+    {hero:"Skatter",inspired:"Cam Skattebo",tier:"Base",power:175},
+    {hero:"Warden",inspired:"Cam Ward",tier:"Base",power:175},
+    {hero:"Yeti",inspired:"Travis Kelce",tier:"Base",power:170},
+    {hero:"BrockNess",inspired:"Brock Bowers",tier:"Base",power:170},
+    {hero:"McArmyKnife",inspired:"Christian McCaffrey",tier:"Base",power:170},
+    {hero:"Muffin Man",inspired:"Baker Mayfield",tier:"Base",power:170},
+    {hero:"Youngblood",inspired:"Bryce Young",tier:"Base",power:170},
+    {hero:"Switchblade",inspired:"Travis Hunter",tier:"Base",power:170},
+    {hero:"McVillain",inspired:"Tetairoa McMillan",tier:"Base",power:165},
+    {hero:"Quarter Staff",inspired:"Matthew Stafford",tier:"Base",power:165},
+    {hero:"Judkernaught",inspired:"Quinshon Judkins",tier:"Base",power:165},
+    {hero:"Jeanetic",inspired:"Ashton Jeanty",tier:"Base",power:165},
+    {hero:"Coinslot",inspired:"Daniel Jones",tier:"Base",power:165},
+    {hero:"Chanesaw",inspired:"De'Von Achane",tier:"Base",power:165},
+    {hero:"Mr. Irrelevant",inspired:"Brock Purdy",tier:"Base",power:160},
+    {hero:"Shadowstrike",inspired:"Davante Adams",tier:"Base",power:160},
+    {hero:"Shepherd",inspired:"CeeDee Lamb",tier:"Base",power:160},
+    {hero:"Scary",inspired:"Terry McLaurin",tier:"Base",power:160},
+    {hero:"Lawman",inspired:"Trevor Lawrence",tier:"Base",power:160},
+    {hero:"Buttman",inspired:"Marion Butts",tier:"Base",power:160},
+    {hero:"Criscross",inspired:"Cris Carter",tier:"Base",power:155},
+    {hero:"Rockhead",inspired:"Chris Doleman",tier:"Base",power:155},
+    {hero:"Brawn",inspired:"A.J. Brown",tier:"Base",power:155},
+    {hero:"DeVaulta",inspired:"DeVonta Smith",tier:"Base",power:155},
+    {hero:"Hot Sauce",inspired:"Sauce Gardner",tier:"Base",power:155},
+    {hero:"First Leap",inspired:"LeRoy Butler",tier:"Base",power:155},
+    {hero:"Friday",inspired:"Deebo Samuel",tier:"Base",power:150},
+    {hero:"Barreler",inspired:"Cooper Kupp",tier:"Base",power:150},
+    {hero:"Watterslide",inspired:"Ricky Watters",tier:"Base",power:150},
+    {hero:"Cannon",inspired:"Rich Gannon",tier:"Base",power:150},
+    {hero:"Furnest",inspired:"Earnest Byner",tier:"Base",power:150},
+    {hero:"Hot Rod",inspired:"Rodney Hampton",tier:"Base",power:150},
+    {hero:"Golden Bullet",inspired:"Matthew Golden",tier:"Base",power:145},
+    {hero:"Billiard",inspired:"Dalton Hilliard",tier:"Base",power:145},
+    {hero:"Ryptillian",inspired:"Mark Rypien",tier:"Base",power:145},
+    {hero:"Flippa",inspired:"Flipper Anderson",tier:"Base",power:145},
+    {hero:"Slaughterhouse",inspired:"Webster Slaughter",tier:"Base",power:145},
+    {hero:"Hammer",inspired:"Omarion Hampton",tier:"Base",power:145},
+    {hero:"Majik Man",inspired:"Don Majkowski",tier:"Base",power:140},
+    {hero:"A Bear",inspired:"Bobby Hebert",tier:"Base",power:140},
+    {hero:"Moose",inspired:"Daryl Johnston",tier:"Base",power:140},
+    {hero:"Hillicopter",inspired:"Drew Hill",tier:"Base",power:140},
+  ],
+};
+
+const TIER_CFG = {
+  "Featured Auto": { color:"#FBBF24", bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)", badge:"⭐ Featured Auto" },
+  "Highlighted":   { color:"#C084FC", bg:"rgba(192,132,252,0.08)", border:"rgba(192,132,252,0.25)", badge:"💜 Highlighted" },
+  "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
+};
+
+function HeroBreakBuilder({ userRole, bobaCards=[] }) {
+  const [selectedSet,   setSelectedSet]   = useState("Tecmo Bowl");
+  const [breakMode,     setBreakMode]     = useState("single");
+  const [tierFilter,    setTierFilter]    = useState("all");
+  const [search,        setSearch]        = useState("");
+  const [sortBy,        setSortBy]        = useState("power-desc");
+  const [showAssigned,  setShowAssigned]  = useState(true);
+  const [squads,        setSquads]        = useState([{ id:uid(), name:"Squad 1", heroes:[] }]);
+  const [activeSquad,   setActiveSquad]   = useState(null);
+  const [checkedHeroes, setCheckedHeroes] = useState(new Set());
+  const [savedBreaks,   setSavedBreaks]   = useState([]);
+  const [viewMode,      setViewMode]      = useState("grid");
+
+  // Build BoBA sets from bobaCards dynamically
+  const bobaSetNames = [...new Set(bobaCards.map(c => c.setName).filter(Boolean))].sort();
+  const bobaHeroSets = {};
+  bobaSetNames.forEach(setName => {
+    bobaHeroSets[setName] = bobaCards
+      .filter(c => c.setName === setName)
+      .map(c => ({
+        hero: c.hero || `#${c.cardNum}`,
+        inspired: c.notation || c.treatment || "",
+        tier: c.treatment || "Base",
+        power: parseInt(c.cardNum) || 0,
+        cardNum: c.cardNum,
+      }));
+  });
+
+  const ALL_SETS = { ...bobaHeroSets, ...HERO_SETS };
+  const setNames = Object.keys(ALL_SETS);
+
+  // Reset selection if current set no longer exists
+  const heroes = ALL_SETS[selectedSet] || [];
+  const allInSquads = new Set(squads.flatMap(sq => sq.heroes.map(h => `${h.hero}-${h.tier}`)));
+
+  const filtered = heroes.filter(h => {
+    const heroKey = `${h.hero}-${h.tier}`;
+    if (tierFilter !== "all" && h.tier !== tierFilter) return false;
+    if (search && !h.hero.toLowerCase().includes(search.toLowerCase()) &&
+        !h.inspired.toLowerCase().includes(search.toLowerCase())) return false;
+    // Hide assigned toggle
+    if (!showAssigned) {
+      const isAssigned = breakMode === "single" ? checkedHeroes.has(heroKey) : allInSquads.has(heroKey);
+      if (isAssigned) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case "power-desc": return (b.power||b.cardNum||0) - (a.power||a.cardNum||0);
+      case "power-asc":  return (a.power||a.cardNum||0) - (b.power||b.cardNum||0);
+      case "name-asc":   return a.hero.localeCompare(b.hero);
+      case "name-desc":  return b.hero.localeCompare(a.hero);
+      case "tier":       {
+        const tOrder = ["Featured Auto","Highlighted","Base"];
+        const ai = tOrder.indexOf(a.tier); const bi = tOrder.indexOf(b.tier);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }
+      default: return 0;
+    }
+  });
+
+  const tierOptions = selectedSet in HERO_SETS
+    ? ["all", "Featured Auto", "Highlighted", "Base"]
+    : ["all", ...new Set(heroes.map(h => h.tier).filter(Boolean))].slice(0, 10);
+
+  const tierCounts = tierOptions.reduce((acc, t) => {
+    acc[t] = t === "all" ? heroes.length : heroes.filter(h => h.tier === t).length;
+    return acc;
+  }, {});
+
+  // Power color
+  function powerColor(p) {
+    if (p >= 200) return "#FBBF24";
+    if (p >= 185) return "#C084FC";
+    if (p >= 170) return "#60A5FA";
+    if (p >= 155) return "#34d399";
+    return "#9CA3AF";
+  }
+
+  // Single break: toggle hero checked
+  function toggleHero(heroKey) {
+    setCheckedHeroes(prev => {
+      const next = new Set(prev);
+      next.has(heroKey) ? next.delete(heroKey) : next.add(heroKey);
+      return next;
+    });
+  }
+
+  // Squad break: add hero to active squad
+  function addToSquad(hero) {
+    if (!activeSquad) return;
+    setSquads(prev => prev.map(sq =>
+      sq.id === activeSquad
+        ? { ...sq, heroes: [...sq.heroes, { ...hero, addedAt: Date.now(), sid: uid() }] }
+        : sq
+    ));
+  }
+
+  function removeFromSquad(squadId, sid) {
+    setSquads(prev => prev.map(sq =>
+      sq.id === squadId
+        ? { ...sq, heroes: sq.heroes.filter(h => h.sid !== sid) }
+        : sq
+    ));
+  }
+
+  function addSquad() {
+    const id = uid();
+    setSquads(prev => [...prev, { id, name:`Squad ${prev.length + 1}`, heroes:[] }]);
+    setActiveSquad(id);
+  }
+
+  function resetAll() {
+    if (!window.confirm("Reset all progress?")) return;
+    setCheckedHeroes(new Set());
+    setSquads([{ id:uid(), name:"Squad 1", heroes:[] }]);
+    setActiveSquad(null);
+  }
+
+  // Build Whatnot-ready break text
+  function buildBreakText(mode) {
+    if (mode === "single") {
+      const checked = heroes.filter(h => checkedHeroes.has(`${h.hero}-${h.tier}`));
+      if (!checked.length) return "";
+      return checked.map((h, i) =>
+        `Spot ${i+1}: ${h.hero} (${h.inspired}) — ${h.tier}${h.power ? ` ⚡${h.power}` : ""}`
+      ).join("\n");
+    } else {
+      return squads
+        .filter(sq => sq.heroes.length > 0)
+        .map((sq, i) => {
+          const heroLines = sq.heroes.map(h =>
+            `  • ${h.hero} (${h.inspired})${h.power ? ` ⚡${h.power}` : ""}`
+          ).join("\n");
+          const avg = Math.round(sq.heroes.reduce((s,h)=>s+(h.power||0),0)/sq.heroes.length);
+          return `${sq.name} (${sq.heroes.length} heroes${avg?" · avg ⚡"+avg:""})\n${heroLines}`;
+        }).join("\n\n");
+    }
+  }
+
+  function copyBreak() {
+    const text = buildBreakText(breakMode);
+    if (!text) return;
+    navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  const [copied, setCopied] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+
+  const checkedCount = breakMode === "single" ? checkedHeroes.size : allInSquads.size;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+      {/* Header */}
+      <div style={{ background:"linear-gradient(135deg,#0d0d1a,#111)", border:"1px solid #1a1a2e", borderRadius:14, padding:"20px 24px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+          <div>
+            <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>🏈 Hero Break Builder</div>
+            <div style={{ fontSize:12, color:"#555", marginTop:4 }}>Plan single hero breaks or build squads for group breaks</div>
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <span style={{ fontSize:12, color:"#555" }}>{checkedCount} / {heroes.length} assigned · showing {filtered.length}</span>
+            {checkedCount > 0 && (
+              <button onClick={()=>setShowExport(p=>!p)}
+                style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                📋 Export Break
+              </button>
+            )}
+            <button onClick={resetAll} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>↺ Reset</button>
+          </div>
+        </div>
+
+        {/* Controls row */}
+        <div style={{ display:"grid", gridTemplateColumns:"auto auto 1fr auto", gap:12, marginTop:16, alignItems:"center", flexWrap:"wrap" }}>
+          {/* Set selector */}
+          <select value={selectedSet} onChange={e=>{ setSelectedSet(e.target.value); setCheckedHeroes(new Set()); setTierFilter("all"); setSearch(""); }}
+            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"8px 12px", fontSize:13, fontFamily:"inherit", cursor:"pointer" }}>
+            <optgroup label="BoBA Sets">
+              {bobaSetNames.map(s => <option key={s} value={s}>{s}</option>)}
+            </optgroup>
+            <optgroup label="Other Sets">
+              {Object.keys(HERO_SETS).map(s => <option key={s} value={s}>{s}</option>)}
+            </optgroup>
+          </select>
+
+          {/* Break mode */}
+          <div style={{ display:"flex", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, overflow:"hidden" }}>
+            {[["single","⚡ Single"],["squad","🛡 Squad"]].map(([m,l]) => (
+              <button key={m} onClick={()=>setBreakMode(m)}
+                style={{ background:breakMode===m?"#E8317A":"transparent", color:breakMode===m?"#fff":"#555", border:"none", padding:"7px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search heroes or players..."
+            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+
+          {/* View mode */}
+          <div style={{ display:"flex", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, overflow:"hidden" }}>
+            {[["grid","⊞"],["list","☰"]].map(([m,l]) => (
+              <button key={m} onClick={()=>setViewMode(m)}
+                style={{ background:viewMode===m?"#333":"transparent", color:viewMode===m?"#F0F0F0":"#555", border:"none", padding:"7px 12px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tier filter + sort row */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, flexWrap:"wrap", gap:8 }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {tierOptions.map(t => {
+              const cfg = TIER_CFG[t];
+              return (
+                <button key={t} onClick={()=>setTierFilter(t)}
+                  style={{ background:tierFilter===t?(cfg?.bg||"rgba(232,49,122,0.12)"):"transparent", color:tierFilter===t?(cfg?.color||"#E8317A"):"#555", border:`1px solid ${tierFilter===t?(cfg?.border||"#E8317A44"):"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {t === "all" ? `All (${tierCounts.all})` : `${cfg.badge} (${tierCounts[t]})`}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {/* Sort */}
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
+              style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"5px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="power-desc">⚡ Power: High → Low</option>
+              <option value="power-asc">⚡ Power: Low → High</option>
+              <option value="name-asc">A → Z Hero Name</option>
+              <option value="name-desc">Z → A Hero Name</option>
+              <option value="tier">By Tier</option>
+            </select>
+            {/* Hide assigned */}
+            <button onClick={()=>setShowAssigned(p=>!p)}
+              style={{ background:!showAssigned?"rgba(232,49,122,0.12)":"transparent", color:!showAssigned?"#E8317A":"#555", border:`1px solid ${!showAssigned?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {showAssigned ? "👁 Show All" : "✓ Hide Assigned"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Export Panel */}
+      {showExport && checkedCount > 0 && (
+        <div style={{ background:"#0a1a0a", border:"2px solid rgba(74,222,128,0.3)", borderRadius:12, padding:"16px 18px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:"#4ade80" }}>📋 Whatnot Break Format</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={copyBreak}
+                style={{ background: copied?"rgba(74,222,128,0.2)":"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.4)", color:"#4ade80", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {copied ? "✅ Copied!" : "📋 Copy All"}
+              </button>
+              <button onClick={()=>setShowExport(false)}
+                style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>×</button>
+            </div>
+          </div>
+
+          {breakMode === "single" ? (
+            // Single break — numbered spot list
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              {heroes.filter(h => checkedHeroes.has(`${h.hero}-${h.tier}`)).map((h, i) => {
+                const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
+                return (
+                  <div key={`${h.hero}-${h.tier}`}
+                    style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 10px", background:"rgba(0,0,0,0.3)", borderRadius:7, fontFamily:"monospace" }}>
+                    <span style={{ fontSize:11, color:"#555", minWidth:28 }}>#{i+1}</span>
+                    <span style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", flex:1 }}>{h.hero}</span>
+                    <span style={{ fontSize:11, color:"#666" }}>{h.inspired}</span>
+                    <span style={{ fontSize:10, color:cfg.color }}>{h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : "🔵"}</span>
+                    {h.power>0 && <span style={{ fontSize:11, fontWeight:700, color:powerColor(h.power) }}>⚡{h.power}</span>}
+                    <button onClick={()=>{
+                      const line = `Spot ${i+1}: ${h.hero} (${h.inspired})${h.power?` ⚡${h.power}`:""}`;
+                      navigator.clipboard?.writeText(line);
+                    }} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:11, padding:"0 4px" }} title="Copy this line">⎘</button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // Squad break — grouped by squad
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {squads.filter(sq => sq.heroes.length > 0).map((sq, qi) => {
+                const avg = sq.heroes.length ? Math.round(sq.heroes.reduce((s,h)=>s+(h.power||0),0)/sq.heroes.length) : 0;
+                const sqText = `${sq.name} (${sq.heroes.length} heroes${avg?" · avg ⚡"+avg:""})\n` +
+                  sq.heroes.map(h=>`  • ${h.hero} (${h.inspired})${h.power?` ⚡${h.power}`:""}`).join("\n");
+                return (
+                  <div key={sq.id} style={{ background:"rgba(0,0,0,0.3)", borderRadius:8, padding:"10px 14px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <div>
+                        <span style={{ fontSize:13, fontWeight:800, color:"#4ade80" }}>{sq.name}</span>
+                        <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{sq.heroes.length} heroes{avg?` · avg ⚡${avg}`:""}</span>
+                      </div>
+                      <button onClick={()=>navigator.clipboard?.writeText(sqText)}
+                        style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+                        ⎘ Copy Squad
+                      </button>
+                    </div>
+                    {sq.heroes.map(h => {
+                      const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
+                      return (
+                        <div key={h.sid} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 0", borderTop:"1px solid #1a1a1a" }}>
+                          <span style={{ fontSize:10, color:cfg.color }}>•</span>
+                          <span style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", flex:1 }}>{h.hero}</span>
+                          <span style={{ fontSize:11, color:"#555" }}>{h.inspired}</span>
+                          {h.power>0 && <span style={{ fontSize:11, fontWeight:700, color:powerColor(h.power) }}>⚡{h.power}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Raw text area for manual copy */}
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Raw text — paste into Whatnot description</div>
+            <textarea readOnly value={buildBreakText(breakMode)}
+              style={{ width:"100%", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, color:"#888", padding:"10px 12px", fontSize:11, fontFamily:"monospace", lineHeight:1.6, resize:"vertical", minHeight:120, boxSizing:"border-box" }}
+              onClick={e=>e.target.select()}
+            />
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"grid", gridTemplateColumns: breakMode === "squad" ? "1fr 340px" : "1fr", gap:16 }}>
+
+        {/* Hero grid/list */}
+        <div>
+          {viewMode === "grid" ? (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
+              {filtered.map(h => {
+                const heroKey = `${h.hero}-${h.tier}`;
+                const isChecked = breakMode === "single" ? checkedHeroes.has(heroKey) : allInSquads.has(heroKey);
+                const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
+                const pc = powerColor(h.power);
+                return (
+                  <div key={heroKey}
+                    onClick={() => breakMode === "single" ? toggleHero(heroKey) : addToSquad(h)}
+                    style={{ background: isChecked ? cfg.bg : "#111", border:`1.5px solid ${isChecked ? cfg.color : "#1a1a1a"}`, borderRadius:10, padding:"12px", cursor:"pointer", position:"relative", opacity: isChecked ? 0.6 : 1, transition:"all 0.15s" }}>
+
+                    {/* Tier badge */}
+                    <div style={{ fontSize:9, fontWeight:800, color:cfg.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>
+                      {h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : "🔵 Base"}
+                    </div>
+
+                    {/* Hero name */}
+                    <div style={{ fontSize:14, fontWeight:900, color: isChecked ? cfg.color : "#F0F0F0", lineHeight:1.2, marginBottom:4 }}>{h.hero}</div>
+                    <div style={{ fontSize:10, color:"#555", marginBottom:8 }}>{h.inspired}</div>
+
+                    {/* Power */}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:11, fontWeight:800, color:pc }}>⚡{h.power}</span>
+                      {isChecked && (
+                        <span style={{ fontSize:14 }}>{breakMode === "single" ? "✅" : "🛡"}</span>
+                      )}
+                    </div>
+
+                    {/* Squad label */}
+                    {breakMode === "squad" && allInSquads.has(heroKey) && (() => {
+                      const sq = squads.find(s => s.heroes.some(x => `${x.hero}-${x.tier}` === heroKey));
+                      return sq ? <div style={{ fontSize:9, color:cfg.color, marginTop:4, fontWeight:700 }}>{sq.name}</div> : null;
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {filtered.map(h => {
+                const heroKey = `${h.hero}-${h.tier}`;
+                const isChecked = breakMode === "single" ? checkedHeroes.has(heroKey) : allInSquads.has(heroKey);
+                const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
+                const pc = powerColor(h.power);
+                return (
+                  <div key={heroKey}
+                    onClick={() => breakMode === "single" ? toggleHero(heroKey) : addToSquad(h)}
+                    style={{ background: isChecked ? cfg.bg : "#111", border:`1.5px solid ${isChecked ? cfg.color : "#1a1a1a"}`, borderRadius:8, padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, opacity: isChecked ? 0.7 : 1, transition:"all 0.15s" }}>
+                    <div style={{ fontSize:10, fontWeight:800, color:cfg.color, minWidth:28 }}>
+                      {h.tier === "Featured Auto" ? "⭐" : h.tier === "Highlighted" ? "💜" : "🔵"}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:800, color: isChecked ? cfg.color : "#F0F0F0" }}>{h.hero}</div>
+                      <div style={{ fontSize:11, color:"#555" }}>{h.inspired}</div>
+                    </div>
+                    <div style={{ fontSize:12, fontWeight:800, color:pc }}>⚡{h.power}</div>
+                    {isChecked && <span style={{ fontSize:16 }}>{breakMode === "single" ? "✅" : "🛡"}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Squad panel */}
+        {breakMode === "squad" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>🛡 Squads</div>
+              <button onClick={addSquad}
+                style={{ background:"rgba(232,49,122,0.12)", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                + Add Squad
+              </button>
+            </div>
+
+            {squads.map(sq => (
+              <div key={sq.id}
+                style={{ background: activeSquad === sq.id ? "#0d1a0d" : "#111", border:`2px solid ${activeSquad === sq.id ? "#4ade80" : "#1a1a1a"}`, borderRadius:10, padding:"12px 14px", cursor:"pointer" }}
+                onClick={() => setActiveSquad(sq.id === activeSquad ? null : sq.id)}>
+
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: sq.heroes.length ? 10 : 0 }}>
+                  <div>
+                    <input
+                      value={sq.name}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => setSquads(prev => prev.map(s => s.id === sq.id ? {...s, name: e.target.value} : s))}
+                      style={{ background:"transparent", border:"none", color: activeSquad === sq.id ? "#4ade80" : "#F0F0F0", fontSize:13, fontWeight:800, fontFamily:"inherit", outline:"none", width:140 }}
+                    />
+                    <div style={{ fontSize:10, color:"#555" }}>{sq.heroes.length} hero{sq.heroes.length !== 1 ? "s" : ""} · {activeSquad === sq.id ? "Active — click a hero to add" : "Click to select"}</div>
+                  </div>
+                  <div style={{ fontSize:16, color: activeSquad === sq.id ? "#4ade80" : "#333" }}>
+                    {activeSquad === sq.id ? "✏️" : "○"}
+                  </div>
+                </div>
+
+                {sq.heroes.length > 0 && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                    {sq.heroes.map(h => {
+                      const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
+                      return (
+                        <div key={h.sid} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 8px", background:"rgba(0,0,0,0.3)", borderRadius:6 }}>
+                          <span style={{ fontSize:10, color:cfg.color }}>{h.tier === "Featured Auto" ? "⭐" : h.tier === "Highlighted" ? "💜" : "🔵"}</span>
+                          <span style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", flex:1 }}>{h.hero}</span>
+                          <span style={{ fontSize:10, color:"#555" }}>{h.inspired}</span>
+                          <span style={{ fontSize:11, fontWeight:800, color:powerColor(h.power) }}>⚡{h.power}</span>
+                          <button onClick={e => { e.stopPropagation(); removeFromSquad(sq.id, h.sid); }}
+                            style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:12, padding:"0 2px" }}>×</button>
+                        </div>
+                      );
+                    })}
+                    <div style={{ fontSize:10, color:"#555", textAlign:"right", marginTop:4 }}>
+                      Avg Power: <strong style={{color:"#F0F0F0"}}>{sq.heroes.length ? Math.round(sq.heroes.reduce((s,h)=>s+h.power,0)/sq.heroes.length) : "--"}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], bobaCards=[] }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
-    { id:"recap",      label:"\uD83D\uDCCB Stream Recap", roles:["Admin","Streamer","StreamerLite"] },
-    { id:"cards",      label:"\uD83C\uDCCF Log Cards",    roles:["Admin","Streamer","Shipping","StreamerLite"] },
-    { id:"commission", label:"\uD83D\uDCB5 Commission",   roles:["Admin","Streamer","StreamerLite"] },
-    { id:"planner",    label:"\uD83E\uDDEE Break Planner", roles:["Admin","Streamer","StreamerLite"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar", roles:["Admin","Streamer","StreamerLite"] },
+    { id:"recap",      label:"\uD83D\uDCCB Stream Recap",     roles:["Admin","Streamer","StreamerLite"] },
+    { id:"cards",      label:"\uD83C\uDCCF Log Cards",        roles:["Admin","Streamer","Shipping","StreamerLite"] },
+    { id:"commission", label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
+    { id:"planner",    label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
+    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar",  roles:["Admin","Streamer","StreamerLite"] },
+    { id:"herobreak",  label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -8921,6 +9420,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
       {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
+      {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
     </div>
   );
 }
@@ -9005,49 +9505,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const [stubAdminView,  setStubAdminView]  = useState(false); // false = rep view (default for sending)
   const [stubFrom,    setStubFrom]    = useState("");
   const [stubTo,      setStubTo]      = useState("");
-  const [repNotes,    setRepNotes]    = useState({});       // { [breaker]: [{id,text,createdAt,author}] }
-  const [noteInput,   setNoteInput]   = useState("");
-  const [noteBreaker, setNoteBreaker] = useState(null);     // which rep's notes panel is open
-  const [noteSaving,  setNoteSaving]  = useState(false);
-
-  // Load rep notes from Firestore
-  useEffect(() => {
-    if (!isAdmin) return;
-    const unsub = onSnapshot(collection(db, "rep_notes"), snap => {
-      const grouped = {};
-      snap.docs.forEach(d => {
-        const data = { ...d.data(), id:d.id };
-        if (!grouped[data.breaker]) grouped[data.breaker] = [];
-        grouped[data.breaker].push(data);
-      });
-      // Sort each breaker's notes newest first
-      Object.keys(grouped).forEach(b => grouped[b].sort((a,z) => z.createdAt.localeCompare(a.createdAt)));
-      setRepNotes(grouped);
-    });
-    return () => unsub();
-  }, [isAdmin]);
 
   // Commission rate from comp plan
   function getCommRate(stream) { return getRate(stream); }
-
-  async function saveNote(breaker) {
-    if (!noteInput.trim()) return;
-    setNoteSaving(true);
-    const id = uid();
-    await setDoc(doc(db, "rep_notes", id), {
-      id, breaker,
-      text: noteInput.trim(),
-      createdAt: new Date().toISOString(),
-      author: user?.displayName || "Admin",
-    });
-    setNoteInput("");
-    setNoteSaving(false);
-  }
-
-  async function deleteNote(noteId) {
-    if (!window.confirm("Delete this note?")) return;
-    await deleteDoc(doc(db, "rep_notes", noteId));
-  }
 
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -9061,7 +9521,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
-    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+    const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, bazTrueNet };
   }
 
@@ -9070,7 +9530,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const isCEO = CEO_NAMES.some(n => curUser.toLowerCase().includes(n.toLowerCase()));
   const visibleStreams = isAdmin
     ? streams
-    : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker));
+    : streams.filter(s => s.breaker === myBreaker);
 
   // Period filter -- available to everyone
   const [period,        setPeriod]        = useState("all");
@@ -9105,20 +9565,16 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
   const filteredStreams = isAdmin && breakerFilter !== "all"
-    ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter))
+    ? periodFiltered.filter(s => s.breaker === breakerFilter)
     : periodFiltered;
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
     const c = calcStreamDash(s);
-    const targetBreaker = breakerFilter !== "all" ? breakerFilter : myBreaker;
-    const myStaff = (s.eventStaff||[]).find(es => es.breaker === targetBreaker);
-    const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
-    const myEventFee = isEventOnly ? c.bazNet * (parseFloat(myStaff.pct)||15) / 100 : 0;
     acc.gross     += c.gross;
     acc.net       += c.netRev;
     acc.baz       += c.bazNet;
-    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - c.repExpShare);
+    acc.comm      += c.commAmt - c.repExpShare; // net commission after rep expense share
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
@@ -9406,11 +9862,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const tips=parseFloat(s.tips)||0;
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,es)=>sum+bazNet*(parseFloat(es.pct)||15)/100,0); const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt-eventStaffAmt;
+              const imcReimb=streamExp*0.70; const bazTrueNet=bazNet-commAmt-bazExpShare+imcReimb+repExpShare-collabAmt;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, commAmt, tips, salesBonus, bazTrueNet, rate };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=(c.commAmt - c.repExpShare); acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,imcReimb:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.imcReimb+=(c.imcReimb||0); acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,imcReimb:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -9438,7 +9894,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt - c.repExpShare)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
                     ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
                   </tr>`;
               }).join("");
@@ -9489,7 +9945,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <thead><tr>
                     ${adminPDF
                       ? `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rep Exp</th><th style="text-align:right">Rate</th><th style="text-align:right">− Commission</th><th style="text-align:right">True Net</th>`
-                      : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Net Commission</th>`
+                      : `<th>Date</th><th>Type</th><th style="text-align:right">Gross</th><th style="text-align:right">Bazooka Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th>`
                     }
                   </tr></thead>
                   <tbody>${streamRows}</tbody>
@@ -9711,76 +10167,20 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
       {/* Breaker filter -- admin only */}
       {isAdmin && (
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {["all", ...BREAKERS].map(b => (
-            <div key={b} style={{ display:"flex", alignItems:"center", gap:3 }}>
-              <button onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
-                style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {b === "all" ? "\uD83D\uDC65 All Breakers" : b}
-                {b !== "all" && <span style={{ marginLeft:6, background:"#111111", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
-                  {visibleStreams.filter(s=>s.breaker===b).length}
-                </span>}
-              </button>
-              {b !== "all" && (
-                <button onClick={()=>setNoteBreaker(noteBreaker===b?null:b)}
-                  title={`Notes for ${b}`}
-                  style={{ background:noteBreaker===b?"rgba(251,191,36,0.15)":"transparent", color:noteBreaker===b?"#FBBF24":"#555", border:`1px solid ${noteBreaker===b?"#FBBF2444":"#2a2a2a"}`, borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit", position:"relative" }}>
-                  📝{(repNotes[b]||[]).length > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FBBF24", color:"#000", borderRadius:"50%", width:14, height:14, fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center" }}>{(repNotes[b]||[]).length}</span>}
-                </button>
-              )}
-            </div>
+            <button key={b} onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
+              style={{ background:breakerFilter===b?"#1A1A2E":"transparent", color:breakerFilter===b?"#E8317A":"#9CA3AF", border:`1.5px solid ${breakerFilter===b?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {b === "all" ? "\uD83D\uDC65 All Breakers" : b}
+              {b !== "all" && <span style={{ marginLeft:6, background:"#111111", color:"#E8317A", borderRadius:10, padding:"0 6px", fontSize:10 }}>
+                {visibleStreams.filter(s=>s.breaker===b).length}
+              </span>}
+            </button>
           ))}
         </div>
       )}
 
-      {/* Rep Notes Panel -- admin only */}
-      {isAdmin && noteBreaker && (
-        <div style={{ background:"#0d0d0d", border:"1px solid #FBBF2422", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>📝 Notes — {noteBreaker}</div>
-              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Admin only · use for weekly/monthly reviews</div>
-            </div>
-            <button onClick={()=>setNoteBreaker(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:18 }}>×</button>
-          </div>
-
-          {/* Add note input */}
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            <textarea
-              value={noteInput}
-              onChange={e=>setNoteInput(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)) saveNote(noteBreaker); }}
-              placeholder={`Add a note about ${noteBreaker}... (Cmd+Enter to save)`}
-              rows={2}
-              style={{ flex:1, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", resize:"vertical" }}
-            />
-            <button onClick={()=>saveNote(noteBreaker)} disabled={noteSaving||!noteInput.trim()}
-              style={{ background:"rgba(251,191,36,0.15)", border:"1px solid #FBBF2444", color:"#FBBF24", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", alignSelf:"flex-end" }}>
-              {noteSaving ? "Saving..." : "💾 Save"}
-            </button>
-          </div>
-
-          {/* Notes list */}
-          {(repNotes[noteBreaker]||[]).length === 0
-            ? <div style={{ textAlign:"center", color:"#333", fontSize:12, padding:"20px 0" }}>No notes yet — start building a review history</div>
-            : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {(repNotes[noteBreaker]||[]).map(n => (
-                  <div key={n.id} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", position:"relative" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-                      <div style={{ fontSize:13, color:"#F0F0F0", lineHeight:1.5, flex:1, whiteSpace:"pre-wrap" }}>{n.text}</div>
-                      <button onClick={()=>deleteNote(n.id)} style={{ background:"none", border:"none", color:"#333", cursor:"pointer", fontSize:13, padding:"0 2px", flexShrink:0 }}>🗑</button>
-                    </div>
-                    <div style={{ fontSize:10, color:"#444", marginTop:6 }}>
-                      {new Date(n.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})} · {n.author}
-                    </div>
-                  </div>
-                ))}
-              </div>
-          }
-        </div>
-      )}
-
-
+      {/* Stream list */}
       {filteredStreams.length === 0
         ? <div style={{ ...S.card, textAlign:"center", padding:"60px" }}>
             <div style={{ fontSize:32, marginBottom:12 }}>{"\uD83D\uDCB5"}</div>
@@ -9789,18 +10189,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         : filteredStreams.map(s => {
             const c  = calcStreamDash(s);
             const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
-            const myEventStaff = (s.eventStaff||[]).find(es => es.breaker === myBreaker);
-            const myEventFee = myEventStaff ? c.bazNet * (parseFloat(myEventStaff.pct)||15) / 100 : 0;
-            const isEventStaffStream = !!myEventStaff && s.breaker !== myBreaker;
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventStaffStream ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer" }}>
                 {/* Row 1: date + breaker + arrow */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
                     <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                     {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
-                    {isEventStaffStream && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                   </div>
                   <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
@@ -9811,13 +10207,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
                   </div>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{isEventStaffStream ? `${parseFloat(myEventStaff.pct)||15}% Event` : `${(c.rate*100).toFixed(0)}%${s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}`}</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
                   </div>
-                  <div style={{ background: isEventStaffStream ? "rgba(167,139,250,0.06)" : "#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventStaffStream ? "rgba(167,139,250,0.2)" : "#4ade8022"}` }}>
-                    <div style={{ fontSize:13, fontWeight:900, color: isEventStaffStream ? "#A78BFA" : "#4ade80" }}>{fmt(isEventStaffStream ? myEventFee : c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventStaffStream ? "Event Fee" : `Rep Net${c.salesBonus>0?" + Bonus":""}`}</div>
-                    {!isEventStaffStream && c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
+                  <div style={{ background:"#0a1a0a", borderRadius:8, padding:"8px 10px", border:"1px solid #4ade8022" }}>
+                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net{c.salesBonus>0?" + Bonus":""}</div>
+                    {c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
                   </div>
                 </div>
                 {/* Row 3: admin financials */}
@@ -18565,7 +18961,7 @@ export default function App() {
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams}/>}
+        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
