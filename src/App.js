@@ -8935,7 +8935,7 @@ const TIER_CFG = {
 };
 
 function HeroBreakBuilder({ userRole, bobaCards=[] }) {
-  const [selectedSet,   setSelectedSet]   = useState("Tecmo Bowl");
+  const [selectedSets,  setSelectedSets]  = useState(new Set(["Tecmo Bowl"]));
   const [breakMode,     setBreakMode]     = useState("single");
   const [tierFilter,    setTierFilter]    = useState("all");
   const [search,        setSearch]        = useState("");
@@ -8965,12 +8965,18 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
   const ALL_SETS = { ...bobaHeroSets, ...HERO_SETS };
   const setNames = Object.keys(ALL_SETS);
 
-  // Reset selection if current set no longer exists
-  const heroes = ALL_SETS[selectedSet] || [];
-  const allInSquads = new Set(squads.flatMap(sq => sq.heroes.map(h => `${h.hero}-${h.tier}`)));
+  // Merge heroes from all selected sets
+  const heroes = [...selectedSets].flatMap(s => (ALL_SETS[s]||[]).map(h => ({...h, setName:s})));
+  const allInSquads = new Set(squads.flatMap(sq => sq.heroes.map(h => `${h.hero}-${h.tier}-${h.setName||""}`)));
+
+  // Tier options from selected sets
+  const allTiersInSelected = new Set(heroes.map(h => h.tier).filter(Boolean));
+  const knownTiers = ["Featured Auto","Highlighted","Base"].filter(t => allTiersInSelected.has(t));
+  const otherTiers = [...allTiersInSelected].filter(t => !knownTiers.includes(t)).sort();
+  const tierOptions = ["all", ...knownTiers, ...otherTiers];
 
   const filtered = heroes.filter(h => {
-    const heroKey = `${h.hero}-${h.tier}`;
+    const heroKey = `${h.hero}-${h.tier}-${h.setName||""}`;
     if (tierFilter !== "all" && h.tier !== tierFilter) return false;
     if (search && !h.hero.toLowerCase().includes(search.toLowerCase()) &&
         !h.inspired.toLowerCase().includes(search.toLowerCase())) return false;
@@ -9084,6 +9090,75 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
 
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showRandomizer, setShowRandomizer] = useState(false);
+  const [randSquadCount, setRandSquadCount] = useState(4);
+  const [randHeroesPerSquad, setRandHeroesPerSquad] = useState(3);
+  const [randBalance, setRandBalance] = useState(true); // balance tiers across squads
+
+  function randomizeSquads() {
+    const pool = [...heroes]; // all heroes from selected sets
+    if (pool.length < randSquadCount) {
+      alert(`Not enough heroes (${pool.length}) to make ${randSquadCount} squads. Add more sets or reduce squad count.`);
+      return;
+    }
+
+    const total = randSquadCount * randHeroesPerSquad;
+    const available = pool.slice(0, total * 10); // work with top heroes only if large pool
+
+    let toAssign;
+    if (randBalance) {
+      // Balanced: distribute tiers evenly across squads
+      // Group by tier, shuffle each group, then deal round-robin
+      const tierGroups = {};
+      pool.forEach(h => {
+        const t = h.tier || "Base";
+        if (!tierGroups[t]) tierGroups[t] = [];
+        tierGroups[t].push(h);
+      });
+      // Shuffle each tier group
+      Object.values(tierGroups).forEach(g => {
+        for (let i = g.length-1; i > 0; i--) {
+          const j = Math.floor(Math.random()*(i+1));
+          [g[i],g[j]] = [g[j],g[i]];
+        }
+      });
+      // Deal round-robin from each tier group
+      const tierKeys = Object.keys(tierGroups);
+      toAssign = [];
+      let ti = 0;
+      while (toAssign.length < total && tierKeys.some(t => tierGroups[t].length > 0)) {
+        const key = tierKeys[ti % tierKeys.length];
+        if (tierGroups[key].length > 0) toAssign.push(tierGroups[key].shift());
+        ti++;
+      }
+      // Shuffle the final pool so similar tiers aren't all in same squad
+      for (let i = toAssign.length-1; i > 0; i--) {
+        const j = Math.floor(Math.random()*(i+1));
+        [toAssign[i],toAssign[j]] = [toAssign[j],toAssign[i]];
+      }
+    } else {
+      // Pure random — shuffle whole pool
+      toAssign = [...pool];
+      for (let i = toAssign.length-1; i > 0; i--) {
+        const j = Math.floor(Math.random()*(i+1));
+        [toAssign[i],toAssign[j]] = [toAssign[j],toAssign[i]];
+      }
+      toAssign = toAssign.slice(0, total);
+    }
+
+    // Split into squads
+    const newSquads = Array.from({length: randSquadCount}, (_, i) => ({
+      id: uid(),
+      name: `Squad ${i+1}`,
+      heroes: toAssign.slice(i * randHeroesPerSquad, (i+1) * randHeroesPerSquad)
+        .map(h => ({...h, sid: uid(), addedAt: Date.now()})),
+    }));
+
+    setSquads(newSquads);
+    setBreakMode("squad");
+    setShowRandomizer(false);
+    setShowExport(false);
+  }
 
   const checkedCount = breakMode === "single" ? checkedHeroes.size : allInSquads.size;
 
@@ -9099,6 +9174,10 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <span style={{ fontSize:12, color:"#555" }}>{checkedCount} / {heroes.length} assigned · showing {filtered.length}</span>
+            <button onClick={()=>setShowRandomizer(p=>!p)}
+              style={{ background: showRandomizer?"rgba(139,92,246,0.2)":"rgba(139,92,246,0.1)", border:`1px solid ${showRandomizer?"#7C3AED99":"rgba(139,92,246,0.3)"}`, color:"#A78BFA", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              🎲 Randomize
+            </button>
             {checkedCount > 0 && (
               <button onClick={()=>setShowExport(p=>!p)}
                 style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -9112,15 +9191,24 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
         {/* Controls row */}
         <div style={{ display:"grid", gridTemplateColumns:"auto auto 1fr auto", gap:12, marginTop:16, alignItems:"center", flexWrap:"wrap" }}>
           {/* Set selector */}
-          <select value={selectedSet} onChange={e=>{ setSelectedSet(e.target.value); setCheckedHeroes(new Set()); setTierFilter("all"); setSearch(""); }}
-            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"8px 12px", fontSize:13, fontFamily:"inherit", cursor:"pointer" }}>
-            <optgroup label="BoBA Sets">
-              {bobaSetNames.map(s => <option key={s} value={s}>{s}</option>)}
-            </optgroup>
-            <optgroup label="Other Sets">
-              {Object.keys(HERO_SETS).map(s => <option key={s} value={s}>{s}</option>)}
-            </optgroup>
-          </select>
+          {/* Set selector — multi-select pills */}
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Sets ({selectedSets.size} selected)</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {bobaSetNames.length > 0 && bobaSetNames.map(s => (
+                <button key={s} onClick={()=>{ setSelectedSets(prev => { const n=new Set(prev); n.has(s)?n.delete(s):n.add(s); return n; }); setCheckedHeroes(new Set()); setTierFilter("all"); }}
+                  style={{ background:selectedSets.has(s)?"rgba(232,49,122,0.15)":"#1a1a1a", color:selectedSets.has(s)?"#E8317A":"#555", border:`1.5px solid ${selectedSets.has(s)?"#E8317A44":"#2a2a2a"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  🃏 {s}
+                </button>
+              ))}
+              {Object.keys(HERO_SETS).map(s => (
+                <button key={s} onClick={()=>{ setSelectedSets(prev => { const n=new Set(prev); n.has(s)?n.delete(s):n.add(s); return n; }); setCheckedHeroes(new Set()); setTierFilter("all"); }}
+                  style={{ background:selectedSets.has(s)?"rgba(96,165,250,0.15)":"#1a1a1a", color:selectedSets.has(s)?"#60A5FA":"#555", border:`1.5px solid ${selectedSets.has(s)?"#60A5FA44":"#2a2a2a"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  🏈 {s}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Break mode */}
           <div style={{ display:"flex", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, overflow:"hidden" }}>
@@ -9155,7 +9243,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
               return (
                 <button key={t} onClick={()=>setTierFilter(t)}
                   style={{ background:tierFilter===t?(cfg?.bg||"rgba(232,49,122,0.12)"):"transparent", color:tierFilter===t?(cfg?.color||"#E8317A"):"#555", border:`1px solid ${tierFilter===t?(cfg?.border||"#E8317A44"):"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  {t === "all" ? `All (${tierCounts.all})` : `${cfg.badge} (${tierCounts[t]})`}
+                  {t === "all" ? `All (${tierCounts.all})` : `${cfg?.badge || t} (${tierCounts[t]})`}
                 </button>
               );
             })}
@@ -9178,6 +9266,70 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
           </div>
         </div>
       </div>
+
+      {/* Randomizer Panel */}
+      {showRandomizer && (
+        <div style={{ background:"#0d0a1a", border:"2px solid rgba(139,92,246,0.3)", borderRadius:12, padding:"18px 20px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:"#A78BFA" }}>🎲 Squad Randomizer</div>
+              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Auto-generate balanced squads from selected sets</div>
+            </div>
+            <button onClick={()=>setShowRandomizer(false)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:18 }}>×</button>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:16, alignItems:"end", marginBottom:14 }}>
+            <div>
+              <div style={{ fontSize:11, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>Number of Squads</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {[2,3,4,5,6,8,10].map(n => (
+                  <button key={n} onClick={()=>setRandSquadCount(n)}
+                    style={{ background:randSquadCount===n?"rgba(139,92,246,0.2)":"#1a1a1a", color:randSquadCount===n?"#A78BFA":"#555", border:`1px solid ${randSquadCount===n?"#7C3AED55":"#2a2a2a"}`, borderRadius:8, padding:"5px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>Heroes Per Squad</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {[1,2,3,4,5,6].map(n => (
+                  <button key={n} onClick={()=>setRandHeroesPerSquad(n)}
+                    style={{ background:randHeroesPerSquad===n?"rgba(139,92,246,0.2)":"#1a1a1a", color:randHeroesPerSquad===n?"#A78BFA":"#555", border:`1px solid ${randHeroesPerSquad===n?"#7C3AED55":"#2a2a2a"}`, borderRadius:8, padding:"5px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Balance toggle */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+            <button onClick={()=>setRandBalance(p=>!p)}
+              style={{ background:randBalance?"rgba(74,222,128,0.1)":"transparent", border:`1px solid ${randBalance?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:randBalance?"#4ade80":"#555", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {randBalance ? "✓ Balanced Tiers" : "○ Balanced Tiers"}
+            </button>
+            <span style={{ fontSize:11, color:"#555" }}>
+              {randBalance ? "Each squad gets a mix of Featured Autos, Highlighted & Base heroes" : "Fully random — any tier in any squad"}
+            </span>
+          </div>
+
+          {/* Summary */}
+          <div style={{ background:"rgba(0,0,0,0.3)", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:12, color:"#555" }}>
+            {randSquadCount} squads × {randHeroesPerSquad} heroes = <strong style={{color:"#A78BFA"}}>{randSquadCount*randHeroesPerSquad} total heroes</strong>
+            {heroes.length < randSquadCount*randHeroesPerSquad
+              ? <span style={{color:"#ef4444", marginLeft:8}}>⚠ Only {heroes.length} available — add more sets</span>
+              : <span style={{color:"#4ade80", marginLeft:8}}>✓ {heroes.length} heroes available</span>
+            }
+          </div>
+
+          <button onClick={randomizeSquads}
+            disabled={heroes.length < randSquadCount * randHeroesPerSquad}
+            style={{ background:"linear-gradient(135deg,#7C3AED,#A78BFA)", color:"#fff", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", width:"100%", opacity: heroes.length < randSquadCount*randHeroesPerSquad ? 0.5 : 1 }}>
+            🎲 Generate {randSquadCount} Random Squads
+          </button>
+        </div>
+      )}
 
       {/* Export Panel */}
       {showExport && checkedCount > 0 && (
@@ -9269,7 +9421,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
           {viewMode === "grid" ? (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
               {filtered.map(h => {
-                const heroKey = `${h.hero}-${h.tier}`;
+                const heroKey = `${h.hero}-${h.tier}-${h.setName||""}`;
                 const isChecked = breakMode === "single" ? checkedHeroes.has(heroKey) : allInSquads.has(heroKey);
                 const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
                 const pc = powerColor(h.power);
@@ -9278,9 +9430,10 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
                     onClick={() => breakMode === "single" ? toggleHero(heroKey) : addToSquad(h)}
                     style={{ background: isChecked ? cfg.bg : "#111", border:`1.5px solid ${isChecked ? cfg.color : "#1a1a1a"}`, borderRadius:10, padding:"12px", cursor:"pointer", position:"relative", opacity: isChecked ? 0.6 : 1, transition:"all 0.15s" }}>
 
-                    {/* Tier badge */}
-                    <div style={{ fontSize:9, fontWeight:800, color:cfg.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>
-                      {h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : "🔵 Base"}
+                    {/* Tier badge + set name if multiple sets */}
+                    <div style={{ fontSize:9, fontWeight:800, color:cfg.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span>{h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : cfg?.badge || h.tier}</span>
+                      {selectedSets.size > 1 && h.setName && <span style={{ color:"#444", fontWeight:600, fontSize:8 }}>{h.setName.length > 12 ? h.setName.slice(0,12)+"…" : h.setName}</span>}
                     </div>
 
                     {/* Hero name */}
@@ -9297,7 +9450,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
 
                     {/* Squad label */}
                     {breakMode === "squad" && allInSquads.has(heroKey) && (() => {
-                      const sq = squads.find(s => s.heroes.some(x => `${x.hero}-${x.tier}` === heroKey));
+                      const sq = squads.find(s => s.heroes.some(x => `${x.hero}-${x.tier}-${x.setName||""}` === heroKey));
                       return sq ? <div style={{ fontSize:9, color:cfg.color, marginTop:4, fontWeight:700 }}>{sq.name}</div> : null;
                     })()}
                   </div>
@@ -9307,7 +9460,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
           ) : (
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {filtered.map(h => {
-                const heroKey = `${h.hero}-${h.tier}`;
+                const heroKey = `${h.hero}-${h.tier}-${h.setName||""}`;
                 const isChecked = breakMode === "single" ? checkedHeroes.has(heroKey) : allInSquads.has(heroKey);
                 const cfg = TIER_CFG[h.tier] || TIER_CFG.Base;
                 const pc = powerColor(h.power);
