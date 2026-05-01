@@ -9144,19 +9144,40 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
       remaining = remaining.filter(h => !seeded.has(`${h.hero}-${h.tier}-${h.setName||""}`));
     }
 
-    // Step 3: Snake draft — distribute by power so each squad gets a fair mix
-    // Round 1: best hero → squad 0, 1, 2... N
-    // Round 2: next best → squad N, N-1... 0 (snake back)
-    // This ensures avg power per squad is nearly identical
-    let dir = 1;
-    let si = 0;
-    for (const hero of remaining) {
-      squadSlots[si].push(hero);
-      // Move to next squad
-      si += dir;
-      if (si >= actualSquadCount) { si = actualSquadCount - 1; dir = -1; }
-      else if (si < 0) { si = 0; dir = 1; }
+    // Step 3: Tier-paired snake draft
+    // Sort remaining by power desc within each tier
+    const tierOrder = ["Featured Auto", "Highlighted", "Base"];
+    const tierGroups = {};
+    remaining.forEach(h => {
+      const t = tierOrder.includes(h.tier) ? h.tier : "Base";
+      if (!tierGroups[t]) tierGroups[t] = [];
+      tierGroups[t].push(h);
+    });
+    // Sort each group by power desc + jitter
+    Object.values(tierGroups).forEach(g => g.sort((a,b) => ((b.power||0)+Math.random()*0.5) - ((a.power||0)+Math.random()*0.5)));
+
+    const featuredPool  = [...(tierGroups["Featured Auto"]||[])];
+    const highlightPool = [...(tierGroups["Highlighted"]||[])];
+    const basePool      = [...(tierGroups["Base"]||[])];
+
+    // Interleave: for each squad slot, try to give it a Featured (or Highlighted) + Base mix
+    // Snake direction flips each round
+    let snakeDir = 1, snakeSi = 0;
+    function snakeNext() {
+      const cur = snakeSi;
+      snakeSi += snakeDir;
+      if (snakeSi >= actualSquadCount) { snakeSi = actualSquadCount-1; snakeDir = -1; }
+      else if (snakeSi < 0) { snakeSi = 0; snakeDir = 1; }
+      return cur;
     }
+
+    // First pass: assign one Featured (or Highlighted) to each squad via snake
+    const primaryPool = [...featuredPool, ...highlightPool].sort((a,b)=>((b.power||0)+Math.random()*0.5)-((a.power||0)+Math.random()*0.5));
+    for (const h of primaryPool) squadSlots[snakeNext()].push(h);
+
+    // Second pass: assign Base heroes via snake
+    snakeDir = 1; snakeSi = 0; // reset snake for base
+    for (const h of basePool) squadSlots[snakeNext()].push(h);
 
     // Shuffle within each squad so power order isn't obvious
     squadSlots.forEach(sq => { for(let i=sq.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sq[i],sq[j]]=[sq[j],sq[i]];} });
