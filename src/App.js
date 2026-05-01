@@ -9104,50 +9104,46 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
 
   function randomizeSquads() {
     const pool = [...heroes];
-    if (pool.length < randSquadCount) {
-      alert(`Not enough heroes (${pool.length}) to make ${randSquadCount} squads. Add more sets or reduce squad count.`);
+    if (pool.length === 0) {
+      alert("No heroes available. Select a set first.");
       return;
     }
 
-    const total = randSquadCount * randHeroesPerSquad;
     const activeSets = [...selectedSets];
     const multiSet = activeSets.length > 1;
 
-    // Helper: shuffle array in place
     function shuffle(arr) {
-      for (let i = arr.length-1; i > 0; i--) {
+      const a = [...arr];
+      for (let i = a.length-1; i > 0; i--) {
         const j = Math.floor(Math.random()*(i+1));
-        [arr[i],arr[j]] = [arr[j],arr[i]];
+        [a[i],a[j]] = [a[j],a[i]];
       }
-      return arr;
+      return a;
     }
 
-    // Build initial squad slots — each squad is an array of heroes
-    const squadSlots = Array.from({length: randSquadCount}, () => []);
+    // Figure out actual squad count — use requested but ensure all heroes are covered
+    const exactSquads = Math.ceil(pool.length / randHeroesPerSquad);
+    const actualSquadCount = Math.max(randSquadCount, exactSquads);
+    const squadSlots = Array.from({length: actualSquadCount}, () => []);
 
-    // Step 1: If multiple sets selected, guarantee at least 1 hero from each set per squad
-    // (as long as heroes per squad allows it)
+    // Step 1: Multi-set guarantee — seed one from each set into each squad
     if (multiSet && randHeroesPerSquad >= activeSets.length) {
       const setGroups = {};
       activeSets.forEach(s => {
         setGroups[s] = shuffle(pool.filter(h => h.setName === s));
       });
-      // Deal one from each set to each squad round-robin
-      for (let si = 0; si < randSquadCount; si++) {
+      for (let si = 0; si < actualSquadCount; si++) {
         for (const s of activeSets) {
-          if (setGroups[s].length > 0) {
-            squadSlots[si].push(setGroups[s].shift());
-          }
+          if (setGroups[s].length > 0) squadSlots[si].push(setGroups[s].shift());
         }
       }
     }
 
-    // Step 2: Fill remaining slots using tier-balanced or pure random from leftover pool
+    // Step 2: Fill ALL remaining heroes (no hero left behind)
     const used = new Set(squadSlots.flat().map(h => `${h.hero}-${h.tier}-${h.setName||""}`));
-    const remaining = shuffle(pool.filter(h => !used.has(`${h.hero}-${h.tier}-${h.setName||""}`)));
+    let remaining = shuffle(pool.filter(h => !used.has(`${h.hero}-${h.tier}-${h.setName||""}`)));
 
     if (randBalance) {
-      // Group remaining by tier
       const tierGroups = {};
       remaining.forEach(h => {
         const t = h.tier || "Base";
@@ -9156,36 +9152,58 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
       });
       const tierKeys = Object.keys(tierGroups);
       let ti = 0;
-      // Fill each squad to randHeroesPerSquad
-      for (let si = 0; si < randSquadCount; si++) {
-        while (squadSlots[si].length < randHeroesPerSquad && tierKeys.some(t => tierGroups[t].length > 0)) {
-          const key = tierKeys[ti % tierKeys.length];
-          if (tierGroups[key]?.length > 0) squadSlots[si].push(tierGroups[key].shift());
-          ti++;
+      // Fill squads round-robin by tier until all heroes assigned
+      while (tierKeys.some(t => tierGroups[t]?.length > 0)) {
+        const key = tierKeys[ti % tierKeys.length];
+        if (tierGroups[key]?.length > 0) {
+          // Find squad with fewest heroes
+          const si = squadSlots.reduce((mi, sq, i) => sq.length < squadSlots[mi].length ? i : mi, 0);
+          squadSlots[si].push(tierGroups[key].shift());
         }
+        ti++;
       }
     } else {
-      // Fill with pure random remaining
       let ri = 0;
-      for (let si = 0; si < randSquadCount; si++) {
-        while (squadSlots[si].length < randHeroesPerSquad && ri < remaining.length) {
-          squadSlots[si].push(remaining[ri++]);
-        }
+      while (ri < remaining.length) {
+        const si = ri % actualSquadCount;
+        squadSlots[si].push(remaining[ri++]);
       }
     }
 
-    // Shuffle within each squad so set-guaranteed heroes aren't always first
-    squadSlots.forEach(sq => shuffle(sq));
+    // Shuffle within each squad
+    squadSlots.forEach(sq => { for (let i=sq.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sq[i],sq[j]]=[sq[j],sq[i]];} });
+
+    // Generate creative squad names based on heroes in each squad
+    const squadNames = squadSlots.map((sq, i) => {
+      if (!sq.length) return `Squad ${i+1}`;
+      // Pick 1-2 hero names to inspire the squad name
+      const topHero = sq.reduce((best, h) => (h.power||0) > (best.power||0) ? h : best, sq[0]);
+      const names = [
+        `${topHero.hero}'s Crew`,
+        `Team ${topHero.hero}`,
+        `${topHero.hero} & Co.`,
+        `${topHero.hero} Squad`,
+        `The ${topHero.hero}s`,
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    });
 
     const newSquads = squadSlots.map((heroes, i) => ({
       id: uid(),
-      name: `Squad ${i+1}`,
+      name: squadNames[i],
       heroes: heroes.map(h => ({...h, sid: uid(), addedAt: Date.now()})),
-    }));
+    })).filter(sq => sq.heroes.length > 0);
+
+    if (actualSquadCount > randSquadCount) {
+      // Non-blocking notification about extra squads
+      setTimeout(() => {
+        const extra = actualSquadCount - randSquadCount;
+        alert(`All ${pool.length} heroes accounted for! Created ${extra} extra squad${extra!==1?"s":""} to fit everyone.`);
+      }, 100);
+    }
 
     setSquads(newSquads);
     setBreakMode("squad");
-    setShowRandomizer(false);
     setShowExport(false);
   }
 
