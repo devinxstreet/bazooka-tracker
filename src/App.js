@@ -698,7 +698,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
                     {["Date","Breaker","Gross","Expenses","Rate",
-                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","= True Net"] : [
+                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","💙 IMC Reimb","= True Net"] : [
                         drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
                       ])
                     ].map(h=><th key={h} style={S.th}>{h}</th>)}
@@ -721,6 +721,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 <td style={{ ...S.td, color:"#991b1b" }}>{"\u2212"}{fmt(c.commAmt)}</td>
+                                <td style={{ ...S.td, color:"#60A5FA", fontWeight:700 }}>{(c.imcDirectReimb||0)>0 ? "+"+fmt(c.imcDirectReimb) : "—"}</td>
                                 <td style={{ ...S.td, color:"#6B2D8B", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
                               </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
                             </tr>
@@ -734,6 +735,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                       {drillDown==="trueNet" ? <>
                         <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#991b1b", fontSize:14 }}>{"\u2212"}{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ ...S.td, fontWeight:900, color:"#60A5FA", fontSize:14 }}>{filtered.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
                         <td style={{ ...S.td, fontWeight:900, color:"#6B2D8B", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
                       </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
