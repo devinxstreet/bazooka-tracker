@@ -3875,7 +3875,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       const itemName  = nameIdx  !== -1 ? (cols[nameIdx]||"")  : "";
                       const itemTitle = titleIdx !== -1 ? (cols[titleIdx]||"") : "";
                       const isZion = itemDesc.toLowerCase().includes("zion") || itemName.toLowerCase().includes("zion") || itemTitle.toLowerCase().includes("zion");
-                      const rowGross = (parseFloat(cols[origIdx]||0)||0) + (parseFloat(cols[couponIdx]||0)||0);
+                      const rowGross  = parseFloat(cols[origIdx]||0)||0;
                       const rowCoupon = parseFloat(cols[couponIdx]||0)||0;
                       if (isZion) {
                         zionGross += rowGross;
@@ -8034,7 +8034,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const actRev = actualRevenue(mActuals);
     if (mkt === 0 && mPlans.length === 0) return null;
 
-    const tiers = [
+    const revTiers = [
       { mult:1.0, label:"1.0x", sublabel:"At Market",   color:"#6B7280", bg:"rgba(107,114,128,0.06)", border:"rgba(107,114,128,0.2)" },
       { mult:1.5, label:"1.5x", sublabel:"Minimum",     color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
       { mult:1.7, label:"1.7x", sublabel:"Good",        color:"#86efac", bg:"rgba(134,239,172,0.06)", border:"rgba(134,239,172,0.2)" },
@@ -8051,7 +8051,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           {actRev > 0 && <div style={{fontSize:11,color:"#555"}}>Actual so far: <strong style={{color:"#4ade80"}}>{fmt2(actRev)}</strong></div>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-          {tierOptions.map(({mult,label,sublabel,color,bg,border})=>{
+          {revTiers.map(({mult,label,sublabel,color,bg,border})=>{
             const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
             const achieved = actRev >= tierRev;
             const pct = tierRev > 0 ? Math.min(100, actRev/tierRev*100) : 0;
@@ -8091,7 +8091,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   </tr>
                 </thead>
                 <tbody>
-                  {tierOptions.map(({mult,label,sublabel,color})=>{
+                  {revTiers.map(({mult,label,sublabel,color})=>{
                     const tierRev = mkt > 0 ? mkt * mult : projectedRevenue(mPlans, mult);
                     const e = calcPlanEarnings(tierRev);
                     if (!e) return null;
