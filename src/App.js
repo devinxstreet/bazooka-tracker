@@ -479,7 +479,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
     const streamExp=promo+magpros+pack+topload+chaser;
     // 70/30 split happens on gross BEFORE stream expenses (rep doesn't pay twice)
-    const splitBase=gross-fees-coupons-streamExp;
+    const splitBase=gross-fees-coupons;
     const netRev=splitBase; // splitBase already excludes expenses
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
@@ -489,7 +489,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
-    const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
     return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
   }
 
@@ -620,7 +620,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         function calcStream(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
           const streamExp=promo+magpros+pack+topload+chaser;
-          const splitBase=gross-fees-coupons-streamExp;
+          const splitBase=gross-fees-coupons;
           const netRev=splitBase;
           const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
           const mm=parseFloat(s.marketMultiple)||0;
@@ -630,7 +630,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
         }
 
@@ -697,7 +697,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead><tr>
-                    {["Date","Breaker","Gross","Expenses","Rate",
+                    {["Date","Breaker","Gross","Rate",
                       ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","💙 IMC Reimb","= True Net"] : [
                         drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
                       ])
@@ -705,18 +705,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </tr></thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?8:6}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?7:5}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
-                          const streamExp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
                           return (
                             <tr key={s.id} style={{ background:"#111111" }}>
                               <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ ...S.td, color:"#991b1b" }}>{streamExp>0?"\u2212"+fmt(streamExp):"—"}</td>
                               <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
@@ -3658,7 +3656,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[] };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3685,7 +3683,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -3731,7 +3729,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   function calcRecap() {
     const gross=parseFloat(recap.grossRevenue)||0, fees=parseFloat(recap.whatnotFees)||0, coupons=parseFloat(recap.coupons)||0, promo=parseFloat(recap.whatnotPromo)||0, magpros=parseFloat(recap.magpros)||0, pack=parseFloat(recap.packagingMaterial)||0, topload=parseFloat(recap.topLoaders)||0, chaser=parseFloat(recap.chaserCards)||0;
     const streamExp=promo+magpros+pack+topload+chaser;
-    const splitBase=gross-fees-coupons-streamExp;
+    const splitBase=gross-fees-coupons;
     const netRev=splitBase;
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const mm=parseFloat(recap.marketMultiple)||0;
@@ -3742,8 +3740,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const tips=parseFloat(recap.tips)||0;
     const salesBonus=parseFloat(recap.salesBonus)||0;
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
-    const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(recap.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, bazTrueNet };
+    const eventStaffAmt=(recap.eventStaff||[]).reduce((s,_)=>s+Math.min(1000,bazNet*0.15),0);
+    const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(recap.imcReimbursement)||0;
+    const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, eventStaffAmt, eventStaff:recap.eventStaff||[], bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4211,6 +4211,43 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
+        {/* Event Staff — multiple reps, 15% each capped at $1k */}
+        <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:(recap.eventStaff||[]).length>0?10:0 }}>
+            <div>
+              <span style={{ fontSize:12, fontWeight:700, color:"#A78BFA" }}>🎪 Event Staff Pay</span>
+              <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>15% of Bazooka Net · capped at $1,000/rep</span>
+            </div>
+            <button onClick={()=>rf("eventStaff")([...(recap.eventStaff||[]), {id:uid(), breaker:BREAKERS.find(b=>b!==breaker)||BREAKERS[0]}])}
+              style={{ background:"rgba(167,139,250,0.15)", border:"1px solid rgba(167,139,250,0.3)", color:"#A78BFA", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              + Add Rep
+            </button>
+          </div>
+          {(recap.eventStaff||[]).map((es, i) => {
+            const esAmt = rc ? Math.min(1000, rc.bazNet * 0.15) : 0;
+            const isCapped = rc && rc.bazNet * 0.15 > 1000;
+            return (
+              <div key={es.id} style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:8, alignItems:"center", marginBottom:6 }}>
+                <select value={es.breaker} onChange={e=>rf("eventStaff")((recap.eventStaff||[]).map((x,j)=>j===i?{...x,breaker:e.target.value}:x))}
+                  style={{ ...S.inp, fontSize:12, cursor:"pointer" }}>
+                  {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+                {rc && <span style={{ fontSize:13, fontWeight:800, color:"#A78BFA", whiteSpace:"nowrap" }}>
+                  {fmt(esAmt)}{isCapped&&<span style={{fontSize:10,color:"#FBBF24",marginLeft:4}}>⚠ capped</span>}
+                </span>}
+                <button onClick={()=>rf("eventStaff")((recap.eventStaff||[]).filter((_,j)=>j!==i))}
+                  style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
+              </div>
+            );
+          })}
+          {(recap.eventStaff||[]).length>0 && rc && (
+            <div style={{ fontSize:11, color:"#555", marginTop:6, borderTop:"1px solid rgba(167,139,250,0.1)", paddingTop:6 }}>
+              Total event pay: <strong style={{color:"#A78BFA"}}>{fmt((recap.eventStaff||[]).length * Math.min(1000, rc.bazNet*0.15))}</strong>
+              {" · "}{(recap.eventStaff||[]).map(es=>es.breaker).join(", ")}
+            </div>
+          )}
+        </div>
+
         {/* IMC Direct Reimbursement */}
         <div style={{ background:"rgba(59,130,246,0.05)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
@@ -4355,6 +4392,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
+                    ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
                   ].map(({l,v,c}) => (
@@ -4477,7 +4515,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         function calcS(s) {
           const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
           const streamExp=promo+magpros+pack+topload+chaser;
-          const splitBase=gross-fees-coupons-streamExp;
+          const splitBase=gross-fees-coupons;
           const netRev=splitBase;
           const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
           const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
@@ -4487,7 +4525,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
@@ -9690,7 +9728,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   function calcStreamDash(s) {
     const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
     const streamExp=promo+magpros+pack+topload+chaser;
-    const splitBase=gross-fees-coupons-streamExp;
+    const splitBase=gross-fees-coupons;
     const netRev=splitBase;
     const bazNet=splitBase*0.30, imcNet=splitBase*0.70;
     const rate=getCommRate(s);
@@ -9699,7 +9737,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
-    const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
     return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, bazTrueNet };
   }
 
@@ -9834,16 +9872,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
-              ...((parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0) > 0 ? [{
-                l:`\u2212 Stream Expenses (promo, packaging, chasers, etc.)`,
-                v:"\u2212 "+fmt((parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)),
-                c:"#666", indent:true
-              }] : []),
-              { l:"= Split Base (70/30 applied here — after expenses)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
+              { l:"= Split Base (70/30 applied here)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
               { l:"\u00D7 30% \u2192 Bazooka Share",                                       v:fmt(c.bazNet),                                     c:"#E8317A", indent:true  },
               ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
               { l:`\u2212 Rep Commission (${(c.rate*100).toFixed(0)}%)`,                   v:"\u2212 "+fmt(c.commAmt),                           c:"#991b1b", indent:true  },
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
+              ...(c.eventStaffAmt>0?[{ l:`🎪 Event Staff (${(s.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(c.eventStaffAmt), c:"#A78BFA", indent:true }]:[]),
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
               ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
@@ -10034,7 +10068,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             function calcS(s) {
               const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
               const streamExp=promo+magpros+pack+topload+chaser;
-              const splitBase=gross-fees-coupons-streamExp;
+              const splitBase=gross-fees-coupons;
               const netRev=splitBase;
               const bazNet=splitBase*0.30;
               const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
@@ -10045,7 +10079,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const tips=parseFloat(s.tips)||0;
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt+imcReimb+imcDirectReimb;
+              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commAmt, tips, salesBonus, bazTrueNet, rate };
             }
 
