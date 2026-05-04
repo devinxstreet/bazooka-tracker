@@ -9834,12 +9834,18 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
+              ...((parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0) > 0 ? [{
+                l:`\u2212 Stream Expenses (promo, packaging, chasers, etc.)`,
+                v:"\u2212 "+fmt((parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0)),
+                c:"#666", indent:true
+              }] : []),
               { l:"= Split Base (70/30 applied here — after expenses)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
               { l:"\u00D7 30% \u2192 Bazooka Share",                                       v:fmt(c.bazNet),                                     c:"#E8317A", indent:true  },
               ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
               { l:`\u2212 Rep Commission (${(c.rate*100).toFixed(0)}%)`,                   v:"\u2212 "+fmt(c.commAmt),                           c:"#991b1b", indent:true  },
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
+              ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
               { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
