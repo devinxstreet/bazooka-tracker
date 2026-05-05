@@ -768,7 +768,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown" },
+                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"after coupons" },
+                { key:"truegross",  label:"True Gross",           val:totals.gross + (streamTotals.coupons||0), color:"#F472B6", sub:"before coupons deducted" },
                 { key:"expenses",   label:"Stream Expenses",     val:totals.expenses,             color:"#991b1b", sub:"deducted before split" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#E8317A", sub:"70% of split base − direct reimbursements" },
                 { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
@@ -4354,7 +4355,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 1: top-level split */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                   {[
-                    { l:"Gross Revenue (IMC)",      v:fmt(rc.gross),   c:"#F0F0F0" },
+                    { l:"Gross Revenue (true)",      v:fmt(rc.gross+(parseFloat(recap.coupons)||0)),   c:"#F0F0F0" },
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
                   ].map(({l,v,c}) => (
@@ -9875,7 +9876,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:16 }}>
             {(isAdmin ? [
-              { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
+              { l:"Gross Revenue (true)",                                             v:fmt(c.gross+(parseFloat(s.coupons)||0)),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
               { l:"= Split Base (70/30 applied here)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
@@ -9887,7 +9888,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
               ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
-              { l:"Gross Revenue",                                                    v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
+              { l:"Gross Revenue (true)",                                             v:fmt(c.gross+(parseFloat(s.coupons)||0)),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
               { l:"= Net Revenue",                                                    v:fmt(c.netRev),                                     c:"#F0F0F0", indent:false, bold:true },
