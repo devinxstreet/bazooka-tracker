@@ -3879,9 +3879,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       const rowGross  = parseFloat(cols[origIdx]||0)||0;
                       const rowCoupon = parseFloat(cols[couponIdx]||0)||0;
                       if (isZion) {
-                        zionGross += rowGross;
+                        zionGross += rowGross + rowCoupon;
                       } else {
-                        gross   += rowGross;
+                        gross   += rowGross + rowCoupon;
                         coupons += rowCoupon;
                       }
                       if (!streamDate && cols[dateIdx]) streamDate = cols[dateIdx].split(" ")[0];
