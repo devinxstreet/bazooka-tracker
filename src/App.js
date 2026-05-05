@@ -4590,7 +4590,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                         <td style={{ ...S.td, color: s.streamName?"#F0F0F0":"#444", fontStyle: s.streamName?"normal":"italic", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.streamName||"—"}</td>
-                        <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</td>
                         <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(c.netRev)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.imcNet)}</td>}
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.bazNet)}</td>}
@@ -10290,7 +10290,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                               return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                                 <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
-                                <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 {isAdmin ? <>
                                   <td style={{ ...S.td, padding:"6px 10px", color:"#991b1b" }}>{fmt(c.repExpShare)}</td>
@@ -10432,7 +10432,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 {/* Row 2: key numbers */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom: isAdmin ? 8 : 0 }}>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross)}</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
                   </div>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
