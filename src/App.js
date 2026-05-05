@@ -4320,9 +4320,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         const pr = parseFloat(t === pt ? val : (newSku[t] ?? skuPrices[t])) || 0;
                         return sum + q * pr;
                       }, 0);
-                      const gross = parseFloat(p.grossRevenue)||0;
-                      const coupons = parseFloat(p.coupons)||0;
-                      const mm = (gross+coupons) > 0 && totalMktVal > 0 ? ((gross+coupons) / totalMktVal).toFixed(2) : p.marketMultiple;
+                      const skuGross = parseFloat(p.grossRevenue)||0;
+                      const skuCoupons = parseFloat(p.coupons)||0;
+                      const mm = (skuGross+skuCoupons) > 0 && totalMktVal > 0 ? ((skuGross+skuCoupons) / totalMktVal).toFixed(2) : p.marketMultiple;
                       return { ...p, streamSkuPrices: newSku, marketMultiple: mm };
                     });
                     setRecapSaved(false);
