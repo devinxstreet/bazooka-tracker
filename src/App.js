@@ -4355,7 +4355,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 {/* Row 1: top-level split */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                   {[
-                    { l:"Gross Revenue (true)",      v:fmt(rc.gross+(parseFloat(recap.coupons)||0)),   c:"#F0F0F0" },
+                    { l:"Gross Revenue (true)",      v:fmt(rc.gross),   c:"#F0F0F0" },
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
                   ].map(({l,v,c}) => (
@@ -4590,7 +4590,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <td style={S.td}>{s.date}</td>
                         <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                         <td style={{ ...S.td, color: s.streamName?"#F0F0F0":"#444", fontStyle: s.streamName?"normal":"italic", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.streamName||"—"}</td>
-                        <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0", fontWeight:700 }}>{fmt(c.gross)}</td>
                         <td style={{ ...S.td, color:"#F0F0F0" }}>{fmt(c.netRev)}</td>
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.imcNet)}</td>}
                         {canSeeFinancials && <td style={{ ...S.td, color:"#E8317A" }}>{fmt(c.bazNet)}</td>}
@@ -9876,7 +9876,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <SectionLabel t={`${s.breaker}'s Commission`} />
           <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:16 }}>
             {(isAdmin ? [
-              { l:"Gross Revenue (true)",                                             v:fmt(c.gross+(parseFloat(s.coupons)||0)),                                      c:"#F0F0F0", indent:false },
+              { l:"Gross Revenue (true)",                                             v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
               { l:"= Split Base (70/30 applied here)",                               v:fmt(c.splitBase),                                  c:"#F0F0F0", indent:false, bold:true },
@@ -9888,7 +9888,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
               ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
-              { l:"Gross Revenue (true)",                                             v:fmt(c.gross+(parseFloat(s.coupons)||0)),                                      c:"#F0F0F0", indent:false },
+              { l:"Gross Revenue (true)",                                             v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
               { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
               { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
               { l:"= Net Revenue",                                                    v:fmt(c.netRev),                                     c:"#F0F0F0", indent:false, bold:true },
@@ -10290,7 +10290,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                               return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                                 <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#888" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
-                                <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</td>
+                                <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#1B4F8A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 {isAdmin ? <>
                                   <td style={{ ...S.td, padding:"6px 10px", color:"#991b1b" }}>{fmt(c.repExpShare)}</td>
@@ -10432,7 +10432,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 {/* Row 2: key numbers */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom: isAdmin ? 8 : 0 }}>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross+(parseFloat(s.coupons)||0))}</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross)}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
                   </div>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
