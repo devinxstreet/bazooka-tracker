@@ -769,7 +769,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown" },
+                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown ▼" },
                 { key:"expenses",   label:"Stream Expenses",     val:totals.expenses,             color:"#991b1b", sub:"deducted before split" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#E8317A", sub:"70% of split base − direct reimbursements" },
                 { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
@@ -3710,15 +3710,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         }
         // Auto-calculate market multiple when product counts or gross revenue change (not BIN)
         const isProductField = PRODUCT_TYPES.some(pt => k === `prod_${pt}`);
-        if ((isProductField || k === "grossRevenue") && !updated.binOnly) {
+        if ((isProductField || k === "grossRevenue" || k === "coupons") && !updated.binOnly) {
           const gross = parseFloat(k === "grossRevenue" ? v : updated.grossRevenue) || 0;
+          const coupons = parseFloat(k === "coupons" ? v : updated.coupons) || 0;
+          const trueGross = gross + coupons;
           const totalMktVal = PRODUCT_TYPES.reduce((sum, pt) => {
             const qty   = parseInt(k === `prod_${pt}` ? v : updated[`prod_${pt}`]) || 0;
             const price = parseFloat(updated.streamSkuPrices?.[pt] ?? skuPrices[pt]) || 0;
             return sum + (qty * price);
           }, 0);
-          if (gross > 0 && totalMktVal > 0) {
-            updated.marketMultiple = (gross / totalMktVal).toFixed(2);
+          if (trueGross > 0 && totalMktVal > 0) {
+            updated.marketMultiple = (trueGross / totalMktVal).toFixed(2);
           }
         }
         return updated;
@@ -4318,7 +4320,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         const pr = parseFloat(t === pt ? val : (newSku[t] ?? skuPrices[t])) || 0;
                         return sum + q * pr;
                       }, 0);
-                      const mm = gross > 0 && totalMktVal > 0 ? (gross / totalMktVal).toFixed(2) : p.marketMultiple;
+                      const gross = parseFloat(p.grossRevenue)||0;
+                      const coupons = parseFloat(p.coupons)||0;
+                      const mm = (gross+coupons) > 0 && totalMktVal > 0 ? ((gross+coupons) / totalMktVal).toFixed(2) : p.marketMultiple;
                       return { ...p, streamSkuPrices: newSku, marketMultiple: mm };
                     });
                     setRecapSaved(false);
