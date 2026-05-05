@@ -683,6 +683,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           if (!drillDown) return null;
           const config = {
             gross:      { label:"Gross Revenue",       color:"#E8317A", val: s => calcStream(s).gross },
+            expenses:   { label:"Stream Expenses",     color:"#991b1b", val: s => (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0) },
             imc:        { label:"Owed to Imagination Mining (70%)", color:"#E8317A", val: s => calcStream(s).imcNet },
             commission: { label:"Commission Owed",     color:"#E8317A", val: s => calcStream(s).commAmt },
             bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
@@ -768,8 +769,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"after coupons" },
-                { key:"truegross",  label:"True Gross",           val:totals.gross + (streamTotals.coupons||0), color:"#F472B6", sub:"before coupons deducted" },
+                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown" },
                 { key:"expenses",   label:"Stream Expenses",     val:totals.expenses,             color:"#991b1b", sub:"deducted before split" },
                 { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#E8317A", sub:"70% of split base − direct reimbursements" },
                 { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
