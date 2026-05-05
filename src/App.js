@@ -9738,7 +9738,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
     const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, eventStaffAmt, bazTrueNet };
   }
 
   // Admins see all streams; streamers see only their own
@@ -9794,7 +9794,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.gross     += c.gross;
     acc.net       += c.netRev;
     acc.baz       += c.bazNet;
-    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - (c.repExpShare||0));
+    // For event-only streams (rep is staff not primary), use event fee
+    // For normal streams, use commission + add any event staff fees paid out
+    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - (c.repExpShare||0)) + (c.eventStaffAmt||0);
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
