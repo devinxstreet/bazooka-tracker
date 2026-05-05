@@ -631,7 +631,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, collabAmt, bazTrueNet };
+          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, collabAmt, eventStaffAmt, bazTrueNet };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -640,7 +640,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const exp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += c.commAmt - c.repExpShare;
+          acc.comm     += (c.commAmt - (c.repExpShare||0)) + (c.eventStaffAmt||0);
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
@@ -9746,7 +9746,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const isCEO = CEO_NAMES.some(n => curUser.toLowerCase().includes(n.toLowerCase()));
   const visibleStreams = isAdmin
     ? streams
-    : streams.filter(s => s.breaker === myBreaker);
+    : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker));
 
   // Period filter -- available to everyone
   const [period,        setPeriod]        = useState("all");
@@ -9781,16 +9781,20 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
   const filteredStreams = isAdmin && breakerFilter !== "all"
-    ? periodFiltered.filter(s => s.breaker === breakerFilter)
+    ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter))
     : periodFiltered;
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
     const c = calcStreamDash(s);
+    const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
+    const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
+    const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+    const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
     acc.gross     += c.gross;
     acc.net       += c.netRev;
     acc.baz       += c.bazNet;
-    acc.comm      += c.commAmt - (c.repExpShare||0);
+    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - (c.repExpShare||0));
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
@@ -10406,14 +10410,19 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         : filteredStreams.map(s => {
             const c  = calcStreamDash(s);
             const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
+            const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
+            const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
+            const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+            const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer" }}>
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
                     <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                     {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
+                    {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                   </div>
                   <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
@@ -10424,13 +10433,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
                   </div>
                   <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{isEventOnly ? "15% Event" : `${(c.rate*100).toFixed(0)}%${s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}`}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
                   </div>
-                  <div style={{ background:"#0a1a0a", borderRadius:8, padding:"8px 10px", border:"1px solid #4ade8022" }}>
-                    <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rep Net{c.salesBonus>0?" + Bonus":""}</div>
-                    {c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
+                  <div style={{ background: isEventOnly?"rgba(167,139,250,0.06)":"#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventOnly?"rgba(167,139,250,0.2)":"#4ade8022"}` }}>
+                    <div style={{ fontSize:13, fontWeight:900, color: isEventOnly?"#A78BFA":"#4ade80" }}>{fmt(isEventOnly ? myEventFee : c.commAmt - (c.repExpShare||0) + (c.salesBonus||0))}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventOnly ? "Event Fee" : `Rep Net${c.salesBonus>0?" + Bonus":""}`}</div>
+                    {!isEventOnly && c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
                   </div>
                 </div>
                 {/* Row 3: admin financials */}
