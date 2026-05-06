@@ -489,7 +489,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const tips=parseFloat(s.tips)||0;
     const collabAmt=bazNet*(parseFloat(s.collabPct||0)/100||0)*(s.collabPartner&&s.collabPartner!=="_"?1:0);
-    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
     return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, commAmt, tips, totalExp:fees+coupons+streamExp, collabAmt, bazTrueNet, rate };
   }
 
@@ -630,8 +630,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, collabAmt, eventStaffAmt, bazTrueNet };
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", collabAmt, eventStaffAmt, bazTrueNet };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -3657,7 +3657,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[] };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3684,7 +3684,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -3745,8 +3745,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     const collabAmt=recap.collabPartner&&recap.collabPartner!=="_"?bazNet*(parseFloat(recap.collabPct||0)/100):0;
     const eventStaffAmt=(recap.eventStaff||[]).reduce((s,_)=>s+Math.min(1000,bazNet*0.15),0);
     const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(recap.imcReimbursement)||0;
+    const splitPct=parseFloat(recap.splitPct||100)/100;
+    const splitRepPct=recap.splitRep?(1-splitPct):0;
+    const primaryCommAmt=recap.splitRep?commAmt*splitPct:commAmt;
+    const splitRepAmt=recap.splitRep?commAmt*splitRepPct:0;
     const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commBase:bazNet, rate, commAmt, tips, salesBonus, collabAmt, eventStaffAmt, eventStaff:recap.eventStaff||[], bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitRep:recap.splitRep||"", splitPct, tips, salesBonus, collabAmt, eventStaffAmt, eventStaff:recap.eventStaff||[], bazTrueNet };
   }
 
   async function handleSaveRecap() {
@@ -4214,6 +4218,43 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
+        {/* Split Commission */}
+        <div style={{ background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: recap.splitRep ? 10 : 0 }}>
+            <div>
+              <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24" }}>✂️ Split Commission</span>
+              <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>Divide commission between two reps</span>
+            </div>
+            <select value={recap.splitRep||""} onChange={e=>rf("splitRep")(e.target.value)}
+              style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:6, color: recap.splitRep?"#FBBF24":"#555", padding:"4px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
+              <option value="">-- No split --</option>
+              {BREAKERS.filter(b=>b!==breaker).map(b=><option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          {recap.splitRep && (
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>{breaker}'s share</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <input type="number" min="0" max="100" value={recap.splitPct||"50"} onChange={e=>rf("splitPct")(e.target.value)}
+                    style={{ ...S.inp, width:70, textAlign:"center", color:"#FBBF24", fontWeight:700 }}/>
+                  <span style={{ color:"#555", fontSize:12 }}>%</span>
+                  {rc && <span style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>{fmt(rc.commAmt * (parseFloat(recap.splitPct||50)/100))}</span>}
+                </div>
+              </div>
+              <div style={{ fontSize:20, color:"#333" }}>↔</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>{recap.splitRep}'s share</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ width:70, textAlign:"center", color:"#FBBF24", fontWeight:700, background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"9px 12px", fontSize:13 }}>{100-(parseFloat(recap.splitPct||50))}%</div>
+                  <span style={{ color:"#555", fontSize:12 }}>%</span>
+                  {rc && <span style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>{fmt(rc.commAmt * ((100-parseFloat(recap.splitPct||50))/100))}</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Event Staff — multiple reps, 15% each capped at $1k */}
         <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:(recap.eventStaff||[]).length>0?10:0 }}>
@@ -4530,7 +4571,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const tips=parseFloat(s.tips)||0;
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+          const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
           return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, commAmt, tips, collabAmt, bazTrueNet, rate };
         }
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
@@ -9742,8 +9783,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
-    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, salesBonus, collabAmt, eventStaffAmt, bazTrueNet };
+    const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", salesBonus, collabAmt, eventStaffAmt, bazTrueNet };
   }
 
   // Admins see all streams; streamers see only their own
@@ -9751,7 +9792,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   const isCEO = CEO_NAMES.some(n => curUser.toLowerCase().includes(n.toLowerCase()));
   const visibleStreams = isAdmin
     ? streams
-    : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker));
+    : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker) || s.splitRep === myBreaker);
 
   // Period filter -- available to everyone
   const [period,        setPeriod]        = useState("all");
@@ -9786,7 +9827,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
   const filteredStreams = isAdmin && breakerFilter !== "all"
-    ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter))
+    ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter) || s.splitRep === breakerFilter)
     : periodFiltered;
 
   // Aggregates
@@ -9795,13 +9836,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
     const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+    const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
     const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
     acc.gross     += c.gross;
     acc.net       += c.netRev;
     acc.baz       += c.bazNet;
-    // For event-only streams (rep is staff not primary), use event fee
-    // For normal streams, use commission + add any event staff fees paid out
-    acc.comm      += isEventOnly ? myEventFee : (c.commAmt - (c.repExpShare||0)) + (c.eventStaffAmt||0);
+    acc.comm      += isEventOnly ? myEventFee
+                   : isSplitRep ? (c.splitRepAmt||0)
+                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.eventStaffAmt||0);
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
@@ -9887,6 +9929,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:"\u00D7 30% \u2192 Bazooka Share",                                       v:fmt(c.bazNet),                                     c:"#E8317A", indent:true  },
               ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
               { l:`\u2212 Rep Commission (${(c.rate*100).toFixed(0)}%)`,                   v:"\u2212 "+fmt(c.commAmt),                           c:"#991b1b", indent:true  },
+              ...(c.splitRep ? [
+                { l:`  ↳ ${s.breaker} (${Math.round((c.splitPct||1)*100)}%)`,        v:fmt(c.primaryCommAmt), c:"#FBBF24", indent:true },
+                { l:`  ↳ ${c.splitRep} (${Math.round((1-(c.splitPct||1))*100)}%)`,   v:fmt(c.splitRepAmt),    c:"#FBBF24", indent:true },
+              ] : []),
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
               ...(c.eventStaffAmt>0?[{ l:`🎪 Event Staff (${(s.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(c.eventStaffAmt), c:"#A78BFA", indent:true }]:[]),
               { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
@@ -10090,7 +10136,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const tips=parseFloat(s.tips)||0;
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commAmt, tips, salesBonus, bazTrueNet, rate };
             }
 
@@ -10420,7 +10466,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+            const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
+            const myRepNet = isEventOnly ? myEventFee : isSplitRep ? (c.splitRepAmt||0) : c.commAmt - (c.repExpShare||0) + (c.salesBonus||0);
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
@@ -10430,6 +10478,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
                     {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
                     {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
+                    {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
                   </div>
                   <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
@@ -10443,10 +10492,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{isEventOnly ? "15% Event" : `${(c.rate*100).toFixed(0)}%${s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}`}</div>
                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
                   </div>
-                  <div style={{ background: isEventOnly?"rgba(167,139,250,0.06)":"#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventOnly?"rgba(167,139,250,0.2)":"#4ade8022"}` }}>
-                    <div style={{ fontSize:13, fontWeight:900, color: isEventOnly?"#A78BFA":"#4ade80" }}>{fmt(isEventOnly ? myEventFee : c.commAmt - (c.repExpShare||0) + (c.salesBonus||0))}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventOnly ? "Event Fee" : `Rep Net${c.salesBonus>0?" + Bonus":""}`}</div>
-                    {!isEventOnly && c.salesBonus>0 && <div style={{ fontSize:9, color:"#A78BFA", marginTop:1 }}>🎁 +{fmt(c.salesBonus)}</div>}
+                  <div style={{ background: isEventOnly?"rgba(167,139,250,0.06)":isSplitRep?"rgba(251,191,36,0.06)":"#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventOnly?"rgba(167,139,250,0.2)":isSplitRep?"rgba(251,191,36,0.2)":"#4ade8022"}` }}>
+                    <div style={{ fontSize:13, fontWeight:900, color: isEventOnly?"#A78BFA":isSplitRep?"#FBBF24":"#4ade80" }}>{fmt(myRepNet)}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventOnly?"Event Fee":isSplitRep?"Split Share":"Rep Net"}</div>
                   </div>
                 </div>
                 {/* Row 3: admin financials */}
