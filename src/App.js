@@ -982,7 +982,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                          + ytdHist.reduce((sum,h) => sum+(parseInt(h.newBuyers)||0), 0);
         if (ytdStreams.length === 0 && ytdHist.length === 0) return null;
         const pct  = Math.round(dayOfYear / daysInYear * 100);
-        const proj = v => dayOfYear > 0 ? v / dayOfYear * daysInYear : 0;
+        // Project based on weekly stream pace, not raw days elapsed
+        const weeksElapsed = Math.max(1, dayOfYear / 7);
+        const weeksInYear  = 52;
+        const proj = v => weeksElapsed > 0 ? v / weeksElapsed * weeksInYear : 0;
 
         function saveGoals() {
           setGoals(goalForm);
@@ -8345,7 +8348,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     if (projSoFar === 0 || futurePlans.length === 0) return null;
 
     // Pace ratio: how much above/below expectation are we so far
-    const paceRatio = actRev / projSoFar; // e.g. 1.12 = 12% above expectation
+    // Cap at 2.0x to prevent insane projections when planned revenue is miscalibrated
+    const rawPaceRatio = actRev / projSoFar;
+    const paceRatio = Math.min(2.0, Math.max(0.5, rawPaceRatio));
 
     // Project remaining planned streams at the same pace ratio
     const projRemaining = projectedRevenue(futurePlans) * paceRatio;
