@@ -631,7 +631,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
           const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
           const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", collabAmt, eventStaffAmt, bazTrueNet };
+          return { gross, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitPct, splitRep:s.splitRep||"", collabAmt, eventStaffAmt, bazTrueNet };
         }
 
         const filtered = streams.filter(s => inPeriod(s.date));
@@ -9790,7 +9790,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
     const salesBonus=parseFloat(s.salesBonus)||0;
     const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", salesBonus, collabAmt, eventStaffAmt, bazTrueNet };
+    return { gross, totalExp:fees+coupons+streamExp, netRev, splitBase, bazNet, imcNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commBase:bazNet, rate, commAmt, primaryCommAmt, splitRepAmt, splitPct, splitRep:s.splitRep||"", salesBonus, collabAmt, eventStaffAmt, bazTrueNet };
   }
 
   // Admins see all streams; streamers see only their own
