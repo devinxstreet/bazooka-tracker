@@ -7603,13 +7603,17 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   // -- Stream Scorecard --
   function renderStreamScorecard() {
-    // Get last logged stream regardless of planning
     const sorted = [...streams].sort((a,b) => b.date.localeCompare(a.date));
     const latest = sorted[0];
     if (!latest) return null;
 
-    const c = calcStreamDash(latest);
-    const trueGross = c.gross + (parseFloat(latest.coupons)||0);
+    // Inline calc (calcStreamDash not in scope here)
+    const gross = parseFloat(latest.grossRevenue)||0;
+    const fees = parseFloat(latest.whatnotFees)||0;
+    const coupons = parseFloat(latest.coupons)||0;
+    const splitBase = gross - fees - coupons;
+    const bazNet = splitBase * 0.30;
+    const trueGross = gross + coupons;
     const mm = parseFloat(latest.marketMultiple)||0;
     const mmColor = mm>=1.9?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":"#E8317A";
 
@@ -7633,7 +7637,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
             <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Gross</div><div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>{fmt2(trueGross)}</div></div>
             <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Market</div><div style={{fontSize:15,fontWeight:900,color:mmColor}}>{mm>0?mm+"x":"--"}</div></div>
-            <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Bazooka</div><div style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{fmt2(c.bazNet)}</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Bazooka</div><div style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{fmt2(bazNet)}</div></div>
             {planned > 0 && (
               <div style={{textAlign:"center",background:gradeColor+"22",border:`2px solid ${gradeColor}44`,borderRadius:10,padding:"8px 16px"}}>
                 <div style={{fontSize:28,fontWeight:900,color:gradeColor,lineHeight:1}}>{grade}</div>
