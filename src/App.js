@@ -9961,10 +9961,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:4 }} className="save-flash">
             <div>
               <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"\uD83D\uDCB5 Commission Earned"}</span>
-              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{fmt(c.commAmt)} gross − {fmt(c.repExpShare)} expenses ({(c.rate*0.30*100).toFixed(1)}%)</div>
+              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{fmt(c.primaryCommAmt||c.commAmt)} {c.splitRep?`(${Math.round((c.splitPct||1)*100)}% of ${fmt(c.commAmt)} total) − `:"gross − "}{fmt(c.repExpShare)} expenses ({(c.rate*0.30*100).toFixed(1)}%)</div>
+              {c.splitRep && <div style={{ fontSize:11, color:"#FBBF24", marginTop:2 }}>✂️ Split with {c.splitRep} ({Math.round((1-(c.splitPct||1))*100)}% = {fmt(c.splitRepAmt||0)})</div>}
               {c.salesBonus>0 && <div style={{ fontSize:11, color:"#A78BFA", marginTop:2 }}>🎁 +{fmt(c.salesBonus)} sales bonus{s.salesBonusNote?" — "+s.salesBonusNote:""}</div>}
             </div>
-            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt(c.commAmt - c.repExpShare + (c.salesBonus||0))}</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt((c.primaryCommAmt||c.commAmt) - c.repExpShare + (c.salesBonus||0))}</span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
@@ -10474,7 +10475,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-            const myRepNet = isEventOnly ? myEventFee : isSplitRep ? (c.splitRepAmt||0) : c.commAmt - (c.repExpShare||0) + (c.salesBonus||0);
+            const myRepNet = isEventOnly ? myEventFee : isSplitRep ? (c.splitRepAmt||0) : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0);
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
