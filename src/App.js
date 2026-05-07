@@ -567,10 +567,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                       <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"}}[s.sessionType]||""</span>:""}</td>
-                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{fmt(s.netRev)}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{(s.rate*100).toFixed(0)}%</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"☀️",night:"🌙",weekend:"📅",event:"🎉"}[s.sessionType]||""</span>:""}</td>
+                      <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{s.isEventOnly||s.gross===0?"—":fmt(s.gross)}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.isEventOnly||!s.netRev?"—":fmt(s.netRev)}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.rate===-1?"🎪 Event":s.rate!=null?(s.rate*100).toFixed(0)+"%":"—"}</td>
                       <td style={{ ...S.td, color:"#4ade80", fontWeight:900 }}>{fmt(s.commAmt)}</td>
                     </tr>
                   ))}
@@ -9850,7 +9850,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
                    : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0);
-    acc.trueNet   += c.bazTrueNet||0;
+    acc.trueNet   += isEventOnly ? 0 : (c.bazTrueNet||0);
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     return acc;
@@ -10310,7 +10310,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         totalBaz: totals.baz,
                         totalComm: totals.comm,
                         totalTips: totals.tips,
-                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:s.breakType||"Auction", binOnly:s.binOnly, gross:c.gross, bazNet:c.bazNet, repExp:c.repExpShare, rate:c.rate, commAmt:c.commAmt, tips:c.tips }; }),
+                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:c.isEventOnly?`🎪 Event Fee (${s.breaker}'s stream)`:s.breakType||"Auction", binOnly:s.binOnly, gross:c.isEventOnly?0:c.gross, bazNet:c.isEventOnly?0:c.bazNet, repExp:c.repExpShare, rate:c.isEventOnly?-1:c.rate, commAmt:c.myComm, tips:c.tips, isEventOnly:c.isEventOnly }; }),
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
