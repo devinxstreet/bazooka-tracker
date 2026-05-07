@@ -9844,9 +9844,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
     const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-    acc.gross     += c.gross;
-    acc.net       += c.netRev;
-    acc.baz       += c.bazNet;
+    acc.gross     += isEventOnly ? 0 : c.gross;
+    acc.net       += isEventOnly ? 0 : c.netRev;
+    acc.baz       += isEventOnly ? 0 : c.bazNet;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
                    : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0);
@@ -10155,7 +10155,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const myEventStaff=(s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
               const isEventOnly=!!myEventStaff&&s.breaker!==targetBreaker;
               const isSplitRep=s.splitRep===targetBreaker;
-              const myComm=isEventOnly?Math.min(1000,bazNet*0.15):isSplitRep?commAmt*(1-splitPct):s.splitRep?commAmt*splitPct:commAmt;
+              const myComm=isEventOnly?Math.min(1000,bazNet*0.15):isSplitRep?commAmt*(1-splitPct)-repExpShare:s.splitRep?commAmt*splitPct-repExpShare:commAmt-repExpShare;
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commAmt, myComm, tips, salesBonus, bazTrueNet, rate, isEventOnly, isSplitRep };
             }
 
