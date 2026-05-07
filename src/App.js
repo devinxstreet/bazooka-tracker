@@ -7603,37 +7603,43 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   // -- Stream Scorecard --
   function renderStreamScorecard() {
-    const mPlans   = monthPlans(curYear, curMonth);
-    const mActuals = monthActuals(curYear, curMonth);
-    if (mActuals.length === 0) return null;
-    const scored = mPlans.map(p=>{
-      const actuals = streams.filter(s=>s.date===p.date&&s.breaker===p.breaker);
-      if (!actuals.length) return null;
-      const actual = actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
-      const planned = liveRevenue(p);
-      const pct = planned > 0 ? actual/planned : 1;
-      const grade = pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D";
-      const color = pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A";
-      return { ...p, actual, planned, pct, grade, color };
-    }).filter(Boolean).sort((a,b)=>b.date.localeCompare(a.date));
-    const latest = scored[0];
+    // Get last logged stream regardless of planning
+    const sorted = [...streams].sort((a,b) => b.date.localeCompare(a.date));
+    const latest = sorted[0];
     if (!latest) return null;
+
+    const c = calcStreamDash(latest);
+    const trueGross = c.gross + (parseFloat(latest.coupons)||0);
+    const mm = parseFloat(latest.marketMultiple)||0;
+    const mmColor = mm>=1.9?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":"#E8317A";
+
+    // Try to find a matching plan for grade
+    const matchedPlan = plans.find(p => p.date === latest.date && p.breaker === latest.breaker);
+    const planned = matchedPlan ? liveRevenue(matchedPlan) : 0;
+    const pct = planned > 0 ? trueGross / planned : null;
+    const grade = pct ? (pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D") : null;
+    const gradeColor = pct ? (pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A") : "#555";
+
+    const bc = BC_COLORS[latest.breaker]||"#E8317A";
+
     return (
-      <div style={{background:"rgba(0,0,0,0.3)",border:`2px solid ${latest.color}33`,borderRadius:12,padding:"14px 18px"}}>
+      <div style={{background:"rgba(0,0,0,0.3)",border:`2px solid ${gradeColor}33`,borderRadius:12,padding:"14px 18px"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🏆 Last Stream Scorecard</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
           <div>
             <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>{latest.streamName||latest.breaker}</div>
-            <div style={{fontSize:11,color:"#555",marginTop:2}}>{latest.date}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:2}}>{latest.date} · <span style={{color:bc}}>{latest.breaker}</span></div>
           </div>
-          <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Plan</div><div style={{fontSize:16,fontWeight:900,color:"#FBBF24"}}>{fmt2(latest.planned)}</div></div>
-            <div style={{fontSize:20,color:"#333"}}>→</div>
-            <div style={{textAlign:"center"}}><div style={{fontSize:13,color:"#555"}}>Actual</div><div style={{fontSize:16,fontWeight:900,color:"#4ade80"}}>{fmt2(latest.actual)}</div></div>
-            <div style={{textAlign:"center",background:latest.color+"22",border:`2px solid ${latest.color}44`,borderRadius:10,padding:"8px 16px"}}>
-              <div style={{fontSize:28,fontWeight:900,color:latest.color,lineHeight:1}}>{latest.grade}</div>
-              <div style={{fontSize:10,color:"#555",marginTop:2}}>{(latest.pct*100).toFixed(0)}% of plan</div>
-            </div>
+          <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Gross</div><div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>{fmt2(trueGross)}</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Market</div><div style={{fontSize:15,fontWeight:900,color:mmColor}}>{mm>0?mm+"x":"--"}</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#555"}}>Bazooka</div><div style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{fmt2(c.bazNet)}</div></div>
+            {planned > 0 && (
+              <div style={{textAlign:"center",background:gradeColor+"22",border:`2px solid ${gradeColor}44`,borderRadius:10,padding:"8px 16px"}}>
+                <div style={{fontSize:28,fontWeight:900,color:gradeColor,lineHeight:1}}>{grade}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>{(pct*100).toFixed(0)}% of plan</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
