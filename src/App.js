@@ -10159,7 +10159,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commAmt, myComm, tips, salesBonus, bazTrueNet, rate, isEventOnly, isSplitRep };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.isEventOnly?0:c.gross; acc.baz+=c.isEventOnly?0:c.bazNet; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -10187,8 +10187,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
                     <td style="padding:10px 12px;font-size:13px;">${typeLabel}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"—":fmt(c.gross)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"—":fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"🎪 Event":c.isSplitRep?"✂️ Split":(c.rate*100).toFixed(0)+"%"}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.myComm)}</td>
                     ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
