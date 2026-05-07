@@ -10127,7 +10127,6 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             }
 
             const targetBreaker = stubBreaker || (isAdmin ? BREAKERS[0] : myBreaker);
-            // Include own streams + streams where rep is event staff + split rep streams
             const stubStreams = streams.filter(s => inStubPeriod(s.date) && (
               s.breaker === targetBreaker ||
               (s.eventStaff||[]).some(es => es.breaker === targetBreaker) ||
@@ -10148,22 +10147,19 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
               const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0);
-              const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0;
-              const splitPct=parseFloat(s.splitPct||100)/100;
-              const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt;
-              const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0;
+              const imcReimb=streamExp*0.70;
+              const imcDirectReimb=parseFloat(s.imcReimbursement)||0;
+              const splitPct=s.splitRep?parseFloat(s.splitPct||50)/100:1;
               const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-              // My payout for this stream
-              const myEventStaff = (s.eventStaff||[]).find(es => es.breaker === targetBreaker);
-              const isEventOnly = !!myEventStaff && s.breaker !== targetBreaker;
-              const isSplitRep = s.splitRep === targetBreaker;
-              const myPayout = isEventOnly ? Math.min(1000, bazNet*0.15)
-                             : isSplitRep  ? splitRepAmt
-                             : primaryCommAmt;
-              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commAmt, primaryCommAmt, splitRepAmt, myPayout, tips, salesBonus, bazTrueNet, rate, isEventOnly, isSplitRep };
+              // What this rep earns from this stream
+              const myEventStaff=(s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
+              const isEventOnly=!!myEventStaff&&s.breaker!==targetBreaker;
+              const isSplitRep=s.splitRep===targetBreaker;
+              const myComm=isEventOnly?Math.min(1000,bazNet*0.15):isSplitRep?commAmt*(1-splitPct):s.splitRep?commAmt*splitPct:commAmt;
+              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commAmt, myComm, tips, salesBonus, bazTrueNet, rate, isEventOnly, isSplitRep };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.myPayout; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -10194,7 +10190,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"🎪 Event":c.isSplitRep?"✂️ Split":(c.rate*100).toFixed(0)+"%"}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.myPayout)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.myComm)}</td>
                     ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
                   </tr>`;
               }).join("");
