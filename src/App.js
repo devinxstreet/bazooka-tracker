@@ -640,7 +640,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const exp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += (c.commAmt - (c.repExpShare||0)) + (c.eventStaffAmt||0);
+          acc.comm     += (c.commAmt - (c.repExpShare||0));
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
@@ -9849,7 +9849,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.baz       += c.bazNet;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
-                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.eventStaffAmt||0);
+                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0);
     acc.trueNet   += c.bazTrueNet||0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
@@ -10127,7 +10127,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             }
 
             const targetBreaker = stubBreaker || (isAdmin ? BREAKERS[0] : myBreaker);
-            const stubStreams = streams.filter(s => s.breaker === targetBreaker && inStubPeriod(s.date));
+            // Include own streams + streams where rep is event staff + split rep streams
+            const stubStreams = streams.filter(s => inStubPeriod(s.date) && (
+              s.breaker === targetBreaker ||
+              (s.eventStaff||[]).some(es => es.breaker === targetBreaker) ||
+              s.splitRep === targetBreaker
+            ));
 
             function calcS(s) {
               const gross=parseFloat(s.grossRevenue)||0, fees=parseFloat(s.whatnotFees)||0, coupons=parseFloat(s.coupons)||0, promo=parseFloat(s.whatnotPromo)||0, magpros=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, topload=parseFloat(s.topLoaders)||0, chaser=parseFloat(s.chaserCards)||0;
@@ -10135,19 +10140,30 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const splitBase=gross-fees-coupons;
               const netRev=splitBase;
               const bazNet=splitBase*0.30;
-              const mm=parseFloat(s.marketMultiple)||0, overrideRate=s.commissionOverride!==""&&s.commissionOverride!=null?parseFloat(s.commissionOverride)/100:null;
               const rate=getRate(s);
               const commAmt=bazNet*rate;
-              const repExpShare=streamExp*(rate*0.30);      // rep: commRate × 30% of expenses
-              const bazExpShare=streamExp*((1-rate)*0.30);  // Bazooka: (1-commRate) × 30% — IMC covers 70%
+              const repExpShare=streamExp*(rate*0.30);
+              const bazExpShare=streamExp*((1-rate)*0.30);
               const tips=parseFloat(s.tips)||0;
               const salesBonus=parseFloat(s.salesBonus)||0;
               const collabAmt=bazNet*(s.collabPartner&&s.collabPartner!=="_"?parseFloat(s.collabPct||0)/100:0);
-              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0); const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0; const splitPct=parseFloat(s.splitPct||100)/100; const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt; const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0; const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
-              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb:streamExp*0.70, imcDirectReimb:parseFloat(s.imcReimbursement)||0, commAmt, tips, salesBonus, bazTrueNet, rate };
+              const eventStaffAmt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0);
+              const imcReimb=streamExp*0.70; const imcDirectReimb=parseFloat(s.imcReimbursement)||0;
+              const splitPct=parseFloat(s.splitPct||100)/100;
+              const primaryCommAmt=s.splitRep?commAmt*splitPct:commAmt;
+              const splitRepAmt=s.splitRep?commAmt*(1-splitPct):0;
+              const bazTrueNet=bazNet-commAmt-collabAmt-eventStaffAmt+imcReimb+imcDirectReimb;
+              // My payout for this stream
+              const myEventStaff = (s.eventStaff||[]).find(es => es.breaker === targetBreaker);
+              const isEventOnly = !!myEventStaff && s.breaker !== targetBreaker;
+              const isSplitRep = s.splitRep === targetBreaker;
+              const myPayout = isEventOnly ? Math.min(1000, bazNet*0.15)
+                             : isSplitRep  ? splitRepAmt
+                             : primaryCommAmt;
+              return { gross, totalExp:fees+coupons+streamExp, netRev, bazNet, repExpShare, bazExpShare, imcReimb, imcDirectReimb, commAmt, primaryCommAmt, splitRepAmt, myPayout, tips, salesBonus, bazTrueNet, rate, isEventOnly, isSplitRep };
             }
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.commAmt; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.gross; acc.baz+=c.bazNet; acc.comm+=c.myPayout; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -10158,24 +10174,27 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const bc = BC[targetBreaker]||{text:"#E8317A"};
               const streamRows = stubStreams.map(s => {
                 const c = calcS(s);
+                const typeLabel = c.isEventOnly ? `🎪 Event Fee (${s.breaker}'s stream)`
+                                : c.isSplitRep  ? `✂️ Split (${s.breaker}'s stream)`
+                                : `${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}`;
                 return adminPDF ? `
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
-                    <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${typeLabel}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;color:#991b1b;">${fmt(c.repExpShare)}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"15% Event":c.isSplitRep?`${Math.round((1-(c.rate||0))*100)}% Split`:(c.rate*100).toFixed(0)+"%"}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;color:#991b1b;">-${fmt(c.commAmt)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.bazTrueNet)}</td>
                   </tr>` : `
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
-                    <td style="padding:10px 12px;font-size:13px;">${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${typeLabel}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.gross)}</td>
                     <td style="padding:10px 12px;font-size:13px;text-align:right;">${fmt(c.bazNet)}</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${(c.rate*100).toFixed(0)}%</td>
-                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.commAmt)}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;">${c.isEventOnly?"🎪 Event":c.isSplitRep?"✂️ Split":(c.rate*100).toFixed(0)+"%"}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:#166534;">${fmt(c.myPayout)}</td>
                     ${c.tips>0?`<td style="padding:10px 12px;font-size:13px;text-align:right;color:#d97706;">+${fmt(c.tips)} tips</td>`:"<td></td>"}
                   </tr>`;
               }).join("");
