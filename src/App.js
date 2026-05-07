@@ -567,7 +567,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                       <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{{day:"☀️",night:"🌙",weekend:"📅",event:"🎉"}[s.sessionType]||""</span>:""}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{({day:"☀️",night:"🌙",weekend:"📅",event:"🎉"})[s.sessionType]||""}</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{s.isEventOnly||s.gross===0?"—":fmt(s.gross)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.isEventOnly||!s.netRev?"—":fmt(s.netRev)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.rate===-1?"🎪 Event":s.rate!=null?(s.rate*100).toFixed(0)+"%":"—"}</td>
