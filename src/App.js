@@ -10492,7 +10492,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = isEventOnly ? myEventFee : isSplitRep ? (c.splitRepAmt||0) : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0);
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : undefined }}>
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : isSplitRep ? "1px solid rgba(251,191,36,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
