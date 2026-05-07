@@ -9656,245 +9656,6 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
   );
 }
 
-// ── STREAM AI ASSISTANT ─────────────────────────────────────────────────────
-function StreamAI({ userRole, bobaCards=[] }) {
-  const [query,       setQuery]       = useState("");
-  const [selectedSet, setSelectedSet] = useState("all");
-  const [loading,     setLoading]     = useState(false);
-  const [result,      setResult]      = useState(null);
-  const [error,       setError]       = useState("");
-  const [history,     setHistory]     = useState([]);
-  const inputRef = useRef(null);
-
-  // Find card in known data
-  function findCard(q) {
-    const lq = q.toLowerCase();
-    // Search Tecmo Bowl heroes
-    for (const [setName, heroes] of Object.entries(HERO_SETS)) {
-      const found = heroes.find(h =>
-        h.hero.toLowerCase().includes(lq) ||
-        h.inspired.toLowerCase().includes(lq)
-      );
-      if (found) return { ...found, setName };
-    }
-    // Search bobaCards
-    const boba = bobaCards.find(c =>
-      (c.hero||"").toLowerCase().includes(lq) ||
-      (c.notation||"").toLowerCase().includes(lq)
-    );
-    if (boba) return { hero:boba.hero, inspired:boba.notation||"", tier:boba.treatment||"", power:parseInt(boba.cardNum)||0, setName:boba.setName };
-    return null;
-  }
-
-  async function lookupCard() {
-    if (!query.trim()) return;
-    setLoading(true); setError(""); setResult(null);
-    const card = findCard(query);
-
-    const systemPrompt = `You are the Bazooka Breaks Stream AI — a live expert assistant for sports card breaking streamers. You help streamers sound knowledgeable and engaging on camera, even if they're new to the hobby.
-
-When given a card or athlete name, provide a structured response with these exact sections:
-
-**🏈 PLAYER BACKGROUND** (3-4 sentences: career highlights, accolades, why fans love them, memorable moments)
-
-**🃏 CARD SPECS** (tier, power rating, set, what makes this card special in the set)
-
-**⚡ POWER BREAKDOWN** (explain what the power rating means in context — is this a top-tier pull? mid? — and how it compares to other cards in the set. If you know max/min power for the set, mention it.)
-
-**🎙️ HYPE LINES** (5 ready-to-say lines the streamer can read verbatim on camera — exciting, punchy, conversational)
-
-**💬 CHAT ENGAGEMENT** (3 questions to ask the live audience to get them talking)
-
-**💰 VALUE CONTEXT** (what collectors care about with this card — is it a grail? sleeper? safe pull? why people want it)
-
-Keep it punchy and stream-ready. No fluff. Streamers are reading this live.`;
-
-    const userMsg = card
-      ? `Card/Hero: ${card.hero}
-Inspired by: ${card.inspired}
-Set: ${card.setName}
-Tier: ${card.tier}
-Power: ${card.power}
-${card.power ? `Power context: This card has a power rating of ${card.power}. For reference in Tecmo Bowl, the highest is 250 (BoJax) and base cards start around 140.` : ""}
-
-Please give me the full breakdown for this card as if I'm about to rip it live on Whatnot.`
-      : `I'm looking for info on: "${query}"
-I couldn't find this exact card in our database, but please give me the best breakdown you can for this athlete or card name as if they were in a sports card breaking context. For the power breakdown section, note that you don't have specific card data but give relevant context.`;
-
-    try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          system: systemPrompt,
-          messages:[{ role:"user", content:userMsg }]
-        })
-      });
-      const data = await resp.json();
-      const text = data.content?.find(b=>b.type==="text")?.text || "";
-      if (!text) throw new Error("No response");
-      const entry = { query, card, text, ts: Date.now() };
-      setResult(entry);
-      setHistory(prev => [entry, ...prev.slice(0,9)]);
-    } catch(e) {
-      setError("Couldn't get a response. Check your connection and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Parse sections from markdown response
-  function parseSections(text) {
-    const sections = [];
-    const lines = text.split("\n");
-    let current = null;
-    for (const line of lines) {
-      if (line.startsWith("**") && line.includes("**")) {
-        if (current) sections.push(current);
-        const title = line.replace(/\*\*/g,"").replace(/^#+\s*/,"").trim();
-        current = { title, lines:[] };
-      } else if (current && line.trim()) {
-        current.lines.push(line.trim());
-      }
-    }
-    if (current) sections.push(current);
-    return sections;
-  }
-
-  const sectionEmoji = {
-    "PLAYER BACKGROUND":"#60A5FA", "CARD SPECS":"#FBBF24", "POWER BREAKDOWN":"#E8317A",
-    "HYPE LINES":"#4ade80", "CHAT ENGAGEMENT":"#C084FC", "VALUE CONTEXT":"#34d399"
-  };
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:900, margin:"0 auto" }}>
-
-      {/* Header */}
-      <div style={{ background:"linear-gradient(135deg,#0d0d1a,#111)", border:"1px solid #1a1a2e", borderRadius:14, padding:"20px 24px" }}>
-        <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>🤖 Stream AI Assistant</div>
-        <div style={{ fontSize:12, color:"#555" }}>Type any hero name or athlete — get instant expert talking points for your stream</div>
-
-        <div style={{ display:"flex", gap:10, marginTop:16 }}>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e=>setQuery(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&lookupCard()}
-            placeholder="e.g. BoJax, Bo Jackson, Marino, Mossed..."
-            style={{ flex:1, background:"#1a1a1a", border:"1.5px solid #2a2a2a", borderRadius:10, color:"#F0F0F0", padding:"12px 16px", fontSize:15, fontFamily:"inherit", outline:"none" }}
-            autoFocus
-          />
-          <button onClick={lookupCard} disabled={loading||!query.trim()}
-            style={{ background:"linear-gradient(135deg,#E8317A,#c02060)", color:"#fff", border:"none", borderRadius:10, padding:"12px 24px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", opacity:loading||!query.trim()?0.5:1, whiteSpace:"nowrap" }}>
-            {loading ? "⏳ Looking up..." : "🔍 Look Up"}
-          </button>
-        </div>
-
-        {/* Recent searches */}
-        {history.length > 0 && (
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
-            {history.slice(0,6).map((h,i) => (
-              <button key={i} onClick={()=>{ setQuery(h.query); setResult(h); }}
-                style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#555", borderRadius:20, padding:"3px 12px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                {h.query}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Error */}
-      {error && <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:10, padding:"12px 16px", color:"#ef4444", fontSize:13 }}>{error}</div>}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:14, padding:"24px" }}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            {["60%","80%","45%","70%","55%"].map((w,i) => (
-              <div key={i} style={{ height:16, background:"#1a1a1a", borderRadius:8, width:w, animation:"pulse 1.5s infinite" }}/>
-            ))}
-          </div>
-          <div style={{ textAlign:"center", marginTop:20, color:"#555", fontSize:12 }}>Getting expert breakdown...</div>
-        </div>
-      )}
-
-      {/* Result */}
-      {result && !loading && (
-        <div style={{ background:"#111", border:"1px solid #1a1a2e", borderRadius:14, overflow:"hidden" }}>
-          {/* Card header */}
-          <div style={{ background:"linear-gradient(135deg,#0d0d1a,#1a0d2e)", padding:"16px 20px", borderBottom:"1px solid #1a1a2e" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8 }}>
-              <div>
-                <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>{result.card?.hero || result.query}</div>
-                {result.card?.inspired && <div style={{ fontSize:13, color:"#555", marginTop:2 }}>Inspired by {result.card.inspired}</div>}
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {result.card?.tier && <span style={{ background:"rgba(251,191,36,0.1)", color:"#FBBF24", border:"1px solid rgba(251,191,36,0.2)", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{result.card.tier}</span>}
-                {result.card?.power > 0 && <span style={{ background:"rgba(232,49,122,0.1)", color:"#E8317A", border:"1px solid rgba(232,49,122,0.2)", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>⚡ {result.card.power}</span>}
-                {result.card?.setName && <span style={{ background:"rgba(96,165,250,0.1)", color:"#60A5FA", border:"1px solid rgba(96,165,250,0.2)", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{result.card.setName}</span>}
-              </div>
-            </div>
-          </div>
-
-          {/* Sections */}
-          <div style={{ padding:"20px" }}>
-            {parseSections(result.text).map((section, i) => {
-              const key = Object.keys(sectionEmoji).find(k => section.title.toUpperCase().includes(k));
-              const color = sectionEmoji[key] || "#E8317A";
-              const isHype = section.title.toUpperCase().includes("HYPE");
-              return (
-                <div key={i} style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:12, fontWeight:800, color, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{section.title}</div>
-                  {isHype ? (
-                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                      {section.lines.filter(l=>l.trim()).map((line,j) => (
-                        <div key={j} style={{ background:"rgba(74,222,128,0.05)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:8, padding:"10px 14px", fontSize:14, color:"#F0F0F0", lineHeight:1.4 }}>
-                          <span style={{ color:"#4ade80", marginRight:8 }}>▶</span>{line.replace(/^\d+\.\s*/,"").replace(/^-\s*/,"")}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize:13, color:"#AAAAAA", lineHeight:1.7 }}>
-                      {section.lines.map((line,j) => (
-                        <div key={j} style={{ marginBottom:4 }}>{line.replace(/^-\s*/,"• ").replace(/^\d+\.\s*/,`${j+1}. `)}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Copy all button */}
-            <button onClick={()=>navigator.clipboard?.writeText(result.text)}
-              style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.2)", color:"#E8317A", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              📋 Copy Full Breakdown
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!result && !loading && !error && (
-        <div style={{ textAlign:"center", padding:"40px 20px", color:"#333" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>🎙️</div>
-          <div style={{ fontSize:16, fontWeight:700, color:"#555", marginBottom:6 }}>Ready when you are</div>
-          <div style={{ fontSize:12, color:"#333" }}>Search any hero or athlete name to get live talking points</div>
-          <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:16, flexWrap:"wrap" }}>
-            {["BoJax","Severning","Mossed","Bo Jackson","Patrick Mahomes","Travis Kelce"].map(s=>(
-              <button key={s} onClick={()=>{ setQuery(s); setTimeout(()=>lookupCard(),50); }}
-                style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#555", borderRadius:20, padding:"4px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], bobaCards=[] }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
@@ -9905,7 +9666,6 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"planner",    label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
     { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",  label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
-    { id:"streamai",   label:"\uD83E\uDD16 Stream AI",        roles:["Admin","Streamer","StreamerLite"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -9929,7 +9689,6 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
       {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
       {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
-      {streamTab === "streamai"   && <StreamAI userRole={userRole} bobaCards={bobaCards}/>}
     </div>
   );
 }
@@ -19440,7 +19199,6 @@ export default function App() {
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Stream Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
-                  {label:"\uD83E\uDD16 Stream AI",sub:"Live card expert for streamers",action:()=>{setTab("streams");setStreamTabDefault("streamai");setHoverTab(null);}},
                 ],
                 "buyers": [
                   {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
