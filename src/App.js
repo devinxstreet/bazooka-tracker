@@ -7377,6 +7377,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const totalPlannedMkt   = PRODUCT_TYPES.reduce((s,pt)=>s+plannedMkt[pt],0);
     if (totalPlannedBoxes === 0) return null;
 
+    // Market value left to rip = planned streams that haven't been logged yet
+    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    const futureMktValue = mPlans
+      .filter(p => p.date >= todayStr)
+      .reduce((s,p) => s + planMktValue(p), 0);
+
     // Avg boxes per stream from history
     const avgBoxesPerStream = {};
     PRODUCT_TYPES.forEach(pt=>{ avgBoxesPerStream[pt] = streams.length > 0 ? streams.reduce((s,str)=>s+(parseInt(str[`prod_${pt}`])||0),0)/streams.length : 0; });
@@ -7405,6 +7411,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{totalActualBoxes}</div>
                 <div style={{fontSize:10,color:"#555"}}>ripped so far</div>
+              </div>
+            )}
+            {futureMktValue > 0 && (
+              <div style={{textAlign:"right",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:8,padding:"6px 12px"}}>
+                <div style={{fontSize:16,fontWeight:900,color:"#FBBF24"}}>{fmt2(futureMktValue)}</div>
+                <div style={{fontSize:10,color:"#555"}}>mkt value left to rip</div>
               </div>
             )}
           </div>
@@ -8348,17 +8360,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     if (projSoFar === 0 || futurePlans.length === 0) return null;
 
     // Pace ratio: how much above/below expectation are we so far
-    // Cap at 2.0x to prevent insane projections when planned revenue is miscalibrated
-    const rawPaceRatio = actRev / projSoFar;
-    const paceRatio = Math.min(2.0, Math.max(0.5, rawPaceRatio));
+    const paceRatio = actRev / projSoFar;
 
     // Project remaining planned streams at the same pace ratio
-    const projRemaining = projectedRevenue(futurePlans) * paceRatio;
+    const projRemaining  = projectedRevenue(futurePlans) * paceRatio;
     const projMonthTotal = actRev + projRemaining;
-
-    // Also compute a flat projection (remaining at face value, no adjustment)
-    const projRemainingFlat = projectedRevenue(futurePlans);
-    const projMonthFlat = actRev + projRemainingFlat;
+    const projMonthFlat  = actRev + projectedRevenue(futurePlans);
 
     const pctAbove = (paceRatio - 1) * 100;
     const isAhead  = paceRatio >= 1;
