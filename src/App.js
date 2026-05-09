@@ -18655,6 +18655,243 @@ function PublicQuote({ quoteId }) {
   );
 }
 
+// ── FINANCE / CASHFLOW ───────────────────────────────────────────────────────
+const EXPENSE_CATEGORIES = [
+  "Inventory / Cards","Shipping Supplies","Packaging","MagPros / Top Loaders",
+  "Payroll / Commission","Whatnot Fees","IMC Split","Platform / Software",
+  "Marketing","Rent / Storage","Equipment","Miscellaneous"
+];
+
+function Finance({ streams=[], userRole }) {
+  const [expenses,    setExpenses]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showAdd,     setShowAdd]     = useState(false);
+  const [editId,      setEditId]      = useState(null);
+  const [saving,      setSaving]      = useState(false);
+  const [selMonth,    setSelMonth]    = useState(() => {
+    const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`;
+  });
+  const EMPTY_EXP = { date:"", category:"Inventory / Cards", description:"", amount:"", notes:"" };
+  const [form, setForm] = useState(EMPTY_EXP);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "cash_expenses"), snap => {
+      setExpenses(snap.docs.map(d => ({...d.data(), id:d.id})).sort((a,b)=>b.date.localeCompare(a.date)));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const months = [...new Set([
+    selMonth,
+    ...expenses.map(e => e.date?.slice(0,7)).filter(Boolean)
+  ])].sort((a,b) => b.localeCompare(a));
+
+  // Month data
+  const monthExp = expenses.filter(e => e.date?.startsWith(selMonth));
+  const monthStreams = streams.filter(s => s.date?.startsWith(selMonth));
+  const grossIn = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0) + (parseFloat(str.coupons)||0), 0);
+  const totalOut = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
+  const cashFlow = grossIn - totalOut;
+  const byCategory = EXPENSE_CATEGORIES.map(cat => ({
+    cat, total: monthExp.filter(e=>e.category===cat).reduce((s,e)=>s+(parseFloat(e.amount)||0),0)
+  })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+
+  async function saveExpense() {
+    if (!form.date || !form.amount) return;
+    setSaving(true);
+    const data = { ...form, amount:parseFloat(form.amount)||0, updatedAt:new Date().toISOString() };
+    if (editId) {
+      await setDoc(doc(db,"cash_expenses",editId), {...data, id:editId});
+    } else {
+      const id = uid();
+      await setDoc(doc(db,"cash_expenses",id), {...data, id});
+    }
+    setForm(EMPTY_EXP); setShowAdd(false); setEditId(null); setSaving(false);
+  }
+
+  async function deleteExpense(id) {
+    if (!window.confirm("Delete this expense?")) return;
+    await deleteDoc(doc(db,"cash_expenses",id));
+  }
+
+  function startEdit(e) {
+    setForm({ date:e.date, category:e.category, description:e.description||"", amount:String(e.amount), notes:e.notes||"" });
+    setEditId(e.id); setShowAdd(true);
+  }
+
+  const fmt = v => "$"+Number(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const cashColor = cashFlow >= 0 ? "#4ade80" : "#ef4444";
+
+  // Monthly summary for chart (last 6 months)
+  const last6 = months.slice(0,6).reverse();
+  const chartData = last6.map(m => {
+    const mStreams = streams.filter(s=>s.date?.startsWith(m));
+    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)+(parseFloat(str.coupons)||0),0);
+    const mOut = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+    const label = new Date(m+"-15").toLocaleDateString("en-US",{month:"short",year:"2-digit"});
+    return { m, label, mIn, mOut, net:mIn-mOut };
+  });
+  const maxVal = Math.max(...chartData.map(d=>Math.max(d.mIn,d.mOut,1)));
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16,padding:"0 0 40px"}}>
+
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>💰 Cash Flow</div>
+          <div style={{fontSize:12,color:"#555",marginTop:2}}>CEO / CFO only · Gross revenue in vs. cash out</div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
+            style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer"}}>
+            {months.map(m=><option key={m} value={m}>{new Date(m+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"})}</option>)}
+          </select>
+          <button onClick={()=>{setForm(EMPTY_EXP);setEditId(null);setShowAdd(p=>!p);}}
+            style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+            + Add Expense
+          </button>
+        </div>
+      </div>
+
+      {/* KPI tiles */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        {[
+          {label:"Gross Revenue In",  val:fmt(grossIn),   color:"#4ade80",  sub:`${monthStreams.length} streams`},
+          {label:"Total Cash Out",    val:fmt(totalOut),  color:"#E8317A",  sub:`${monthExp.length} expenses`},
+          {label:"Net Cash Flow",     val:fmt(cashFlow),  color:cashColor,  sub:cashFlow>=0?"Positive ✓":"Negative ⚠"},
+        ].map(({label,val,color,sub})=>(
+          <div key={label} style={{background:"#111",border:`2px solid ${color}22`,borderRadius:12,padding:"18px 20px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:900,color}}>{val}</div>
+            <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{label}</div>
+            <div style={{fontSize:11,color:"#444",marginTop:2}}>{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bar chart */}
+      {chartData.length > 1 && (
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:16}}>📊 Monthly Cash Flow Trend</div>
+          <div style={{display:"flex",gap:8,alignItems:"flex-end",height:160}}>
+            {chartData.map(d=>(
+              <div key={d.m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{width:"100%",display:"flex",gap:3,alignItems:"flex-end",height:130}}>
+                  <div title={`Revenue: ${fmt(d.mIn)}`} style={{flex:1,background:"rgba(74,222,128,0.4)",borderRadius:"3px 3px 0 0",height:`${(d.mIn/maxVal)*100}%`,minHeight:2}}/>
+                  <div title={`Expenses: ${fmt(d.mOut)}`} style={{flex:1,background:"rgba(232,49,122,0.4)",borderRadius:"3px 3px 0 0",height:`${(d.mOut/maxVal)*100}%`,minHeight:2}}/>
+                </div>
+                <div style={{fontSize:9,color:"#555",textAlign:"center"}}>{d.label}</div>
+                <div style={{fontSize:9,fontWeight:700,color:d.net>=0?"#4ade80":"#ef4444"}}>{d.net>=0?"+":""}{fmt(d.net)}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#555"}}><div style={{width:10,height:10,background:"rgba(74,222,128,0.4)",borderRadius:2}}/> Revenue In</div>
+            <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#555"}}><div style={{width:10,height:10,background:"rgba(232,49,122,0.4)",borderRadius:2}}/> Cash Out</div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit form */}
+      {showAdd && (
+        <div style={{background:"#0d0d0d",border:"2px solid #E8317A33",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{editId?"✏️ Edit Expense":"+ New Expense"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Date *</div>
+              <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))}
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Category *</div>
+              <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                {EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Amount *</div>
+              <input type="number" step="0.01" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0.00"
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#E8317A",padding:"8px 12px",fontSize:13,fontFamily:"inherit",fontWeight:700,boxSizing:"border-box"}}/>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Description</div>
+              <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="e.g. Alpha Edition restock from Discord..."
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
+              <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional..."
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={saveExpense} disabled={saving||!form.date||!form.amount}
+              style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:8,padding:"9px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:saving||!form.date||!form.amount?0.5:1}}>
+              {saving?"Saving...":editId?"Update":"Save Expense"}
+            </button>
+            <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(EMPTY_EXP);}}
+              style={{background:"transparent",border:"1px solid #2a2a2a",color:"#555",borderRadius:8,padding:"9px 18px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Category breakdown */}
+      {byCategory.length > 0 && (
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Expenses by Category — {new Date(selMonth+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {byCategory.map(({cat,total})=>{
+              const pct = totalOut>0?total/totalOut*100:0;
+              return (
+                <div key={cat} style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:140,fontSize:12,color:"#AAAAAA",flexShrink:0}}>{cat}</div>
+                  <div style={{flex:1,height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:3}}/>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#E8317A",minWidth:90,textAlign:"right"}}>{fmt(total)}</div>
+                  <div style={{fontSize:11,color:"#555",minWidth:40,textAlign:"right"}}>{pct.toFixed(0)}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Expense list */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
+          Expense Log — {new Date(selMonth+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"})}
+          {monthExp.length>0&&<span style={{fontSize:11,color:"#555",marginLeft:8}}>{monthExp.length} entries</span>}
+        </div>
+        {loading ? <div style={{color:"#555",fontSize:12}}>Loading...</div>
+        : monthExp.length===0 ? <div style={{textAlign:"center",color:"#333",padding:"30px 0",fontSize:12}}>No expenses logged for this month yet</div>
+        : <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {monthExp.map(e=>(
+              <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#0d0d0d",border:"1px solid #1a1a1a",borderRadius:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:11,color:"#555",minWidth:70}}>{new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#E8317A",background:"rgba(232,49,122,0.08)",borderRadius:4,padding:"2px 8px",whiteSpace:"nowrap"}}>{e.category}</div>
+                <div style={{flex:1,fontSize:13,color:"#F0F0F0"}}>{e.description||<span style={{color:"#333"}}>—</span>}</div>
+                {e.notes&&<div style={{fontSize:11,color:"#555"}}>{e.notes}</div>}
+                <div style={{fontSize:14,fontWeight:900,color:"#E8317A",minWidth:90,textAlign:"right"}}>{fmt(e.amount)}</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>startEdit(e)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                  <button onClick={()=>deleteExpense(e.id)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
@@ -19054,6 +19291,7 @@ export default function App() {
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
+    { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
@@ -19295,6 +19533,7 @@ export default function App() {
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
+        {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
       </div>
     </div>
