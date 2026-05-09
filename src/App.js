@@ -5177,7 +5177,7 @@ function RepReportCard({ streams=[], isAdmin }) {
   const worst = repStreams.length ? repStreams.reduce((a,b)=>(parseFloat(b.grossRevenue)||0)<(parseFloat(a.grossRevenue)||0)?b:a) : null;
 
   const maxMM = Math.max(...weekTrends.map(w=>w.mm||0), 2.0);
-  const bc = BC_COLORS[selBreaker]||"#E8317A";
+  const bc = BC[selBreaker]||"#E8317A";
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -5185,7 +5185,7 @@ function RepReportCard({ streams=[], isAdmin }) {
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",gap:6}}>
           {BREAKERS.map(b=><button key={b} onClick={()=>setSelBreaker(b)}
-            style={{background:selBreaker===b?`${BC_COLORS[b]}22`:"transparent",border:`1.5px solid ${selBreaker===b?BC_COLORS[b]:"#333"}`,color:selBreaker===b?BC_COLORS[b]:"#555",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{b}</button>)}
+            style={{background:selBreaker===b?`${BC[b]}22`:"transparent",border:`1.5px solid ${selBreaker===b?BC[b]:"#333"}`,color:selBreaker===b?BC[b]:"#555",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{b}</button>)}
         </div>
         <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
           {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
@@ -5323,7 +5323,7 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
       {rankings.length===0 ? <div style={{textAlign:"center",color:"#333",padding:"40px",fontSize:13}}>No streams in this period</div> :
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {rankings.map((r,i)=>{
-          const bc = BC_COLORS[r.b]||"#E8317A";
+          const bc = BC[r.b]?.text||"#E8317A";
           return (
             <div key={r.b} style={{background:"#111",border:`2px solid ${i===0?bc+"55":"#1a1a1a"}`,borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
               <div style={{fontSize:28,width:36,textAlign:"center"}}>{medals[i]||`#${i+1}`}</div>
@@ -5381,7 +5381,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>Market Multiple Trend — Last 12 Weeks</div>
         <div style={{display:"flex",gap:8}}>
-          {BREAKERS.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:BC_COLORS[b]||"#E8317A"}}><div style={{width:10,height:3,background:BC_COLORS[b]||"#E8317A",borderRadius:2}}/>{b}</div>)}
+          {BREAKERS.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:BC[b]?.text||"#E8317A"}}><div style={{width:10,height:3,background:BC[b]?.text||"#E8317A",borderRadius:2}}/>{b}</div>)}
         </div>
       </div>
 
@@ -5398,7 +5398,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
             })}
             {/* Data points and lines */}
             {BREAKERS.map(b=>{
-              const bc=BC_COLORS[b]||"#E8317A";
+              const bc=BC[b]?.text||"#E8317A";
               const points=weeks.map((w,i)=>({ x:(i/(weeks.length-1))*100, y:w.byBreaker[b]?((maxMM-w.byBreaker[b])/range)*100:null, mm:w.byBreaker[b] }));
               return (
                 <svg key={b} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",overflow:"visible"}} preserveAspectRatio="none">
@@ -5429,7 +5429,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
             const recentMM=recent.length?recent.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/recent.length:0;
             const priorMM=prior.length?prior.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/prior.length:0;
             const trend=recentMM-priorMM;
-            const bc=BC_COLORS[b]||"#E8317A";
+            const bc=BC[b]?.text||"#E8317A";
             return (
               <div key={b} style={{display:"flex",alignItems:"center",gap:16,padding:"8px 12px",background:"#0d0d0d",borderRadius:8}}>
                 <div style={{width:100,fontSize:13,fontWeight:700,color:bc}}>{b}</div>
@@ -5615,7 +5615,7 @@ function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
         <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>New Buyers by Rep</div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {byBreaker.map(r=>{
-            const bc=BC_COLORS[r.b]||"#E8317A";
+            const bc=BC[r.b]?.text||"#E8317A";
             const pct=totalNewBuyers?r.newBuyers/totalNewBuyers*100:0;
             return (
               <div key={r.b} style={{display:"grid",gridTemplateColumns:"110px 1fr 60px 80px 80px",gap:12,alignItems:"center"}}>
@@ -5688,7 +5688,7 @@ function RevenueConcentration({ streams=[], isAdmin }) {
           {topStreams.map((s,i)=>{
             const g=parseFloat(s.grossRevenue)||0;
             const pct=totalGross?g/totalGross*100:0;
-            const bc=BC_COLORS[s.breaker]||"#E8317A";
+            const bc=BC[s.breaker]||"#E8317A";
             const cumPct=topStreams.slice(0,i+1).reduce((sum,x)=>sum+(parseFloat(x.grossRevenue)||0)/totalGross*100,0);
             return (
               <div key={s.id||i} style={{display:"grid",gridTemplateColumns:"24px 90px 90px 1fr 70px 50px",gap:10,alignItems:"center"}}>
@@ -5868,7 +5868,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
           {repGoalItems.map(r=>{
             const goal=parseFloat(goals[`${r.b}_gross`])||parseFloat(goals.repGross)||0;
             const pct=goal>0?Math.min(r.gross/goal*100,100):0;
-            const bc=BC_COLORS[r.b]||"#E8317A";
+            const bc=BC[r.b]?.text||"#E8317A";
             return (
               <div key={r.b} style={{marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
@@ -5884,7 +5884,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
           {editing&&<>
             <div style={{fontSize:11,color:"#555",marginBottom:8}}>Set per-rep gross goal (or set a shared goal above):</div>
             {BREAKERS.map(b=><div key={b} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
-              <span style={{fontSize:12,color:BC_COLORS[b]||"#E8317A",minWidth:120}}>{b}</span>
+              <span style={{fontSize:12,color:BC[b]?.text||"#E8317A",minWidth:120}}>{b}</span>
               <input type="number" placeholder="Goal..." value={draft[`${b}_gross`]||""} onChange={e=>setDraft(p=>({...p,[`${b}_gross`]:e.target.value}))}
                 style={{flex:1,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"5px 10px",fontSize:12,fontFamily:"inherit"}}/>
             </div>)}
@@ -5983,25 +5983,26 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
-      {/* Tab nav */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        {[
-          ["stats","📊 Stats"],
-          ["reportcard","🏆 Rep Report Card"],
-          ["leaderboard","🥇 Leaderboard"],
-          ["mmtrend","📈 MM Trend"],
-          ["timeslots","⏰ Time Analysis"],
-          ["newbuyers","🌱 Buyer Funnel"],
-          ["concentration","💎 Revenue Concentration"],
-          ["sets","📦 Set Performance"],
-          ["goals","🎯 Goals"],
-          ["followers","📡 Followers"],
-        ].filter(([id]) => id !== "reportcard" || isAdmin).map(([id,label])=>(
-          <button key={id} onClick={()=>setPerfTab(id)}
-            style={{ background:perfTab===id?"rgba(232,49,122,0.15)":"transparent", color:perfTab===id?"#E8317A":"#555", border:`1.5px solid ${perfTab===id?"#E8317A":"#333"}`, borderRadius:20, padding:"7px 20px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-            {label}
-          </button>
-        ))}
+      {/* Tab nav — dropdown style */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:"#555" }}>View:</span>
+        <select value={perfTab} onChange={e=>setPerfTab(e.target.value)}
+          style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#F0F0F0", padding:"8px 14px", fontSize:13, fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>
+          {[
+            ["stats","📊 Stats"],
+            ["reportcard","🏆 Rep Report Card"],
+            ["leaderboard","🥇 Leaderboard"],
+            ["mmtrend","📈 MM Trend"],
+            ["timeslots","⏰ Time Analysis"],
+            ["newbuyers","🌱 Buyer Funnel"],
+            ["concentration","💎 Revenue Concentration"],
+            ["sets","📦 Set Performance"],
+            ["goals","🎯 Goals"],
+            ["followers","📡 Followers"],
+          ].filter(([id]) => id !== "reportcard" || isAdmin).map(([id,label])=>(
+            <option key={id} value={id}>{label}</option>
+          ))}
+        </select>
       </div>
 
       {perfTab==="followers"    && <WhatnotFollowerTracker isAdmin={isAdmin} />}
@@ -7799,7 +7800,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const BC_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF" };
+  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF" };
 
   // -- Calendar grid --
   function renderCalendar(y, m, compact=false) {
@@ -8033,7 +8034,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {mVacs.length > 0 && (
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
                   {mVacs.map(v=>{
-                    const bc = BC_COLORS[v.breaker]||"#888";
+                    const bc = BC[v.breaker]||"#888";
                     const days = Math.round((new Date(v.endDate+"T12:00:00")-new Date(v.startDate+"T12:00:00"))/86400000)+1;
                     return (
                       <div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",background:`${bc}10`,border:`1px solid ${bc}22`,borderRadius:7}}>
@@ -8428,7 +8429,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const grade = pct ? (pct>=1.1?"A+":pct>=1.0?"A":pct>=0.9?"B":pct>=0.75?"C":"D") : null;
     const gradeColor = pct ? (pct>=1.0?"#4ade80":pct>=0.9?"#FBBF24":"#E8317A") : "#555";
 
-    const bc = BC_COLORS[latest.breaker]||"#E8317A";
+    const bc = BC[latest.breaker]||"#E8317A";
 
     return (
       <div style={{background:"rgba(0,0,0,0.3)",border:`2px solid ${gradeColor}33`,borderRadius:12,padding:"14px 18px"}}>
@@ -8696,7 +8697,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               ))}
             </div>
             {breakerRows.map(r=>{
-              const bc = BC_COLORS[r.breaker]||"#888";
+              const bc = BC[r.breaker]||"#888";
               const diff = r.lastRev > 0 ? r.thisRev - r.lastRev : null;
               return (
                 <div key={r.breaker} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:0,borderTop:"1px solid #1a1a1a",padding:"6px 0"}}>
@@ -8870,7 +8871,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 {futurePlans.slice(0,Math.min(isStretch?5:upgradesNeeded,5)).map(p=>(
                   <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",borderRadius:7}}>
                     <div>
-                      <span style={{fontSize:11,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:BC[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</span>
                       <span style={{fontSize:10,color:"#555",marginLeft:6}}>{p.date}</span>
                     </div>
                     <span style={{fontSize:11,fontWeight:700,color:"#FBBF24"}}>+~{fmt2(avgBoxRevLift)}</span>
@@ -9229,7 +9230,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {BREAKERS.map(b=>{
-                  const bc = BC_COLORS[b]||"#888";
+                  const bc = BC[b]||"#888";
                   return (
                     <button key={b} onClick={()=>setVacForm(p=>({...p,breaker:b}))}
                       style={{background:vacForm.breaker===b?`${bc}20`:"transparent",color:vacForm.breaker===b?bc:"rgba(255,255,255,0.3)",border:`1.5px solid ${vacForm.breaker===b?bc:"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
@@ -9252,7 +9253,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               </div>
             </div>
             {vacForm.startDate && vacForm.endDate && (
-              <div style={{fontSize:12,color:BC_COLORS[vacForm.breaker]||"#888",fontWeight:700}}>
+              <div style={{fontSize:12,color:BC[vacForm.breaker]||"#888",fontWeight:700}}>
                 {Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1} day{Math.round((new Date(vacForm.endDate+"T12:00:00")-new Date(vacForm.startDate+"T12:00:00"))/86400000)+1!==1?"s":""} off
               </div>
             )}
@@ -9302,7 +9303,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               {dayPlans.map(p=>(
                 <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
                   <div>
-                    <div style={{fontSize:12,fontWeight:700,color:BC_COLORS[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:BC[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
                     <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
