@@ -5125,6 +5125,776 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   );
 }
 
+// ── REP REPORT CARD ──────────────────────────────────────────────────────────
+function RepReportCard({ streams=[], isAdmin }) {
+  const [selBreaker, setSelBreaker] = useState(BREAKERS[0]);
+  const [period, setPeriod] = useState("month");
+  const now = new Date();
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  function filterStreams(slist, b) {
+    return slist.filter(s => {
+      if (s.breaker !== b) return false;
+      const d = parseLocalDate(s.date);
+      if (period==="week") { const wStart=new Date(now); wStart.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)); wStart.setHours(0,0,0,0); const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); return d>=wStart&&d<=wEnd; }
+      if (period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if (period==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear(); }
+      if (period==="year") return d.getFullYear()===now.getFullYear();
+      return true;
+    });
+  }
+
+  const repStreams = filterStreams(streams, selBreaker);
+  const allBreakerStreams = BREAKERS.map(b=>filterStreams(streams,b));
+  const teamStreams = streams.filter(s=>{ const d=parseLocalDate(s.date); if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); if(period==="year") return d.getFullYear()===now.getFullYear(); return true; });
+
+  function calcStats(slist) {
+    if (!slist.length) return { gross:0, mm:0, comm:0, newBuyers:0, streams:0, perStream:0 };
+    const gross = slist.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList = slist.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm = mmList.length ? mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length : 0;
+    const newBuyers = slist.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const comm = slist.reduce((s,x)=>{ const fees=parseFloat(x.whatnotFees)||0,coupons=parseFloat(x.coupons)||0,base=(parseFloat(x.grossRevenue)||0)-fees-coupons,bazNet=base*0.30; return s+bazNet*(getRate(x)); },0);
+    return { gross, mm, comm, newBuyers, streams:slist.length, perStream:gross/slist.length };
+  }
+
+  const repStats = calcStats(repStreams);
+  const teamStats = calcStats(teamStreams);
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  // Week-by-week MM trend (last 8 weeks)
+  const weekTrends = Array.from({length:8},(_,i)=>{
+    const wEnd = new Date(now); wEnd.setDate(now.getDate() - i*7); wEnd.setHours(23,59,59,999);
+    const wStart = new Date(wEnd); wStart.setDate(wEnd.getDate()-6); wStart.setHours(0,0,0,0);
+    const ws = repStreams.filter(s=>{ const d=parseLocalDate(s.date); return d>=wStart&&d<=wEnd; });
+    const mmList = ws.filter(s=>parseFloat(s.marketMultiple)>0);
+    const mm = mmList.length ? mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length : null;
+    return { label:`W${8-i}`, mm, gross:ws.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0), streams:ws.length };
+  }).reverse();
+
+  const best = repStreams.length ? repStreams.reduce((a,b)=>(parseFloat(b.grossRevenue)||0)>(parseFloat(a.grossRevenue)||0)?b:a) : null;
+  const worst = repStreams.length ? repStreams.reduce((a,b)=>(parseFloat(b.grossRevenue)||0)<(parseFloat(a.grossRevenue)||0)?b:a) : null;
+
+  const maxMM = Math.max(...weekTrends.map(w=>w.mm||0), 2.0);
+  const bc = BC_COLORS[selBreaker]||"#E8317A";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* Controls */}
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:6}}>
+          {BREAKERS.map(b=><button key={b} onClick={()=>setSelBreaker(b)}
+            style={{background:selBreaker===b?`${BC_COLORS[b]}22`:"transparent",border:`1.5px solid ${selBreaker===b?BC_COLORS[b]:"#333"}`,color:selBreaker===b?BC_COLORS[b]:"#555",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{b}</button>)}
+        </div>
+        <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+          {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${period===id?"#E8317A":"#333"}`,color:period===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Header card */}
+      <div style={{background:`linear-gradient(135deg,${bc}11,#111)`,border:`2px solid ${bc}33`,borderRadius:14,padding:"20px 24px"}}>
+        <div style={{fontSize:20,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{selBreaker} · Report Card</div>
+        <div style={{fontSize:12,color:"#555"}}>{repStreams.length} streams in period</div>
+      </div>
+
+      {/* KPI grid */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        {[
+          {label:"Gross Revenue",     rep:fmt(repStats.gross),     team:fmt(teamStats.gross/Math.max(1,BREAKERS.length)),   better: repStats.gross >= teamStats.gross/Math.max(1,BREAKERS.length) },
+          {label:"Avg Per Stream",    rep:fmt(repStats.perStream), team:fmt(teamStats.perStream), better: repStats.perStream >= teamStats.perStream },
+          {label:"Avg Market Mult",   rep:repStats.mm?repStats.mm.toFixed(2)+"x":"--", team:teamStats.mm?teamStats.mm.toFixed(2)+"x":"--", better: repStats.mm >= teamStats.mm, color: repStats.mm ? mmColor(repStats.mm) : "#555" },
+          {label:"New Buyers",        rep:repStats.newBuyers,      team:Math.round(teamStats.newBuyers/Math.max(1,BREAKERS.length)), better: repStats.newBuyers >= teamStats.newBuyers/Math.max(1,BREAKERS.length) },
+          {label:"Streams",           rep:repStats.streams,        team:Math.round(teamStats.streams/Math.max(1,BREAKERS.length)), better: repStats.streams >= teamStats.streams/Math.max(1,BREAKERS.length) },
+          {label:"Commission",        rep:fmt(repStats.comm),      team:fmt(teamStats.comm/Math.max(1,BREAKERS.length)),    better: repStats.comm >= teamStats.comm/Math.max(1,BREAKERS.length) },
+        ].map(({label,rep,team,better,color})=>(
+          <div key={label} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{label}</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+              <div>
+                <div style={{fontSize:22,fontWeight:900,color:color||(better?"#4ade80":"#E8317A")}}>{rep}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>vs team avg: {team}</div>
+              </div>
+              <div style={{fontSize:18}}>{better?"✅":"⚠️"}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* MM trend chart */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Market Multiple Trend (Last 8 Weeks)</div>
+        <div style={{display:"flex",gap:6,alignItems:"flex-end",height:120}}>
+          {weekTrends.map((w,i)=>{
+            const barH = w.mm ? (w.mm/maxMM)*100 : 0;
+            const col = w.mm ? mmColor(w.mm) : "#2a2a2a";
+            return (
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{fontSize:9,color:col,fontWeight:700}}>{w.mm?w.mm.toFixed(2)+"x":""}</div>
+                <div style={{width:"100%",height:90,display:"flex",alignItems:"flex-end"}}>
+                  <div style={{width:"100%",height:`${barH}%`,background:col,borderRadius:"3px 3px 0 0",minHeight: w.mm?4:0,opacity:0.8}}/>
+                </div>
+                <div style={{fontSize:9,color:"#555"}}>{w.label}</div>
+                {w.streams>0&&<div style={{fontSize:9,color:"#444"}}>{w.streams}s</div>}
+              </div>
+            );
+          })}
+        </div>
+        {/* 1.5x reference line label */}
+        <div style={{fontSize:10,color:"#FBBF24",marginTop:8}}>— 1.5x target line</div>
+      </div>
+
+      {/* Best / Worst streams */}
+      {(best||worst) && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          {best && <div style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#4ade80",marginBottom:6}}>🏆 Best Stream</div>
+            <div style={{fontSize:14,fontWeight:900,color:"#F0F0F0"}}>{best.streamName||best.date}</div>
+            <div style={{fontSize:13,color:"#4ade80",marginTop:4}}>{fmt(parseFloat(best.grossRevenue)||0)} · {best.marketMultiple?best.marketMultiple+"x":""}</div>
+          </div>}
+          {worst && <div style={{background:"rgba(232,49,122,0.05)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#E8317A",marginBottom:6}}>📉 Lowest Stream</div>
+            <div style={{fontSize:14,fontWeight:900,color:"#F0F0F0"}}>{worst.streamName||worst.date}</div>
+            <div style={{fontSize:13,color:"#E8317A",marginTop:4}}>{fmt(parseFloat(worst.grossRevenue)||0)} · {worst.marketMultiple?worst.marketMultiple+"x":""}</div>
+          </div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TEAM LEADERBOARD ─────────────────────────────────────────────────────────
+function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
+  const [period, setPeriod] = useState("month");
+  const [sortBy, setSortBy] = useState("mm");
+  const now = new Date();
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  function filterByPeriod(slist) {
+    return slist.filter(s=>{ const d=parseLocalDate(s.date);
+      if(period==="week"){const wS=new Date(now);wS.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));wS.setHours(0,0,0,0);const wE=new Date(wS);wE.setDate(wS.getDate()+6);return d>=wS&&d<=wE;}
+      if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
+      if(period==="year") return d.getFullYear()===now.getFullYear();
+      return true;
+    });
+  }
+
+  const filtered = filterByPeriod(allStreams);
+
+  const rankings = BREAKERS.map(b=>{
+    const bs = filtered.filter(s=>s.breaker===b);
+    if (!bs.length) return null;
+    const gross = bs.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList = bs.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers = bs.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const comm = bs.reduce((s,x)=>{ const fees=parseFloat(x.whatnotFees)||0,coupons=parseFloat(x.coupons)||0,base=(parseFloat(x.grossRevenue)||0)-fees-coupons,bazNet=base*0.30; return s+bazNet*(getRate(x)); },0);
+    return { b, gross, mm, newBuyers, comm, streams:bs.length, perStream:gross/bs.length };
+  }).filter(Boolean).sort((a,z)=>{
+    if(sortBy==="mm") return z.mm-a.mm;
+    if(sortBy==="gross") return z.gross-a.gross;
+    if(sortBy==="newbuyers") return z.newBuyers-a.newBuyers;
+    if(sortBy==="comm") return z.comm-a.comm;
+    return z.perStream-a.perStream;
+  });
+
+  const medals = ["🥇","🥈","🥉"];
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:6}}>
+          {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${period===id?"#E8317A":"#333"}`,color:period===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:6,marginLeft:"auto",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#555"}}>Rank by:</span>
+          {[["mm","Avg MM"],["gross","Gross"],["perStream","Per Stream"],["newbuyers","New Buyers"],["comm","Commission"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setSortBy(id)} style={{background:sortBy===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${sortBy===id?"#E8317A":"#333"}`,color:sortBy===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {rankings.length===0 ? <div style={{textAlign:"center",color:"#333",padding:"40px",fontSize:13}}>No streams in this period</div> :
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {rankings.map((r,i)=>{
+          const bc = BC_COLORS[r.b]||"#E8317A";
+          return (
+            <div key={r.b} style={{background:"#111",border:`2px solid ${i===0?bc+"55":"#1a1a1a"}`,borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+              <div style={{fontSize:28,width:36,textAlign:"center"}}>{medals[i]||`#${i+1}`}</div>
+              <div style={{minWidth:120}}>
+                <div style={{fontSize:16,fontWeight:900,color:bc}}>{r.b}</div>
+                <div style={{fontSize:11,color:"#555"}}>{r.streams} streams</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:16,flex:1}}>
+                {[
+                  {l:"Avg MM",      v:r.mm?r.mm.toFixed(2)+"x":"--",      c:r.mm?mmColor(r.mm):"#555", bold:sortBy==="mm"},
+                  {l:"Gross",       v:fmt(r.gross),                         c:"#E8317A",                 bold:sortBy==="gross"},
+                  {l:"Per Stream",  v:fmt(r.perStream),                     c:"#F0F0F0",                 bold:sortBy==="perStream"},
+                  {l:"New Buyers",  v:r.newBuyers,                          c:"#166534",                 bold:sortBy==="newbuyers"},
+                  {l:"Commission",  v:fmt(r.comm),                          c:"#4ade80",                 bold:sortBy==="comm"},
+                ].map(({l,v,c,bold})=>(
+                  <div key={l} style={{textAlign:"center",background:bold?"rgba(232,49,122,0.06)":"transparent",borderRadius:8,padding:"6px 4px"}}>
+                    <div style={{fontSize:15,fontWeight:900,color:c}}>{v}</div>
+                    <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:2}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>}
+    </div>
+  );
+}
+
+// ── MARKET MULTIPLE TREND ─────────────────────────────────────────────────────
+function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
+  const [view, setView] = useState("weekly");
+  const now = new Date();
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  const weeks = Array.from({length:12},(_,i)=>{
+    const wEnd=new Date(now); wEnd.setDate(now.getDate()-i*7); wEnd.setHours(23,59,59,999);
+    const wStart=new Date(wEnd); wStart.setDate(wEnd.getDate()-6); wStart.setHours(0,0,0,0);
+    const label=`${wStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
+    const byBreaker={};
+    BREAKERS.forEach(b=>{
+      const bs=streams.filter(s=>{ const d=parseLocalDate(s.date); return s.breaker===b&&d>=wStart&&d<=wEnd&&parseFloat(s.marketMultiple)>0; });
+      byBreaker[b]=bs.length?bs.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/bs.length:null;
+    });
+    return {label,byBreaker,wStart,wEnd};
+  }).reverse();
+
+  const allMMs = weeks.flatMap(w=>Object.values(w.byBreaker).filter(Boolean));
+  const maxMM = Math.max(...allMMs, 2.0);
+  const minMM = Math.min(...allMMs, 1.0);
+  const range = maxMM - minMM || 1;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>Market Multiple Trend — Last 12 Weeks</div>
+        <div style={{display:"flex",gap:8}}>
+          {BREAKERS.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:BC_COLORS[b]||"#E8317A"}}><div style={{width:10,height:3,background:BC_COLORS[b]||"#E8317A",borderRadius:2}}/>{b}</div>)}
+        </div>
+      </div>
+
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"20px",overflowX:"auto"}}>
+        <div style={{minWidth:600}}>
+          {/* Reference lines */}
+          <div style={{position:"relative",height:200,marginBottom:8}}>
+            {[1.4,1.5,1.7,2.0].map(ref=>{
+              const y=((maxMM-ref)/range)*100;
+              if(y<0||y>100) return null;
+              return <div key={ref} style={{position:"absolute",top:`${y}%`,left:0,right:0,borderTop:`1px dashed ${ref===1.5?"#FBBF24":"#1a1a1a"}`,display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:9,color:ref===1.5?"#FBBF24":"#333",marginLeft:4}}>{ref}x</span>
+              </div>;
+            })}
+            {/* Data points and lines */}
+            {BREAKERS.map(b=>{
+              const bc=BC_COLORS[b]||"#E8317A";
+              const points=weeks.map((w,i)=>({ x:(i/(weeks.length-1))*100, y:w.byBreaker[b]?((maxMM-w.byBreaker[b])/range)*100:null, mm:w.byBreaker[b] }));
+              return (
+                <svg key={b} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",overflow:"visible"}} preserveAspectRatio="none">
+                  {points.map((p,i)=>{
+                    if(!p.mm||!points[i+1]?.mm) return null;
+                    const np=points[i+1];
+                    return <line key={i} x1={`${p.x}%`} y1={`${p.y}%`} x2={`${np.x}%`} y2={`${np.y}%`} stroke={bc} strokeWidth="2" strokeOpacity="0.8"/>;
+                  })}
+                  {points.map((p,i)=>p.mm?<circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="4" fill={bc} stroke="#111" strokeWidth="1.5"/>:null)}
+                </svg>
+              );
+            })}
+          </div>
+          {/* X labels */}
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            {weeks.map((w,i)=><div key={i} style={{fontSize:9,color:"#555",textAlign:"center",flex:1}}>{i%2===0?w.label:""}</div>)}
+          </div>
+        </div>
+      </div>
+
+      {/* Per-rep summary table */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 20px"}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Last 4 Weeks vs Previous 4 Weeks</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {BREAKERS.map(b=>{
+            const recent=weeks.slice(-4).flatMap(w=>streams.filter(s=>s.breaker===b&&s.date>=w.wStart?.toISOString().split("T")[0]&&s.date<=w.wEnd?.toISOString().split("T")[0]&&parseFloat(s.marketMultiple)>0));
+            const prior=weeks.slice(-8,-4).flatMap(w=>streams.filter(s=>s.breaker===b&&s.date>=w.wStart?.toISOString().split("T")[0]&&s.date<=w.wEnd?.toISOString().split("T")[0]&&parseFloat(s.marketMultiple)>0));
+            const recentMM=recent.length?recent.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/recent.length:0;
+            const priorMM=prior.length?prior.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/prior.length:0;
+            const trend=recentMM-priorMM;
+            const bc=BC_COLORS[b]||"#E8317A";
+            return (
+              <div key={b} style={{display:"flex",alignItems:"center",gap:16,padding:"8px 12px",background:"#0d0d0d",borderRadius:8}}>
+                <div style={{width:100,fontSize:13,fontWeight:700,color:bc}}>{b}</div>
+                <div style={{fontSize:18,fontWeight:900,color:recentMM?mmColor(recentMM):"#333"}}>{recentMM?recentMM.toFixed(2)+"x":"--"}</div>
+                <div style={{fontSize:11,color:"#555"}}>Last 4 weeks</div>
+                {priorMM>0&&<div style={{fontSize:13,fontWeight:700,color:trend>=0?"#4ade80":"#E8317A"}}>{trend>=0?"▲":"▼"} {Math.abs(trend).toFixed(2)}x {trend>=0?"↑":"↓"} vs prior</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TIME ANALYSIS ─────────────────────────────────────────────────────────────
+function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
+  const [metric, setMetric] = useState("gross");
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const SESSION_TYPES = ["day","night","weekend","event"];
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  // By day of week
+  const byDay = DAYS.map((day,i)=>{
+    const ds=streams.filter(s=>s.date&&parseLocalDate(s.date).getDay()===i);
+    if(!ds.length) return {day,streams:0,gross:0,mm:0,newBuyers:0};
+    const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm=mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers=ds.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    return {day,streams:ds.length,gross:gross/ds.length,mm,newBuyers:newBuyers/ds.length};
+  });
+
+  // By session type
+  const bySession = ["day","night","weekend","event",""].map(t=>{
+    const label=t==="day"?"☀️ Day":t==="night"?"🌙 Night":t==="weekend"?"📅 Weekend":t==="event"?"🎉 Event":"📌 Untagged";
+    const ds=streams.filter(s=>s.sessionType===t||(t===""&&!s.sessionType));
+    if(!ds.length) return null;
+    const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm=mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers=ds.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    return {label,streams:ds.length,gross:gross/ds.length,mm,newBuyers:newBuyers/ds.length};
+  }).filter(Boolean);
+
+  const getVal = (row,m) => m==="gross"?row.gross:m==="mm"?row.mm:row.newBuyers;
+  const maxDay = Math.max(...byDay.map(d=>getVal(d,metric)),1);
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{fontSize:12,color:"#555"}}>Metric:</span>
+        {[["gross","Avg Gross"],["mm","Avg MM"],["newBuyers","Avg New Buyers"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setMetric(id)} style={{background:metric===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${metric===id?"#E8317A":"#333"}`,color:metric===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+
+      {/* By day of week */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Performance by Day of Week</div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",height:140}}>
+          {byDay.map((d,i)=>{
+            const val=getVal(d,metric);
+            const barH=maxDay>0?(val/maxDay)*100:0;
+            const col=metric==="mm"&&val?mmColor(val):"#E8317A";
+            return (
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{fontSize:10,fontWeight:700,color:col}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):""}</div>
+                <div style={{width:"100%",height:100,display:"flex",alignItems:"flex-end"}}>
+                  <div style={{width:"100%",height:`${barH}%`,background:col,borderRadius:"3px 3px 0 0",minHeight:d.streams?4:0,opacity:0.8}}/>
+                </div>
+                <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{d.day}</div>
+                <div style={{fontSize:9,color:"#555"}}>{d.streams} streams</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* By session type */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Performance by Session Type</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {bySession.sort((a,b)=>getVal(b,metric)-getVal(a,metric)).map(s=>{
+            const val=getVal(s,metric);
+            const maxS=Math.max(...bySession.map(x=>getVal(x,metric)),1);
+            const pct=maxS>0?val/maxS*100:0;
+            return (
+              <div key={s.label} style={{display:"grid",gridTemplateColumns:"120px 1fr 100px 60px",gap:12,alignItems:"center"}}>
+                <div style={{fontSize:12,color:"#AAAAAA"}}>{s.label}</div>
+                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:4}}/>
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:metric==="mm"?mmColor(val):"#E8317A",textAlign:"right"}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):""}</div>
+                <div style={{fontSize:11,color:"#555",textAlign:"right"}}>{s.streams} streams</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
+function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
+  const [period, setPeriod] = useState("month");
+  const now = new Date();
+
+  function filterByPeriod(slist) {
+    return slist.filter(s=>{ const d=parseLocalDate(s.date);
+      if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
+      if(period==="year") return d.getFullYear()===now.getFullYear();
+      return true;
+    });
+  }
+
+  const filtered = filterByPeriod(streams);
+  const totalStreams = filtered.length;
+  const totalNewBuyers = filtered.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+  const avgNewBuyers = totalStreams?totalNewBuyers/totalStreams:0;
+
+  // Per breaker breakdown
+  const byBreaker = BREAKERS.map(b=>{
+    const bs=filtered.filter(s=>s.breaker===b);
+    const nb=bs.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const perStream=bs.length?nb/bs.length:0;
+    const best=bs.length?Math.max(...bs.map(s=>parseInt(s.newBuyers)||0)):0;
+    return {b,streams:bs.length,newBuyers:nb,perStream,best};
+  }).filter(r=>r.streams>0).sort((a,z)=>z.newBuyers-a.newBuyers);
+
+  // Weekly trend
+  const weeklyTrend = Array.from({length:8},(_,i)=>{
+    const wEnd=new Date(now); wEnd.setDate(now.getDate()-i*7); wEnd.setHours(23,59,59,999);
+    const wStart=new Date(wEnd); wStart.setDate(wEnd.getDate()-6); wStart.setHours(0,0,0,0);
+    const ws=streams.filter(s=>{ const d=parseLocalDate(s.date); return d>=wStart&&d<=wEnd; });
+    return { label:`W${8-i}`, newBuyers:ws.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0), streams:ws.length };
+  }).reverse();
+  const maxNB = Math.max(...weeklyTrend.map(w=>w.newBuyers),1);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",gap:6}}>
+        {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(22,101,52,0.2)":"transparent",border:`1px solid ${period===id?"#166534":"#333"}`,color:period===id?"#4ade80":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+
+      {/* KPIs */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        {[
+          {l:"Total New Buyers",  v:totalNewBuyers, c:"#4ade80"},
+          {l:"Avg Per Stream",    v:avgNewBuyers.toFixed(1), c:"#4ade80"},
+          {l:"Streams Analyzed",  v:totalStreams, c:"#F0F0F0"},
+        ].map(({l,v,c})=>(
+          <div key={l} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:900,color:c}}>{v}</div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Weekly trend */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>New Buyers by Week</div>
+        <div style={{display:"flex",gap:6,alignItems:"flex-end",height:120}}>
+          {weeklyTrend.map((w,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#4ade80"}}>{w.newBuyers||""}</div>
+              <div style={{width:"100%",height:90,display:"flex",alignItems:"flex-end"}}>
+                <div style={{width:"100%",height:`${(w.newBuyers/maxNB)*100}%`,background:"rgba(74,222,128,0.5)",borderRadius:"3px 3px 0 0",minHeight:w.newBuyers?4:0}}/>
+              </div>
+              <div style={{fontSize:9,color:"#555"}}>{w.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* By breaker */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>New Buyers by Rep</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {byBreaker.map(r=>{
+            const bc=BC_COLORS[r.b]||"#E8317A";
+            const pct=totalNewBuyers?r.newBuyers/totalNewBuyers*100:0;
+            return (
+              <div key={r.b} style={{display:"grid",gridTemplateColumns:"110px 1fr 60px 80px 80px",gap:12,alignItems:"center"}}>
+                <div style={{fontSize:13,fontWeight:700,color:bc}}>{r.b}</div>
+                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:bc,borderRadius:4}}/>
+                </div>
+                <div style={{fontSize:12,fontWeight:700,color:"#4ade80",textAlign:"right"}}>{r.newBuyers}</div>
+                <div style={{fontSize:11,color:"#555",textAlign:"right"}}>{r.perStream.toFixed(1)}/stream</div>
+                <div style={{fontSize:11,color:"#555",textAlign:"right"}}>Best: {r.best}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── REVENUE CONCENTRATION ─────────────────────────────────────────────────────
+function RevenueConcentration({ streams=[], isAdmin }) {
+  const [period, setPeriod] = useState("month");
+  const now = new Date();
+
+  const filtered = streams.filter(s=>{ const d=parseLocalDate(s.date);
+    if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
+    if(period==="year") return d.getFullYear()===now.getFullYear();
+    return true;
+  });
+
+  const totalGross = filtered.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const totalNB = filtered.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+  const avgNBperStream = filtered.length?totalNB/filtered.length:0;
+  const avgGrossPerStream = filtered.length?totalGross/filtered.length:0;
+
+  // Top streams by gross
+  const topStreams = [...filtered].sort((a,b)=>(parseFloat(b.grossRevenue)||0)-(parseFloat(a.grossRevenue)||0)).slice(0,10);
+  const top3Gross = topStreams.slice(0,3).reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const top10Gross = topStreams.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const top3Pct = totalGross?top3Gross/totalGross*100:0;
+  const top10Pct = totalGross?top10Gross/totalGross*100:0;
+
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",gap:6}}>
+        {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${period===id?"#E8317A":"#333"}`,color:period===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        {[
+          {l:"Top 3 Streams % of Revenue", v:top3Pct.toFixed(1)+"%", c:top3Pct>60?"#E8317A":top3Pct>40?"#FBBF24":"#4ade80"},
+          {l:"Top 10 Streams % of Revenue",v:top10Pct.toFixed(1)+"%",c:top10Pct>80?"#E8317A":top10Pct>60?"#FBBF24":"#4ade80"},
+          {l:"Avg Gross Per Stream",        v:fmt(avgGrossPerStream),  c:"#F0F0F0"},
+        ].map(({l,v,c})=>(
+          <div key={l} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+            <div style={{fontSize:26,fontWeight:900,color:c}}>{v}</div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Top Streams by Revenue</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {topStreams.map((s,i)=>{
+            const g=parseFloat(s.grossRevenue)||0;
+            const pct=totalGross?g/totalGross*100:0;
+            const bc=BC_COLORS[s.breaker]||"#E8317A";
+            const cumPct=topStreams.slice(0,i+1).reduce((sum,x)=>sum+(parseFloat(x.grossRevenue)||0)/totalGross*100,0);
+            return (
+              <div key={s.id||i} style={{display:"grid",gridTemplateColumns:"24px 90px 90px 1fr 70px 50px",gap:10,alignItems:"center"}}>
+                <div style={{fontSize:12,color:"#555",textAlign:"center"}}>#{i+1}</div>
+                <div style={{fontSize:11,color:bc,fontWeight:700}}>{s.breaker}</div>
+                <div style={{fontSize:11,color:"#555"}}>{s.date}</div>
+                <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:3}}/>
+                </div>
+                <div style={{fontSize:12,fontWeight:700,color:"#E8317A",textAlign:"right"}}>{fmt(g)}</div>
+                <div style={{fontSize:10,color:"#555",textAlign:"right"}}>{pct.toFixed(1)}%</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SET PERFORMANCE ───────────────────────────────────────────────────────────
+function SetPerformance({ streams=[], isAdmin }) {
+  const [metric, setMetric] = useState("mm");
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  // Extract set names from streamSkuPrices or product fields
+  const setData = {};
+  streams.forEach(s=>{
+    const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
+    const gross = parseFloat(s.grossRevenue)||0;
+    const mm = parseFloat(s.marketMultiple)||0;
+    const nb = parseInt(s.newBuyers)||0;
+    // If has SKU prices, attribute to those sets
+    if(prods.length>0) {
+      prods.forEach(p=>{
+        if(!setData[p]) setData[p]={streams:0,gross:0,mmSum:0,mmCount:0,newBuyers:0};
+        setData[p].streams++;
+        setData[p].gross+=gross/prods.length;
+        if(mm>0){setData[p].mmSum+=mm;setData[p].mmCount++;}
+        setData[p].newBuyers+=nb;
+      });
+    } else if(s.sessionType||s.streamName) {
+      const key=s.streamName||"Untagged";
+      if(!setData[key]) setData[key]={streams:0,gross:0,mmSum:0,mmCount:0,newBuyers:0};
+      setData[key].streams++;
+      setData[key].gross+=gross;
+      if(mm>0){setData[key].mmSum+=mm;setData[key].mmCount++;}
+      setData[key].newBuyers+=nb;
+    }
+  });
+
+  const setRows = Object.entries(setData).map(([set,d])=>({
+    set, streams:d.streams, gross:d.gross, perStream:d.streams?d.gross/d.streams:0,
+    mm:d.mmCount?d.mmSum/d.mmCount:0, newBuyers:d.newBuyers
+  })).filter(r=>r.streams>0).sort((a,b)=>{
+    if(metric==="mm") return b.mm-a.mm;
+    if(metric==="gross") return b.perStream-a.perStream;
+    return b.newBuyers-a.newBuyers;
+  });
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{fontSize:12,color:"#555"}}>Rank by:</span>
+        {[["mm","Market Multiple"],["gross","Avg Revenue"],["newBuyers","New Buyers"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setMetric(id)} style={{background:metric===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${metric===id?"#E8317A":"#333"}`,color:metric===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+
+      {setRows.length===0 ? <div style={{textAlign:"center",color:"#333",padding:"40px",fontSize:13}}>Add products to stream recaps to see set performance</div> :
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {setRows.map((r,i)=>(
+            <div key={r.set} style={{display:"grid",gridTemplateColumns:"24px 1fr 70px 90px 90px 80px",gap:12,alignItems:"center",padding:"8px 12px",background:i===0?"rgba(232,49,122,0.04)":"transparent",borderRadius:8}}>
+              <div style={{fontSize:12,color:"#555"}}>#{i+1}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{r.set}</div>
+              <div style={{fontSize:11,color:"#555",textAlign:"center"}}>{r.streams} streams</div>
+              <div style={{fontSize:14,fontWeight:900,color:r.mm?mmColor(r.mm):"#555",textAlign:"right"}}>{r.mm?r.mm.toFixed(2)+"x":"--"}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#E8317A",textAlign:"right"}}>{fmt(r.perStream)}</div>
+              <div style={{fontSize:12,color:"#166534",textAlign:"right"}}>+{r.newBuyers} NB</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+// ── GOAL TRACKING ─────────────────────────────────────────────────────────────
+function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
+  const now = new Date();
+  const GOAL_STORE_KEY = `bz_perf_goals_${now.getFullYear()}_${now.getMonth()+1}`;
+  const [goals, setGoals] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(GOAL_STORE_KEY)||"{}"); } catch { return {}; }
+  });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({...goals});
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  const monthStreams = streams.filter(s=>{ const d=parseLocalDate(s.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); });
+  const monthGross = monthStreams.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const monthNB = monthStreams.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+  const mmList = monthStreams.filter(x=>parseFloat(x.marketMultiple)>0);
+  const monthMM = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+
+  function saveGoals() {
+    setGoals({...draft});
+    localStorage.setItem(GOAL_STORE_KEY, JSON.stringify(draft));
+    setEditing(false);
+  }
+
+  const GOAL_ITEMS = [
+    { key:"gross",    label:"Monthly Gross Revenue", actual:monthGross, fmt:v=>fmt(v), prefix:"$", color:"#E8317A" },
+    { key:"newBuyers",label:"New Buyers",            actual:monthNB,    fmt:v=>v,      prefix:"",  color:"#4ade80" },
+    { key:"mm",       label:"Avg Market Multiple",   actual:monthMM,    fmt:v=>v?v.toFixed(2)+"x":"--", prefix:"", color:monthMM?mmColor(monthMM):"#555" },
+    { key:"streams",  label:"Total Streams",         actual:monthStreams.length, fmt:v=>v, prefix:"", color:"#F0F0F0" },
+  ];
+
+  // Per-rep goals
+  const repGoalItems = BREAKERS.map(b=>{
+    const bs=monthStreams.filter(s=>s.breaker===b);
+    const gross=bs.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const nb=bs.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const mmL=bs.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm=mmL.length?mmL.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmL.length:0;
+    return {b,gross,nb,mm,streams:bs.length};
+  });
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>
+          🎯 {now.toLocaleDateString("en-US",{month:"long",year:"numeric"})} Goals
+        </div>
+        {isAdmin && <button onClick={()=>{setDraft({...goals});setEditing(p=>!p)}}
+          style={{background:editing?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${editing?"#E8317A":"#333"}`,color:editing?"#E8317A":"#555",borderRadius:16,padding:"6px 16px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+          {editing?"Cancel":"✏️ Set Goals"}
+        </button>}
+      </div>
+
+      {/* Team goals */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+        {GOAL_ITEMS.map(({key,label,actual,fmt:fmtFn,color})=>{
+          const goal=parseFloat(goals[key])||0;
+          const pct=goal>0?Math.min(actual/goal*100,100):0;
+          const over=goal>0&&actual>=goal;
+          return (
+            <div key={key} style={{background:"#111",border:`1px solid ${over?"rgba(74,222,128,0.3)":"#1a1a1a"}`,borderRadius:12,padding:"16px 18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label}</div>
+                  <div style={{fontSize:24,fontWeight:900,color}}>{fmtFn(actual)}</div>
+                </div>
+                {goal>0 && <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:over?"#4ade80":"#FBBF24"}}>{over?"✅ Hit!":pct.toFixed(0)+"%"}</div>
+                  <div style={{fontSize:10,color:"#555"}}>Goal: {fmtFn(goal)}</div>
+                </div>}
+              </div>
+              {goal>0 && <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:over?"#4ade80":"#E8317A",borderRadius:3,transition:"width 0.5s"}}/>
+              </div>}
+              {editing && <input type="number" placeholder={`Set ${label} goal...`} value={draft[key]||""} onChange={e=>setDraft(p=>({...p,[key]:e.target.value}))}
+                style={{marginTop:10,width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"6px 10px",fontSize:12,fontFamily:"inherit",boxSizing:"border-box"}}/>}
+            </div>
+          );
+        })}
+      </div>
+
+      {editing && <button onClick={saveGoals} style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:10,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",alignSelf:"flex-start"}}>Save Goals</button>}
+
+      {/* Per-rep progress */}
+      {goals.repGross && (
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>Rep Gross Goal Progress</div>
+          {repGoalItems.map(r=>{
+            const goal=parseFloat(goals[`${r.b}_gross`])||parseFloat(goals.repGross)||0;
+            const pct=goal>0?Math.min(r.gross/goal*100,100):0;
+            const bc=BC_COLORS[r.b]||"#E8317A";
+            return (
+              <div key={r.b} style={{marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:700,color:bc}}>{r.b}</span>
+                  <span style={{fontSize:12,color:"#555"}}>{fmt(r.gross)} {goal>0?`/ ${fmt(goal)} (${pct.toFixed(0)}%)`:""}</span>
+                </div>
+                {goal>0&&<div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:bc,borderRadius:4}}/>
+                </div>}
+              </div>
+            );
+          })}
+          {editing&&<>
+            <div style={{fontSize:11,color:"#555",marginBottom:8}}>Set per-rep gross goal (or set a shared goal above):</div>
+            {BREAKERS.map(b=><div key={b} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+              <span style={{fontSize:12,color:BC_COLORS[b]||"#E8317A",minWidth:120}}>{b}</span>
+              <input type="number" placeholder="Goal..." value={draft[`${b}_gross`]||""} onChange={e=>setDraft(p=>({...p,[`${b}_gross`]:e.target.value}))}
+                style={{flex:1,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"5px 10px",fontSize:12,fontFamily:"inherit"}}/>
+            </div>)}
+          </>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
@@ -5214,8 +5984,19 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
       {/* Tab nav */}
-      <div style={{ display:"flex", gap:8 }}>
-        {[["stats","📊 Stats"],["followers","📡 Followers"]].map(([id,label])=>(
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        {[
+          ["stats","📊 Stats"],
+          ["reportcard","🏆 Rep Report Card"],
+          ["leaderboard","🥇 Leaderboard"],
+          ["mmtrend","📈 MM Trend"],
+          ["timeslots","⏰ Time Analysis"],
+          ["newbuyers","🌱 Buyer Funnel"],
+          ["concentration","💎 Revenue Concentration"],
+          ["sets","📦 Set Performance"],
+          ["goals","🎯 Goals"],
+          ["followers","📡 Followers"],
+        ].filter(([id]) => id !== "reportcard" || isAdmin).map(([id,label])=>(
           <button key={id} onClick={()=>setPerfTab(id)}
             style={{ background:perfTab===id?"rgba(232,49,122,0.15)":"transparent", color:perfTab===id?"#E8317A":"#555", border:`1.5px solid ${perfTab===id?"#E8317A":"#333"}`, borderRadius:20, padding:"7px 20px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {label}
@@ -5223,7 +6004,15 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
         ))}
       </div>
 
-      {perfTab==="followers" && <WhatnotFollowerTracker isAdmin={isAdmin} />}
+      {perfTab==="followers"    && <WhatnotFollowerTracker isAdmin={isAdmin} />}
+      {perfTab==="reportcard"   && <RepReportCard streams={streams} isAdmin={isAdmin} />}
+      {perfTab==="leaderboard"  && <TeamLeaderboard streams={filteredStreams} allStreams={streams} isAdmin={isAdmin} />}
+      {perfTab==="mmtrend"      && <MMTrend streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
+      {perfTab==="timeslots"    && <TimeAnalysis streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
+      {perfTab==="newbuyers"    && <BuyerFunnel streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
+      {perfTab==="concentration"&& <RevenueConcentration streams={streams} isAdmin={isAdmin} />}
+      {perfTab==="sets"         && <SetPerformance streams={streams} isAdmin={isAdmin} />}
+      {perfTab==="goals"        && <GoalTracking streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
 
       {perfTab==="stats" && <>
 
