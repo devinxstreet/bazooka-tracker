@@ -18690,7 +18690,7 @@ function Finance({ streams=[], userRole }) {
   // Month data
   const monthExp = expenses.filter(e => e.date?.startsWith(selMonth));
   const monthStreams = streams.filter(s => s.date?.startsWith(selMonth));
-  const grossIn = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0) + (parseFloat(str.coupons)||0), 0);
+  const grossIn = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0), 0);
   const totalOut = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
   const cashFlow = grossIn - totalOut;
   const byCategory = EXPENSE_CATEGORIES.map(cat => ({
@@ -18727,7 +18727,7 @@ function Finance({ streams=[], userRole }) {
   const last6 = months.slice(0,6).reverse();
   const chartData = last6.map(m => {
     const mStreams = streams.filter(s=>s.date?.startsWith(m));
-    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)+(parseFloat(str.coupons)||0),0);
+    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0),0);
     const mOut = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     const label = new Date(m+"-15").toLocaleDateString("en-US",{month:"short",year:"2-digit"});
     return { m, label, mIn, mOut, net:mIn-mOut };
