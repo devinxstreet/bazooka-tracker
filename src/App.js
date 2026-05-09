@@ -5895,7 +5895,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
   );
 }
 
-function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }) {
+function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
@@ -5907,7 +5907,8 @@ function Performance({ defaultPeriod="all", breaks, user, userRole, streams=[] }
   useEffect(()=>{setPerfPeriod(defaultPeriod);},[defaultPeriod]);
   const [perfFrom,   setPerfFrom]   = useState("");
   const [perfTo,     setPerfTo]     = useState("");
-  const [perfTab,    setPerfTab]    = useState("stats");
+  const [perfTab,    setPerfTab]    = useState(defaultPerfTab);
+  useEffect(()=>{setPerfTab(defaultPerfTab);},[defaultPerfTab]);
 
   function getPerfStreams() {
     return streams.filter(s => {
@@ -19716,6 +19717,7 @@ export default function App() {
   const [invTabDefault,  setInvTabDefault]  = useState("cards");
   const [buyerTabDefault,setBuyerTabDefault]= useState("table");
   const [periodDefault,  setPeriodDefault]  = useState("month");
+  const [perfTabDefault, setPerfTabDefault] = useState("stats");
   const [checklistDefault,setChecklistDefault]=useState("cards");
   const [streamTabDefault,setStreamTabDefault] = useState("recap");
   const [compMode,      setCompMode]      = useState("builder");
@@ -20276,10 +20278,16 @@ export default function App() {
                   {label:"\uD83D\uDD50 By Time Zone",sub:"Zone breakdown",action:()=>{setTab("buyers");setBuyerTabDefault("zones");setHoverTab(null);}},
                 ],
                 "performance": [
-                  {label:"\uD83D\uDCC5 This Month",sub:"Current month",action:()=>{setTab("performance");setPeriodDefault("month");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC6 This Quarter",sub:"Current quarter",action:()=>{setTab("performance");setPeriodDefault("quarter");setHoverTab(null);}},
-                  {label:"\uD83D\uDDD3 This Year",sub:"YTD",action:()=>{setTab("performance");setPeriodDefault("year");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA All Time",sub:"Full history",action:()=>{setTab("performance");setPeriodDefault("all");setHoverTab(null);}},
+                  {label:"📊 Stats",          sub:"Team recap & breaker stats",   action:()=>{setTab("performance");setPeriodDefault("month");setStreamTabDefault("stats");setHoverTab(null);}},
+                  {label:"🏆 Rep Report Card", sub:"Weekly 1-on-1 review tool",    action:()=>{setTab("performance");setPerfTabDefault("reportcard");setHoverTab(null);}},
+                  {label:"🥇 Leaderboard",     sub:"Live rep rankings",             action:()=>{setTab("performance");setPerfTabDefault("leaderboard");setHoverTab(null);}},
+                  {label:"📈 MM Trend",         sub:"Market multiple over time",     action:()=>{setTab("performance");setPerfTabDefault("mmtrend");setHoverTab(null);}},
+                  {label:"⏰ Time Analysis",    sub:"Best days & session types",     action:()=>{setTab("performance");setPerfTabDefault("timeslots");setHoverTab(null);}},
+                  {label:"🌱 Buyer Funnel",     sub:"New buyer trends",              action:()=>{setTab("performance");setPerfTabDefault("newbuyers");setHoverTab(null);}},
+                  {label:"💎 Revenue Conc.",    sub:"Whale dependency analysis",     action:()=>{setTab("performance");setPerfTabDefault("concentration");setHoverTab(null);}},
+                  {label:"📦 Set Performance",  sub:"Which sets perform best",       action:()=>{setTab("performance");setPerfTabDefault("sets");setHoverTab(null);}},
+                  {label:"🎯 Goals",            sub:"Monthly targets vs actuals",    action:()=>{setTab("performance");setPerfTabDefault("goals");setHoverTab(null);}},
+                  {label:"📡 Followers",        sub:"Whatnot follower tracker",      action:()=>{setTab("performance");setPerfTabDefault("followers");setHoverTab(null);}},
                 ],
                 "checklist": [
                   {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
@@ -20322,7 +20330,7 @@ export default function App() {
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
-        {tab==="performance"&& <Performance defaultPeriod={periodDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
+        {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
       </div>
