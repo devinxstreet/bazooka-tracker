@@ -9869,8 +9869,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.trueNet   += isEventOnly ? 0 : (c.bazTrueNet||0);
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
+    if (!isEventOnly && parseFloat(s.marketMultiple) > 0) {
+      acc.mmSum   += parseFloat(s.marketMultiple);
+      acc.mmCount += 1;
+    }
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, newBuyers:0 });
+  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
@@ -10458,22 +10462,29 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       </div>
 
       {/* Summary */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:12 }}>
-        {[
-          { l:"Total Streams",     v:filteredStreams.length,          c:"#F0F0F0" },
-          { l:"Total Commission",  v:fmt(totals.comm),    c:"#166534" },
-          { l:"\uD83C\uDF31 New Buyers",     v:totals.newBuyers,                c:"#166534" },
-          ...(isAdmin ? [
-            { l:"Total Gross",       v:fmt(totals.gross),       c:"#E8317A" },
-            { l:"Bazooka True Net",  v:fmt(totals.trueNet),     c:"#6B2D8B" },
-          ] : []),
-        ].map(({l,v,c}) => (
-          <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
-            <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
-            <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+      {(() => {
+        const avgMM = totals.mmCount > 0 ? (totals.mmSum / totals.mmCount) : 0;
+        const mmColor = avgMM>=1.9?"#4ade80":avgMM>=1.7?"#86efac":avgMM>=1.5?"#FBBF24":"#E8317A";
+        return (
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?6:4},1fr)`, gap:12 }}>
+            {[
+              { l:"Total Streams",     v:filteredStreams.length,                                    c:"#F0F0F0" },
+              { l:"Total Commission",  v:fmt(totals.comm),                                          c:"#4ade80" },
+              { l:"\uD83C\uDF31 New Buyers",     v:totals.newBuyers,                               c:"#166534" },
+              { l:"Avg Market Multiple", v:avgMM>0?`${avgMM.toFixed(2)}x`:"--",                    c:mmColor   },
+              ...(isAdmin ? [
+                { l:"Total Gross",       v:fmt(totals.gross),   c:"#E8317A" },
+                { l:"Bazooka True Net",  v:fmt(totals.trueNet), c:"#6B2D8B" },
+              ] : []),
+            ].map(({l,v,c}) => (
+              <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
+                <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+                <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
 
 
