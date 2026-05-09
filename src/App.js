@@ -9865,7 +9865,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.baz       += isEventOnly ? 0 : c.bazNet;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
-                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0);
+                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0);
     acc.trueNet   += isEventOnly ? 0 : (c.bazTrueNet||0);
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
