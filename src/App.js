@@ -5340,14 +5340,15 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
   const filtered = filterByPeriod(allStreams);
 
   const rankings = BREAKERS.map(b=>{
-    const bs = filtered.filter(s=>s.breaker===b);
-    if (!bs.length) return null;
-    const gross = bs.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
-    const mmList = bs.filter(x=>parseFloat(x.marketMultiple)>0);
+    const ownStreams = filtered.filter(s=>s.breaker===b);
+    const allMyStreams = filtered.filter(s=>s.breaker===b||(s.eventStaff||[]).some(es=>es.breaker===b)||s.splitRep===b);
+    if (!allMyStreams.length) return null;
+    const gross = ownStreams.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList = ownStreams.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
-    const newBuyers = bs.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
-    const comm = bs.reduce((s,x)=>s+calcStream(x,b).myComm,0);
-    return { b, gross, mm, newBuyers, comm, streams:bs.length, perStream:gross/bs.length };
+    const newBuyers = ownStreams.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const comm = allMyStreams.reduce((s,x)=>s+calcStream(x,b).myComm,0);
+    return { b, gross, mm, newBuyers, comm, streams:ownStreams.length, perStream:ownStreams.length?gross/ownStreams.length:0 };
   }).filter(Boolean).sort((a,z)=>{
     if(sortBy==="mm") return z.mm-a.mm;
     if(sortBy==="gross") return z.gross-a.gross;
