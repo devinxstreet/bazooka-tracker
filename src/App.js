@@ -9,6 +9,17 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","Orbital Society"];
+const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
+const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
+function getStreamBrand(s) {
+  const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
+  const name = (s.streamName||"").toLowerCase();
+  const hasWotF = prods.some(p=>WOTF_SETS.some(w=>p.toLowerCase().includes(w.toLowerCase()))) ||
+                  WOTF_SETS.some(w=>name.includes(w.toLowerCase())) ||
+                  name.includes("wonders") || name.includes("wotf") || name.includes("dragon box");
+  if (hasWotF) return "wotf";
+  return "boba";
+}
 const OFFICE_STAFF = [
   { id:"devin",   name:"Devin",   color:"#E8317A", role:"CEO" },
   { id:"dre",     name:"Dre",     color:"#C084FC", role:"Streamer" },
@@ -696,9 +707,14 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const streamTotals = filtered.reduce((acc,s) => {
           const c = calcStream(s);
           const exp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
+          // Total commission = primary rep's share + split rep's share + event staff fees + sales bonus
+          const splitPct = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
+          const primaryComm = s.splitRep ? c.commAmt*splitPct : c.commAmt;
+          const splitRepComm = s.splitRep ? c.commAmt*(1-splitPct) : 0;
+          const eventStaffComm = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,c.bazNet*0.15),0);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += (c.commAmt - (c.repExpShare||0));
+          acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0);
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
@@ -5187,6 +5203,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
 function RepReportCard({ streams=[], isAdmin }) {
   const [selBreaker, setSelBreaker] = useState(BREAKERS[0]);
   const [period, setPeriod] = useState("month");
+  const [brand, setBrand] = useState("boba");
   const now = new Date();
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
   const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -5194,6 +5211,7 @@ function RepReportCard({ streams=[], isAdmin }) {
   function filterStreams(slist, b) {
     return slist.filter(s => {
       if (s.breaker !== b) return false;
+      if (brand !== "all" && getStreamBrand(s) !== brand) return false;
       const d = parseLocalDate(s.date);
       if (period==="week") { const wStart=new Date(now); wStart.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)); wStart.setHours(0,0,0,0); const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); return d>=wStart&&d<=wEnd; }
       if (period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
@@ -5244,6 +5262,11 @@ function RepReportCard({ streams=[], isAdmin }) {
         <div style={{display:"flex",gap:6}}>
           {BREAKERS.map(b=><button key={b} onClick={()=>setSelBreaker(b)}
             style={{background:selBreaker===b?`${BC[b]}22`:"transparent",border:`1.5px solid ${selBreaker===b?BC[b]:"#333"}`,color:selBreaker===b?BC[b]:"#555",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{b}</button>)}
+        </div>
+        <div style={{display:"flex",gap:4}}>
+          {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
         </div>
         <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
           {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
@@ -5327,6 +5350,7 @@ function RepReportCard({ streams=[], isAdmin }) {
 function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
   const [period, setPeriod] = useState("month");
   const [sortBy, setSortBy] = useState("mm");
+  const [brand, setBrand]   = useState("boba");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo,   setCustomTo]   = useState("");
   const now = new Date();
@@ -5334,6 +5358,7 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
 
   function filterByPeriod(slist) {
     return slist.filter(s=>{ const d=parseLocalDate(s.date);
+      if (brand !== "all" && getStreamBrand(s) !== brand) return false;
       if(period==="week"){const wS=new Date(now);wS.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));wS.setHours(0,0,0,0);const wE=new Date(wS);wE.setDate(wS.getDate()+6);return d>=wS&&d<=wE;}
       if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
       if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
@@ -5379,6 +5404,10 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
             <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}
               style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
           </>}
+          <span style={{color:"#333",fontSize:11}}>|</span>
+          {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
         </div>
         <div style={{display:"flex",gap:6,marginLeft:"auto",alignItems:"center"}}>
           <span style={{fontSize:11,color:"#555"}}>Rank by:</span>
@@ -5424,6 +5453,8 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
 // ── MARKET MULTIPLE TREND ─────────────────────────────────────────────────────
 function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [view, setView] = useState("weekly");
+  const [brand, setBrand] = useState("boba");
+  const brandStreams = brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand);
   const now = new Date();
   const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
 
@@ -5433,7 +5464,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
     const label=`${wStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
     const byBreaker={};
     BREAKERS.forEach(b=>{
-      const bs=streams.filter(s=>{ const d=parseLocalDate(s.date); return s.breaker===b&&d>=wStart&&d<=wEnd&&parseFloat(s.marketMultiple)>0; });
+      const bs=brandStreams.filter(s=>{ const d=parseLocalDate(s.date); return s.breaker===b&&d>=wStart&&d<=wEnd&&parseFloat(s.marketMultiple)>0; });
       byBreaker[b]=bs.length?bs.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/bs.length:null;
     });
     return {label,byBreaker,wStart,wEnd};
@@ -5446,9 +5477,12 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>Market Multiple Trend — Last 12 Weeks</div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
           {BREAKERS.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:BC[b]?.text||"#E8317A"}}><div style={{width:10,height:3,background:BC[b]?.text||"#E8317A",borderRadius:2}}/>{b}</div>)}
         </div>
       </div>
@@ -5516,13 +5550,15 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
 // ── TIME ANALYSIS ─────────────────────────────────────────────────────────────
 function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [metric, setMetric] = useState("gross");
+  const [brand, setBrand] = useState("boba");
+  const streams2 = brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand);
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const SESSION_TYPES = ["day","night","weekend","event"];
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
 
   // By day of week
   const byDay = DAYS.map((day,i)=>{
-    const ds=streams.filter(s=>s.date&&parseLocalDate(s.date).getDay()===i);
+    const ds=streams2.filter(s=>s.date&&parseLocalDate(s.date).getDay()===i);
     if(!ds.length) return {day,streams:0,gross:0,mm:0,newBuyers:0};
     const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
     const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
@@ -5534,7 +5570,7 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   // By session type
   const bySession = ["day","night","weekend","event",""].map(t=>{
     const label=t==="day"?"☀️ Day":t==="night"?"🌙 Night":t==="weekend"?"📅 Weekend":t==="event"?"🎉 Event":"📌 Untagged";
-    const ds=streams.filter(s=>s.sessionType===t||(t===""&&!s.sessionType));
+    const ds=streams2.filter(s=>s.sessionType===t||(t===""&&!s.sessionType));
     if(!ds.length) return null;
     const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
     const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
@@ -5549,10 +5585,14 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <span style={{fontSize:12,color:"#555"}}>Metric:</span>
         {[["gross","Avg Gross"],["mm","Avg MM"],["newBuyers","Avg New Buyers"]].map(([id,l])=>(
           <button key={id} onClick={()=>setMetric(id)} style={{background:metric===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${metric===id?"#E8317A":"#333"}`,color:metric===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+        <span style={{color:"#333",fontSize:11,marginLeft:4}}>|</span>
+        {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
       </div>
 
@@ -5606,10 +5646,12 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 // ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
 function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [period, setPeriod] = useState("month");
+  const [brand, setBrand] = useState("boba");
   const now = new Date();
 
   function filterByPeriod(slist) {
     return slist.filter(s=>{ const d=parseLocalDate(s.date);
+      if(brand !== "all" && getStreamBrand(s) !== brand) return false;
       if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
       if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
       if(period==="year") return d.getFullYear()===now.getFullYear();
@@ -5642,9 +5684,13 @@ function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"flex",gap:6}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
         {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
           <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(22,101,52,0.2)":"transparent",border:`1px solid ${period===id?"#166534":"#333"}`,color:period===id?"#4ade80":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+        <span style={{color:"#333",fontSize:11}}>|</span>
+        {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
       </div>
 
@@ -10817,7 +10863,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.baz       += isEventOnly ? 0 : c.bazNet;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
-                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0);
+                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (!targetBreaker ? (c.splitRepAmt||0) + (c.eventStaffAmt||0) : 0);
     acc.trueNet   += isEventOnly ? 0 : (c.bazTrueNet||0);
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
