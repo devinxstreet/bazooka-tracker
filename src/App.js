@@ -5269,6 +5269,8 @@ function RepReportCard({ streams=[], isAdmin }) {
 function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
   const [period, setPeriod] = useState("month");
   const [sortBy, setSortBy] = useState("mm");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
   const now = new Date();
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
 
@@ -5278,6 +5280,7 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
       if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
       if(period==="quarter"){const q=Math.floor(now.getMonth()/3);return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear();}
       if(period==="year") return d.getFullYear()===now.getFullYear();
+      if(period==="custom"&&customFrom&&customTo){const f=new Date(customFrom);f.setHours(0,0,0,0);const t=new Date(customTo);t.setHours(23,59,59,999);return d>=f&&d<=t;}
       return true;
     });
   }
@@ -5307,10 +5310,17 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{display:"flex",gap:6}}>
-          {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"]].map(([id,l])=>(
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([id,l])=>(
             <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${period===id?"#E8317A":"#333"}`,color:period===id?"#E8317A":"#555",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
           ))}
+          {period==="custom" && <>
+            <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}
+              style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
+            <span style={{color:"#555",fontSize:11}}>to</span>
+            <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}
+              style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
+          </>}
         </div>
         <div style={{display:"flex",gap:6,marginLeft:"auto",alignItems:"center"}}>
           <span style={{fontSize:11,color:"#555"}}>Rank by:</span>
@@ -6354,6 +6364,10 @@ function WhatnotFollowerTracker({ isAdmin }) {
   const latest = entries[entries.length-1];
   const prev   = entries[entries.length-2];
 
+  // Auto-prompt if it's been 2+ days since last snapshot
+  const daysSinceLast = latest ? (Date.now() - new Date(latest.date+"T12:00:00").getTime()) / (1000*60*60*24) : 999;
+  const needsUpdate = daysSinceLast >= 2;
+
   return (
     <div style={{ marginTop:24 }}>
       <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px" }}>
@@ -6363,7 +6377,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
           <div>
             <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>📡 Whatnot Follower Tracker</div>
             <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
-              {entries.length} snapshot{entries.length!==1?"s":""} · log weekly for best trends
+              {entries.length} snapshot{entries.length!==1?"s":""} · {needsUpdate ? <span style={{color:"#FBBF24",fontWeight:700}}>⏰ Due for update — {Math.floor(daysSinceLast)} days since last log</span> : `last logged ${Math.floor(daysSinceLast)} day${Math.floor(daysSinceLast)===1?"":"s"} ago`}
             </div>
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -6375,12 +6389,20 @@ function WhatnotFollowerTracker({ isAdmin }) {
             ))}
             {isAdmin && (
               <button onClick={()=>setAdding(p=>!p)}
-                style={{ background:adding?"transparent":"rgba(232,49,122,0.12)", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:20, padding:"5px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {adding ? "Cancel" : saved ? "✅ Saved!" : "+ Log Counts"}
+                style={{ background:needsUpdate?"rgba(251,191,36,0.15)":adding?"transparent":"rgba(232,49,122,0.12)", color:needsUpdate?"#FBBF24":"#E8317A", border:`1.5px solid ${needsUpdate?"#FBBF2444":"#E8317A44"}`, borderRadius:20, padding:"5px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {adding ? "Cancel" : saved ? "✅ Saved!" : needsUpdate ? "⏰ Log Counts Now" : "+ Log Counts"}
               </button>
             )}
           </div>
         </div>
+
+        {/* Auto-prompt banner */}
+        {needsUpdate && isAdmin && !adding && (
+          <div onClick={()=>setAdding(true)} style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:14, display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}>
+            <div style={{ fontSize:12, color:"#FBBF24" }}>📊 It's been {Math.floor(daysSinceLast)} days — time to log new follower counts to keep your growth chart accurate</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", whiteSpace:"nowrap", marginLeft:12 }}>Log Now →</div>
+          </div>
+        )}
 
         {/* Log form */}
         {adding && isAdmin && (
@@ -6446,7 +6468,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
           </div>
 
           {/* Chart */}
-          {activeView==="chart" && entries.length >= 2 && (
+          {activeView==="chart" && entries.length >= 1 && (
             <div style={{ overflowX:"auto" }}>
               <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width:"100%", maxWidth:chartW, display:"block" }}>
                 {/* Grid lines */}
@@ -6496,8 +6518,8 @@ function WhatnotFollowerTracker({ isAdmin }) {
               </div>
             </div>
           )}
-          {activeView==="chart" && entries.length < 2 && (
-            <div style={{ textAlign:"center", color:"#555", fontSize:12, padding:"20px 0" }}>Log at least 2 snapshots to see the chart</div>
+          {activeView==="chart" && entries.length < 1 && (
+            <div style={{ textAlign:"center", color:"#555", fontSize:12, padding:"20px 0" }}>Log at least 1 snapshot to see the chart</div>
           )}
 
           {/* Table */}
