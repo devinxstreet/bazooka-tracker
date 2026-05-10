@@ -5194,17 +5194,17 @@ function RepReportCard({ streams=[], isAdmin }) {
   const allBreakerStreams = BREAKERS.map(b=>filterStreams(streams,b));
   const teamStreams = streams.filter(s=>{ const d=parseLocalDate(s.date); if(period==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); if(period==="year") return d.getFullYear()===now.getFullYear(); return true; });
 
-  function calcStats(slist) {
+  function calcStats(slist, targetBreaker=null) {
     if (!slist.length) return { gross:0, mm:0, comm:0, newBuyers:0, streams:0, perStream:0 };
     const gross = slist.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
     const mmList = slist.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length ? mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length : 0;
     const newBuyers = slist.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
-    const comm = slist.reduce((s,x)=>{ const fees=parseFloat(x.whatnotFees)||0,coupons=parseFloat(x.coupons)||0,base=(parseFloat(x.grossRevenue)||0)-fees-coupons,bazNet=base*0.30; return s+bazNet*(getRate(x)); },0);
+    const comm = slist.reduce((s,x)=>s+calcStream(x, targetBreaker).myComm, 0);
     return { gross, mm, comm, newBuyers, streams:slist.length, perStream:gross/slist.length };
   }
 
-  const repStats = calcStats(repStreams);
+  const repStats = calcStats(repStreams, selBreaker);
   const teamStats = calcStats(teamStreams);
   const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
 
@@ -5346,7 +5346,7 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
     const mmList = bs.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
     const newBuyers = bs.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
-    const comm = bs.reduce((s,x)=>{ const fees=parseFloat(x.whatnotFees)||0,coupons=parseFloat(x.coupons)||0,base=(parseFloat(x.grossRevenue)||0)-fees-coupons,bazNet=base*0.30; return s+bazNet*(getRate(x)); },0);
+    const comm = bs.reduce((s,x)=>s+calcStream(x,b).myComm,0);
     return { b, gross, mm, newBuyers, comm, streams:bs.length, perStream:gross/bs.length };
   }).filter(Boolean).sort((a,z)=>{
     if(sortBy==="mm") return z.mm-a.mm;
@@ -6074,6 +6074,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
           style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#F0F0F0", padding:"8px 14px", fontSize:13, fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>
           {[
             ["stats","📊 Stats"],
+            ["weekly","📋 Weekly Report"],
             ["reportcard","🏆 Rep Report Card"],
             ["leaderboard","🥇 Leaderboard"],
             ["mmtrend","📈 MM Trend"],
@@ -6090,6 +6091,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       </div>
 
       {perfTab==="followers"    && <WhatnotFollowerTracker isAdmin={isAdmin} />}
+      {perfTab==="weekly"       && <WeeklyReport streams={streams} userRole={userRole} />}
       {perfTab==="reportcard"   && <RepReportCard streams={streams} isAdmin={isAdmin} />}
       {perfTab==="leaderboard"  && <TeamLeaderboard streams={filteredStreams} allStreams={streams} isAdmin={isAdmin} />}
       {perfTab==="mmtrend"      && <MMTrend streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
@@ -8492,7 +8494,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const alerts = [];
     OFFICE_STAFF.forEach(staff => {
       // Get all dates this person is scheduled (planned streams they're on duty for)
-      const workDates = plannedStreams
+      const workDates = plans
         .filter(p => (p.staffOnDuty||[]).includes(staff.id) || (staff.id==="dre"&&p.breaker==="Dre") || (staff.id==="krystal"&&p.breaker==="Krystal") || (staff.id==="devin"&&(p.breaker==="Dev"||p.breaker==="Devin")))
         .map(p => p.date)
         .sort();
@@ -19597,6 +19599,436 @@ const EXPENSE_CATEGORIES = [
   "Marketing","Rent / Storage","Equipment","Miscellaneous"
 ];
 
+// ── SHIPPING HUB ──────────────────────────────────────────────────────────────
+const ISSUE_TYPES = [
+  { id:"transit",    label:"Stuck in Transit",   emoji:"📦", color:"#FBBF24" },
+  { id:"missing",    label:"Missing Item",        emoji:"❓", color:"#E8317A" },
+  { id:"wrong_card", label:"Wrong Card Sent",     emoji:"🔄", color:"#C084FC" },
+  { id:"damaged",    label:"Damaged Package",     emoji:"💔", color:"#ef4444" },
+  { id:"other",      label:"Other",               emoji:"⚠️", color:"#AAAAAA" },
+];
+const RESOLUTIONS = [
+  { id:"delivered",      label:"Package Delivered" },
+  { id:"replacement",    label:"Replacement Card Sent" },
+  { id:"refund",         label:"Refunded Buyer" },
+  { id:"partial",        label:"Partial Resolution" },
+  { id:"unresolved",     label:"Unresolved" },
+];
+
+function ShippingHub({ userRole, streams=[] }) {
+  const isAdmin = userRole?.role === "Admin";
+  const [issues, setIssues]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]         = useState("issues");
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId]   = useState(null);
+  const [saving, setSaving]   = useState(false);
+  const [filter, setFilter]   = useState("open");
+
+  const EMPTY = { orderNumber:"", streamDate:"", buyerUsername:"", issueType:"transit", description:"", status:"open", resolution:"", resolutionNotes:"", loggedBy:"" };
+  const [form, setForm] = useState(EMPTY);
+  const rf = k => v => setForm(p=>({...p,[k]:v}));
+
+  useEffect(()=>{
+    const unsub = onSnapshot(collection(db,"shipping_issues"), snap=>{
+      setIssues(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>b.loggedAt?.localeCompare(a.loggedAt)||0));
+      setLoading(false);
+    });
+    return ()=>unsub();
+  },[]);
+
+  async function save() {
+    if (!form.orderNumber||!form.issueType) return;
+    setSaving(true);
+    const data = {...form, updatedAt:new Date().toISOString(), loggedAt:form.loggedAt||new Date().toISOString()};
+    const id = editId || uid();
+    await setDoc(doc(db,"shipping_issues",id),{...data,id});
+    setForm(EMPTY); setShowForm(false); setEditId(null); setSaving(false);
+  }
+
+  async function deleteIssue(id) {
+    if (!window.confirm("Delete this issue?")) return;
+    await deleteDoc(doc(db,"shipping_issues",id));
+  }
+
+  function startEdit(issue) {
+    setForm({...EMPTY,...issue}); setEditId(issue.id); setShowForm(true);
+  }
+
+  const filtered = issues.filter(i => filter==="all" ? true : filter==="open" ? i.status==="open" : i.status==="resolved");
+  const openCount = issues.filter(i=>i.status==="open").length;
+  const resolvedCount = issues.filter(i=>i.status==="resolved").length;
+
+  const issueTypeCfg = id => ISSUE_TYPES.find(t=>t.id===id)||ISSUE_TYPES[4];
+
+  const fmt = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16,paddingBottom:40}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>📦 Shipping Hub</div>
+          <div style={{fontSize:12,color:"#555",marginTop:2}}>Track transit issues, missing items, and shipping errors</div>
+        </div>
+        <button onClick={()=>{setForm(EMPTY);setEditId(null);setShowForm(p=>!p);}}
+          style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+          + Log Issue
+        </button>
+      </div>
+
+      {/* KPI tiles */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+        {[
+          {l:"Open Issues",    v:openCount,     c:"#E8317A"},
+          {l:"Resolved",       v:resolvedCount, c:"#4ade80"},
+          {l:"Total Logged",   v:issues.length, c:"#F0F0F0"},
+          {l:"Resolution Rate",v:issues.length?Math.round(resolvedCount/issues.length*100)+"%":"—", c:resolvedCount/Math.max(1,issues.length)>0.8?"#4ade80":"#FBBF24"},
+        ].map(({l,v,c})=>(
+          <div key={l} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+            <div style={{fontSize:26,fontWeight:900,color:c}}>{v}</div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add/Edit form */}
+      {showForm && (
+        <div style={{background:"#0d0d0d",border:"2px solid #E8317A33",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{editId?"✏️ Edit Issue":"🚨 Log New Issue"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Order Number *</div>
+              <input value={form.orderNumber} onChange={e=>rf("orderNumber")(e.target.value)} placeholder="Whatnot order #"
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Stream Date</div>
+              <input type="date" value={form.streamDate} onChange={e=>rf("streamDate")(e.target.value)}
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Buyer Username</div>
+              <input value={form.buyerUsername} onChange={e=>rf("buyerUsername")(e.target.value)} placeholder="@username"
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:"#555",marginBottom:8}}>Issue Type *</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {ISSUE_TYPES.map(t=>(
+                <button key={t.id} onClick={()=>rf("issueType")(t.id)}
+                  style={{background:form.issueType===t.id?`${t.color}22`:"transparent",border:`1.5px solid ${form.issueType===t.id?t.color:"#333"}`,color:form.issueType===t.id?t.color:"#555",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  {t.emoji} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:"#555",marginBottom:4}}>Description</div>
+            <textarea value={form.description} onChange={e=>rf("description")(e.target.value)} placeholder="What happened? Include any relevant details..."
+              style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:80,resize:"vertical"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Status</div>
+              <select value={form.status} onChange={e=>rf("status")(e.target.value)}
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                <option value="open">🔴 Open</option>
+                <option value="resolved">✅ Resolved</option>
+              </select>
+            </div>
+            {form.status==="resolved" && (
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Resolution</div>
+                <select value={form.resolution} onChange={e=>rf("resolution")(e.target.value)}
+                  style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                  <option value="">-- Select outcome --</option>
+                  {RESOLUTIONS.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {form.status==="resolved" && (
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:4}}>Resolution Notes</div>
+              <input value={form.resolutionNotes} onChange={e=>rf("resolutionNotes")(e.target.value)} placeholder="What was the outcome? Card sent, tracking delivered, etc."
+                style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          )}
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={save} disabled={saving||!form.orderNumber}
+              style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:8,padding:"9px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",opacity:saving||!form.orderNumber?0.5:1}}>
+              {saving?"Saving...":editId?"Update":"Save Issue"}
+            </button>
+            <button onClick={()=>{setShowForm(false);setEditId(null);setForm(EMPTY);}}
+              style={{background:"transparent",border:"1px solid #2a2a2a",color:"#555",borderRadius:8,padding:"9px 18px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{display:"flex",gap:8}}>
+        {[["open","🔴 Open"],["resolved","✅ Resolved"],["all","All"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setFilter(id)} style={{background:filter===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${filter===id?"#E8317A":"#333"}`,color:filter===id?"#E8317A":"#555",borderRadius:16,padding:"5px 16px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+        <div style={{marginLeft:"auto",fontSize:11,color:"#555",display:"flex",alignItems:"center"}}>{filtered.length} issue{filtered.length!==1?"s":""}</div>
+      </div>
+
+      {/* Issues list */}
+      {loading ? <div style={{color:"#555",fontSize:12,padding:20}}>Loading...</div>
+      : filtered.length===0 ? (
+        <div style={{textAlign:"center",color:"#333",padding:"40px 0",fontSize:13}}>
+          {filter==="open" ? "🎉 No open issues — shipping is clean!" : "No issues logged yet"}
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {filtered.map(issue=>{
+            const tc = issueTypeCfg(issue.issueType);
+            const res = RESOLUTIONS.find(r=>r.id===issue.resolution);
+            return (
+              <div key={issue.id} style={{background:"#111",border:`1px solid ${issue.status==="open"?tc.color+"33":"rgba(74,222,128,0.2)"}`,borderRadius:12,padding:"14px 18px"}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                  {/* Type badge */}
+                  <div style={{background:`${tc.color}15`,border:`1px solid ${tc.color}33`,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,color:tc.color,whiteSpace:"nowrap"}}>
+                    {tc.emoji} {tc.label}
+                  </div>
+                  {/* Status */}
+                  <div style={{fontSize:11,fontWeight:700,color:issue.status==="open"?"#E8317A":"#4ade80",padding:"4px 10px",background:issue.status==="open"?"rgba(232,49,122,0.1)":"rgba(74,222,128,0.1)",borderRadius:8}}>
+                    {issue.status==="open"?"🔴 Open":"✅ Resolved"}
+                  </div>
+                  <div style={{flex:1}}/>
+                  {/* Actions */}
+                  <div style={{display:"flex",gap:6}}>
+                    {issue.status==="open" && (
+                      <button onClick={()=>{ setForm({...EMPTY,...issue,status:"resolved"}); setEditId(issue.id); setShowForm(true); }}
+                        style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>
+                        Mark Resolved
+                      </button>
+                    )}
+                    <button onClick={()=>startEdit(issue)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    <button onClick={()=>deleteIssue(issue.id)} style={{background:"none",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                  </div>
+                </div>
+                {/* Details */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:12}}>
+                  <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>ORDER</div><div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{issue.orderNumber||"—"}</div></div>
+                  <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>STREAM DATE</div><div style={{fontSize:13,color:"#AAAAAA"}}>{issue.streamDate||"—"}</div></div>
+                  <div><div style={{fontSize:10,color:"#555",marginBottom:2}}>BUYER</div><div style={{fontSize:13,color:"#AAAAAA"}}>{issue.buyerUsername||"—"}</div></div>
+                </div>
+                {issue.description && <div style={{marginTop:10,fontSize:12,color:"#888",lineHeight:1.5,borderTop:"1px solid #1a1a1a",paddingTop:10}}>{issue.description}</div>}
+                {issue.status==="resolved" && (
+                  <div style={{marginTop:10,padding:"8px 12px",background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#4ade80",marginBottom:2}}>Resolution: {res?.label||issue.resolution}</div>
+                    {issue.resolutionNotes && <div style={{fontSize:12,color:"#888"}}>{issue.resolutionNotes}</div>}
+                  </div>
+                )}
+                <div style={{marginTop:8,fontSize:10,color:"#333"}}>Logged {fmt(issue.loggedAt)}{issue.loggedBy?` by ${issue.loggedBy}`:""}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── WEEKLY REPORT ─────────────────────────────────────────────────────────────
+function WeeklyReport({ streams=[], userRole }) {
+  const isAdmin = userRole?.role === "Admin";
+  const now = new Date();
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [suggestions, setSuggestions] = useState({});
+  const [editingSug, setEditingSug] = useState(null);
+  const [editText, setEditText] = useState("");
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+
+  // Calculate week range
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - (now.getDay()===0?6:now.getDay()-1) - weekOffset*7);
+  weekStart.setHours(0,0,0,0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate()+6);
+  weekEnd.setHours(23,59,59,999);
+  const weekKey = weekStart.toISOString().split("T")[0];
+
+  // Previous week for comparison
+  const prevStart = new Date(weekStart); prevStart.setDate(prevStart.getDate()-7);
+  const prevEnd = new Date(weekEnd); prevEnd.setDate(prevEnd.getDate()-7);
+
+  function weekStreams(wStart, wEnd) {
+    return streams.filter(s=>{ const d=parseLocalDate(s.date); return d>=wStart&&d<=wEnd; });
+  }
+
+  const thisWeek = weekStreams(weekStart, weekEnd);
+  const prevWeek = weekStreams(prevStart, prevEnd);
+
+  function repStats(slist, targetBreaker=null) {
+    if (!slist.length) return {gross:0,mm:0,newBuyers:0,comm:0,streams:0};
+    const gross = slist.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList = slist.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers = slist.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const comm = slist.reduce((s,x)=>s+calcStream(x,targetBreaker).myComm,0);
+    return {gross,mm,newBuyers,comm,streams:slist.length};
+  }
+
+  const teamStats    = repStats(thisWeek);
+  const teamStatsPrev = repStats(prevWeek);
+
+  const repData = BREAKERS.map(b=>({
+    b,
+    this: repStats(thisWeek.filter(s=>s.breaker===b), b),
+    prev: repStats(prevWeek.filter(s=>s.breaker===b), b),
+  })).filter(r=>r.this.streams>0||r.prev.streams>0);
+
+  // Auto-generate suggestions from trends
+  function generateSuggestions() {
+    const sug = [];
+    repData.forEach(({b,this:t,prev:p})=>{
+      if (!t.streams) return;
+      if (t.mm>0 && p.mm>0 && t.mm < p.mm - 0.15) sug.push({id:`${b}-mm-drop`,rep:b,text:`${b}'s market multiple dropped ${(p.mm-t.mm).toFixed(2)}x week over week (${p.mm.toFixed(2)}x → ${t.mm.toFixed(2)}x). Review product mix and pricing strategy.`});
+      if (t.mm>0 && t.mm>=1.7) sug.push({id:`${b}-mm-strong`,rep:b,text:`${b} is hitting ${t.mm.toFixed(2)}x this week — strong performance. Consider increasing stream frequency if schedule allows.`});
+      if (t.newBuyers>0 && p.newBuyers>0 && t.newBuyers < p.newBuyers*0.6) sug.push({id:`${b}-nb-drop`,rep:b,text:`${b}'s new buyer count dropped significantly (${p.newBuyers} → ${t.newBuyers}). Check if stream timing or marketing could be adjusted.`});
+      if (t.streams===0 && p.streams>0) sug.push({id:`${b}-no-streams`,rep:b,text:`${b} had no streams this week. Confirm scheduling for next week.`});
+    });
+    if (teamStats.mm>0 && teamStatsPrev.mm>0 && teamStats.mm < teamStatsPrev.mm - 0.1) sug.push({id:"team-mm",rep:"Team",text:`Team avg market multiple dropped from ${teamStatsPrev.mm.toFixed(2)}x to ${teamStats.mm.toFixed(2)}x. Consider reviewing product selection across all reps.`});
+    if (teamStats.newBuyers > teamStatsPrev.newBuyers * 1.2) sug.push({id:"team-nb-up",rep:"Team",text:`Great week for new buyer acquisition — up ${((teamStats.newBuyers/Math.max(1,teamStatsPrev.newBuyers)-1)*100).toFixed(0)}% week over week. Double down on what's working.`});
+    return sug;
+  }
+
+  const autoSuggestions = generateSuggestions();
+  const savedSuggestions = suggestions[weekKey] || {};
+  // Merge: auto suggestions that haven't been deleted
+  const activeSuggestions = [
+    ...autoSuggestions.filter(s=>savedSuggestions[s.id]!=="deleted").map(s=>({...s, text:savedSuggestions[s.id]||s.text})),
+    ...Object.entries(savedSuggestions).filter(([k,v])=>v!=="deleted"&&!autoSuggestions.find(s=>s.id===k)).map(([k,v])=>({id:k,rep:"Custom",text:v}))
+  ];
+
+  function deleteSug(id) { setSuggestions(p=>({...p,[weekKey]:{...(p[weekKey]||{}), [id]:"deleted"}})); }
+  function saveSugEdit(id) { setSuggestions(p=>({...p,[weekKey]:{...(p[weekKey]||{}), [id]:editText}})); setEditingSug(null); }
+  function addCustomSug() {
+    const id=`custom-${uid()}`;
+    setSuggestions(p=>({...p,[weekKey]:{...(p[weekKey]||{}), [id]:"New suggestion — click to edit"}}));
+  }
+
+  const change = (a,b,key) => a[key]&&b[key] ? ((a[key]-b[key])/Math.max(0.01,b[key])*100).toFixed(0) : null;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16,paddingBottom:40}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>📋 Weekly Report</div>
+          <div style={{fontSize:12,color:"#555",marginTop:2}}>
+            {weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – {weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={()=>setWeekOffset(p=>p+1)} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#555",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>← Prev</button>
+          {weekOffset>0&&<button onClick={()=>setWeekOffset(0)} style={{background:"#1a1a1a",border:"1px solid #E8317A",color:"#E8317A",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>This Week</button>}
+          <button onClick={()=>setWeekOffset(p=>Math.max(0,p-1))} disabled={weekOffset===0} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:weekOffset===0?"#333":"#555",borderRadius:8,padding:"6px 12px",cursor:weekOffset===0?"default":"pointer",fontFamily:"inherit",fontSize:12}}>Next →</button>
+          <button onClick={()=>window.print()} style={{background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:8,padding:"6px 16px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>🖨 Print</button>
+        </div>
+      </div>
+
+      {thisWeek.length===0 && <div style={{textAlign:"center",color:"#333",padding:"40px",fontSize:13}}>No streams logged for this week</div>}
+
+      {thisWeek.length>0 && <>
+        {/* Team summary */}
+        <div style={{background:"linear-gradient(135deg,#0d0d1a,#111)",border:"1px solid #1a1a2e",borderRadius:14,padding:"20px 24px"}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>🏆 Team Summary</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
+            {[
+              {l:"Total Gross",     v:fmt(teamStats.gross),   prev:fmt(teamStatsPrev.gross),   chg:change(teamStats,teamStatsPrev,"gross"),  c:"#E8317A"},
+              {l:"Avg MM",          v:teamStats.mm?teamStats.mm.toFixed(2)+"x":"--", prev:teamStatsPrev.mm?teamStatsPrev.mm.toFixed(2)+"x":"--", chg:change(teamStats,teamStatsPrev,"mm"), c:mmColor(teamStats.mm)},
+              {l:"New Buyers",      v:teamStats.newBuyers,    prev:teamStatsPrev.newBuyers,    chg:change(teamStats,teamStatsPrev,"newBuyers"),c:"#4ade80"},
+              {l:"Commission Owed", v:fmt(teamStats.comm),    prev:fmt(teamStatsPrev.comm),    chg:null,                                      c:"#4ade80"},
+              {l:"Streams",         v:teamStats.streams,      prev:teamStatsPrev.streams,      chg:null,                                      c:"#F0F0F0"},
+            ].map(({l,v,prev,chg,c})=>(
+              <div key={l} style={{background:"#0d0d0d",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
+                <div style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{l}</div>
+                {prev&&<div style={{fontSize:10,color:"#333",marginTop:2}}>prev: {prev}{chg!==null?<span style={{color:chg>=0?"#4ade80":"#E8317A",marginLeft:4}}>{chg>=0?"+":""}{chg}%</span>:null}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Per-rep cards */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+          {repData.map(({b,this:t,prev:p})=>{
+            const bc = BC[b]?.text||"#E8317A";
+            const mmChg = t.mm&&p.mm ? t.mm-p.mm : null;
+            return (
+              <div key={b} style={{background:"#111",border:`1px solid ${bc}22`,borderRadius:12,padding:"16px 18px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontSize:15,fontWeight:900,color:bc}}>{b}</div>
+                  <div style={{fontSize:11,color:"#555"}}>{t.streams} stream{t.streams!==1?"s":""}</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                  {[
+                    {l:"Gross",      v:fmt(t.gross),          pv:fmt(p.gross)},
+                    {l:"Avg MM",     v:t.mm?t.mm.toFixed(2)+"x":"--", pv:p.mm?p.mm.toFixed(2)+"x":"--", color:t.mm?mmColor(t.mm):"#555"},
+                    {l:"New Buyers", v:t.newBuyers,           pv:p.newBuyers},
+                    {l:"Commission", v:fmt(t.comm),           pv:fmt(p.comm)},
+                  ].map(({l,v,pv,color})=>(
+                    <div key={l} style={{background:"#0d0d0d",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:14,fontWeight:900,color:color||"#F0F0F0"}}>{v}</div>
+                      <div style={{fontSize:9,color:"#555",textTransform:"uppercase",marginTop:2}}>{l}</div>
+                      {pv!==undefined&&<div style={{fontSize:9,color:"#333",marginTop:1}}>prev: {pv}</div>}
+                    </div>
+                  ))}
+                </div>
+                {mmChg!==null&&<div style={{marginTop:8,fontSize:11,color:mmChg>=0?"#4ade80":"#E8317A",fontWeight:700}}>{mmChg>=0?"▲":"▼"} {Math.abs(mmChg).toFixed(2)}x vs last week</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Suggestions */}
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>💡 Coaching Notes & Action Items</div>
+            <button onClick={addCustomSug} style={{background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",color:"#E8317A",borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Add Note</button>
+          </div>
+          {activeSuggestions.length===0 ? <div style={{color:"#333",fontSize:12,textAlign:"center",padding:"16px 0"}}>No notes for this week — add one above</div> :
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {activeSuggestions.map(s=>{
+              const bc = s.rep&&BC[s.rep]?.text||"#FBBF24";
+              return (
+                <div key={s.id} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"10px 14px",background:"#0d0d0d",borderRadius:8,border:`1px solid ${bc}22`}}>
+                  {s.rep&&s.rep!=="Team"&&s.rep!=="Custom"&&<div style={{fontSize:11,fontWeight:700,color:bc,minWidth:60,paddingTop:2}}>{s.rep}</div>}
+                  {editingSug===s.id ? (
+                    <div style={{flex:1,display:"flex",gap:8}}>
+                      <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{flex:1,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"6px 10px",fontSize:12,fontFamily:"inherit",minHeight:60,resize:"vertical"}}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <button onClick={()=>saveSugEdit(s.id)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
+                        <button onClick={()=>setEditingSug(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{flex:1,fontSize:12,color:"#AAAAAA",lineHeight:1.6}}>{s.text}</div>
+                      <div style={{display:"flex",gap:4,flexShrink:0}}>
+                        <button onClick={()=>{setEditingSug(s.id);setEditText(s.text);}} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✏️</button>
+                        <button onClick={()=>deleteSug(s.id)} style={{background:"none",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>}
+        </div>
+      </>}
+    </div>
+  );
+}
+
 // ── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
 function BrandFilter({ brand, setBrand }) {
   return (
@@ -20251,6 +20683,7 @@ export default function App() {
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
+    { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
@@ -20446,6 +20879,7 @@ export default function App() {
                 ],
                 "performance": [
                   {label:"📊 Stats",          sub:"Team recap & breaker stats",   action:()=>{setTab("performance");setPeriodDefault("month");setStreamTabDefault("stats");setHoverTab(null);}},
+                  {label:"📋 Weekly Report",     sub:"Team meeting summary",          action:()=>{setTab("performance");setPerfTabDefault("weekly");setHoverTab(null);}},
                   {label:"🏆 Rep Report Card", sub:"Weekly 1-on-1 review tool",    action:()=>{setTab("performance");setPerfTabDefault("reportcard");setHoverTab(null);}},
                   {label:"🥇 Leaderboard",     sub:"Live rep rankings",             action:()=>{setTab("performance");setPerfTabDefault("leaderboard");setHoverTab(null);}},
                   {label:"📈 MM Trend",         sub:"Market multiple over time",     action:()=>{setTab("performance");setPerfTabDefault("mmtrend");setHoverTab(null);}},
@@ -20499,6 +20933,7 @@ export default function App() {
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole}/>}
+        {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
       </div>
     </div>
