@@ -10816,9 +10816,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
     const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-    acc.gross     += isEventOnly ? 0 : c.gross;
-    acc.net       += isEventOnly ? 0 : c.netRev;
-    acc.baz       += isEventOnly ? 0 : c.bazNet;
+    const ownStream = !isEventOnly && !isSplitRep;
+    acc.gross     += ownStream ? c.gross : 0;
+    acc.net       += ownStream ? c.netRev : 0;
+    acc.baz       += ownStream ? c.bazNet : 0;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
                    : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (!targetBreaker ? (c.splitRepAmt||0) + (c.eventStaffAmt||0) : 0);
@@ -11088,15 +11089,17 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
 
             function inStubPeriod(dateStr) {
-              // Parse date string as local time (not UTC) to avoid timezone shift
               const parts = dateStr.split("-");
               const d = parts.length === 3
                 ? new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 12, 0, 0)
                 : new Date(dateStr);
               if (stubPeriod === "week") return d >= weekStart && d <= weekEnd;
               if (stubPeriod === "custom" && stubFrom && stubTo) {
-                const f = new Date(stubFrom); f.setHours(0,0,0,0);
-                const t = new Date(stubTo);   t.setHours(23,59,59,999);
+                const fp = stubFrom.split("-");
+                const tp = stubTo.split("-");
+                const f = fp.length===3 ? new Date(parseInt(fp[0]),parseInt(fp[1])-1,parseInt(fp[2]),0,0,0) : new Date(stubFrom);
+                const t = tp.length===3 ? new Date(parseInt(tp[0]),parseInt(tp[1])-1,parseInt(tp[2]),23,59,59) : new Date(stubTo);
+                t.setHours(23,59,59,999);
                 return d >= f && d <= t;
               }
               return false;
@@ -11117,7 +11120,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               return { ...c, isEventOnly, isSplitRep };
             };
 
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); acc.gross+=c.isEventOnly?0:c.gross; acc.baz+=c.isEventOnly?0:c.bazNet; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=c.bazTrueNet; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
+            // Exclude event-only AND split-rep streams from gross/baz totals — only own streams count
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); const ownStream=!c.isEventOnly&&!c.isSplitRep; acc.gross+=ownStream?c.gross:0; acc.baz+=ownStream?c.bazNet:0; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=ownStream?c.bazTrueNet:0; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
