@@ -9,6 +9,13 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","Orbital Society"];
+const OFFICE_STAFF = [
+  { id:"devin",   name:"Devin",   color:"#E8317A", role:"CEO" },
+  { id:"dre",     name:"Dre",     color:"#C084FC", role:"Streamer" },
+  { id:"krystal", name:"Krystal", color:"#2DD4BF", role:"Streamer" },
+  { id:"jake",    name:"Jake",    color:"#FBBF24", role:"Shipping" },
+  { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
+];
 const FLAT_RATE_BREAKERS = ["Orbital Society"]; // 50/50 split, not tiered
 
 function getRate(s) {
@@ -44,6 +51,7 @@ const ROLES = {
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
+  "cameron": { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
 const TARGETS = {
   "Giveaway Cards":   { monthly:2000, buffer:300 },
@@ -375,7 +383,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments }) {
+function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments, plannedStreams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
@@ -530,6 +538,56 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           </div>
         );
       })}
+
+      {/* -- UPCOMING STREAMS (reps only) -- */}
+      {!canSeeFinancials && myBreaker && (() => {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const in7 = new Date(today); in7.setDate(today.getDate()+7);
+        const upcoming = plannedStreams
+          .filter(p => {
+            const d = parseLocalDate(p.date);
+            return d >= today && d <= in7 && p.breaker === myBreaker;
+          })
+          .sort((a,b) => a.date.localeCompare(b.date));
+        if (!upcoming.length) return (
+          <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:14, padding:"18px 20px" }}>
+            <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>📅 Your Next 7 Days</div>
+            <div style={{ fontSize:12, color:"#333", padding:"16px 0", textAlign:"center" }}>No streams scheduled — check with your team</div>
+          </div>
+        );
+        return (
+          <div style={{ background:"#111", border:"1px solid #1a1a2e", borderRadius:14, padding:"18px 20px" }}>
+            <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:14 }}>📅 Your Next 7 Days · <span style={{ color:"#555", fontWeight:400 }}>{upcoming.length} stream{upcoming.length!==1?"s":""} scheduled</span></div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {upcoming.map((p,i) => {
+                const d = parseLocalDate(p.date);
+                const isToday = d.toDateString() === new Date().toDateString();
+                const isTomorrow = d.toDateString() === new Date(Date.now()+86400000).toDateString();
+                const dayLabel = isToday ? "🔴 Today" : isTomorrow ? "🟡 Tomorrow" : d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                const sessionIcon = {day:"☀️",night:"🌙",weekend:"📅",event:"🎉"}[p.sessionType]||"📺";
+                const bc = BC[p.breaker]?.text || "#E8317A";
+                return (
+                  <div key={p.id||i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:isToday?"rgba(232,49,122,0.06)":"#0d0d0d", border:`1px solid ${isToday?"rgba(232,49,122,0.3)":"#1a1a1a"}`, borderRadius:10 }}>
+                    <div style={{ fontSize:22 }}>{sessionIcon}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{p.streamName||p.breaker}</div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+                        {p.startTime && <span style={{ color:"#AAAAAA", marginRight:8 }}>🕐 {p.startTime}{p.endTime?` – ${p.endTime}`:""}</span>}
+                        {p.sessionType && <span style={{ marginRight:8 }}>{p.sessionType}</span>}
+                        {p.sets && p.sets.length > 0 && <span style={{ color:"#7B9CFF" }}>{p.sets.join(", ")}</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:isToday?"#E8317A":"#FBBF24" }}>{dayLabel}</div>
+                      {p.notes && <div style={{ fontSize:10, color:"#555", marginTop:2, maxWidth:120, textAlign:"right" }}>{p.notes}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* -- PAY STUB NOTIFICATIONS -- */}
       {myStubs.length > 0 && myStubs.map(stub => (
@@ -7521,7 +7579,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return { gross, netRev, splitBase, bazNet, imcNet, commAmt, imcReimb:0, bazTrueNet, rate };
   }
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"", staffOnDuty:[], startTime:"", endTime:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -8027,7 +8085,16 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       display:"flex",alignItems:"center",gap:3,
                     }}>
                       {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}{p.startTime?` · ${p.startTime}`:""}{p.endTime?`–${p.endTime}`:""}</span>
+                      {/* Staff dots */}
+                      {(p.staffOnDuty||[]).length>0 && canSeeFinancials && (
+                        <div style={{display:"flex",gap:2,marginLeft:"auto",flexShrink:0}}>
+                          {(p.staffOnDuty||[]).slice(0,3).map(sid=>{
+                            const s=OFFICE_STAFF.find(x=>x.id===sid);
+                            return s?<div key={sid} title={s.name} style={{width:4,height:4,borderRadius:"50%",background:s.color}}/>:null;
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -8405,6 +8472,51 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   }
 
   // -- Tomorrow Alert --
+  // Burnout detection — flag anyone working 7+ consecutive days
+  function getBurnoutAlerts() {
+    const alerts = [];
+    OFFICE_STAFF.forEach(staff => {
+      // Get all dates this person is scheduled (planned streams they're on duty for)
+      const workDates = plannedStreams
+        .filter(p => (p.staffOnDuty||[]).includes(staff.id) || (staff.id==="dre"&&p.breaker==="Dre") || (staff.id==="krystal"&&p.breaker==="Krystal") || (staff.id==="devin"&&(p.breaker==="Dev"||p.breaker==="Devin")))
+        .map(p => p.date)
+        .sort();
+      if (workDates.length < 7) return;
+      // Find consecutive streaks
+      let streak = 1, maxStreak = 1, streakStart = workDates[0];
+      for (let i = 1; i < workDates.length; i++) {
+        const prev = new Date(workDates[i-1]+"T12:00:00");
+        const curr = new Date(workDates[i]+"T12:00:00");
+        const diff = (curr - prev) / (1000*60*60*24);
+        if (diff === 1) { streak++; if (streak > maxStreak) { maxStreak = streak; streakStart = workDates[i-streak+1]; } }
+        else { streak = 1; }
+      }
+      if (maxStreak >= 7) alerts.push({ staff, streak:maxStreak, startDate:streakStart });
+    });
+    return alerts;
+  }
+
+  function renderBurnoutAlerts() {
+    if (!canSeeFinancials) return null;
+    const alerts = getBurnoutAlerts();
+    if (!alerts.length) return null;
+    return (
+      <div style={{background:"rgba(239,68,68,0.06)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:12,padding:"14px 18px",marginBottom:14}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#ef4444",marginBottom:10}}>⚠️ Burnout Risk — Extended Schedules Detected</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {alerts.map(({staff,streak,startDate})=>(
+            <div key={staff.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 12px",background:"rgba(239,68,68,0.05)",borderRadius:8}}>
+              <div style={{width:10,height:10,borderRadius:"50%",background:staff.color,flexShrink:0}}/>
+              <div style={{flex:1,fontSize:13,color:"#F0F0F0",fontWeight:700}}>{staff.name}</div>
+              <div style={{fontSize:12,color:"#ef4444",fontWeight:700}}>{streak} consecutive days</div>
+              <div style={{fontSize:11,color:"#555"}}>starting {new Date(startDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   function renderTomorrowAlert() {
     const tmrw = new Date(today); tmrw.setDate(today.getDate()+1);
     const tmrwStr = dateStr(tmrw.getFullYear(), tmrw.getMonth(), tmrw.getDate());
@@ -9390,6 +9502,16 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 </select>
               </div>
             </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>🕐 Start Time</div>
+                <input type="time" value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>🕑 End Time</div>
+                <input type="time" value={form.endTime||""} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}/>
+              </div>
+            </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Stream Name (optional)</div>
               <input value={form.streamName} onChange={e=>setForm(p=>({...p,streamName:e.target.value}))} placeholder="e.g. Friday Night Break #12" style={S2.inp}/>
@@ -9431,6 +9553,22 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#555",marginBottom:4}}>Notes</div>
               <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes..." style={S2.inp}/>
+            </div>
+
+            {/* Staff on Duty */}
+            <div style={{marginBottom:14,padding:"12px 14px",background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#FBBF24",marginBottom:10}}>👥 Staff on Duty</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {OFFICE_STAFF.map(s=>{
+                  const active=(form.staffOnDuty||[]).includes(s.id);
+                  return (
+                    <button key={s.id} onClick={()=>setForm(p=>({...p,staffOnDuty:active?(p.staffOnDuty||[]).filter(x=>x!==s.id):[...(p.staffOnDuty||[]),s.id]}))}
+                      style={{background:active?`${s.color}22`:"transparent",color:active?s.color:"#555",border:`1.5px solid ${active?s.color:"#333"}`,borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      {s.name} <span style={{fontSize:9,opacity:0.7}}>{s.role}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Repeat section — only for new events */}
@@ -9686,17 +9824,18 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
       {viewMode==="month"&&(
         <>
+          {renderBurnoutAlerts()}
           {renderTomorrowAlert()}
-          {renderPaceReport()}
-          {renderMonthProjection()}
-          {renderStreamScorecard()}
+          {canSeeFinancials && renderPaceReport()}
+          {canSeeFinancials && renderMonthProjection()}
+          {canSeeFinancials && renderStreamScorecard()}
           {renderCalendar(curYear,curMonth)}
-          {renderBestDayPredictor()}
-          {renderRevenueTiers()}
-          {renderGapAdvisor()}
-          {renderProductSummary()}
-          {renderMonthSummary()}
-          {renderInventoryNeeds()}
+          {canSeeFinancials && renderBestDayPredictor()}
+          {canSeeFinancials && renderRevenueTiers()}
+          {canSeeFinancials && renderGapAdvisor()}
+          {canSeeFinancials && renderProductSummary()}
+          {canSeeFinancials && renderMonthSummary()}
+          {canSeeFinancials && renderInventoryNeeds()}
         </>
       )}
 
@@ -10493,7 +10632,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"cards",      label:"\uD83C\uDCCF Log Cards",        roles:["Admin","Streamer","Shipping","StreamerLite"] },
     { id:"commission", label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
     { id:"planner",    label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Stream Calendar",  roles:["Admin","Streamer","StreamerLite"] },
+    { id:"calendar",   label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",  label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
@@ -20291,7 +20430,7 @@ export default function App() {
                   {label:"\uD83D\uDCCB Stream Recap",sub:"Log & review streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
-                  {label:"\uD83D\uDCC5 Stream Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
+                  {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
                 ],
                 "buyers": [
@@ -20347,7 +20486,7 @@ export default function App() {
       </div>
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
-        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments}/>}
+        {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
