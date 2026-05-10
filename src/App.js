@@ -20104,7 +20104,7 @@ export default function App() {
     { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
-    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
+    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
