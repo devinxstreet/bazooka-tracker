@@ -20081,9 +20081,13 @@ function Finance({ streams=[], userRole }) {
   // Month data
   const monthExp = expenses.filter(e => e.date?.startsWith(selMonth));
   const monthStreams = streams.filter(s => s.date?.startsWith(selMonth));
-  const grossIn = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0), 0);
-  const totalOut = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
-  const cashFlow = grossIn - totalOut;
+  const grossIn     = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0), 0);
+  const totalFees   = monthStreams.reduce((s,str) => s + (parseFloat(str.whatnotFees)||0), 0);
+  const totalCoupons= monthStreams.reduce((s,str) => s + (parseFloat(str.coupons)||0), 0);
+  const totalStreamExp = monthStreams.reduce((s,str) => s + (parseFloat(str.whatnotPromo)||0)+(parseFloat(str.magpros)||0)+(parseFloat(str.packagingMaterial)||0)+(parseFloat(str.topLoaders)||0)+(parseFloat(str.chaserCards)||0), 0);
+  const netRevIn    = grossIn - totalFees - totalCoupons - totalStreamExp;
+  const totalOut    = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
+  const cashFlow    = netRevIn - totalOut;
   const byCategory = EXPENSE_CATEGORIES.map(cat => ({
     cat, total: monthExp.filter(e=>e.category===cat).reduce((s,e)=>s+(parseFloat(e.amount)||0),0)
   })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
@@ -20118,7 +20122,7 @@ function Finance({ streams=[], userRole }) {
   const last6 = months.slice(0,6).reverse();
   const chartData = last6.map(m => {
     const mStreams = streams.filter(s=>s.date?.startsWith(m));
-    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0),0);
+    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)-(parseFloat(str.whatnotFees)||0)-(parseFloat(str.coupons)||0)-(parseFloat(str.whatnotPromo)||0)-(parseFloat(str.magpros)||0)-(parseFloat(str.packagingMaterial)||0)-(parseFloat(str.topLoaders)||0)-(parseFloat(str.chaserCards)||0),0);
     const mOut = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     const label = new Date(m+"-15").toLocaleDateString("en-US",{month:"short",year:"2-digit"});
     return { m, label, mIn, mOut, net:mIn-mOut };
@@ -20147,18 +20151,30 @@ function Finance({ streams=[], userRole }) {
       </div>
 
       {/* KPI tiles */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-        {[
-          {label:"Gross Revenue In",  val:fmt(grossIn),   color:"#4ade80",  sub:`${monthStreams.length} streams`},
-          {label:"Total Cash Out",    val:fmt(totalOut),  color:"#E8317A",  sub:`${monthExp.length} expenses`},
-          {label:"Net Cash Flow",     val:fmt(cashFlow),  color:cashColor,  sub:cashFlow>=0?"Positive ✓":"Negative ⚠"},
-        ].map(({label,val,color,sub})=>(
-          <div key={label} style={{background:"#111",border:`2px solid ${color}22`,borderRadius:12,padding:"18px 20px",textAlign:"center"}}>
-            <div style={{fontSize:28,fontWeight:900,color}}>{val}</div>
-            <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{label}</div>
-            <div style={{fontSize:11,color:"#444",marginTop:2}}>{sub}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:4}}>
+        <div style={{background:"#111",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:"16px 20px"}}>
+          <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Gross Revenue</div>
+          <div style={{fontSize:26,fontWeight:900,color:"#F0F0F0"}}>{fmt(grossIn)}</div>
+          <div style={{fontSize:11,color:"#555",marginTop:4}}>{monthStreams.length} streams</div>
+          <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Whatnot Fees</span><span style={{color:"#991b1b"}}>−{fmt(totalFees)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Coupons</span><span style={{color:"#991b1b"}}>−{fmt(totalCoupons)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Stream Expenses</span><span style={{color:"#991b1b"}}>−{fmt(totalStreamExp)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,borderTop:"1px solid #1a1a1a",paddingTop:4,marginTop:2}}><span style={{color:"#4ade80"}}>= Net Revenue In</span><span style={{color:"#4ade80"}}>{fmt(netRevIn)}</span></div>
           </div>
-        ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{background:"#111",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"16px 20px",textAlign:"center"}}>
+            <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Total Cash Out</div>
+            <div style={{fontSize:24,fontWeight:900,color:"#E8317A"}}>{fmt(totalOut)}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:4}}>{monthExp.length} expenses</div>
+          </div>
+          <div style={{background:"#111",border:`2px solid ${cashFlow>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:12,padding:"16px 20px",textAlign:"center"}}>
+            <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Net Cash Flow</div>
+            <div style={{fontSize:24,fontWeight:900,color:cashFlow>=0?"#4ade80":"#ef4444"}}>{fmt(cashFlow)}</div>
+            <div style={{fontSize:11,color:cashFlow>=0?"#4ade80":"#ef4444",marginTop:4}}>{cashFlow>=0?"Positive ✓":"Negative ⚠"}</div>
+          </div>
+        </div>
       </div>
 
       {/* Bar chart */}
