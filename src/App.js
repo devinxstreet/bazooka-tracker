@@ -20088,8 +20088,7 @@ function Finance({ streams=[], userRole }) {
   const grossIn     = monthStreams.reduce((s,str) => s + (parseFloat(str.grossRevenue)||0), 0);
   const totalFees   = monthStreams.reduce((s,str) => s + (parseFloat(str.whatnotFees)||0), 0);
   const totalCoupons= monthStreams.reduce((s,str) => s + (parseFloat(str.coupons)||0), 0);
-  const totalStreamExp = monthStreams.reduce((s,str) => s + (parseFloat(str.whatnotPromo)||0)+(parseFloat(str.magpros)||0)+(parseFloat(str.packagingMaterial)||0)+(parseFloat(str.topLoaders)||0)+(parseFloat(str.chaserCards)||0), 0);
-  const netRevIn    = grossIn - totalFees - totalCoupons - totalStreamExp;
+  const netRevIn    = grossIn - totalFees - totalCoupons;
   const totalOut    = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
   const cashFlow    = netRevIn - totalOut;
   const byCategory = EXPENSE_CATEGORIES.map(cat => ({
@@ -20126,7 +20125,7 @@ function Finance({ streams=[], userRole }) {
   const last6 = months.slice(0,6).reverse();
   const chartData = last6.map(m => {
     const mStreams = streams.filter(s=>s.date?.startsWith(m));
-    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)-(parseFloat(str.whatnotFees)||0)-(parseFloat(str.coupons)||0)-(parseFloat(str.whatnotPromo)||0)-(parseFloat(str.magpros)||0)-(parseFloat(str.packagingMaterial)||0)-(parseFloat(str.topLoaders)||0)-(parseFloat(str.chaserCards)||0),0);
+    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)-(parseFloat(str.whatnotFees)||0)-(parseFloat(str.coupons)||0),0);
     const mOut = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     const label = new Date(m+"-15").toLocaleDateString("en-US",{month:"short",year:"2-digit"});
     return { m, label, mIn, mOut, net:mIn-mOut };
@@ -20163,7 +20162,6 @@ function Finance({ streams=[], userRole }) {
           <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Whatnot Fees</span><span style={{color:"#991b1b"}}>−{fmt(totalFees)}</span></div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Coupons</span><span style={{color:"#991b1b"}}>−{fmt(totalCoupons)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>− Stream Expenses</span><span style={{color:"#991b1b"}}>−{fmt(totalStreamExp)}</span></div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,borderTop:"1px solid #1a1a1a",paddingTop:4,marginTop:2}}><span style={{color:"#4ade80"}}>= Net Revenue In</span><span style={{color:"#4ade80"}}>{fmt(netRevIn)}</span></div>
           </div>
         </div>
