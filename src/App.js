@@ -10820,9 +10820,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
-    acc.comm      += isEventOnly ? myEventFee
-                   : isSplitRep ? (c.splitRepAmt||0)
-                   : !targetBreaker ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + (c.eventStaffAmt||0)
+    acc.comm      += !targetBreaker
+                   ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + (c.eventStaffAmt||0)
                    : c.myComm;
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
