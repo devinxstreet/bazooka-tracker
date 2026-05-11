@@ -35,14 +35,14 @@ function calcStream(s, targetBreaker=null) {
   const primaryCommAmt = s.splitRep ? commAmt*splitPct : commAmt;
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
   const bazTrueNet    = bazNet - commAmt - collabAmt - eventStaffAmt + imcReimb + imcDirectReimb;
-  let myComm = primaryCommAmt - repExpShare + salesBonus + tips;
+  let myComm = primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep  = s.splitRep === targetBreaker;
     myComm = isEventOnly ? Math.min(1000, bazNet*0.15)
-           : isSplitRep  ? splitRepAmt
-           : primaryCommAmt - repExpShare + salesBonus + tips;
+           : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
+           : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet };
 }
@@ -19874,13 +19874,14 @@ function WeeklyReport({ streams=[], userRole }) {
 
   function repStats(slist, targetBreaker=null) {
     if (!slist.length) return {gross:0,mm:0,newBuyers:0,comm:0,streams:0,trueNet:0};
-    const gross = slist.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
-    const mmList = slist.filter(x=>parseFloat(x.marketMultiple)>0);
+    const own = targetBreaker ? slist.filter(s=>s.breaker===targetBreaker) : slist;
+    const gross = own.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList = own.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
-    const newBuyers = slist.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    const newBuyers = own.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
     const comm = slist.reduce((s,x)=>s+calcStream(x,targetBreaker).myComm,0);
-    const trueNet = slist.reduce((s,x)=>s+(calcStream(x).bazTrueNet||0),0);
-    return {gross,mm,newBuyers,comm,streams:slist.length,trueNet};
+    const trueNet = own.reduce((s,x)=>s+(calcStream(x).bazTrueNet||0),0);
+    return {gross,mm,newBuyers,comm,streams:own.length,trueNet};
   }
 
   const teamStats    = repStats(thisWeek);
@@ -19888,8 +19889,8 @@ function WeeklyReport({ streams=[], userRole }) {
 
   const repData = BREAKERS.map(b=>({
     b,
-    this: repStats(thisWeek.filter(s=>s.breaker===b), b),
-    prev: repStats(prevWeek.filter(s=>s.breaker===b), b),
+    this: repStats(thisWeek.filter(s=>s.breaker===b||(s.eventStaff||[]).some(es=>es.breaker===b)||s.splitRep===b), b),
+    prev: repStats(prevWeek.filter(s=>s.breaker===b||(s.eventStaff||[]).some(es=>es.breaker===b)||s.splitRep===b), b),
   })).filter(r=>r.this.streams>0||r.prev.streams>0);
 
   // Auto-generate suggestions from trends
