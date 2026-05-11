@@ -19878,7 +19878,9 @@ function WeeklyReport({ streams=[], userRole }) {
     const mmList = own.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
     const newBuyers = own.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
-    const comm = slist.reduce((s,x)=>s+calcStream(x,targetBreaker).myComm,0);
+    const comm = targetBreaker
+      ? slist.reduce((s,x)=>s+calcStream(x,targetBreaker).myComm,0)
+      : slist.reduce((s,x)=>{ const c=calcStream(x); return s+c.primaryCommAmt-c.repExpShare+c.salesBonus+c.tips+c.splitRepAmt+c.eventStaffAmt; },0);
     const trueNet = own.reduce((s,x)=>s+(calcStream(x).bazTrueNet||0),0);
     return {gross,mm,newBuyers,comm,streams:own.length,trueNet};
   }
