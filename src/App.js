@@ -4923,6 +4923,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   }
 
   const filtered = buyers.filter(b => {
+    if (!buyerInPeriod(b)) return false;
     if (filterNew && !b.isNew) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -4940,9 +4941,9 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     return 0;
   });
 
-  const totalBuyers   = buyers.length;
-  const totalRevenue  = buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
-  const newBuyers     = buyers.filter(b=>b.isNew).length;
+  const totalBuyers   = filtered.length;
+  const totalRevenue  = filtered.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const newBuyers     = filtered.filter(b=>b.isNew).length;
   const avgSpend      = totalBuyers > 0 ? totalRevenue/totalBuyers : 0;
 
   // State breakdown
