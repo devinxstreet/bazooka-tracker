@@ -35,14 +35,14 @@ function calcStream(s, targetBreaker=null) {
   const primaryCommAmt = s.splitRep ? commAmt*splitPct : commAmt;
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
   const bazTrueNet    = bazNet - commAmt - collabAmt - eventStaffAmt + imcReimb + imcDirectReimb;
-  let myComm = primaryCommAmt - repExpShare + salesBonus;
+  let myComm = primaryCommAmt - repExpShare + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep  = s.splitRep === targetBreaker;
     myComm = isEventOnly ? Math.min(1000, bazNet*0.15)
            : isSplitRep  ? splitRepAmt
-           : primaryCommAmt - repExpShare + salesBonus;
+           : primaryCommAmt - repExpShare + salesBonus + tips;
   }
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet };
 }
@@ -716,7 +716,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const eventStaffComm = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,c.bazNet*0.15),0);
           acc.gross    += c.gross;
           acc.imc      += c.imcNet;
-          acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0);
+          acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0) + (c.tips||0);
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
@@ -10822,8 +10822,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.baz       += ownStream ? c.bazNet : 0;
     acc.comm      += isEventOnly ? myEventFee
                    : isSplitRep ? (c.splitRepAmt||0)
-                   : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (!targetBreaker ? (c.splitRepAmt||0) + (c.eventStaffAmt||0) : 0);
-    acc.trueNet   += isEventOnly ? 0 : (c.bazTrueNet||0);
+                   : !targetBreaker ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + (c.eventStaffAmt||0)
+                   : c.myComm;
+    acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     if (!isEventOnly && parseFloat(s.marketMultiple) > 0) {
