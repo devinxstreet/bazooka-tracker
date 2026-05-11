@@ -3993,7 +3993,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       }
                       // Use actual stream Firestore ID so multiple streams on same day don't collide
                       const streamId = editingStreamId || `${breaker}_${streamDate}`;
-                      onUpsertBuyers(Object.values(buyerMap), streamId, file.name);
+                      // Simple content hash to detect duplicate file imports
+                      let hash = 0;
+                      for (let i=0; i<ev.target.result.length; i++) hash = ((hash<<5)-hash)+ev.target.result.charCodeAt(i);
+                      hash = Math.abs(hash).toString(36);
+                      onUpsertBuyers(Object.values(buyerMap), streamId, file.name, hash);
                     }
                   } catch(err) { setCsvMsg({ type:"error", text:"Could not parse CSV. Make sure it's a Whatnot live sales export." }); }
                 };
@@ -4873,7 +4877,50 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   useEffect(()=>{setActiveTab(defaultTab);},[defaultTab]);
   const [selectedState, setSelectedState] = useState(null);
 
+  // Export filters
+  const [exportPeriod,  setExportPeriod]  = useState("all");
+  const [exportFrom,    setExportFrom]    = useState("");
+  const [exportTo,      setExportTo]      = useState("");
+  const now = new Date();
+
   const fmt = n => `$${(parseFloat(n)||0).toFixed(2)}`;
+
+  function buyerInPeriod(b) {
+    if (exportPeriod === "all") return true;
+    const d = b.lastSeen || b.firstSeen || "";
+    if (!d) return false;
+    const dt = new Date(d + "T12:00:00");
+    if (exportPeriod === "month")   return dt.getMonth()===now.getMonth()&&dt.getFullYear()===now.getFullYear();
+    if (exportPeriod === "quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(dt.getMonth()/3)===q&&dt.getFullYear()===now.getFullYear(); }
+    if (exportPeriod === "year")    return dt.getFullYear()===now.getFullYear();
+    if (exportPeriod === "custom"&&exportFrom&&exportTo) {
+      const f=new Date(exportFrom+"T00:00:00"), t=new Date(exportTo+"T23:59:59");
+      return dt>=f&&dt<=t;
+    }
+    return true;
+  }
+
+  function exportCSV() {
+    const rows = buyers.filter(buyerInPeriod).sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0));
+    const headers = ["Username","Full Name","City","State","ZIP","Total Spend","Order Count","First Seen","Last Seen","New Buyer"];
+    const lines = [headers.join(","), ...rows.map(b=>[
+      `"${b.username||""}"`,
+      `"${b.fullName||""}"`,
+      `"${b.city||""}"`,
+      `"${b.state||""}"`,
+      `"${b.zip||""}"`,
+      (b.totalSpend||0).toFixed(2),
+      b.orderCount||0,
+      `"${b.firstSeen||""}"`,
+      `"${b.lastSeen||""}"`,
+      b.isNew?"Yes":"No",
+    ].join(","))];
+    const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=`bazooka-buyers-${exportPeriod}-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
 
   const filtered = buyers.filter(b => {
     if (filterNew && !b.isNew) return false;
@@ -4952,10 +4999,29 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
         ))}
       </div>
       {isAdmin && buyers.length > 0 && (
-        <div style={{ display:"flex", justifyContent:"flex-end" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+          {/* Export controls */}
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:"#555", fontWeight:700 }}>Export:</span>
+            {[["all","All Time"],["month","This Month"],["quarter","This Quarter"],["year","This Year"],["custom","Custom"]].map(([id,l])=>(
+              <button key={id} onClick={()=>setExportPeriod(id)}
+                style={{ background:exportPeriod===id?"rgba(232,49,122,0.15)":"transparent", border:`1px solid ${exportPeriod===id?"#E8317A":"#333"}`, color:exportPeriod===id?"#E8317A":"#555", borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+            ))}
+            {exportPeriod==="custom" && <>
+              <input type="date" value={exportFrom} onChange={e=>setExportFrom(e.target.value)}
+                style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
+              <span style={{ color:"#555", fontSize:11 }}>to</span>
+              <input type="date" value={exportTo} onChange={e=>setExportTo(e.target.value)}
+                style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
+            </>}
+            <button onClick={exportCSV}
+              style={{ background:"linear-gradient(135deg,#E8317A,#c02060)", color:"#fff", border:"none", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+              ⬇️ Download CSV ({buyers.filter(buyerInPeriod).length} buyers)
+            </button>
+          </div>
           <button onClick={()=>{ if(onClearAll) onClearAll(); }}
             style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-            {"\uD83D\uDDD1 Clear All Buyers & Imports"}</button>
+            {"🗑 Clear All Buyers & Imports"}</button>
         </div>
       )}
 
@@ -20671,7 +20737,15 @@ export default function App() {
     await setDoc(doc(db,"config","imcAdjustments"), adjustments);
   }
 
-  async function handleUpsertBuyers(buyerList, streamId, filename) {
+  async function handleUpsertBuyers(buyerList, streamId, filename, contentHash) {
+    // Duplicate file guard — block silently if exact same file content was already imported
+    if (contentHash) {
+      const alreadyImported = csvImports.some(i => i.contentHash === contentHash);
+      if (alreadyImported) {
+        showToast("⚠️ This exact CSV file was already imported — skipped to prevent duplicates");
+        return;
+      }
+    }
     // Merge buyers -- accumulate spend and orders
     const existing = [...buyers];
     const updates = {};
@@ -20697,7 +20771,7 @@ export default function App() {
     await Promise.all(Object.values(updates).map(b => setDoc(doc(db,"buyers",b.id), b, { merge:true })));
     // Save CSV import record
     const impId = uid();
-    await setDoc(doc(db,"csv_imports",impId), { id:impId, streamId, filename, importedAt:new Date().toISOString(), rowCount:buyerList.length });
+    await setDoc(doc(db,"csv_imports",impId), { id:impId, streamId, filename, contentHash:contentHash||null, importedAt:new Date().toISOString(), rowCount:buyerList.length });
     showToast(`\u2705 ${buyerList.length} buyers imported`);
   }
 
