@@ -10918,16 +10918,16 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               ] : []),
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
               ...(c.eventStaffAmt>0?[{ l:`🎪 Event Staff (${(s.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(c.eventStaffAmt), c:"#A78BFA", indent:true }]:[]),
-              { l:`+ Rep Reimburses ${(c.rate*0.30*100).toFixed(1)}% of expenses`,   v:"+ "+fmt(c.repExpShare||0),                        c:"#4ade80", indent:true  },
+              { l:`+ Rep Reimburses ${(c.rate*0.30*100 * (c.splitPct||1)).toFixed(1)}% of expenses`, v:"+ "+fmt((c.repExpShare||0)*(c.splitPct||1)), c:"#4ade80", indent:true  },
               ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
               { l:"Gross Revenue (true)",                                             v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
-              { l:`\u2212 Whatnot Fees`,                                                   v:"\u2212 "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
-              { l:`\u2212 Coupons`,                                                        v:"\u2212 "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
+              { l:`− Whatnot Fees`,                                                   v:"− "+fmt(parseFloat(s.whatnotFees)||0),         c:"#666",    indent:true  },
+              { l:`− Coupons`,                                                        v:"− "+fmt(parseFloat(s.coupons)||0),             c:"#666",    indent:true  },
               { l:"= Net Revenue",                                                    v:fmt(c.netRev),                                     c:"#F0F0F0", indent:false, bold:true },
-              ...(c.collabAmt>0?[{ l:`\u2212 Collab (${s.collabPartner} ${s.collabPct}%)`, v:"\u2212 "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
-              { l:`Your Commission (${(c.rate*100).toFixed(0)}%)`,                    v:fmt(c.commAmt),                                    c:"#4ade80", indent:true  },
-              { l:`\u2212 Your Expense Share (${(c.rate*0.30*100).toFixed(1)}%)`,         v:"\u2212 "+fmt(c.repExpShare||0),                    c:"#991b1b", indent:true  },
+              ...(c.collabAmt>0?[{ l:`− Collab (${s.collabPartner} ${s.collabPct}%)`, v:"− "+fmt(c.collabAmt), c:"#7B9CFF", indent:true }]:[]),
+              { l:`Your Commission (${(c.rate*100).toFixed(0)}%)`,                    v:fmt(c.primaryCommAmt||c.commAmt),              c:"#4ade80", indent:true  },
+              { l:`− Your Expense Share (${(c.rate*0.30*(c.splitPct||1)*100).toFixed(1)}%)`, v:"− "+fmt((c.repExpShare||0)*(c.splitPct||1)), c:"#991b1b", indent:true  },
             ]).map(({l,v,c:clr,indent,bold}) => (
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:"1px solid #1a1a1a", paddingLeft:indent?"24px":"12px" }}>
                 <span style={{ fontSize:13, color:bold?"#F0F0F0":"#AAAAAA", fontWeight:bold?700:400 }}>{l}</span>
@@ -10936,13 +10936,30 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             ))}
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#0a1a0a", border:"1px solid rgba(22,101,52,0.4)", borderRadius:10, marginBottom:4 }} className="save-flash">
-            <div>
-              <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"\uD83D\uDCB5 Commission Earned"}</span>
-              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{fmt(c.primaryCommAmt||c.commAmt)} {c.splitRep?`(${Math.round((c.splitPct||1)*100)}% of ${fmt(c.commAmt)} total) − `:"gross − "}{fmt(c.repExpShare)} expenses ({(c.rate*0.30*100).toFixed(1)}%)</div>
-              {c.splitRep && <div style={{ fontSize:11, color:"#FBBF24", marginTop:2 }}>✂️ Split with {c.splitRep} ({Math.round((1-(c.splitPct||1))*100)}% = {fmt(c.splitRepAmt||0)})</div>}
-              {c.salesBonus>0 && <div style={{ fontSize:11, color:"#A78BFA", marginTop:2 }}>🎁 +{fmt(c.salesBonus)} sales bonus{s.salesBonusNote?" — "+s.salesBonusNote:""}</div>}
+            <div style={{flex:1}}>
+              <span style={{ fontWeight:800, fontSize:16, color:"#4ade80" }}>{"💵 Total Commission Paid Out"}</span>
+              {c.splitRep ? (
+                <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:3}}>
+                  <div style={{fontSize:12,color:"#AAAAAA"}}>
+                    <span style={{color:BC[s.breaker]?.text||"#E8317A",fontWeight:700}}>{s.breaker}</span>
+                    {" "}{fmt(c.primaryCommAmt)} − {fmt((c.repExpShare||0)*(c.splitPct||0.5))} exp = <span style={{color:"#4ade80",fontWeight:700}}>{fmt(c.primaryCommAmt-(c.repExpShare||0)*(c.splitPct||0.5)+(c.salesBonus||0)+(c.tips||0))}</span>
+                  </div>
+                  <div style={{fontSize:12,color:"#AAAAAA"}}>
+                    <span style={{color:BC[c.splitRep]?.text||"#FBBF24",fontWeight:700}}>{c.splitRep}</span>
+                    {" "}{fmt(c.splitRepAmt)} − {fmt((c.repExpShare||0)*(1-(c.splitPct||0.5)))} exp = <span style={{color:"#4ade80",fontWeight:700}}>{fmt(c.splitRepAmt-(c.repExpShare||0)*(1-(c.splitPct||0.5)))}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>
+                  {fmt(c.commAmt)} gross − {fmt(c.repExpShare||0)} expenses
+                  {c.salesBonus>0&&` + ${fmt(c.salesBonus)} bonus`}
+                  {c.tips>0&&` + ${fmt(c.tips)} tips`}
+                </div>
+              )}
             </div>
-            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80" }}>{fmt((c.primaryCommAmt||c.commAmt) - c.repExpShare + (c.salesBonus||0))}</span>
+            <span style={{ fontWeight:900, fontSize:28, color:"#4ade80", marginLeft:16 }}>
+              {fmt(c.commAmt - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0))}
+            </span>
           </div>
           {isAdmin && (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"#111111", borderRadius:10 }}>
