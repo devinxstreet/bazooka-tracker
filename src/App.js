@@ -19872,13 +19872,14 @@ function WeeklyReport({ streams=[], userRole }) {
   const prevWeek = weekStreams(prevStart, prevEnd);
 
   function repStats(slist, targetBreaker=null) {
-    if (!slist.length) return {gross:0,mm:0,newBuyers:0,comm:0,streams:0};
+    if (!slist.length) return {gross:0,mm:0,newBuyers:0,comm:0,streams:0,trueNet:0};
     const gross = slist.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
     const mmList = slist.filter(x=>parseFloat(x.marketMultiple)>0);
     const mm = mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
     const newBuyers = slist.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
     const comm = slist.reduce((s,x)=>s+calcStream(x,targetBreaker).myComm,0);
-    return {gross,mm,newBuyers,comm,streams:slist.length};
+    const trueNet = slist.reduce((s,x)=>s+(calcStream(x).bazTrueNet||0),0);
+    return {gross,mm,newBuyers,comm,streams:slist.length,trueNet};
   }
 
   const teamStats    = repStats(thisWeek);
@@ -19952,6 +19953,7 @@ function WeeklyReport({ streams=[], userRole }) {
               {l:"Avg MM",          v:teamStats.mm?teamStats.mm.toFixed(2)+"x":"--", prev:teamStatsPrev.mm?teamStatsPrev.mm.toFixed(2)+"x":"--", chg:change(teamStats,teamStatsPrev,"mm"), c:mmColor(teamStats.mm)},
               {l:"New Buyers",      v:teamStats.newBuyers,    prev:teamStatsPrev.newBuyers,    chg:change(teamStats,teamStatsPrev,"newBuyers"),c:"#4ade80"},
               {l:"Commission Owed", v:fmt(teamStats.comm),    prev:fmt(teamStatsPrev.comm),    chg:null,                                      c:"#4ade80"},
+              {l:"Bazooka True Net",v:fmt(teamStats.trueNet), prev:fmt(teamStatsPrev.trueNet), chg:change(teamStats,teamStatsPrev,"trueNet"), c:"#A78BFA"},
               {l:"Streams",         v:teamStats.streams,      prev:teamStatsPrev.streams,      chg:null,                                      c:"#F0F0F0"},
             ].map(({l,v,prev,chg,c})=>(
               <div key={l} style={{background:"#0d0d0d",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
@@ -19974,12 +19976,13 @@ function WeeklyReport({ streams=[], userRole }) {
                   <div style={{fontSize:15,fontWeight:900,color:bc}}>{b}</div>
                   <div style={{fontSize:11,color:"#555"}}>{t.streams} stream{t.streams!==1?"s":""}</div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                   {[
-                    {l:"Gross",      v:fmt(t.gross),          pv:fmt(p.gross)},
-                    {l:"Avg MM",     v:t.mm?t.mm.toFixed(2)+"x":"--", pv:p.mm?p.mm.toFixed(2)+"x":"--", color:t.mm?mmColor(t.mm):"#555"},
-                    {l:"New Buyers", v:t.newBuyers,           pv:p.newBuyers},
-                    {l:"Commission", v:fmt(t.comm),           pv:fmt(p.comm)},
+                    {l:"Gross",        v:fmt(t.gross),          pv:fmt(p.gross)},
+                    {l:"Avg MM",       v:t.mm?t.mm.toFixed(2)+"x":"--", pv:p.mm?p.mm.toFixed(2)+"x":"--", color:t.mm?mmColor(t.mm):"#555"},
+                    {l:"New Buyers",   v:t.newBuyers,           pv:p.newBuyers},
+                    {l:"Commission",   v:fmt(t.comm),           pv:fmt(p.comm)},
+                    {l:"Baz True Net", v:fmt(t.trueNet),        pv:fmt(p.trueNet), color:"#A78BFA"},
                   ].map(({l,v,pv,color})=>(
                     <div key={l} style={{background:"#0d0d0d",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
                       <div style={{fontSize:14,fontWeight:900,color:color||"#F0F0F0"}}>{v}</div>
