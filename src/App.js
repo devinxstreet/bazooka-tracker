@@ -20125,8 +20125,8 @@ function Finance({ streams=[], userRole }) {
   // Monthly summary for chart (last 6 months)
   const last6 = months.slice(0,6).reverse();
   const chartData = last6.map(m => {
+    const mStreams = streams.filter(s=>s.date?.startsWith(m));
     const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)-(parseFloat(str.whatnotFees)||0)-(parseFloat(str.coupons)||0)-(parseFloat(str.whatnotPromo)||0),0);
-    const mIn = mStreams.reduce((s,str)=>s+(parseFloat(str.grossRevenue)||0)-(parseFloat(str.whatnotFees)||0)-(parseFloat(str.coupons)||0),0);
     const mOut = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     const label = new Date(m+"-15").toLocaleDateString("en-US",{month:"short",year:"2-digit"});
     return { m, label, mIn, mOut, net:mIn-mOut };
