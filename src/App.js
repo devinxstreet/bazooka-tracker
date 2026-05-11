@@ -11460,7 +11460,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-            const myRepNet = isEventOnly ? myEventFee : isSplitRep ? (c.splitRepAmt||0) : (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0);
+            const myRepNet = c.myComm;
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : isSplitRep ? "1px solid rgba(251,191,36,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
@@ -19972,11 +19972,14 @@ function WeeklyReport({ streams=[], userRole }) {
           {repData.map(({b,this:t,prev:p})=>{
             const bc = BC[b]?.text||"#E8317A";
             const mmChg = t.mm&&p.mm ? t.mm-p.mm : null;
+            const splitEarnings = thisWeek.filter(s=>(s.splitRep===b||((s.eventStaff||[]).some(es=>es.breaker===b)&&s.breaker!==b)));
             return (
               <div key={b} style={{background:"#111",border:`1px solid ${bc}22`,borderRadius:12,padding:"16px 18px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                   <div style={{fontSize:15,fontWeight:900,color:bc}}>{b}</div>
-                  <div style={{fontSize:11,color:"#555"}}>{t.streams} stream{t.streams!==1?"s":""}</div>
+                  <div style={{fontSize:11,color:"#555"}}>{t.streams} stream{t.streams!==1?"s":""}
+                    {splitEarnings.length>0&&<span style={{color:"#FBBF24",marginLeft:6}}>+{splitEarnings.length} split/event</span>}
+                  </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                   {[
