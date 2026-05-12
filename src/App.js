@@ -4871,6 +4871,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   const [search,       setSearch]       = useState("");
   const [sortBy,       setSortBy]       = useState("totalSpend");
   const [filterNew,    setFilterNew]    = useState(false);
+  const [filterZero,   setFilterZero]   = useState(false);
   const [selected,     setSelected]     = useState(null);
   const [showImports,  setShowImports]  = useState(false);
   const [activeTab,    setActiveTab]    = useState(defaultTab);
@@ -4925,6 +4926,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   const filtered = buyers.filter(b => {
     if (!buyerInPeriod(b)) return false;
     if (filterNew && !b.isNew) return false;
+    if (filterZero && (b.totalSpend||0) === 0) return false;
     if (search) {
       const q = search.toLowerCase();
       return (b.username||"").toLowerCase().includes(q) ||
@@ -5052,6 +5054,20 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                 <input type="checkbox" checked={filterNew} onChange={e=>setFilterNew(e.target.checked)}/>
                 New only
               </label>
+              <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#888", cursor:"pointer" }}>
+                <input type="checkbox" checked={filterZero} onChange={e=>setFilterZero(e.target.checked)}/>
+                Hide $0 buyers
+              </label>
+              {isAdmin && buyers.filter(b=>(b.totalSpend||0)===0).length > 0 && (
+                <button onClick={async ()=>{
+                  const zeroBuyers = buyers.filter(b=>(b.totalSpend||0)===0);
+                  if (!window.confirm(`Remove ${zeroBuyers.length} $0 buyers (giveaway winners)? This cannot be undone.`)) return;
+                  await Promise.all(zeroBuyers.map(b=>deleteDoc(doc(db,"buyers",b.id))));
+                }}
+                  style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  🗑 Remove {buyers.filter(b=>(b.totalSpend||0)===0).length} $0 buyers
+                </button>
+              )}
               <span style={{ fontSize:11, color:"#555" }}>{filtered.length} of {totalBuyers}</span>
             </div>
             <div style={{ overflowX:"auto" }}>
