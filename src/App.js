@@ -13871,7 +13871,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }} className="view-mode-row">
-            {[["cards","\uD83C\uDCCF Cards"],["treatments","\uD83D\uDCCB Treatments"],["rainbow","\uD83C\uDF08 Rainbow"],["supers","\u2B50 Supers"],["stats","\uD83D\uDCCA Stats"],["wants","\uD83C\uDFAF Wants"],["deck","\u2694\uFE0F Deck"],["playbook","\uD83D\uDCD6 Playbook"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["setlist","📋 Set List"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["supers","⭐ Supers"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -15781,6 +15781,118 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 )}
               </div>
             </div>
+          </div>
+        );
+      })()}
+
+      {viewMode === "setlist" && !loading && (() => {
+        // Group all cards by set, then by card number
+        const sets = [...new Set(cards.map(c=>c.setName||"Unknown").filter(Boolean))].sort();
+        const [activeSet, setActiveSet] = useState(sets[0]||"");
+        const [setSearch, setSetSearch] = useState("");
+        const setCards = cards
+          .filter(c=>(c.setName||"Unknown")===activeSet)
+          .filter(c=>!setSearch||[c.hero,c.weapon,c.treatment,String(c.cardNum||""),c.notation].join(" ").toLowerCase().includes(setSearch.toLowerCase()))
+          .sort((a,b)=>(parseInt(a.cardNum)||0)-(parseInt(b.cardNum)||0)||(a.hero||"").localeCompare(b.hero||""));
+        const setOwned  = setCards.filter(c=>owned[c.id]);
+        const pctOwned  = setCards.length>0?Math.round(setOwned.length/setCards.length*100):0;
+
+        // Group by hero within the set
+        const byHero = {};
+        setCards.forEach(c=>{
+          const h=c.hero||"Unknown";
+          if(!byHero[h]) byHero[h]=[];
+          byHero[h].push(c);
+        });
+
+        const rarityColors = { "Rainbow":"#818CF8","Super Foil":"#FBBF24","Gold":"#F59E0B","Silver":"#94A3B8","Base":"#6B7280","Prism":"#A78BFA","Signature":"#E8317A" };
+
+        return (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {/* Set selector */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+              {sets.map(s=>(
+                <button key={s} onClick={()=>{setActiveSet(s);setSetSearch("");}}
+                  style={{background:activeSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${activeSet===s?"#E8317A":"#1a1a1a"}`,color:activeSet===s?"#E8317A":"#AAAAAA",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  {s}
+                  <span style={{color:"#555",fontSize:10,marginLeft:6}}>({cards.filter(c=>(c.setName||"Unknown")===s).length})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Set header */}
+            {activeSet && (
+              <div style={{background:"linear-gradient(135deg,#0d0005,#0a000d)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0"}}>{activeSet}</div>
+                  <div style={{fontSize:12,color:"#555",marginTop:2}}>{setCards.length} cards in set</div>
+                </div>
+                <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:22,fontWeight:900,color:pctOwned>80?"#4ade80":pctOwned>50?"#FBBF24":"#E8317A"}}>{pctOwned}%</div>
+                    <div style={{fontSize:10,color:"#555"}}>Collected</div>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{setOwned.length}</div>
+                    <div style={{fontSize:10,color:"#555"}}>Owned</div>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:22,fontWeight:900,color:"#555"}}>{setCards.length-setOwned.length}</div>
+                    <div style={{fontSize:10,color:"#555"}}>Missing</div>
+                  </div>
+                </div>
+                <div style={{height:6,width:"100%",background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginTop:4}}>
+                  <div style={{height:"100%",width:`${pctOwned}%`,background:"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:3,transition:"width 0.5s"}}/>
+                </div>
+              </div>
+            )}
+
+            {/* Search within set */}
+            <input value={setSearch} onChange={e=>setSetSearch(e.target.value)}
+              placeholder={`Search ${activeSet} cards...`}
+              style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:10,color:"#F0F0F0",padding:"10px 14px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+
+            {/* Cards grouped by hero */}
+            {Object.entries(byHero).sort(([a],[b])=>a.localeCompare(b)).map(([hero,hCards])=>(
+              <div key={hero} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,overflow:"hidden"}}>
+                <div style={{padding:"10px 16px",background:"#0d0d0d",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #1a1a1a"}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{hero}</div>
+                  <div style={{fontSize:11,color:"#555"}}>{hCards.length} cards</div>
+                  <div style={{marginLeft:"auto",fontSize:11,color:"#4ade80"}}>{hCards.filter(c=>owned[c.id]).length} owned</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column"}}>
+                  {hCards.map((c,i)=>{
+                    const isOwned = !!owned[c.id];
+                    const rColor = rarityColors[c.treatment]||"#555";
+                    return (
+                      <div key={c.id} onClick={()=>toggleOwned(c.id)}
+                        style={{display:"flex",alignItems:"center",gap:12,padding:"8px 16px",background:isOwned?"rgba(74,222,128,0.04)":"transparent",borderBottom:i<hCards.length-1?"1px solid #0d0d0d":"none",cursor:"pointer",transition:"background 0.15s"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=isOwned?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.03)"}
+                        onMouseLeave={e=>e.currentTarget.style.background=isOwned?"rgba(74,222,128,0.04)":"transparent"}>
+                        {/* Owned checkbox */}
+                        <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${isOwned?"#4ade80":"#2a2a2a"}`,background:isOwned?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                          {isOwned&&<span style={{color:"#000",fontSize:11,fontWeight:900}}>✓</span>}
+                        </div>
+                        {/* Card number */}
+                        <div style={{width:40,fontSize:11,color:"#555",fontWeight:700,flexShrink:0}}>#{c.cardNum||"?"}</div>
+                        {/* Card image if available */}
+                        {c.imageUrl&&<img src={c.imageUrl} alt="" style={{width:32,height:44,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                        {/* Card info */}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:700,color:isOwned?"#4ade80":"#F0F0F0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.weapon||c.hero||"Unknown"}</div>
+                          <div style={{fontSize:11,color:"#555",marginTop:1}}>{c.notation&&<span style={{marginRight:6}}>{c.notation}</span>}</div>
+                        </div>
+                        {/* Treatment badge */}
+                        {c.treatment&&(
+                          <div style={{background:`${rColor}18`,border:`1px solid ${rColor}44`,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:rColor,flexShrink:0}}>{c.treatment}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {setCards.length===0&&<div style={{textAlign:"center",color:"#333",padding:"32px",fontSize:13}}>No cards found{setSearch?` matching "${setSearch}"`:" in this set"}</div>}
           </div>
         );
       })()}
@@ -21244,7 +21356,8 @@ export default function App() {
                   {label:"📡 Followers",        sub:"Whatnot follower tracker",      action:()=>{setTab("performance");setPerfTabDefault("followers");setHoverTab(null);}},
                 ],
                 "checklist": [
-                  {label:"\uD83D\uDCCB Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
+                  {label:"📋 Set List",      sub:"Browse cards by set",          action:()=>{setTab("checklist");setChecklistDefault("setlist");setHoverTab(null);}},
+                  {label:"📋 Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
                   {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistDefault("wants");setHoverTab(null);}},
                   {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistDefault("stats");setHoverTab(null);}},
                 ],
