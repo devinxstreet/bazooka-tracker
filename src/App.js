@@ -12712,30 +12712,167 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 }
 
 const PLAYER_NOTES = {
-  "Bo Jackson":     { bio:"Two-sport pro — Raiders RB and Royals OF simultaneously. Ran a 4.12 forty. Famous 91-yard TD run where he literally ran into the tunnel. Retired at 28 from a hip injury. THE most broken player in Tecmo history — basically untacklable.", lines:["\"Bo knows — and right now Bo knows how to empty a wallet 💸\"","\"The man played two pro sports at once and was the best at both\"","\"Retired at 28 and we still never saw his ceiling\""] },
-  "Jerry Rice":     { bio:"Greatest WR of all time. 1,549 catches, 197 TDs, 3 Super Bowls. Was a 16th-round pick out of Mississippi Valley State. Never missed a game until he was 37. In Tecmo, Rice + Montana = game over.", lines:["\"16th round pick. SIXTEENTH. Greatest of all time.\"","\"The man caught everything. Literally everything.\"","\"83 speed, 100 receiving — that's not a rating, that's a glitch\""] },
-  "Lawrence Taylor":{ bio:"Changed the NFL forever — the sack stat was created because of LT. 10x Pro Bowl, 2 Super Bowls, 1986 MVP. Bill Parcells said LT was the only player who ever made him nervous. On Tecmo, QBs had no time in the pocket.", lines:["\"The man they literally changed the rules for\"","\"Every modern pass rush move exists because of #56\"","\"QBs had nightmares about this guy — now you get to own him\""] },
-  "Joe Montana":    { bio:"4-0 in Super Bowls. Never threw a pick in Super Bowl play. The Drive — 92 yards, 5:02 left, down 6. Steve Young had to wait years behind him. Montana + Rice in Tecmo was unfair.", lines:["\"Four Super Bowls. Zero losses on the biggest stage.\"","\"Never threw a Super Bowl interception. Not one.\"","\"Cool Joe. Ice in his veins, fire in everyone else's.\""] },
-  "Walter Payton":  { bio:"Sweetness. Held the all-time rushing record for 18 years. Won Super Bowl XX with the dominant 85 Bears. Most complete back ever — ran, caught, blocked and threw. Never asked for a day off.", lines:["\"Sweetness. Because that's the only word for what he did.\"","\"The 85 Bears are the most dominant team in NFL history and Payton was their heartbeat\"","\"16,726 yards of pure will\""] },
-  "Barry Sanders":  { bio:"Most elusive runner in NFL history. Retired at his peak, shocking the league, leaving $10M on the table. 10 straight 1,000-yard seasons with the worst O-lines in football. Jim Brown called him the greatest runner he ever saw. In Tecmo, Barry was pure chaos.", lines:["\"Left $10 million on the table because football became a job. Respect.\"","\"Jim Brown said Barry was the best. Jim Brown.\"","\"No line, no Super Bowl, still 10 straight thousand-yard seasons\""] },
-  "Emmitt Smith":   { bio:"All-time rushing leader at 18,355 yards. Three Super Bowls. Won the 1993 Super Bowl MVP on a separated shoulder. 11 straight 1,000-yard seasons. Troy Aikman said they weren't winning without him.", lines:["\"The all-time rushing leader is in that pack right now\"","\"Super Bowl MVP on a separated shoulder — that's Emmitt\"","\"Eleven straight thousand-yard seasons. Consistency is a superpower\""] },
-  "Deion Sanders":  { bio:"Only athlete to play in a Super Bowl AND a World Series. Shutdown corner who took half the field away. 3x All-Pro, 8x Pro Bowl. Scored TDs on defense, offense, and special teams. Prime Time had the most electric entrance in sports.", lines:["\"Prime Time. The only man who made the coin flip worth watching.\"","\"He played two sports at the pro level simultaneously. Deion operates different.\"","\"You don't pull Deion — Deion pulls you\""] },
-  "Steve Young":    { bio:"Highest passer rating in NFL history at retirement (96.8). Super Bowl XXIX MVP — 6 TD passes. Left-handed scrambler who redefined the QB position. Sat behind Montana for years then proved he belonged.", lines:["\"96.8 career passer rating. That's not a stat, that's a flex.\"","\"Six touchdowns in one Super Bowl. Montana who?\"","\"The lefty who waited behind the greatest and then proved he was one too\""] },
+  // AUTOGRAPHS
+  "BoJax":              { player:"Bo Jackson",          team:"LA Raiders / KC Royals", notes:"The only man to be an All-Star in two pro sports simultaneously. Raiders RB and Royals OF. Ran a 4.12 forty — fastest ever recorded. Famous for running through the end zone tunnel on MNF. THE most broken player in Tecmo history. Retired at 28 from a hip injury and we STILL never saw his ceiling.", lines:["\"Bo knows — and Bo knows how to empty a wallet 💸\"","\"Two pro sports. All-Star in both. Nobody has done it before or since.\"","\"Retired at 28 and was already a legend. What if he played to 35?\""] },
+  "Attak":             { player:"Dak Prescott",         team:"Dallas Cowboys", notes:"Dak took over for Tony Romo and never looked back. Multiple Pro Bowls, led the Cowboys to big seasons. One of the most beloved QBs in Dallas in decades.", lines:["\"America's QB for the next generation\"","\"Dallas fans have been waiting for this guy since Troy Aikman\""] },
+  "Pukadot":           { player:"Puka Nacua",           team:"LA Rams", notes:"Set the NFL record for most receptions by a rookie in his first two games. Came out of nowhere and immediately became a fantasy football hero. Samoan kid with route running beyond his years.", lines:["\"Rookie record in his first two games. TWO GAMES.\"","\"The most exciting unknown player in football right now\""] },
+  "Brees":             { player:"Drew Brees",           team:"New Orleans Saints", notes:"All-time passing yards leader. 80,358 career yards. Rebuilt New Orleans after Hurricane Katrina — the city adopted him as their own. Super Bowl XLIV MVP. Pinpoint accurate, short to intermediate was his bread and butter.", lines:["\"80,000 passing yards. The all-time leader.\"","\"Drew Brees didn't just win a Super Bowl — he helped heal a city\"","\"Surgically precise. Every throw had a purpose.\""] },
+  "Fear Himself":      { player:"Lawrence Taylor",      team:"NY Giants", notes:"Changed football forever. The sack didn't exist as an official stat until the NFL created it because of LT. 10x Pro Bowl, 2 Super Bowls, 1986 MVP. Bill Parcells said he was the only player who ever made him nervous.", lines:["\"They created a stat just to count what this man did\"","\"Every modern pass rusher is trying to be LT\"","\"QBs had nightmares about #56. Now you get to own him.\""] },
+  "Mossed":            { player:"Randy Moss",           team:"Minnesota Vikings / NE Patriots", notes:"Single season TD record with 23 in 2007. Ran a 4.25 forty. Made cornerbacks look like they were standing still. 'Straight cash homie.' One of the most physically gifted receivers ever.", lines:["\"Straight cash homie 💰\"","\"23 touchdowns in a single season. TWENTY-THREE.\"","\"When Randy ran a go route, the corner was just a spectator\""] },
+  "Nigerian Nightmare": { player:"Christian Okoye",     team:"KC Chiefs", notes:"6'1\", 253 lbs running back who ran a 4.48 forty. Led the NFL in rushing in 1989. Born in Nigeria, came to the US on a track scholarship, became an All-Pro. Defenders bounced off him like he was a freight train.", lines:["\"253 pounds of pure freight train\"","\"Came from Nigeria on a TRACK scholarship and became an All-Pro NFL rusher\"","\"Defenders didn't tackle the Nigerian Nightmare — they just tried to slow him down\""] },
+  "Marino":            { player:"Dan Marino",           team:"Miami Dolphins", notes:"Never won a Super Bowl but nobody cares — one of the greatest QBs ever. Set the single-season TD and yardage records in 1984 that stood for 20 years. Fastest release in NFL history. Did it all without a running game.", lines:["\"Fastest release in NFL history. The ball was gone before you blinked.\"","\"No Super Bowl ring, but a Hall of Fame jacket and every QB record that mattered\"","\"In 1984 he threw 48 TDs. Nobody touched that for 20 years.\""] },
+  "Young-Gunner":      { player:"Steve Young",          team:"SF 49ers", notes:"Highest passer rating in NFL history at retirement (96.8). Super Bowl XXIX MVP with 6 TD passes. Left-handed scrambler who sat behind Montana for years and then proved he belonged.", lines:["\"96.8 career passer rating. That's not a stat, that's a flex.\"","\"Six touchdowns in one Super Bowl. Montana who?\"","\"Waited behind the greatest ever and then proved he was one too\""] },
+  "Gronk":             { player:"Rob Gronkowski",       team:"NE Patriots / Tampa Bay", notes:"Greatest tight end in NFL history. 4x Super Bowl champion. 3x All-Pro. Gronk parties as hard as he plays. Redefined what a TE could do — a wide receiver in a lineman's body.", lines:["\"Greatest tight end who ever lived. Full stop.\"","\"Gronk spikes are the most joyful thing in football\"","\"Four Super Bowls. Somehow finds time to party through all of them.\""] },
+  "Hitt Man":          { player:"Ronnie Lott",          team:"SF 49ers", notes:"Had the tip of his pinky finger amputated rather than miss time. AMPUTATED. 10x Pro Bowl, 4x Super Bowl champion. Defined what a safety was supposed to be. Receivers thought twice before going over the middle.", lines:["\"Chose amputation over missing games. That's commitment.\"","\"Made receivers think twice before crossing the middle\"","\"Four Super Bowls and a Hall of Fame jacket — and the man still has 9.5 fingers\""] },
+  "Island Time":       { player:"Darrelle Revis",       team:"NY Jets / others", notes:"Revis Island. When you were on his side of the field, you simply didn't exist as an option. Best shutdown corner of his generation. Made elite receivers disappear for 60 minutes.", lines:["\"Welcome to Revis Island — population: whatever receiver just got taken away\"","\"The best receivers in football just... stopped existing on his side\"","\"Revis Island wasn't just a nickname, it was a strategy\""] },
+  "Emmitt-164":        { player:"Emmitt Smith",         team:"Dallas Cowboys", notes:"All-time rushing leader with 18,355 yards. Three Super Bowls. Won the 1993 Super Bowl MVP on a SEPARATED SHOULDER. 11 straight 1,000-yard seasons.", lines:["\"All-time rushing leader is right here in this pack\"","\"Super Bowl MVP on a separated shoulder — that's Emmitt\"","\"Eleven straight thousand-yard seasons. Consistency is a superpower\""] },
+  "Troy of Dallas":    { player:"Troy Aikman",          team:"Dallas Cowboys", notes:"Three Super Bowls in four years with the Cowboys dynasty. Most accurate QB of his era. Never threw a lot of picks — efficient, clutch, and surrounded himself with greatness. Hall of Famer.", lines:["\"Three Super Bowls. The face of the Cowboys dynasty.\"","\"Most efficient QB of his era — didn't force it, just won\""] },
+  "Goggles":           { player:"Eric Dickerson",       team:"LA Rams", notes:"Single season rushing record holder — 2,105 yards in 1984, wearing his iconic goggles and neck roll. Ran upright which shouldn't work but absolutely did. Five Pro Bowls.", lines:["\"2,105 yards in a single season — a record that stood for decades\"","\"Ran upright in goggles and a neck roll and nobody could catch him\""] },
+  "Howietzer":         { player:"Howie Long",           team:"LA Raiders", notes:"Eight-time Pro Bowl defensive end for the Raiders dynasty. Super Bowl XVIII champion. Became a Fox NFL analyst and has been on your TV every Sunday since 1994. His son Chris Long won two Super Bowls.", lines:["\"8x Pro Bowl, Super Bowl champ, and your Sunday morning TV presence since 1994\"","\"The Raiders defensive line was terrifying and Howie was the reason\""] },
+  "Thurmanator":       { player:"Thurman Thomas",       team:"Buffalo Bills", notes:"Four straight Super Bowl appearances with the Bills — never won, but the run is legendary. Led the NFL in yards from scrimmage four straight years. Hall of Famer who famously lost his helmet before a Super Bowl.", lines:["\"Four straight Super Bowls. Nobody has done that since.\"","\"Lost his helmet before a Super Bowl and STILL had a big game\"","\"The Bills may not have won but Thurman Thomas gave everything\""] },
+  "Bus":               { player:"Jerome Bettis",        team:"Pittsburgh Steelers", notes:"The Bus. 5.8 yards per carry average was astronomical for a power back his size. Won Super Bowl XL in Detroit — his hometown — in his final game. Perfect Hollywood ending.", lines:["\"Won the Super Bowl in his hometown in his final game. Perfect.\"","\"The Bus didn't go around defenders. He went through them.\"","\"5.8 YPC for a 255-pound back. That's just not fair.\""] },
+  "Machine Gun":       { player:"Jim Kelly",            team:"Buffalo Bills", notes:"Four straight Super Bowls — yes, lost all four, but nobody has ever led a team to four consecutive Super Bowls since. Hall of Famer who ran the no-huddle K-Gun offense that revolutionized football.", lines:["\"Four straight Super Bowls. Name another QB who did that.\"","\"The K-Gun no-huddle was 30 years ahead of its time\"","\"Winning isn't everything — the Bills of the 90s were must-watch football\""] },
+  "Cutback":           { player:"Barry Sanders",        team:"Detroit Lions", notes:"Most elusive runner in history. Retired at his peak leaving $10M on the table. 10 straight 1,000-yard seasons with the worst O-lines in football. Jim Brown called him the greatest runner he ever saw.", lines:["\"Left $10 million on the table because football became a job. Respect.\"","\"Jim Brown said Barry was the best. Jim Brown.\"","\"No line, no Super Bowl, still 10 straight thousand-yard seasons\""] },
+  "Sea-Largent":       { player:"Steve Largent",        team:"Seattle Seahawks", notes:"Held every major receiving record when he retired. Was cut by Houston as a rookie and became a Hall of Famer. Then ran for Congress and won. Literally one of the greatest stories in NFL history.", lines:["\"Cut as a rookie. Became a Hall of Famer. Then got elected to Congress.\"","\"Held every major receiving record when he retired\"","\"The Seahawks' first real superstar\""] },
+  "Boz":               { player:"Brian Bosworth",       team:"Seattle Seahawks", notes:"The most hyped linebacker in NFL history coming out of Oklahoma. Biggest bust in NFL history. Bo Jackson ran over him on MNF and the clip lives forever. Had a movie career afterward.", lines:["\"The most hyped linebacker ever — then Bo Jackson happened\"","\"That MNF clip of Bo running him over might be the most watched moment in football history\"","\"Went from biggest bust to movie star. Not a bad pivot.\""] },
+  "Allenwrench":       { player:"Marcus Allen",         team:"LA Raiders / KC Chiefs", notes:"Super Bowl XVIII MVP. Had a famous falling out with Al Davis. Went to Kansas City and proved he still had it at 32+. One of the most versatile backs ever — ran, caught, blocked.", lines:["\"Super Bowl MVP who had to fight his own owner to prove he wasn't done\"","\"32 years old in Kansas City and still one of the best backs in football\""] },
+  "Ultimate Weapon":   { player:"Randall Cunningham",   team:"Philadelphia Eagles / Minnesota Vikings", notes:"The original dual-threat QB. Before Lamar, before Cam — there was Randall. Led the league in rushing multiple times as a QB. 1998 MVP season at 35 years old was one of the greatest comebacks in football.", lines:["\"Before Lamar Jackson, before Cam Newton — there was Randall Cunningham\"","\"35 years old, comeback season, MVP. Nobody expected it.\"","\"The original scrambler. Changed what a QB was supposed to be.\""] },
+  "Shuffler":          { player:"Jim McMahon",          team:"Chicago Bears", notes:"Quarterback of the legendary 1985 Bears. Wore headbands with messages that got him fined. Super Bowl XX champion. The anti-establishment QB in the most dominant team in NFL history.", lines:["\"QB of the most dominant team in NFL history\"","\"Got fined for his headbands and wore them anyway\"","\"The 85 Bears were the most dominant team ever and McMahon was their chaos agent\""] },
+  "Boom":              { player:"Boomer Esiason",       team:"Cincinnati Bengals / NY Jets", notes:"Left-handed QB who led the Bengals to Super Bowl XXIII. NFL MVP in 1988. Became one of the best NFL analysts on radio — you've heard him on CBS Sports Radio every morning.", lines:["\"Left-handed NFL MVP — the original Tebow before there was a Tebow\"","\"Led the Bengals to their best era. And they're STILL talking about it in Cincinnati.\""] },
+  "Dentist":           { player:"Richard Dent",         team:"Chicago Bears", notes:"Super Bowl XX MVP from the defensive line — one of the only defensive ends to ever win that award. Was underrated for years before his Hall of Fame selection. The engine of the '85 Bears defense.", lines:["\"Defensive end. Super Bowl MVP. That doesn't happen often.\"","\"The '85 Bears defense was the stuff of nightmares and Dent was the nightmare\""] },
+  "Vinniverde":        { player:"Vinny Testaverde",     team:"Multiple teams", notes:"Played 21 NFL seasons for seemingly every team in football. 1986 Heisman Trophy winner. The ultimate journeyman — never won a Super Bowl but competed forever.", lines:["\"21 seasons. TWENTY-ONE. He was playing when some of your buyers were born.\"","\"The most traveled QB in history — everywhere needed a Vinny\""] },
+  "Afterbern":         { player:"Bernie Kosar",         team:"Cleveland Browns", notes:"Cleveland legend. Unorthodox release that somehow worked. Led the Browns to multiple AFC Championship games in the 80s. Grew up a Browns fan and then played for them — living the dream.", lines:["\"Grew up a Browns fan and then played for them. The dream.\"","\"Ugliest throwing motion in NFL history and it somehow worked perfectly\""] },
+  "Sack King":         { player:"Bruce Smith",          team:"Buffalo Bills", notes:"All-time sack leader with 200 career sacks. Four straight Super Bowls with the Bills. Hall of Famer. Possibly the greatest defensive player in Bills history and one of the best ever.", lines:["\"200 career sacks. The all-time leader.\"","\"Four straight Super Bowls and the most feared pass rusher of his era\""] },
+  "Incredible Faulk":  { player:"Marshall Faulk",       team:"Indianapolis Colts / St. Louis Rams", notes:"Greatest Rams player ever. The Greatest Show on Turf. 2000 NFL MVP. Combined 2,189 yards from scrimmage in 2001. One of the most complete backs ever — ran AND caught everything.", lines:["\"The Greatest Show on Turf had a leading man and it was Marshall Faulk\"","\"2,189 combined yards in one season. From scrimmage. Both running AND catching.\""] },
+  "Mann-O-War":        { player:"Charles Mann",         team:"Washington Redskins", notes:"Four-time Pro Bowl DE for three Washington Super Bowl teams. One of the best pass rushers of the 80s and 90s. Hall of Very Good — maybe should have been Hall of Fame.", lines:["\"Three Super Bowl teams. One of Washington's greatest players ever.\"","\"Four Pro Bowls and a Hall of Very Good career\""] },
+  "Timmy":             { player:"Tim Brown",            team:"LA / Oakland Raiders", notes:"Hall of Famer. 100 receiving TDs. The Raiders' most consistent offensive weapon for 17 seasons. Grew up in Dallas, became the heart of the Raiders.", lines:["\"100 receiving touchdowns and 17 seasons of Raiders loyalty\"","\"The one constant on Raiders offense for almost two decades\""] },
+  "Haley's Comet":     { player:"Charles Haley",        team:"SF 49ers / Dallas Cowboys", notes:"The ONLY player to win five Super Bowl rings as a player. Five. Two with the 49ers, three with the Cowboys. Arguably the most decorated player in Super Bowl history.", lines:["\"Five Super Bowl rings. The only player ever.\"","\"Two dynasties, five rings, one Charles Haley\"","\"If you want to win a Super Bowl, apparently you need Charles Haley on your team\""] },
+  "Ickey":             { player:"Ickey Woods",          team:"Cincinnati Bengals", notes:"Famous for the Ickey Shuffle touchdown dance. Led the Bengals to Super Bowl XXIII as a rookie. Had his career derailed by injury but the shuffle lives forever in NFL culture.", lines:["\"The Ickey Shuffle made America happy every Sunday in 1988\"","\"Rookie year, Super Bowl, legendary dance move — and then an injury. Still iconic.\""] },
+  "Full Moon":         { player:"Warren Moon",          team:"Houston Oilers / others", notes:"Had to go to Canada because the NFL wouldn't draft a Black QB out of college. Dominated the CFL, then dominated the NFL. Hall of Famer. One of the greatest comeback stories in sports.", lines:["\"The NFL wouldn't draft him so he went to Canada, dominated, came back, and made the Hall of Fame\"","\"Never got a fair chance early — and still became one of the greatest ever\"","\"Warren Moon's career is one of the most inspiring stories in football history\""] },
+  "Philament":         { player:"Phil Simms",           team:"NY Giants", notes:"Super Bowl XXI MVP with a 22/25 performance — 88% completion rate in a Super Bowl. One of the best single-game performances in Super Bowl history. Hall of Very Good but that game was Hall of Fame.", lines:["\"22 of 25 in the Super Bowl. 88% completion rate. In the SUPER BOWL.\"","\"That Super Bowl XXI performance might be the most efficient QB game ever played\""] },
+  "Key Keeper":        { player:"Luke Kuechly",         team:"Carolina Panthers", notes:"Best linebacker of his generation. 2013 Defensive Player of the Year as a rookie. Retired at 28 at the top of his game to protect his long-term health — one of the most respected retirement decisions in NFL history.", lines:["\"Retired at 28 at the absolute top of his game\"","\"Best linebacker since LT — and he walked away on his own terms\"","\"DPOY as a ROOKIE. That's almost impossible.\""] },
+  "T.D.":              { player:"Tony Dorsett",         team:"Dallas Cowboys", notes:"The longest run in NFL history — 99 yards. Super Bowl XII champion. Hall of Famer. The first pick of the 1977 draft and worth every bit of it.", lines:["\"99-yard touchdown run. The longest in NFL history. NINETY-NINE YARDS.\"","\"Super Bowl champ and one of the most electrifying backs of the 70s and 80s\""] },
+  "Sterling":          { player:"Sterling Sharpe",      team:"Green Bay Packers", notes:"Had his career ended by a neck injury at 29. In 7 seasons he led the NFL in receiving 3 times. Would have been one of the greatest ever. His brother Shannon made the Hall of Fame — imagine if Sterling had stayed healthy.", lines:["\"Career ended at 29 and he STILL led the NFL in receiving three times\"","\"7 seasons. Imagine if he'd played 14.\"","\"His brother Shannon is in the Hall of Fame. Sterling might have been better.\""] },
+  "Too Tall":          { player:"Ed 'Too Tall' Jones",  team:"Dallas Cowboys", notes:"6'9\" defensive end — literally too tall. Three Super Bowls with the Cowboys. Took a year off to box professionally then came back to the NFL. Just an incredible life story.", lines:["\"6 foot 9. On a football field. Doing pass rush moves.\"","\"Took a year off to be a professional boxer and then came back to the NFL\"","\"Three Super Bowl rings and a professional boxing career. Too Tall did both.\""] },
+  "Fridge":            { player:"William Perry",        team:"Chicago Bears", notes:"The Refrigerator. 6'2\", 335 pounds, used as a goal line fullback and scored touchdowns. Super Bowl XX champion and the most beloved player on the most beloved team in NFL history.", lines:["\"They gave a 335-pound defensive tackle the ball to score touchdowns. And it worked.\"","\"The Fridge is the most lovable player in NFL history — change my mind\"","\"The 85 Bears were perfect and The Fridge was the cherry on top\""] },
+  "Samurai Mike":      { player:"Mike Singletary",      team:"Chicago Bears", notes:"The leader of the '85 Bears defense. Two-time Defensive Player of the Year. His stare alone was worth 5 yards. Hall of Famer. The most intense linebacker you've ever seen.", lines:["\"Mike Singletary's eyes could tackle you before his body got there\"","\"The '85 Bears defense was terrifying and Samurai Mike was the reason\"","\"Two-time Defensive Player of the Year and the heart of the greatest defense ever\""] },
+  "Monk":              { player:"Art Monk",             team:"Washington Redskins", notes:"Three Super Bowl rings. First receiver ever to catch 100 passes in a season. One of the most consistent receivers in NFL history. Did it quietly, without drama, for 14 seasons.", lines:["\"First receiver in NFL history to catch 100 passes in a season\"","\"Three Super Bowl rings and zero drama. Pure professionalism.\""] },
+  "Kriеghawk":         { player:"Dave Krieg",           team:"Seattle Seahawks", notes:"Led the Seahawks to their most successful era of the 80s. Undrafted, undersized, overlooked — became a franchise QB. The original Seahawks legend before Hasselbeck before Wilson.", lines:["\"Undrafted. Made the Hall of Very Good. The original Seahawks QB.\"","\"The most underrated QB of the 80s — ask any Seahawks fan from that era\""] },
+  "Undrafted Wrecking Ball": { player:"Gary Clark",     team:"Washington Redskins", notes:"Three Super Bowl rings. Part of Washington's legendary receiving corps with Art Monk and Ricky Sanders. Undersized but faster than anyone expected.", lines:["\"Three Super Bowls as part of the best receiving trio in Washington history\"","\"They called him a wrecking ball because size didn't matter when you were that fast\""] },
+  "Highjump":          { player:"Alonzo Highsmith",     team:"Houston Oilers", notes:"First round pick known for his physical running style. Career cut short by injuries but a fan favorite during his time with Houston.", lines:["\"The Oilers' power back in the run-and-shoot era\"","\"First round talent who never got to show his full potential\""] },
+  "Calf Roper":        { player:"Eric Metcalf",         team:"Cleveland Browns / others", notes:"Return specialist extraordinaire. Scored 2 punt return TDs in the same game against Pittsburgh — one of the most electric performances on special teams ever. His father Terry was also an NFL player.", lines:["\"Two punt return touchdowns in ONE GAME against the Steelers\"","\"Most electric return man of his era — every return felt like it could go\""] },
+  "Novacaine":         { player:"Jay Novacek",          team:"Dallas Cowboys", notes:"Three Super Bowls as Troy Aikman's security blanket tight end. Underrated piece of the Cowboys dynasty. Reliable, sure-handed, always open on third down.", lines:["\"Three Super Bowls as the most reliable target on the Cowboys dynasty\"","\"Novacek on third down was basically a guaranteed first\""] },
+  "Carrier":           { player:"Mark Carrier",         team:"Chicago Bears", notes:"1990 Defensive Rookie of the Year with 10 interceptions — a rookie record at the time. Pure ball hawk safety who announced himself immediately in the NFL.", lines:["\"10 interceptions as a ROOKIE. Defensive Rookie of the Year.\"","\"The ball hawk who announced himself on day one in the NFL\""] },
+  "Amigo One":         { player:"Mark Jackson",         team:"Denver Broncos", notes:"Part of John Elway's early receiving corps. Member of the Three Amigos with Vance Johnson and Ricky Nattiel. One of the most exciting wide receiver trios of the 80s.", lines:["\"The Three Amigos — one of the most exciting WR groups of the 80s\"","\"John Elway needed someone to catch it and Mark Jackson answered\""] },
+  "Quick Draw":        { player:"Mike Quick",           team:"Philadelphia Eagles", notes:"5x Pro Bowl WR in the 80s for Philadelphia. One of the most underrated Eagles in history. Had a 99-yard TD catch in 1985 — one of the longest in NFL history.", lines:["\"99-yard touchdown catch in 1985 — one of the longest in NFL history\"","\"Five Pro Bowls that Eagles fans still talk about today\""] },
+  "Bank Robber":       { player:"Carl Banks",           team:"NY Giants", notes:"Two Super Bowls as part of the Giants' legendary linebacking corps alongside LT. Underrated piece of one of the best defenses of the 80s.", lines:["\"Part of the Giants defense that LT made famous\"","\"Two Super Bowl rings alongside the greatest linebacker ever\""] },
+  "Claymore":          { player:"Clay Matthews Jr.",    team:"Cleveland Browns", notes:"Father of Clay Matthews III (the Packers linebacker). Played 19 seasons himself — one of the longest careers for a linebacker in NFL history.", lines:["\"19 seasons at linebacker. His son played 11 and everyone knows him — imagine 19.\"","\"Football royalty — his son became a star too\""] },
+  "Biscuit":           { player:"Cornelius Bennett",    team:"Buffalo Bills / others", notes:"Part of the Bills' four-straight Super Bowl teams. One of the most feared linebackers of his era. Should probably be in the Hall of Fame.", lines:["\"Four straight Super Bowls. One of the most feared linebackers of the 90s.\"","\"The Hall of Fame debate that Buffalo fans still have every year\""] },
+  "Underdoug":         { player:"Doug Williams",        team:"Washington Redskins", notes:"First Black starting QB to win a Super Bowl. Super Bowl XXII MVP — threw 4 TD passes in one quarter, the most dominant quarter by a QB in Super Bowl history. Answered 'How long have you been a Black quarterback?' with a legendary performance.", lines:["\"First Black QB to win a Super Bowl. Then went out and was the MVP.\"","\"4 touchdowns in ONE QUARTER of the Super Bowl. Still a record.\"","\"The most important answer in NFL history was delivered on a football field\""] },
+  "Mountain Drew":     { player:"Drew Bledsoe",         team:"NE Patriots / Buffalo Bills", notes:"His injury gave Tom Brady his chance — and sports history was changed forever. Before that, Bledsoe was the Patriots' franchise QB and the man who started the dynasty.", lines:["\"His injury gave Tom Brady a chance. Sports history was never the same.\"","\"Started the Patriots dynasty and then had to watch someone else win with it\"","\"The most important backup story in NFL history\""] },
+  "Dwight Noise":      { player:"Dwight Stephenson",    team:"Miami Dolphins", notes:"The greatest center in NFL history according to many. Dan Marino's blindside protector. Hall of Famer who anchored the Dolphins offensive line for 8 seasons before a knee injury ended his career.", lines:["\"Greatest center in NFL history — Dan Marino's protector\"","\"Hall of Famer at the most underappreciated position in football\""] },
+  "Green Light":       { player:"Harold Green",         team:"Cincinnati Bengals", notes:"Power running back for the Bengals in the early 90s. Reliable workhorse back who gave the Bengals an identity in the run game during a transitional era.", lines:["\"The workhorse back who gave Cincinnati an identity\""] },
+  "K-Mack":            { player:"Kevin Mack",           team:"Cleveland Browns", notes:"First player in NFL history to rush for 1,000 yards and also have 1,000 yards receiving in a career... wait, ran for 1,000 yards alongside Earnest Byner in 1985 — making Cleveland the only team with two 1,000-yard rushers in the same season.", lines:["\"Two 1,000-yard rushers in one season — Kevin Mack and Earnest Byner did what no other team has done\"","\"Cleveland's backfield in '85 was the best in football\""] },
+  "Pepper Spray":      { player:"Pepper Johnson",       team:"NY Giants / others", notes:"Two Super Bowl rings with the Giants. Tough, physical linebacker who was the unsung hero of New York's defense. Later became a respected NFL defensive line coach.", lines:["\"Two Super Bowls as the unsung hero of the Giants defense\"","\"Became one of the most respected coaches in football after playing\""] },
+  "The Manster":       { player:"Randy White",          team:"Dallas Cowboys", notes:"Super Bowl XII co-MVP — shared with Harvey Martin, one of the only times a defensive player won. 'The Manster' — half man, half monster. One of the most dominant DTs of all time.", lines:["\"Super Bowl MVP from the defensive line — one of the only times ever\"","\"Half man, half monster. The Manster. Nobody else gets a nickname that good.\""] },
+  "Woodchipper":       { player:"Rod Woodson",          team:"Pittsburgh Steelers / others", notes:"Greatest cornerback in NFL history by many metrics. Had 71 career interceptions. Came back from an ACL tear to win Super Bowl XXXVI at safety. Hall of Famer.", lines:["\"71 career interceptions. The most by any cornerback ever.\"","\"Tore his ACL, came back, and won a Super Bowl at a different position\"","\"Greatest cornerback in NFL history — the numbers don't lie\""] },
+  "Gaultfather":       { player:"Willie Gault",         team:"Chicago Bears / LA Raiders", notes:"Olympic sprinter who became an NFL wide receiver. Ran a 4.28 forty. Part of the Super Bowl Shuffle video. The deep threat on the Bears dynasty.", lines:["\"Olympic sprinter. Wide receiver. Super Bowl champion. One résumé.\"","\"Part of the Super Bowl Shuffle — one of the greatest moments in sports pop culture\"","\"A 4.28 forty on a football field is basically cheating\""] },
+  "Jolly Roger":       { player:"Roger Craig",          team:"SF 49ers", notes:"First player in NFL history to rush for 1,000 yards AND catch 1,000 yards in the same season. Three Super Bowl rings with the 49ers dynasty. Underrated piece of San Francisco's dynasty.", lines:["\"First player EVER with 1,000 rushing and 1,000 receiving in the same season\"","\"Three Super Bowls and a place in history for doing something nobody had done before\""] },
+  // BASE & HIGHLIGHTED HEROES
+  "Sevenring":         { player:"Tom Brady",            team:"NE Patriots / Tampa Bay", notes:"Seven Super Bowl rings. SEVEN. Greatest of all time, full stop. Won one at 43 years old in Tampa. 89,214 career passing yards. Somehow still polarizing despite being the most accomplished player in NFL history.", lines:["\"Seven rings. Nobody is close. Nobody.\"","\"Won a Super Bowl at 43 with a new team. Forty-three.\"","\"Love him or hate him — Tom Brady is the greatest football player who ever lived\""] },
+  "Joe Cool":          { player:"Joe Montana",          team:"SF 49ers", notes:"4-0 in Super Bowls. Never threw a pick in Super Bowl play. The Drive. Back-to-back Super Bowl MVPs. 'Joe Cool' because nothing rattled him — ever.", lines:["\"Four Super Bowls. Zero losses. Zero interceptions.\"","\"The Drive — 92 yards, 5 minutes left, down 6. Just another Tuesday for Joe.\"","\"Joe Cool. Ice in his veins, fire in everyone else's.\""] },
+  "Neon":              { player:"Deion Sanders",        team:"SF 49ers / Dallas Cowboys", notes:"Only athlete to play in a Super Bowl AND a World Series. Prime Time. 3x All-Pro, 8x Pro Bowl. The most electric entrance in sports. Shutdown corner who took half the field away every game.", lines:["\"Super Bowl. World Series. Prime Time did both.\"","\"You don't pull Neon — Neon pulls you\"","\"The most electric player in NFL history and he knew it\""] },
+  "Sheriff":           { player:"Peyton Manning",       team:"Indianapolis Colts / Denver Broncos", notes:"Two Super Bowls. 2013 season — 55 TD passes, 5,477 yards, both single season records at the time. Changed pre-snap communication forever. The smartest QB who ever played.", lines:["\"55 touchdowns in one season. FIFTY-FIVE.\"","\"Changed how QBs communicate at the line of scrimmage forever\"","\"The Sheriff of the pocket — nothing happened until Peyton Manning allowed it\""] },
+  "Sweetest of Sweet": { player:"Walter Payton",        team:"Chicago Bears", notes:"Sweetness. All-time rushing record holder for 18 years. Won Super Bowl XX. Most complete back ever — ran, caught, threw, and blocked. Never missed a game by choice.", lines:["\"Sweetness. Because that's the only word for what he did on a football field.\"","\"The 85 Bears defense gets the love — but Payton was the heart\"","\"16,726 yards of pure will. No excuses, no days off.\""] },
+  "Hands":             { player:"Jerry Rice",           team:"SF 49ers", notes:"Greatest receiver of all time. 1,549 catches, 197 TDs, 3 Super Bowls. Was a 16th-round pick. Never missed a game until 37. Rice + Montana = game over in Tecmo.", lines:["\"16th round pick. Greatest of all time.\"","\"The man caught everything. Literally everything.\"","\"1,549 catches. 197 touchdowns. Numbers that will never be touched.\""] },
+  "Merlomes":          { player:"Patrick Mahomes",      team:"Kansas City Chiefs", notes:"Three Super Bowls before 30. Highest paid player in NFL history. Makes throws that shouldn't be possible — behind the back, off the wrong foot, sidearm on a rollout. The most entertaining QB alive.", lines:["\"Three Super Bowls before 30. The race to Brady has a real contender.\"","\"Makes throws that shouldn't be physically possible and then winks at you\"","\"The most entertaining QB in NFL history — and he's not even close to done\""] },
+  "Dart-Board":        { player:"Jaxson Dart",          team:"NY Giants", notes:"Former Ole Miss QB taken by the Giants. One of the most intriguing young QBs in the league. New York is counting on him to end the QB search.", lines:["\"New York's answer to the QB question — the city is watching\"","\"Ole Miss to the NFL — the most electric QB prospect in the 2025 class\""] },
+  "Bison":             { player:"Josh Allen",           team:"Buffalo Bills", notes:"The biggest human to play QB since Cam Newton. 6'5\", can throw 80 yards from his knees. Multiple MVP-caliber seasons. Bills fans have waited decades for a QB like this — he's the one.", lines:["\"6'5\", 240 pounds, throws 80 yards off his back foot. Josh Allen is not real.\"","\"Buffalo waited 30 years for a QB like this. Bison is the payoff.\"","\"Most physically gifted QB in football. And he's getting better.\""] },
+  "Warp":              { player:"Lamar Jackson",        team:"Baltimore Ravens", notes:"Two-time NFL MVP. 2019 unanimous MVP — broke Vick's QB rushing record. Runs the ball like a running back and throws like a top-10 QB. The most exciting player in football.", lines:["\"Two MVPs. Broke the QB rushing record. The most electric player alive.\"","\"Before Lamar, people said mobile QBs couldn't win. He proved everyone wrong.\"","\"Unanimous MVP in 2019 — they had to create a new category for what he does\""] },
+  "Bayou":             { player:"Ja'Marr Chase",        team:"Cincinnati Bengals", notes:"Offensive Rookie of the Year. Broke the single-season receiving yards record for a rookie. His reunion with Joe Burrow from LSU was one of the best storylines in recent NFL history.", lines:["\"Broke the rookie receiving record in his first season.\"","\"Burrow to Chase at LSU. Burrow to Chase in the NFL. Story hasn't changed.\""] },
+  "J-Jetts":           { player:"Justin Jefferson",     team:"Minnesota Vikings", notes:"Broke Jerry Rice's record for most receiving yards in a player's first four seasons. The griddy celebration. Most talented receiver in the NFL right now.", lines:["\"Broke Jerry Rice's record for most receiving yards in first four seasons. JERRY RICE'S RECORD.\"","\"The Griddy. You know it. You've done it.\"","\"The most complete receiver in football right now\""] },
+  "Reindeer Hunter":   { player:"Myles Garrett",        team:"Cleveland Browns", notes:"The best defensive player in football. Multiple Defensive Player of the Year awards. Intellectual, artistic, and also the most terrifying pass rusher on the planet. Plays guitar. Paints.", lines:["\"Best defensive player in football and also paints and plays guitar. Myles Garrett contains multitudes.\"","\"The most terrifying pass rusher alive — and he's getting better\""] },
+  "Swervin'":          { player:"Michael Irvin",        team:"Dallas Cowboys", notes:"The Playmaker. Three Super Bowls with the Cowboys dynasty. Caught everything in traffic, never ducked contact. One of the most physically dominant receivers ever.", lines:["\"The Playmaker. Three Super Bowls and never backed down from a hit.\"","\"Troy threw it and Irvin caught it — that's the Cowboys dynasty in one sentence\""] },
+  "MoD":               { player:"Reggie White",         team:"Philadelphia Eagles / Green Bay Packers", notes:"The Minister of Defense. All-time sack leader when he retired. Super Bowl XXXI champion with the Packers. Ordained minister who was as dominant off the field as on it.", lines:["\"The Minister of Defense. 198 career sacks. Hall of Famer.\"","\"Reggie White was so dominant that teams built their entire game plan around him\"","\"An ordained minister who also terrorized offensive linemen. Reggie contained multitudes.\""] },
+  "Quads":             { player:"Saquon Barkley",       team:"NY Giants / Philadelphia Eagles", notes:"2018 Offensive Rookie of the Year. Missed two seasons to injury and came back stronger. The most physically gifted RB since Adrian Peterson. Eagles fans immediately fell in love.", lines:["\"Most explosive running back since Adrian Peterson\"","\"Came back from two ACL tears and looked better than before. Built different.\""] },
+  "Darn Old":          { player:"Sam Darnold",          team:"Carolina Panthers", notes:"Had a rough run in New York but found his footing. The NFL is full of second chance stories and Sam Darnold's might be the most satisfying.", lines:["\"Second chances are real in the NFL and Sam Darnold is proof\""] },
+  "Phoenix":           { player:"Bo Nix",               team:"Denver Broncos", notes:"Oregon QB who rose from early career struggles to become a high NFL draft pick. The rise and the story behind it make him compelling.", lines:["\"The comeback story is what makes Bo Nix compelling\"","\"From Auburn to Oregon to the NFL — took the long road and made it\""] },
+  "Jax-In-The-Box":   { player:"Jaxon Smith-Njigba",   team:"Seattle Seahawks", notes:"The slot receiver the Seahawks needed after trading DK. Ohio State product. Proven pass catcher at the college level who is just getting started.", lines:["\"Seattle needed a receiver and JSN answered the call\""] },
+  "Eagle-Eye":         { player:"Jalen Hurts",          team:"Philadelphia Eagles", notes:"Led the Eagles to back-to-back Super Bowl appearances. Dual threat QB who has gotten dramatically better every year. The ultimate underdog story — was benched at Alabama by Nick Saban.", lines:["\"Benched at Alabama by Nick Saban. Led two Super Bowl runs in Philadelphia. Underdog forever.\"","\"Gets better every single season. The trajectory is scary.\""] },
+  "Shrouded":          { player:"C.J. Stroud",          team:"Houston Texans", notes:"Offensive Rookie of the Year. Youngest QB to win a playoff game in NFL history. Ohio State product who turned Houston from a rebuilding team into a contender overnight.", lines:["\"Youngest QB to win a playoff game in NFL history\"","\"Rookie of the Year and turned a franchise around in one season\""] },
+  "Myracle":           { player:"Jahmyr Gibbs",         team:"Detroit Lions", notes:"Part of the Lions' incredible backfield with David Montgomery. Electric in the open field, dangerous as a receiver. Detroit's offensive explosion has his fingerprints on it.", lines:["\"The Lions are back and Jahmyr Gibbs is a big reason why\"","\"Most dangerous dual-threat back in the NFC\""] },
+  "Skatter":           { player:"Cam Skattebo",         team:"NY Giants", notes:"Arizona State product who took the college football world by storm. Physical runner with great vision.", lines:["\"Arizona State's best player in years — now proving it at the next level\""] },
+  "Warden":            { player:"Cam Ward",             team:"Miami Hurricanes", notes:"One of the most exciting QB prospects in recent memory. Went from Incarnate Word to Washington State to Miami and lit up every stop. The NFL is next.", lines:["\"From Incarnate Word to the ACC — nobody took a stranger path to stardom\"","\"Every stop, every level — Cam Ward was the best player on the field\""] },
+  "Yeti":              { player:"Travis Kelce",         team:"Kansas City Chiefs", notes:"Greatest tight end in NFL history. Multiple Super Bowl rings with Mahomes. Dating Taylor Swift — which means half your buyers know who he is before they even watch football.", lines:["\"Greatest tight end ever. Also the reason half the country started watching football.\"","\"Mahomes to Kelce is the most reliable connection in football\"","\"Taylor Swift effect is real and Kelce is at the center of it\""] },
+  "BrockNess":         { player:"Brock Bowers",         team:"Las Vegas Raiders", notes:"Broke the rookie record for tight end receiving yards. Georgia product. The next great TE in a league that loves great TEs.", lines:["\"Broke the TE rookie receiving record in his first season\"","\"The next great tight end — and he's already here\""] },
+  "McArmyKnife":       { player:"Christian McCaffrey",  team:"SF 49ers", notes:"Most complete running back in football. Leads the league in yards from scrimmage consistently. 2023 season was one of the best RB performances in a decade.", lines:["\"Best running back in football. Not close.\"","\"Rushes, catches, blocks — CMC does everything\"","\"2023 was one of the greatest RB seasons in 10 years\""] },
+  "Muffin Man":        { player:"Baker Mayfield",       team:"Tampa Bay Buccaneers", notes:"Had the most improbable comeback of any QB in recent memory. Cut by Cleveland, bounced around, landed in Tampa and won in the playoffs. Cleveland fans have mixed feelings.", lines:["\"Cut by Cleveland, bounced to three teams, went to the playoffs. Baker is BUILT for chaos.\"","\"Nobody wrote a better revenge story in recent NFL history\""] },
+  "Youngblood":        { player:"Bryce Young",          team:"Carolina Panthers", notes:"First overall pick. Won the Heisman at Alabama. The smallest QB ever taken first overall — and the pressure that comes with it.", lines:["\"First overall pick, Heisman winner, and the smallest QB ever taken #1\"","\"Carolina is betting on talent over size — and Bryce Young has plenty of talent\""] },
+  "Switchblade":       { player:"Travis Hunter",        team:"Colorado", notes:"Two-way Heisman Trophy winner. Plays both WR and CB at the highest level simultaneously. Deion Sanders' guy at Colorado. The most talked about prospect in football.", lines:["\"Two-way Heisman winner. Plays receiver AND corner. Both at All-American level.\"","\"Coach Prime's prized pupil — and the most unique prospect in a generation\"","\"Travis Hunter is doing something no one has done since the leather helmet era\""] },
+  "McVillain":         { player:"Tei'roa McMillan",     team:"Colorado", notes:"Part of Deion Sanders' Colorado rebuild. Skilled back who shows flashes of elite potential.", lines:["\"Part of the Coach Prime revolution at Colorado\""] },
+  "Quarter Staff":     { player:"Matthew Stafford",     team:"Detroit Lions / LA Rams", notes:"Won the Super Bowl with the Rams after spending 12 years in Detroit. One of the most beloved Lions in history who finally got his ring with Los Angeles. Detroit celebrated for him.", lines:["\"12 years in Detroit, finally got his ring in LA — and Detroit fans CELEBRATED for him\"","\"Super Bowl champion after everyone thought his window had passed\"","\"The most loyal fan base moment — Detroit rooting for a guy who left\""] },
+  "Judkernaught":      { player:"Quinshon Judkins",     team:"Ohio State", notes:"One of the most physical and productive RBs in recent college football. Ole Miss to Ohio State — followed the portal to chase a championship.", lines:["\"Followed the portal to Ohio State to chase a national championship\"","\"One of the most physical backs in college football\""] },
+  "Jeanetic":          { player:"Ashton Jeanty",        team:"Boise State", notes:"Nearly broke Barry Sanders' single season rushing record. Boise State legend who took the country by storm. Heisman finalist.", lines:["\"Almost broke Barry Sanders' single season rushing record. BARRY SANDERS' RECORD.\"","\"Boise State to the national spotlight in one historic season\""] },
+  "Coinslot":          { player:"Daniel Jones",         team:"NY Giants", notes:"Had his moment in New York, including a legendary playoff run in 2022. The debate about him is still alive in every NFL city.", lines:["\"That 2022 playoff run with the Giants was one of the most unexpected stories of the year\""] },
+  "Chanesaw":          { player:"De'Von Achane",        team:"Miami Dolphins", notes:"The fastest skill player in football right now. Set records for yards per carry in his rookie season. If he's in open space, it's over.", lines:["\"Fastest player in football. Give him open space and it's a highlight.\"","\"Set rushing records as a rookie — the Dolphins found something special\""] },
+  "Mr. Irrelevant":    { player:"Brock Purdy",          team:"SF 49ers", notes:"The last pick in the 2022 NFL Draft — Mr. Irrelevant — became the starting QB for one of the best teams in football. The ultimate underdog story. May be the greatest Mr. Irrelevant ever.", lines:["\"Last pick in the draft. Starting QB of a Super Bowl contender. Mr. Irrelevant is very relevant.\"","\"The most unbelievable underdog story in recent NFL history\"","\"From dead last in the draft to NFC Championship games. Brock Purdy is for real.\""] },
+  "Shadowstrike":      { player:"Davante Adams",        team:"Las Vegas Raiders / NY Jets", notes:"One of the best route runners in football history. Aaron Rodgers' favorite target for years in Green Bay. His routes are textbook material for young receivers.", lines:["\"Best route runner in football — defenders know exactly where he's going and still can't stop him\"","\"Aaron Rodgers said he's the best receiver he ever played with. That's high praise.\""] },
+  "Shepherd":          { player:"CeeDee Lamb",          team:"Dallas Cowboys", notes:"Over 1,700 receiving yards in 2023. The most complete receiver in football today. Dallas's best player and one of the most valuable fantasy assets in the sport.", lines:["\"1,700 receiving yards. In one season. CeeDee Lamb is the best receiver in football right now.\"","\"Dallas's entire offense runs through this man\""] },
+  "Scary":             { player:"Terry McLaurin",       team:"Washington Commanders", notes:"Scary Terry. Has been great despite mediocre QB play throughout his career. One of the most underrated receivers in football.", lines:["\"Scary Terry has been great with below average QB play his entire career — imagine him with elite QB\"","\"Washington fans have been waiting for the right QB to unleash what McLaurin can do\""] },
+  "Lawman":            { player:"Trevor Lawrence",      team:"Jacksonville Jaguars", notes:"First overall pick. Generational talent who has shown flashes of why he was the consensus best prospect in a decade. Jacksonville's franchise anchor.", lines:["\"Consensus #1 prospect in a decade — Jacksonville built around him\"","\"Trevor Lawrence is still 25. The best is ahead.\""] },
+  "Buttman":           { player:"Marion Butts",         team:"San Diego Chargers", notes:"Power running back for the Chargers in the late 80s-early 90s. Led the NFL in rushing touchdowns in 1990. Underrated back who gave San Diego a reliable run game.", lines:["\"Led the NFL in rushing TDs in 1990 — the Chargers' workhorse\""] },
+  "Criscross":         { player:"Cris Carter",          team:"Minnesota Vikings", notes:"Hall of Famer. 130 receiving touchdowns — still third all-time. Ran routes so precise that defenders knew where he was going and couldn't stop him. Famous for his sideline catches.", lines:["\"130 career touchdowns — third all-time\"","\"The most precise route runner of his era\"","\"Famous for two-foot sideline catches before the rule even mattered\""] },
+  "Rockhead":          { player:"Chris Doleman",        team:"Minnesota Vikings", notes:"Hall of Fame defensive end with 150.5 career sacks. One of the most underrated pass rushers of all time. Part of the Vikings' fearsome front in the 80s and 90s.", lines:["\"150 career sacks and somehow still underrated\"","\"The Vikings were scary in the 80s because of Doleman\""] },
+  "Brawn":             { player:"A.J. Brown",           team:"Tennessee Titans / Philadelphia Eagles", notes:"Physical mismatch for any cornerback. Catches contested balls like they're gifts. Super Bowl LVI loser with the Eagles but one of the best receivers in football.", lines:["\"No cornerback alive can cover AJ Brown one-on-one for 60 minutes\"","\"The most physical receiver in football — catches everything\""] },
+  "DeVaulta":          { player:"DeVonta Smith",        team:"Philadelphia Eagles", notes:"Heisman Trophy winner despite weighing 170 pounds. Every scout said he was too small. He's proven them wrong at every level. Eagles fans love him.", lines:["\"170 pounds. Heisman Trophy. Every scout was wrong.\"","\"The Slim Reaper — too small to be great, and yet here we are\""] },
+  "Hot Sauce":         { player:"Sauce Gardner",        team:"NY Jets", notes:"2022 Defensive Rookie of the Year. First cornerback taken first overall in years. Has barely been beaten since entering the league. Sauce isn't just a nickname — it's a description.", lines:["\"Defensive Rookie of the Year. Barely gets beat. Sauce is real.\"","\"The Jets draft first overall CBs sometimes. Sauce was worth it.\""] },
+  "First Leap":        { player:"LeRoy Butler",         team:"Green Bay Packers", notes:"Invented the Lambeau Leap. That's his legacy and it's permanent — every Packers TD scored at home pays homage to LeRoy Butler.", lines:["\"Invented the Lambeau Leap. His legacy is on every Green Bay touchdown scored at home.\"","\"You've seen a thousand Lambeau Leaps. They all started with LeRoy Butler.\""] },
+  "Friday":            { player:"Deebo Samuel",         team:"SF 49ers", notes:"'Wide back' — used as a running back despite being a receiver. Explosive player who the 49ers weaponize in unique ways. One of the most creative offensive deployments in football.", lines:["\"Wide back. It's not a position but Deebo made it one.\"","\"The 49ers use him like no team uses a receiver — and it works every time\""] },
+  "Barreler":          { player:"Cooper Kupp",          team:"LA Rams", notes:"2021 Triple Crown receiver — led the NFL in receptions, yards, AND touchdowns. Super Bowl LVI champion and MVP. Mcvay's favorite target and one of the best route runners alive.", lines:["\"Triple Crown receiver in 2021 — receptions, yards, TDs. All three.\"","\"Super Bowl champion AND Super Bowl MVP in the same year\"","\"The most important receiver on the most creative offense in football\""] },
+  "Watterslide":       { player:"Ricky Watters",        team:"SF 49ers / Philadelphia Eagles", notes:"Super Bowl XXIX champion with the 49ers. Had a famous quote after his first game in Philadelphia — 'For who? For what?' — that Philly fans never forgot or forgave... then he became a fan favorite anyway.", lines:["\"'For who? For what?' — the most infamous first game quote in Philly history\"","\"Somehow became a Philly fan favorite after almost the worst possible start\""] },
+  "Cannon":            { player:"Rich Gannon",          team:"Oakland Raiders", notes:"2002 NFL MVP at 37 years old — one of the oldest MVPs ever. Led the Raiders to the Super Bowl that year. Career journeyman who found a home in Oakland and became the best QB in football.", lines:["\"MVP at 37. One of the oldest in NFL history.\"","\"Journeyman QB, found the right system, became the best QB in football at 37\""] },
+  "Furnest":           { player:"Earnest Byner",        team:"Cleveland Browns / Washington Redskins", notes:"Famous for The Fumble — one of the most heartbreaking moments in Browns history. Redeemed himself with a Super Bowl ring in Washington. The ultimate redemption story.", lines:["\"The Fumble broke Cleveland's heart. The Super Bowl ring healed it.\"","\"Greatest redemption story in NFL history — from The Fumble to a championship\""] },
+  "Hot Rod":           { player:"Rodney Hampton",       team:"NY Giants", notes:"Two-time Pro Bowl back for the Giants in the early 90s. Carried New York's run game when they needed it most. Underrated workhorse of the NFC.", lines:["\"New York's workhorse back in the early 90s — reliable every single week\""] },
+  "Golden Bullet":     { player:"Matthew Golden",       team:"Houston Texans", notes:"Young receiver coming into his own in Houston's offensive system. Part of the next generation of Texans weapons.", lines:["\"The next piece of Houston's offensive puzzle\""] },
+  "Billiard":          { player:"Dalton Hilliard",      team:"New Orleans Saints", notes:"Two-time Pro Bowl back for New Orleans. Led the Saints in rushing for multiple seasons. One of the more underrated Saints backs in history.", lines:["\"Two-time Pro Bowler who gave New Orleans a reliable ground game\""] },
+  "Ruptillian":        { player:"Mark Rypien",          team:"Washington Redskins", notes:"Super Bowl XXVI MVP. Led Washington to their third Super Bowl with a dominant performance. Often overlooked in the conversation about Washington QBs despite being a champion.", lines:["\"Super Bowl MVP who somehow still gets overlooked in the Washington QB conversation\"","\"Led Washington to their last championship — that matters\""] },
+  "Flippa":            { player:"Flipper Anderson",     team:"LA Rams", notes:"Set the single-game receiving record with 336 yards in 1989 — a record that stood for decades. Had some of the most electrifying individual performances in NFL history.", lines:["\"336 yards in ONE GAME. Single-game receiving record.\"","\"The most yards anyone has ever caught in a single NFL game — Flipper Anderson did that\""] },
+  "Slaughterhouse":    { player:"Webster Slaughter",    team:"Cleveland Browns", notes:"Speedster receiver who gave Cleveland a deep threat in the late 80s. Paired with Reggie Langhorne to give Bernie Kosar weapons on the outside.", lines:["\"Cleveland's deep threat in the Bernie Kosar era\""] },
+  "Hammer":            { player:"Omarion Hampton",      team:"UNC / LA Rams", notes:"Physical running back from North Carolina who was a first round pick. Brings power and vision to LA's backfield.", lines:["\"First round pick who brings a power runner's mentality to the Rams\""] },
+  "Majik Man":         { player:"Don Majkowski",        team:"Green Bay Packers", notes:"The Majik Man — was THE guy in Green Bay before Brett Favre. Had a legendary 1989 season and gave Packers fans hope. His injury gave Favre his chance.", lines:["\"His injury gave Brett Favre his shot. Green Bay history changed on that day.\"","\"The Majik Man before Favre — Green Bay's forgotten hero\""] },
+  "A Bear":            { player:"Bobby Hebert",         team:"New Orleans Saints", notes:"The Cajun Cannon. QB of the Saints for years. New Orleans legend who gave the city a face for their franchise.", lines:["\"The Cajun Cannon — as Louisiana as a QB can get\"","\"New Orleans' franchise QB before the Saints became who they are today\""] },
+  "Moose":             { player:"Daryl Johnston",       team:"Dallas Cowboys", notes:"The fullback who made Emmitt Smith great. Three Super Bowls as the lead blocker. Often called the most important unsung hero of the Cowboys dynasty.", lines:["\"Emmitt Smith won the rushing title. Daryl Johnston paved the way.\"","\"Three Super Bowls as the most important player nobody talked about\"","\"The best fullback of his era — blocking is an art form and Moose was Picasso\""] },
+  "Hillicopter":       { player:"Drew Hill",            team:"Houston Oilers", notes:"Part of Warren Moon's aerial circus in Houston. Consistent receiver who helped make the run-and-shoot one of the most exciting offenses of the 80s.", lines:["\"Warren Moon's go-to in the Houston run-and-shoot — one of the most exciting offenses ever\""] },
 };
 
-function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet, expandedHero, setExpandedHero, customNotes={}, setCustomNotes }) {
+function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet, expandedHero, setExpandedHero }) {
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState("");
+  const [playerNotes, setPlayerNotes] = useState({});
+
+  // Load notes from Firestore
+  useEffect(()=>{
+    const unsub = onSnapshot(collection(db,"player_notes"), snap=>{
+      const n = {};
+      snap.docs.forEach(d=>{ n[d.id] = d.data(); });
+      setPlayerNotes(n);
+    });
+    return ()=>unsub();
+  },[]);
+
+  async function saveNote(hero) {
+    const key = hero.replace(/[^a-zA-Z0-9]/g,"_");
+    await setDoc(doc(db,"player_notes",key), {
+      hero,
+      notes: noteText,
+      updatedAt: new Date().toISOString()
+    });
+    setEditingNote(null);
+  }
 
   const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const curSet = activeSet || sets[0] || "";
-
   const heroes = [...new Set(cards.filter(c=>c.setName===curSet).map(c=>c.hero).filter(Boolean))].sort();
-
-  function saveNote(hero) {
-    setCustomNotes(p=>({...p,[hero]:noteText}));
-    setEditingNote(null);
-  }
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -12749,53 +12886,174 @@ function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet,
         ))}
       </div>
 
+      <div style={{fontSize:11,color:"#555"}}>Tap any player to add broadcaster notes — bio, talking points, hype lines</div>
+
       {/* Player list */}
       {heroes.length === 0 && <div style={{color:"#333",padding:24,textAlign:"center"}}>No players found in this set</div>}
       {heroes.map(hero => {
+        const key = hero.replace(/[^a-zA-Z0-9]/g,"_");
         const isExpanded = expandedHero === hero;
         const hasCard = cards.filter(c=>c.setName===curSet&&c.hero===hero).some(c=>owned[c.id]);
-        const notes = PLAYER_NOTES[hero];
+        const saved = playerNotes[key];
+        const builtIn = PLAYER_NOTES[hero];
 
         return (
           <div key={hero} style={{background:"#111",border:`1px solid ${isExpanded?"#E8317A33":hasCard?"rgba(74,222,128,0.2)":"#1a1a1a"}`,borderRadius:10,overflow:"hidden"}}>
-            {/* Row */}
             <div onClick={()=>setExpandedHero(isExpanded?null:hero)}
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:hasCard?"#4ade80":"#2a2a2a",flexShrink:0}}/>
               <div style={{flex:1,fontSize:14,fontWeight:700,color:"#F0F0F0"}}>{hero}</div>
-              {notes && <span style={{fontSize:10,color:"#E8317A",background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700}}>🎙 Notes</span>}
+              {(saved?.notes || builtIn) && <span style={{fontSize:10,color:"#E8317A",background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700}}>🎙 Notes</span>}
               <span style={{color:"#333",fontSize:11}}>{isExpanded?"▲":"▼"}</span>
             </div>
 
-            {/* Expanded notes */}
             {isExpanded && (
-              <div style={{borderTop:"1px solid #1a1a1a",padding:"14px 16px",background:"#0d0d0d",display:"flex",flexDirection:"column",gap:12}}>
-                {notes ? <>
-                  <p style={{margin:0,fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>{notes.bio}</p>
+              <div style={{borderTop:"1px solid #1a1a1a",padding:"14px 16px",background:"#0d0d0d"}}>
+                {editingNote===hero ? (
+                  <div style={{display:"flex",gap:8}}>
+                    <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
+                      placeholder={`Who is ${hero}? Career highlights, Tecmo legacy, hype lines for stream...`}
+                      style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:7,color:"#F0F0F0",padding:"8px 10px",fontSize:13,fontFamily:"inherit",minHeight:100,resize:"vertical",lineHeight:1.6}}/>
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <button onClick={()=>saveNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
+                      <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
                   <div>
-                    <div style={{fontSize:10,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>🎙 Lines to Use</div>
-                    {notes.lines.map((l,i)=>(
-                      <div key={i} style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:7,padding:"8px 12px",marginBottom:6,fontSize:13,color:"#F0F0F0",fontStyle:"italic"}}>{l}</div>
+                    {(saved?.notes || builtIn) ? <>
+                  {builtIn && <>
+                    <div style={{fontSize:11,color:"#E8317A",fontWeight:700,marginBottom:4}}>Inspired by: {builtIn.player} — {builtIn.team}</div>
+                    <p style={{margin:"0 0 12px",fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>{builtIn.notes}</p>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>🎙 Lines to Use</div>
+                      {builtIn.lines.map((l,i)=>(
+                        <div key={i} style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:7,padding:"8px 12px",marginBottom:6,fontSize:13,color:"#F0F0F0",fontStyle:"italic"}}>{l}</div>
+                      ))}
+                    </div>
+                  </>}
+                  {saved?.notes && <div style={{marginTop:12}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>📝 Your Notes</div>
+                    <div style={{fontSize:13,color:"#AAAAAA",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{saved.notes}</div>
+                  </div>}
+                </> : <div style={{fontSize:12,color:"#555"}}>No notes yet for {hero}</div>}
+                    <button onClick={()=>{setEditingNote(hero);setNoteText(saved?.notes||"");}}
+                      style={{background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",color:"#E8317A",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      {saved?.notes?"✏️ Edit Notes":"+ Add Notes"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function BroadcasterNotes({ cards=[] }) {
+  const [activeSet, setActiveSet]   = useState("");
+  const [expandedHero, setExpandedHero] = useState(null);
+  const [search, setSearch]         = useState("");
+  const [playerNotes, setPlayerNotes] = useState({});
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteText, setNoteText]     = useState("");
+
+  useEffect(()=>{
+    const unsub = onSnapshot(collection(db,"player_notes"), snap=>{
+      const n={};
+      snap.docs.forEach(d=>{ n[d.id]=d.data(); });
+      setPlayerNotes(n);
+    });
+    return()=>unsub();
+  },[]);
+
+  async function saveNote(hero) {
+    const key = hero.replace(/[^a-zA-Z0-9]/g,"_");
+    await setDoc(doc(db,"player_notes",key),{ hero, notes:noteText, updatedAt:new Date().toISOString() });
+    setEditingNote(null);
+  }
+
+  const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const curSet = activeSet || sets[0] || "";
+  const allHeroes = [...new Set(cards.filter(c=>c.setName===curSet).map(c=>c.hero).filter(Boolean))].sort();
+  const heroes = search ? allHeroes.filter(h=>h.toLowerCase().includes(search.toLowerCase())||(PLAYER_NOTES[h]?.player||"").toLowerCase().includes(search.toLowerCase())) : allHeroes;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14,paddingBottom:40}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>🎙 Broadcaster Notes</div>
+          <div style={{fontSize:12,color:"#555",marginTop:2}}>Player bios, talking points, and hype lines for every pull</div>
+        </div>
+      </div>
+
+      {/* Set tabs */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {sets.map(s=>(
+          <button key={s} onClick={()=>{setActiveSet(s);setExpandedHero(null);setSearch("");}}
+            style={{background:curSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${curSet===s?"#E8317A":"#1a1a1a"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {s} <span style={{color:"#555",fontSize:10,marginLeft:4}}>({[...new Set(cards.filter(c=>c.setName===s).map(c=>c.hero).filter(Boolean))].length})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input value={search} onChange={e=>setSearch(e.target.value)}
+        placeholder="Search by hero name or player name..."
+        style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:10,color:"#F0F0F0",padding:"10px 14px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+
+      {/* Player list */}
+      {heroes.length===0&&<div style={{color:"#333",padding:32,textAlign:"center",fontSize:13}}>No players found</div>}
+      {heroes.map(hero=>{
+        const key = hero.replace(/[^a-zA-Z0-9]/g,"_");
+        const isExpanded = expandedHero===hero;
+        const builtIn = PLAYER_NOTES[hero];
+        const saved = playerNotes[key];
+        const hasNotes = !!(builtIn||saved?.notes);
+
+        return (
+          <div key={hero} style={{background:"#111",border:`1px solid ${isExpanded?"rgba(232,49,122,0.4)":"#1a1a1a"}`,borderRadius:12,overflow:"hidden",transition:"border-color 0.2s"}}>
+            <div onClick={()=>setExpandedHero(isExpanded?null:hero)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0"}}>{hero}</div>
+                {builtIn&&<div style={{fontSize:11,color:"#555",marginTop:2}}>Inspired by {builtIn.player} — {builtIn.team}</div>}
+              </div>
+              {hasNotes&&<span style={{fontSize:10,color:"#E8317A",background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700,flexShrink:0}}>🎙 Notes</span>}
+              <span style={{color:"#333",fontSize:12,transition:"transform 0.2s",transform:isExpanded?"rotate(180deg)":"none"}}>▼</span>
+            </div>
+
+            {isExpanded&&(
+              <div style={{borderTop:"1px solid #1a1a1a",padding:"16px 18px",background:"#0d0d0d",display:"flex",flexDirection:"column",gap:14}}>
+                {builtIn&&<>
+                  <p style={{margin:0,fontSize:13,color:"#AAAAAA",lineHeight:1.7}}>{builtIn.notes}</p>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🎙 Lines to Use</div>
+                    {builtIn.lines.map((l,i)=>(
+                      <div key={i} style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.12)",borderRadius:8,padding:"9px 12px",marginBottom:6,fontSize:13,color:"#F0F0F0",fontStyle:"italic",lineHeight:1.5}}>{l}</div>
                     ))}
                   </div>
-                </> : <div style={{fontSize:12,color:"#555"}}>No notes yet for {hero}</div>}
-
+                </>}
+                {!builtIn&&!saved?.notes&&<div style={{fontSize:12,color:"#555",fontStyle:"italic"}}>No built-in notes for {hero} yet</div>}
                 {/* Custom notes */}
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>📝 Your Notes</div>
-                  {editingNote===hero ? (
+                  <div style={{fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 Your Notes</div>
+                  {editingNote===hero?(
                     <div style={{display:"flex",gap:8}}>
-                      <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Add your own lines..."
-                        style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:7,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",minHeight:70,resize:"vertical"}}/>
-                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                        <button onClick={()=>saveNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
-                        <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                      <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
+                        placeholder="Add your own lines, stories, anything that works on stream..."
+                        style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",minHeight:90,resize:"vertical",lineHeight:1.6}}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        <button onClick={()=>saveNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:7,padding:"7px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
+                        <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:7,padding:"7px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                       </div>
                     </div>
-                  ) : (
-                    <div onClick={()=>{setEditingNote(hero);setNoteText(customNotes[hero]||"");}}
-                      style={{background:"rgba(123,156,255,0.04)",border:"1px dashed rgba(123,156,255,0.2)",borderRadius:7,padding:"10px 12px",fontSize:13,color:customNotes[hero]?"#AAAAAA":"#333",cursor:"pointer",fontStyle:"italic"}}>
-                      {customNotes[hero]||"+ Tap to add your own notes..."}
+                  ):(
+                    <div onClick={()=>{setEditingNote(hero);setNoteText(saved?.notes||"");}}
+                      style={{background:"rgba(123,156,255,0.04)",border:"1px dashed rgba(123,156,255,0.2)",borderRadius:8,padding:"10px 14px",fontSize:13,color:saved?.notes?"#AAAAAA":"#333",cursor:"pointer",fontStyle:"italic",lineHeight:1.5}}>
+                      {saved?.notes||"+ Tap to add your own notes..."}
                     </div>
                   )}
                 </div>
@@ -12808,7 +13066,7 @@ function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet,
   );
 }
 
-function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
+
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
   const [cards,        setCards]        = useState([]);
@@ -15888,7 +16146,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         );
       })()}
 
-      {viewMode === "setlist" && !loading && <SetListView cards={cards} owned={owned} toggleOwned={toggleOwned} activeSet={activeSet} setActiveSet={setActiveSet} expandedHero={expandedHeroNotes} setExpandedHero={setExpandedHeroNotes} customNotes={customNotes} setCustomNotes={setCustomNotes} />}
+      {viewMode === "setlist" && !loading && <SetListView cards={cards} owned={owned} toggleOwned={toggleOwned} activeSet={activeSet} setActiveSet={setActiveSet} expandedHero={expandedHeroNotes} setExpandedHero={setExpandedHeroNotes} />}
 
             {viewMode === "cards" && (loading ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
@@ -21141,7 +21399,8 @@ export default function App() {
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
-    { id:"checklist",  label:"BoBA",         icon:"\uD83C\uDCCF", roles:["Admin","Streamer","Viewer"] },
+    { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","Streamer","StreamerLite"] },
+    { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Streamer","Viewer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
@@ -21393,6 +21652,7 @@ export default function App() {
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
+        {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
       </div>
     </div>
