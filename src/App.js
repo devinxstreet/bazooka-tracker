@@ -359,8 +359,7 @@ function GlobalStyles() {
       }
         .mobile-hide { display: none !important; }
         .mobile-show { display: inline !important; }
-        .nav-tab-label { display: none !important; }
-        .nav-tab-icon { display: inline !important; }
+        .nav-tab-label { display: inline; }
         .nav-tab { padding: 10px 14px !important; font-size: 18px !important; }
         .tab-content { padding: 10px !important; }
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
