@@ -4901,6 +4901,39 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     return true;
   }
 
+  // Calculate spend for the active period from spendHistory
+  function getPeriodSpend(b) {
+    if (exportPeriod === "all" || !(b.spendHistory||[]).length) return b.totalSpend||0;
+    return (b.spendHistory||[]).filter(h => {
+      if (!h.date) return false;
+      const dt = new Date(h.date + "T12:00:00");
+      if (exportPeriod === "month")   return dt.getMonth()===now.getMonth()&&dt.getFullYear()===now.getFullYear();
+      if (exportPeriod === "quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(dt.getMonth()/3)===q&&dt.getFullYear()===now.getFullYear(); }
+      if (exportPeriod === "year")    return dt.getFullYear()===now.getFullYear();
+      if (exportPeriod === "custom"&&exportFrom&&exportTo) {
+        const f=new Date(exportFrom+"T00:00:00"), t=new Date(exportTo+"T23:59:59");
+        return dt>=f&&dt<=t;
+      }
+      return false;
+    }).reduce((s,h)=>s+(h.spend||0),0);
+  }
+
+  function getPeriodOrders(b) {
+    if (exportPeriod === "all" || !(b.spendHistory||[]).length) return b.orderCount||0;
+    return (b.spendHistory||[]).filter(h => {
+      if (!h.date) return false;
+      const dt = new Date(h.date + "T12:00:00");
+      if (exportPeriod === "month")   return dt.getMonth()===now.getMonth()&&dt.getFullYear()===now.getFullYear();
+      if (exportPeriod === "quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(dt.getMonth()/3)===q&&dt.getFullYear()===now.getFullYear(); }
+      if (exportPeriod === "year")    return dt.getFullYear()===now.getFullYear();
+      if (exportPeriod === "custom"&&exportFrom&&exportTo) {
+        const f=new Date(exportFrom+"T00:00:00"), t=new Date(exportTo+"T23:59:59");
+        return dt>=f&&dt<=t;
+      }
+      return false;
+    }).reduce((s,h)=>s+(h.orders||0),0);
+  }
+
   function exportCSV() {
     const rows = buyers.filter(buyerInPeriod).sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0));
     const headers = ["Username","Full Name","City","State","ZIP","Total Spend","Order Count","First Seen","Last Seen","New Buyer"];
@@ -4936,15 +4969,15 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     }
     return true;
   }).sort((a,b) => {
-    if (sortBy==="totalSpend")  return (b.totalSpend||0)-(a.totalSpend||0);
-    if (sortBy==="orderCount")  return (b.orderCount||0)-(a.orderCount||0);
+    if (sortBy==="totalSpend")  return getPeriodSpend(b)-getPeriodSpend(a);
+    if (sortBy==="orderCount")  return getPeriodOrders(b)-getPeriodOrders(a);
     if (sortBy==="lastSeen")    return (b.lastSeen||"").localeCompare(a.lastSeen||"");
     if (sortBy==="username")    return (a.username||"").localeCompare(b.username||"");
     return 0;
   });
 
   const totalBuyers   = filtered.length;
-  const totalRevenue  = filtered.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalRevenue  = filtered.reduce((s,b)=>s+getPeriodSpend(b),0);
   const newBuyers     = filtered.filter(b=>b.isNew).length;
   const avgSpend      = totalBuyers > 0 ? totalRevenue/totalBuyers : 0;
 
@@ -5073,7 +5106,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
                 <thead>
-                  <tr>{["Username","Name","Location","Orders","Total Spend","Avg/Order","Last Seen"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+                  <tr>{["Username","Name","Location","Orders",exportPeriod==="all"?"Total Spend":`Spend (${exportPeriod==="month"?"This Month":exportPeriod==="quarter"?"This Quarter":exportPeriod==="year"?"This Year":"Period"})`,"Avg/Order","Last Seen"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
@@ -5081,8 +5114,11 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                       {buyers.length === 0 ? "No buyers yet -- import a CSV from the Streams tab" : "No buyers match your search"}
                     </td></tr>
                   ) : filtered.map((b,i) => {
-                    const avgOrder = b.orderCount > 0 ? (b.totalSpend||0)/b.orderCount : 0;
+                    const pSpend  = getPeriodSpend(b);
+                    const pOrders = getPeriodOrders(b);
+                    const avgOrder = pOrders > 0 ? pSpend/pOrders : 0;
                     const loc = [b.city, b.state].filter(Boolean).join(", ");
+                    const showingPeriod = exportPeriod !== "all";
                     return (
                       <tr key={b.id} onClick={()=>setSelected(selected?.id===b.id?null:b)}
                         style={{ cursor:"pointer", background:selected?.id===b.id?"#1A1A2E":i%2===0?"#0d0d0d":"#111" }}
@@ -5095,8 +5131,11 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                         </td>
                         <td style={{ ...S.td, color:"#F0F0F0" }}>{b.fullName||"--"}</td>
                         <td style={{ ...S.td, color:"#888" }}>{loc||"--"}</td>
-                        <td style={{ ...S.td, color:"#F0F0F0", textAlign:"center" }}>{b.orderCount||0}</td>
-                        <td style={{ ...S.td, color:"#4ade80", fontWeight:700 }}>{fmt(b.totalSpend)}</td>
+                        <td style={{ ...S.td, color:"#F0F0F0", textAlign:"center" }}>{pOrders}</td>
+                        <td style={{ ...S.td, fontWeight:700 }}>
+                          <span style={{ color:"#4ade80" }}>{fmt(pSpend)}</span>
+                          {showingPeriod && pSpend !== (b.totalSpend||0) && <span style={{ color:"#555", fontSize:10, marginLeft:6 }}>({fmt(b.totalSpend)} all time)</span>}
+                        </td>
                         <td style={{ ...S.td, color:"#888" }}>{fmt(avgOrder)}</td>
                         <td style={{ ...S.td, color:"#555" }}>{b.lastSeen ? new Date(b.lastSeen).toLocaleDateString() : "--"}</td>
                       </tr>
@@ -20779,6 +20818,11 @@ export default function App() {
         orderCount: (prev?.orderCount || 0) + b.orders,
         couponCount: (prev?.couponCount || 0) + (b.couponCount||0),
         streams: [...new Set([...(prev?.streams||[]), streamId])],
+        // Per-stream spend history for period filtering
+        spendHistory: [
+          ...(prev?.spendHistory||[]).filter(h=>h.streamId!==streamId),
+          { streamId, date: b.date || new Date().toISOString().split("T")[0], spend: b.spend, orders: b.orders }
+        ],
         firstSeen: prev?.firstSeen || b.date || new Date().toISOString().split("T")[0],
         lastSeen: b.date || new Date().toISOString().split("T")[0],
         isNew: !prev,
