@@ -20622,8 +20622,6 @@ function Finance({ streams=[], userRole }) {
 }
 
 export default function App() {
-  const isMobile = useWindowWidth() < 768;
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
   const [gOpen,         setGOpen]         = useState(false);
@@ -21164,62 +21162,46 @@ export default function App() {
           <div style={{position:"absolute",top:-80,left:"15%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.12) 0%,transparent 70%)",animation:"dashOrb 8s ease-in-out infinite",pointerEvents:"none"}}/>
           <div style={{position:"absolute",top:-60,right:"10%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.1) 0%,transparent 70%)",animation:"dashOrb 11s ease-in-out infinite reverse",pointerEvents:"none"}}/>
 
-          <div style={{maxWidth:1500,margin:"0 auto",padding:isMobile?"12px 12px 0":"20px 20px 0",position:"relative"}}>
+          <div style={{maxWidth:1500,margin:"0 auto",padding:"20px 20px 0",position:"relative"}}>
             {/* Top row: brand + controls */}
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:isMobile?8:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
               <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
                 <div style={{width:32,height:32,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 16px rgba(232,49,122,0.3)",flexShrink:0}}>
                   <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
                 </div>
-                {!isMobile && <div>
+                <div>
                   <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
                   <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
-                </div>}
-                {isMobile && <div style={{fontSize:16,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Bazooka</div>}
+                </div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <button onClick={()=>setGOpen(p=>!p)}
-                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
+                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.color="rgba(255,255,255,0.5)"}}>
                   <span style={{fontSize:13}}>{"🔍"}</span>
-                  {!isMobile && <><span>Search</span><kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}}>K</kbd></>}
+                  <span>Search</span>
+                  <kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}}>K</kbd>
                 </button>
-                {!isMobile && <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{inventory.length} cards</span>}
-                {userRole.role === "Admin" && !isMobile && (
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{inventory.length} cards</span>
+                {userRole.role === "Admin" && (
                   <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,color:"rgba(255,255,255,0.4)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
                     <option value="">-- Real Role --</option>
                     {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
                   </select>
                 )}
-                {!isMobile && <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.8)"}}>{user?.displayName?.split(" ")[0]}</span>
-                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700}}>{effectiveRole.label}</span>
-                </div>}
-                {isMobile && <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)"}}>{user?.displayName?.split(" ")[0]}</span>}
+                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,backdropFilter:"blur(10px)"}}>{effectiveRole.label}</span>
+                </div>
                 <button onClick={()=>signOut(auth)}
-                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit"}}>
-                  {isMobile ? "↩" : "Sign out"}
-                </button>
-                {isMobile && (
-                  <button onClick={()=>setMobileNavOpen(p=>!p)}
-                    style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,color:"#E8317A",fontSize:18,padding:"6px 10px",cursor:"pointer",lineHeight:1}}>
-                    {mobileNavOpen ? "✕" : "☰"}
-                  </button>
-                )}
+                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Sign out</button>
               </div>
             </div>
 
             {/* Tab bar */}
-            {isMobile ? (
-              mobileNavOpen && (
-                <div style={{display:"flex",flexDirection:"column",gap:2,paddingBottom:12,background:"rgba(0,0,0,0.4)",borderRadius:12,padding:12,marginBottom:8}}>
-                  {ALL_TABS.filter(t=>t.roles.includes(effectiveRole.role)).map(t=>(
-                    <button key={t.id} onClick={()=>{setTab(t.id);setMobileNavOpen(false);}} style={{background:tab===t.id?"rgba(232,49,122,0.2)":"transparent",border:`1px solid ${tab===t.id?"rgba(232,49,122,0.5)":"transparent"}`,borderRadius:10,padding:"10px 16px",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.6)",fontSize:14,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
-                      <span>{t.icon}</span><span>{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )
-            ) : (
             <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
               {ALL_TABS.map(t=>{
                 const menuItems = ({
@@ -21292,12 +21274,11 @@ export default function App() {
                 );
               })}
             </div>
-            )}
           </div>
         </div>
       </div>
       {/* Tab content */}
-      <div className="tab-content" style={{ padding:isMobile?"10px":"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
+      <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
