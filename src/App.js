@@ -121,6 +121,12 @@ const CAN_DELETE        = ["Admin"];
 const CAN_LOG_BREAKS    = ["Admin","Streamer","Procurement","Shipping"];
 const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"];
 
+function useWindowWidth() {
+  const [w, setW] = useState(window.innerWidth);
+  useEffect(()=>{ const h=()=>setW(window.innerWidth); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
+  return w;
+}
+
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 const fmt = n => isNaN(n) || n === "" || n === null ? "--" : "$" + parseFloat(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
@@ -343,6 +349,14 @@ function GlobalStyles() {
 
       /* -- MOBILE RESPONSIVE -- */
       @media (max-width: 768px) {
+        .tab-content { padding: 8px !important; }
+        table { font-size: 12px !important; }
+        .mobile-stack { flex-direction: column !important; }
+        .mobile-full { width: 100% !important; grid-template-columns: 1fr !important; }
+        .mobile-2col { grid-template-columns: 1fr 1fr !important; }
+        .mobile-hide { display: none !important; }
+        input, select, textarea { font-size: 16px !important; } /* prevents iOS zoom */
+      }
         .mobile-hide { display: none !important; }
         .mobile-show { display: inline !important; }
         .nav-tab-label { display: none !important; }
@@ -5736,6 +5750,160 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 }
 
 // ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
+// ── BUYER RETENTION ──────────────────────────────────────────────────────────
+function BuyerRetention({ buyers=[], streams=[] }) {
+  const now = new Date();
+  const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  // Build month list (last 6 months)
+  const months = Array.from({length:6},(_,i)=>{
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    return { key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}) };
+  }).reverse();
+
+  // Per buyer: which months were they active?
+  function buyerActiveMonths(b) {
+    const active = new Set();
+    // From spendHistory
+    (b.spendHistory||[]).forEach(h => { if(h.date) active.add(h.date.slice(0,7)); });
+    // Fallback: firstSeen/lastSeen
+    if(!active.size && b.firstSeen) active.add(b.firstSeen.slice(0,7));
+    return active;
+  }
+
+  // Month stats
+  const monthStats = months.map((m,i) => {
+    const activeBuyers = buyers.filter(b => buyerActiveMonths(b).has(m.key));
+    const newBuyers    = activeBuyers.filter(b => (b.firstSeen||"").startsWith(m.key));
+    const returning    = activeBuyers.filter(b => !(b.firstSeen||"").startsWith(m.key));
+    const revenue      = activeBuyers.reduce((s,b)=>{
+      const h = (b.spendHistory||[]).filter(x=>x.date?.startsWith(m.key));
+      return s + (h.length ? h.reduce((s2,x)=>s2+(x.spend||0),0) : (activeBuyers.length===1?b.totalSpend:0));
+    },0);
+
+    // Retention: of last month's active buyers, how many are active this month?
+    let retentionRate = null;
+    if (i > 0) {
+      const prevKey = months[i-1].key;
+      const prevActive = buyers.filter(b => buyerActiveMonths(b).has(prevKey));
+      const retained   = prevActive.filter(b => buyerActiveMonths(b).has(m.key));
+      retentionRate = prevActive.length > 0 ? retained.length/prevActive.length*100 : null;
+    }
+
+    return { ...m, total:activeBuyers.length, new:newBuyers.length, returning:returning.length, revenue, retentionRate };
+  });
+
+  // Cohort table: buyers who first appeared in a given month, track activity in subsequent months
+  const cohorts = months.slice(0,5).map(m => {
+    const cohortBuyers = buyers.filter(b=>(b.firstSeen||"").startsWith(m.key));
+    const followMonths = months.filter(fm=>fm.key>m.key);
+    return {
+      ...m,
+      size: cohortBuyers.length,
+      follow: followMonths.map(fm=>({
+        key: fm.key,
+        label: fm.label,
+        retained: cohortBuyers.filter(b=>buyerActiveMonths(b).has(fm.key)).length,
+        pct: cohortBuyers.length > 0 ? cohortBuyers.filter(b=>buyerActiveMonths(b).has(fm.key)).length/cohortBuyers.length*100 : 0,
+      }))
+    };
+  });
+
+  const retColor = pct => pct >= 40 ? "#4ade80" : pct >= 20 ? "#FBBF24" : "#E8317A";
+  const latestRetention = monthStats.filter(m=>m.retentionRate!==null).slice(-1)[0];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* KPI tiles */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:latestRetention?retColor(latestRetention.retentionRate):"#555"}}>
+            {latestRetention?.retentionRate!=null?latestRetention.retentionRate.toFixed(1)+"%":"--"}
+          </div>
+          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Current Retention Rate</div>
+          <div style={{fontSize:11,color:"#333",marginTop:2}}>vs prior month</div>
+        </div>
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:"#4ade80"}}>
+            {monthStats[monthStats.length-1]?.returning||0}
+          </div>
+          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Returning Buyers This Month</div>
+        </div>
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:"#7B9CFF"}}>
+            {monthStats[monthStats.length-1]?.new||0}
+          </div>
+          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>New Buyers This Month</div>
+        </div>
+      </div>
+
+      {/* Month-over-month chart */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Monthly Active Buyers & Retention</div>
+        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:140,marginBottom:12}}>
+          {monthStats.map((m,i)=>{
+            const maxT = Math.max(...monthStats.map(x=>x.total),1);
+            const newH = (m.new/maxT)*120;
+            const retH = (m.returning/maxT)*120;
+            return (
+              <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                {m.retentionRate!=null && <div style={{fontSize:9,fontWeight:700,color:retColor(m.retentionRate)}}>{m.retentionRate.toFixed(0)}%</div>}
+                <div style={{width:"100%",display:"flex",alignItems:"flex-end",height:120,gap:1}}>
+                  <div style={{flex:1,height:`${retH}px`,background:"#4ade80",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
+                  <div style={{flex:1,height:`${newH}px`,background:"#7B9CFF",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
+                </div>
+                <div style={{fontSize:9,color:"#555",textAlign:"center"}}>{m.label}</div>
+                <div style={{fontSize:9,color:"#333"}}>{m.total}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#4ade80"}}><div style={{width:10,height:10,background:"#4ade80",borderRadius:2}}/> Returning</div>
+          <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#7B9CFF"}}><div style={{width:10,height:10,background:"#7B9CFF",borderRadius:2}}/> New</div>
+        </div>
+      </div>
+
+      {/* Cohort table */}
+      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px",overflowX:"auto"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Cohort Retention Table</div>
+        <div style={{fontSize:11,color:"#555",marginBottom:14}}>% of each month's new buyers who came back</div>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:400}}>
+          <thead>
+            <tr>
+              <th style={{padding:"6px 10px",textAlign:"left",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Cohort</th>
+              <th style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Size</th>
+              {months.slice(1).map(m=><th key={m.key} style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>{m.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {cohorts.map(c=>(
+              <tr key={c.key}>
+                <td style={{padding:"8px 10px",fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.label}</td>
+                <td style={{padding:"8px 10px",fontSize:12,color:"#555",textAlign:"center"}}>{c.size}</td>
+                {months.slice(1).map(m=>{
+                  const f = c.follow.find(x=>x.key===m.key);
+                  if (!f) return <td key={m.key} style={{padding:"8px 10px",textAlign:"center",color:"#333",fontSize:11}}>—</td>;
+                  return (
+                    <td key={m.key} style={{padding:"8px 10px",textAlign:"center"}}>
+                      {f.retained > 0 ? (
+                        <div style={{display:"inline-block",background:`${retColor(f.pct)}18`,border:`1px solid ${retColor(f.pct)}44`,borderRadius:6,padding:"2px 8px"}}>
+                          <div style={{fontSize:12,fontWeight:700,color:retColor(f.pct)}}>{f.pct.toFixed(0)}%</div>
+                          <div style={{fontSize:9,color:"#555"}}>{f.retained}</div>
+                        </div>
+                      ) : <span style={{color:"#333",fontSize:11}}>0%</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [period, setPeriod] = useState("month");
   const [brand, setBrand] = useState("boba");
@@ -6101,7 +6269,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
   );
 }
 
-function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[] }) {
+function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[], buyers=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
@@ -6203,6 +6371,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
             ["mmtrend","📈 MM Trend"],
             ["timeslots","⏰ Time Analysis"],
             ["newbuyers","🌱 Buyer Funnel"],
+            ["retention","🔄 Buyer Retention"],
             ["concentration","💎 Revenue Concentration"],
             ["sets","📦 Set Performance"],
             ["goals","🎯 Goals"],
@@ -6220,6 +6389,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       {perfTab==="mmtrend"      && <MMTrend streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
       {perfTab==="timeslots"    && <TimeAnalysis streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
       {perfTab==="newbuyers"    && <BuyerFunnel streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
+      {perfTab==="retention"    && <BuyerRetention buyers={buyers} streams={streams} />}
       {perfTab==="concentration"&& <RevenueConcentration streams={streams} isAdmin={isAdmin} />}
       {perfTab==="sets"         && <SetPerformance streams={streams} isAdmin={isAdmin} />}
       {perfTab==="goals"        && <GoalTracking streams={streams} isAdmin={isAdmin} visibleBreakers={visibleBreakers} />}
@@ -20452,6 +20622,8 @@ function Finance({ streams=[], userRole }) {
 }
 
 export default function App() {
+  const isMobile = useWindowWidth() < 768;
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
   const [gOpen,         setGOpen]         = useState(false);
@@ -20992,46 +21164,62 @@ export default function App() {
           <div style={{position:"absolute",top:-80,left:"15%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.12) 0%,transparent 70%)",animation:"dashOrb 8s ease-in-out infinite",pointerEvents:"none"}}/>
           <div style={{position:"absolute",top:-60,right:"10%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.1) 0%,transparent 70%)",animation:"dashOrb 11s ease-in-out infinite reverse",pointerEvents:"none"}}/>
 
-          <div style={{maxWidth:1500,margin:"0 auto",padding:"20px 20px 0",position:"relative"}}>
+          <div style={{maxWidth:1500,margin:"0 auto",padding:isMobile?"12px 12px 0":"20px 20px 0",position:"relative"}}>
             {/* Top row: brand + controls */}
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:isMobile?8:16}}>
               <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
                 <div style={{width:32,height:32,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 16px rgba(232,49,122,0.3)",flexShrink:0}}>
                   <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
                 </div>
-                <div>
+                {!isMobile && <div>
                   <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
                   <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
-                </div>
+                </div>}
+                {isMobile && <div style={{fontSize:16,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Bazooka</div>}
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <button onClick={()=>setGOpen(p=>!p)}
-                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.color="rgba(255,255,255,0.5)"}}>
-                  <span style={{fontSize:13}}>{"\uD83D\uDD0D"}</span>
-                  <span className="mobile-hide">Search</span>
-                  <kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}} className="mobile-hide">K</kbd>
+                  style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)"}}>
+                  <span style={{fontSize:13}}>{"🔍"}</span>
+                  {!isMobile && <><span>Search</span><kbd style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"rgba(255,255,255,0.25)",fontFamily:"inherit"}}>K</kbd></>}
                 </button>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}} className="mobile-hide">{inventory.length} cards</span>
-                {userRole.role === "Admin" && (
+                {!isMobile && <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{inventory.length} cards</span>}
+                {userRole.role === "Admin" && !isMobile && (
                   <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,color:"rgba(255,255,255,0.4)",fontSize:11,padding:"5px 8px",fontFamily:"inherit",cursor:"pointer"}}>
                     <option value="">-- Real Role --</option>
                     {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
                   </select>
                 )}
-                <div style={{display:"flex",alignItems:"center",gap:8}} className="mobile-hide">
+                {!isMobile && <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.8)"}}>{user?.displayName?.split(" ")[0]}</span>
-                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,backdropFilter:"blur(10px)"}}>{effectiveRole.label}</span>
-                </div>
+                  <span style={{background:effectiveRole.bg||"rgba(255,255,255,0.06)",color:effectiveRole.color,border:`1px solid ${effectiveRole.color}44`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700}}>{effectiveRole.label}</span>
+                </div>}
+                {isMobile && <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.7)"}}>{user?.displayName?.split(" ")[0]}</span>}
                 <button onClick={()=>signOut(auth)}
-                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.color="#E8317A"}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";e.currentTarget.style.color="rgba(255,255,255,0.3)"}}>Sign out</button>
+                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(255,255,255,0.3)",fontSize:11,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit"}}>
+                  {isMobile ? "↩" : "Sign out"}
+                </button>
+                {isMobile && (
+                  <button onClick={()=>setMobileNavOpen(p=>!p)}
+                    style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,color:"#E8317A",fontSize:18,padding:"6px 10px",cursor:"pointer",lineHeight:1}}>
+                    {mobileNavOpen ? "✕" : "☰"}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Tab bar - pill style like /cards */}
+            {/* Tab bar */}
+            {isMobile ? (
+              mobileNavOpen && (
+                <div style={{display:"flex",flexDirection:"column",gap:2,paddingBottom:12,background:"rgba(0,0,0,0.4)",borderRadius:12,padding:12,marginBottom:8}}>
+                  {ALL_TABS.filter(t=>t.roles.includes(effectiveRole.role)).map(t=>(
+                    <button key={t.id} onClick={()=>{setTab(t.id);setMobileNavOpen(false);}} style={{background:tab===t.id?"rgba(232,49,122,0.2)":"transparent",border:`1px solid ${tab===t.id?"rgba(232,49,122,0.5)":"transparent"}`,borderRadius:10,padding:"10px 16px",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.6)",fontSize:14,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+                      <span>{t.icon}</span><span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : (
             <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
               {ALL_TABS.map(t=>{
                 const menuItems = ({
@@ -21066,6 +21254,7 @@ export default function App() {
                   {label:"🥇 Leaderboard",     sub:"Live rep rankings",             action:()=>{setTab("performance");setPerfTabDefault("leaderboard");setHoverTab(null);}},
                   {label:"📈 MM Trend",         sub:"Market multiple over time",     action:()=>{setTab("performance");setPerfTabDefault("mmtrend");setHoverTab(null);}},
                   {label:"⏰ Time Analysis",    sub:"Best days & session types",     action:()=>{setTab("performance");setPerfTabDefault("timeslots");setHoverTab(null);}},
+                  {label:"🔄 Buyer Retention",  sub:"Cohort & monthly retention",    action:()=>{setTab("performance");setPerfTabDefault("retention");setHoverTab(null);}},
                   {label:"🌱 Buyer Funnel",     sub:"New buyer trends",              action:()=>{setTab("performance");setPerfTabDefault("newbuyers");setHoverTab(null);}},
                   {label:"💎 Revenue Conc.",    sub:"Whale dependency analysis",     action:()=>{setTab("performance");setPerfTabDefault("concentration");setHoverTab(null);}},
                   {label:"📦 Set Performance",  sub:"Which sets perform best",       action:()=>{setTab("performance");setPerfTabDefault("sets");setHoverTab(null);}},
@@ -21103,17 +21292,18 @@ export default function App() {
                 );
               })}
             </div>
+            )}
           </div>
         </div>
       </div>
       {/* Tab content */}
-      <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
+      <div className="tab-content" style={{ padding:isMobile?"10px":"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
-        {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams}/>}
+        {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
