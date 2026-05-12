@@ -12711,6 +12711,103 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   );
 }
 
+const PLAYER_NOTES = {
+  "Bo Jackson":     { bio:"Two-sport pro — Raiders RB and Royals OF simultaneously. Ran a 4.12 forty. Famous 91-yard TD run where he literally ran into the tunnel. Retired at 28 from a hip injury. THE most broken player in Tecmo history — basically untacklable.", lines:["\"Bo knows — and right now Bo knows how to empty a wallet 💸\"","\"The man played two pro sports at once and was the best at both\"","\"Retired at 28 and we still never saw his ceiling\""] },
+  "Jerry Rice":     { bio:"Greatest WR of all time. 1,549 catches, 197 TDs, 3 Super Bowls. Was a 16th-round pick out of Mississippi Valley State. Never missed a game until he was 37. In Tecmo, Rice + Montana = game over.", lines:["\"16th round pick. SIXTEENTH. Greatest of all time.\"","\"The man caught everything. Literally everything.\"","\"83 speed, 100 receiving — that's not a rating, that's a glitch\""] },
+  "Lawrence Taylor":{ bio:"Changed the NFL forever — the sack stat was created because of LT. 10x Pro Bowl, 2 Super Bowls, 1986 MVP. Bill Parcells said LT was the only player who ever made him nervous. On Tecmo, QBs had no time in the pocket.", lines:["\"The man they literally changed the rules for\"","\"Every modern pass rush move exists because of #56\"","\"QBs had nightmares about this guy — now you get to own him\""] },
+  "Joe Montana":    { bio:"4-0 in Super Bowls. Never threw a pick in Super Bowl play. The Drive — 92 yards, 5:02 left, down 6. Steve Young had to wait years behind him. Montana + Rice in Tecmo was unfair.", lines:["\"Four Super Bowls. Zero losses on the biggest stage.\"","\"Never threw a Super Bowl interception. Not one.\"","\"Cool Joe. Ice in his veins, fire in everyone else's.\""] },
+  "Walter Payton":  { bio:"Sweetness. Held the all-time rushing record for 18 years. Won Super Bowl XX with the dominant 85 Bears. Most complete back ever — ran, caught, blocked and threw. Never asked for a day off.", lines:["\"Sweetness. Because that's the only word for what he did.\"","\"The 85 Bears are the most dominant team in NFL history and Payton was their heartbeat\"","\"16,726 yards of pure will\""] },
+  "Barry Sanders":  { bio:"Most elusive runner in NFL history. Retired at his peak, shocking the league, leaving $10M on the table. 10 straight 1,000-yard seasons with the worst O-lines in football. Jim Brown called him the greatest runner he ever saw. In Tecmo, Barry was pure chaos.", lines:["\"Left $10 million on the table because football became a job. Respect.\"","\"Jim Brown said Barry was the best. Jim Brown.\"","\"No line, no Super Bowl, still 10 straight thousand-yard seasons\""] },
+  "Emmitt Smith":   { bio:"All-time rushing leader at 18,355 yards. Three Super Bowls. Won the 1993 Super Bowl MVP on a separated shoulder. 11 straight 1,000-yard seasons. Troy Aikman said they weren't winning without him.", lines:["\"The all-time rushing leader is in that pack right now\"","\"Super Bowl MVP on a separated shoulder — that's Emmitt\"","\"Eleven straight thousand-yard seasons. Consistency is a superpower\""] },
+  "Deion Sanders":  { bio:"Only athlete to play in a Super Bowl AND a World Series. Shutdown corner who took half the field away. 3x All-Pro, 8x Pro Bowl. Scored TDs on defense, offense, and special teams. Prime Time had the most electric entrance in sports.", lines:["\"Prime Time. The only man who made the coin flip worth watching.\"","\"He played two sports at the pro level simultaneously. Deion operates different.\"","\"You don't pull Deion — Deion pulls you\""] },
+  "Steve Young":    { bio:"Highest passer rating in NFL history at retirement (96.8). Super Bowl XXIX MVP — 6 TD passes. Left-handed scrambler who redefined the QB position. Sat behind Montana for years then proved he belonged.", lines:["\"96.8 career passer rating. That's not a stat, that's a flex.\"","\"Six touchdowns in one Super Bowl. Montana who?\"","\"The lefty who waited behind the greatest and then proved he was one too\""] },
+};
+
+function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet, expandedHero, setExpandedHero, customNotes={}, setCustomNotes }) {
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteText, setNoteText] = useState("");
+
+  const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const curSet = activeSet || sets[0] || "";
+
+  const heroes = [...new Set(cards.filter(c=>c.setName===curSet).map(c=>c.hero).filter(Boolean))].sort();
+
+  function saveNote(hero) {
+    setCustomNotes(p=>({...p,[hero]:noteText}));
+    setEditingNote(null);
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {/* Set tabs */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {sets.map(s=>(
+          <button key={s} onClick={()=>{setActiveSet(s);setExpandedHero(null);}}
+            style={{background:curSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${curSet===s?"#E8317A":"#1a1a1a"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Player list */}
+      {heroes.length === 0 && <div style={{color:"#333",padding:24,textAlign:"center"}}>No players found in this set</div>}
+      {heroes.map(hero => {
+        const isExpanded = expandedHero === hero;
+        const hasCard = cards.filter(c=>c.setName===curSet&&c.hero===hero).some(c=>owned[c.id]);
+        const notes = PLAYER_NOTES[hero];
+
+        return (
+          <div key={hero} style={{background:"#111",border:`1px solid ${isExpanded?"#E8317A33":hasCard?"rgba(74,222,128,0.2)":"#1a1a1a"}`,borderRadius:10,overflow:"hidden"}}>
+            {/* Row */}
+            <div onClick={()=>setExpandedHero(isExpanded?null:hero)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:hasCard?"#4ade80":"#2a2a2a",flexShrink:0}}/>
+              <div style={{flex:1,fontSize:14,fontWeight:700,color:"#F0F0F0"}}>{hero}</div>
+              {notes && <span style={{fontSize:10,color:"#E8317A",background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700}}>🎙 Notes</span>}
+              <span style={{color:"#333",fontSize:11}}>{isExpanded?"▲":"▼"}</span>
+            </div>
+
+            {/* Expanded notes */}
+            {isExpanded && (
+              <div style={{borderTop:"1px solid #1a1a1a",padding:"14px 16px",background:"#0d0d0d",display:"flex",flexDirection:"column",gap:12}}>
+                {notes ? <>
+                  <p style={{margin:0,fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>{notes.bio}</p>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>🎙 Lines to Use</div>
+                    {notes.lines.map((l,i)=>(
+                      <div key={i} style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.1)",borderRadius:7,padding:"8px 12px",marginBottom:6,fontSize:13,color:"#F0F0F0",fontStyle:"italic"}}>{l}</div>
+                    ))}
+                  </div>
+                </> : <div style={{fontSize:12,color:"#555"}}>No notes yet for {hero}</div>}
+
+                {/* Custom notes */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>📝 Your Notes</div>
+                  {editingNote===hero ? (
+                    <div style={{display:"flex",gap:8}}>
+                      <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Add your own lines..."
+                        style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:7,color:"#F0F0F0",padding:"8px 10px",fontSize:12,fontFamily:"inherit",minHeight:70,resize:"vertical"}}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <button onClick={()=>saveNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
+                        <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div onClick={()=>{setEditingNote(hero);setNoteText(customNotes[hero]||"");}}
+                      style={{background:"rgba(123,156,255,0.04)",border:"1px dashed rgba(123,156,255,0.2)",borderRadius:7,padding:"10px 12px",fontSize:13,color:customNotes[hero]?"#AAAAAA":"#333",cursor:"pointer",fontStyle:"italic"}}>
+                      {customNotes[hero]||"+ Tap to add your own notes..."}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
@@ -15791,225 +15888,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         );
       })()}
 
-      {viewMode === "setlist" && !loading && (() => {
-        const BROADCASTER_NOTES = {
-          "Bo Jackson": {
-            highlights: ["Two-sport superstar — MLB All-Star AND NFL Pro Bowler simultaneously","Ran a 4.12 forty at the NFL combine — fastest ever recorded at the time","Famous 91-yard Monday Night Football TD run vs. Seattle where he literally ran through the tunnel","Retired from football at 28 after a hip injury — we never saw his ceiling","Won AL Rookie of the Year with the Royals in 1986"],
-            tecmo: "THE most broken player in Tecmo Super Bowl history. Speed rating was essentially untackable. Entire defense could be on the field and Bo just ran through everyone. Ask any 90s kid and they'll have a Bo story.",
-            lines: ["\"Bo knows — and right now Bo knows how to make your wallet lighter 💸\"","\"This is the card that started wars at sleepovers in 1991\"","\"Speed 75, carrying 75 — that's not a rating, that's a cheat code\"","\"The man retired from TWO pro sports and still has the most valuable card in the set\""]
-          },
-          "Jerry Rice": {
-            highlights: ["Greatest receiver of all time — 1,549 career receptions, 22,895 yards, 197 TDs","Won 3 Super Bowls with the 49ers","Set virtually every meaningful WR record in NFL history","Was a 16th round pick — overlooked coming out of Mississippi Valley State","Never missed a game due to injury until he was 37"],
-            tecmo: "In Tecmo, Rice was borderline unstoppable. Pair him with Montana and you basically needed to apologize to whoever you were playing. His route running made him impossible to cover one-on-one.",
-            lines: ["\"16th round pick. SIXTEENTH. And he became the greatest of all time.\"","\"If you pull Rice and Montana in the same break, your team just won the Super Bowl\"","\"83 speed, 100 receiving — that's not a player, that's a glitch\"","\"The man caught everything. Literally everything.\""]
-          },
-          "Lawrence Taylor": {
-            highlights: ["Arguably the most dominant defensive player in NFL history","Changed the game — the NFL created the sack as an official stat because of LT","Won 2 Super Bowls with the Giants, MVP in 1986","10x Pro Bowl, 3x Defensive Player of the Year","Bill Parcells said LT was the only player who ever made him nervous about gameplanning"],
-            tecmo: "LT on defense in Tecmo was an absolute nightmare for opposing QBs. His pass rush rating made it feel like playing against someone who had a mod installed. Quarterbacks had negative time in the pocket.",
-            lines: ["\"The man they literally changed the rules because of\"","\"Every modern pass rush move you see? LT invented it\"","\"QBs used to have nightmares about #56 — now you get to own him\"","\"56 on the field meant quarterbacks started writing their wills\""]
-          },
-          "Joe Montana": {
-            highlights: ["4-0 in Super Bowls — never lost on the biggest stage","Back-to-back Super Bowl MVPs in '89 and '90","The Drive — 92 yards, 5:02 left, down 6, against the Browns in the AFC Championship","Never threw an interception in Super Bowl play across 122 attempts","Steve Young had to sit behind him for years — that tells you everything"],
-            tecmo: "Montana + Rice = game over. His accuracy rating made him nearly automatic in Tecmo. The West Coast offense in a video game felt like cheating, and Montana was the reason why.",
-            lines: ["\"Four Super Bowls. Zero losses. Montana was the original 'just don't miss'\"","\"The man never threw a pick in a Super Bowl. Not. One.\"","\"Pulling Montana means your fantasy team just got a lot more stressful\"","\"Cool Joe. Ice in his veins. Sweat coming out of everyone else's.\""]
-          },
-          "Walter Payton": {
-            highlights: ["Sweetness — held the all-time rushing record for 18 years","Won Super Bowl XX with the 85 Bears, the most dominant team in NFL history","Ran, caught, threw AND blocked — the most complete back ever","16,726 career rushing yards at retirement","Insisted on going to work the day after games — never took a day off"],
-            tecmo: "Payton in Tecmo was a workhorse. High carry rating, decent speed, and that breaking tackles ability made him the most reliable back in the game. The 85 Bears defense around him made that team virtually unbeatable.",
-            lines: ["\"Sweetness. Because that's the only word for what he did on a football field\"","\"The man never had a lineman pull for him in practice — he ran through everyone himself\"","\"16,726 yards of pure will. No excuses, no days off\"","\"If you pull Payton, the table just got a lot more interesting\""]
-          },
-          "Emmitt Smith": {
-            highlights: ["All-time NFL rushing leader with 18,355 yards — still stands today","Three Super Bowls, three-time rushing champion","Won the 1993 Super Bowl MVP while playing on a separated shoulder","Ran for over 1,000 yards 11 straight seasons","Troy Aikman said the Cowboys weren't going to the Super Bowl without Emmitt"],
-            tecmo: "Emmitt was the engine of the Cowboys dynasty in Tecmo. The offensive line around him was elite, and his vision made him tough to stop. If you had Dallas, you ran Emmitt. Every. Single. Play.",
-            lines: ["\"The all-time rushing leader is sitting in that pack right now\"","\"11 straight 1,000-yard seasons. Consistency is a superpower\"","\"Dallas ran the ball, Emmitt ran through people, rings followed\"","\"That Super Bowl MVP on a separated shoulder is the most Emmitt thing ever\""]
-          },
-          "Deion Sanders": {
-            highlights: ["Only athlete to play in both a Super Bowl AND a World Series","Shutdown corner who essentially took half the field away from opposing offenses","3x All-Pro, 8x Pro Bowl","Scored TDs on defense, offense, and special teams in his career","Known as Prime Time — the most electric entrance in sports history"],
-            tecmo: "Neon Deion in Tecmo was the fastest player outside of Bo Jackson. His man coverage rating made wide receivers completely irrelevant on his side of the field. The rare defensive player who made coaches call plays away from him.",
-            lines: ["\"Prime Time. The only man who made the coin flip worth watching\"","\"He played TWO sports at the pro level simultaneously. Deion operates different\"","\"Cover corner so good that offenses just stopped throwing his way\"","\"You don't pull Deion — Deion pulls you\""]
-          },
-          "Barry Sanders": {
-            highlights: ["The most elusive runner in NFL history — no debate","Retired at his peak with 15,269 yards, shocking the entire NFL","Could have broken Payton's record but walked away on his own terms","10 straight 1,000-yard seasons with arguably the worst offensive lines in football","Jim Brown called him the greatest runner he ever saw"],
-            tecmo: "Barry in Tecmo was pure chaos. His juke moves translated perfectly to the game — you could be wrapping him up and he'd just be gone. Playing as the Lions was only worth it because of #20.",
-            lines: ["\"The man left $10 million on the table because football became a job. Respect.\"","\"Jim Brown said Barry was the best. When Jim Brown says that, you listen.\"","\"No offensive line, no Super Bowl, and still 10 straight thousand-yard seasons\"","\"Barry made defenders look like they were running in quicksand\""]
-          },
-          "Steve Young": {
-            highlights: ["Highest passer rating in NFL history at retirement (96.8)","Super Bowl XXIX MVP — threw 6 TD passes","Left-handed scrambler who redefined what a QB could be","Sat behind Montana for years before getting his shot","Hall of Fame, arguably the most accurate deep ball thrower of his era"],
-            tecmo: "Young's scrambling ability in Tecmo was a cheat code. He had Montana's passing and Bo Jackson's legs — not literally, but it felt that way. Defenses couldn't pin him in the pocket.",
-            lines: ["\"96.8 passer rating for a career. That's not a stat, that's a flex\"","\"Six touchdowns in a Super Bowl. Six. Montana who?\"","\"The lefty who had to wait behind the greatest of all time and then proved he belonged\"","\"Steve Young made defenders feel personally attacked\""]
-          },
-        };
+      {viewMode === "setlist" && !loading && <SetListView cards={cards} owned={owned} toggleOwned={toggleOwned} activeSet={activeSet} setActiveSet={setActiveSet} expandedHero={expandedHeroNotes} setExpandedHero={setExpandedHeroNotes} customNotes={customNotes} setCustomNotes={setCustomNotes} />}
 
-        const sets = [...new Set(cards.map(c=>c.setName||"Unknown").filter(Boolean))].sort();
-        // Initialize activeSet if not set yet
-        if (!activeSet && sets.length > 0) setActiveSet(sets[0]);
-
-        // Group by hero — just unique heroes per set
-        const setCards = cards.filter(c=>(c.setName||"Unknown")===activeSet);
-        const heroMap = {};
-        setCards.forEach(c=>{
-          const h = c.hero||"Unknown";
-          if (!heroMap[h]) heroMap[h] = { cards:[], treatments:new Set() };
-          heroMap[h].cards.push(c);
-          if (c.treatment) heroMap[h].treatments.add(c.treatment);
-        });
-        const heroes = Object.entries(heroMap).sort(([a],[b])=>a.localeCompare(b));
-        const totalHeroes = heroes.length;
-        const ownedHeroes = heroes.filter(([h,d])=>d.cards.some(c=>owned[c.id])).length;
-
-        const rarityOrder = ["Rainbow","Super Foil","Gold","Silver","Prism","Base","Signature","Plays","Bonus Plays"];
-        const rarityColor = t => ({"Rainbow":"#818CF8","Super Foil":"#FBBF24","Gold":"#F59E0B","Silver":"#94A3B8","Prism":"#A78BFA","Base":"#6B7280","Signature":"#E8317A","Plays":"#4ade80","Bonus Plays":"#2DD4BF"})[t]||"#555";
-
-        function saveCustomNote(hero) {
-          setCustomNotes(p=>({...p,[hero]:noteText}));
-          setEditingNote(null);
-        }
-
-        return (
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {/* Set tabs */}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {sets.map(s=>(
-                <button key={s} onClick={()=>{setActiveSet(s);setExpandedHeroNotes(null);}}
-                  style={{background:activeSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${activeSet===s?"#E8317A":"#1a1a1a"}`,color:activeSet===s?"#E8317A":"#AAAAAA",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                  {s} <span style={{color:"#555",fontSize:10,marginLeft:4}}>({[...new Set(cards.filter(c=>(c.setName||"Unknown")===s).map(c=>c.hero))].length} athletes)</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Set summary */}
-            <div style={{background:"linear-gradient(135deg,#0d0005,#0a000d)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0"}}>{activeSet}</div>
-                <div style={{fontSize:12,color:"#555",marginTop:2}}>{totalHeroes} athletes · tap any row for broadcaster notes</div>
-              </div>
-              <div style={{display:"flex",gap:16}}>
-                {[{l:"Athletes",v:totalHeroes,c:"#F0F0F0"},{l:"Have a Card",v:ownedHeroes,c:"#4ade80"},{l:"Missing",v:totalHeroes-ownedHeroes,c:"#555"}].map(({l,v,c})=>(
-                  <div key={l} style={{textAlign:"center"}}>
-                    <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
-                    <div style={{fontSize:10,color:"#555"}}>{l}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Hero list */}
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {heroes.map(([hero, data])=>{
-                const isExpanded = expandedHeroNotes === hero;
-                const hasOwned = data.cards.some(c=>owned[c.id]);
-                const notes = BROADCASTER_NOTES[hero];
-                const hasBroadcastNotes = !!notes;
-                const treatments = [...data.treatments].sort((a,b)=>rarityOrder.indexOf(a)-rarityOrder.indexOf(b));
-
-                return (
-                  <div key={hero} style={{background:"#111",border:`1px solid ${isExpanded?"rgba(232,49,122,0.3)":hasOwned?"rgba(74,222,128,0.15)":"#1a1a1a"}`,borderRadius:12,overflow:"hidden",transition:"border-color 0.2s"}}>
-                    {/* Hero row */}
-                    <div onClick={()=>setExpandedHeroNotes(isExpanded?null:hero)}
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",userSelect:"none"}}>
-                      {/* Owned indicator */}
-                      <div style={{width:10,height:10,borderRadius:"50%",background:hasOwned?"#4ade80":"#1a1a1a",flexShrink:0,boxShadow:hasOwned?"0 0 8px rgba(74,222,128,0.5)":"none"}}/>
-                      {/* Hero name */}
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{hero}</div>
-                        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
-                          {treatments.map(t=>(
-                            <span key={t} style={{fontSize:9,fontWeight:700,color:rarityColor(t),background:`${rarityColor(t)}15`,border:`1px solid ${rarityColor(t)}33`,borderRadius:4,padding:"1px 6px"}}>{t}</span>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Card count */}
-                      <div style={{fontSize:11,color:"#555"}}>{data.cards.length} card{data.cards.length!==1?"s":""}</div>
-                      {/* Broadcast indicator */}
-                      {hasBroadcastNotes && <div style={{fontSize:10,background:"rgba(232,49,122,0.1)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700}}>🎙 Notes</div>}
-                      {/* Expand arrow */}
-                      <div style={{color:"#333",fontSize:12,transition:"transform 0.2s",transform:isExpanded?"rotate(180deg)":"rotate(0deg)"}}>▼</div>
-                    </div>
-
-                    {/* Expanded broadcaster notes */}
-                    {isExpanded && (
-                      <div style={{borderTop:"1px solid #1a1a1a",padding:"16px 18px",background:"#0d0d0d"}}>
-                        {notes ? (
-                          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                            {/* Career highlights */}
-                            <div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🏆 Career Highlights</div>
-                              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                {notes.highlights.map((h,i)=>(
-                                  <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                                    <div style={{width:4,height:4,borderRadius:"50%",background:"#E8317A",flexShrink:0,marginTop:6}}/>
-                                    <div style={{fontSize:13,color:"#AAAAAA",lineHeight:1.5}}>{h}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            {/* Tecmo legacy */}
-                            <div style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8,padding:"12px 14px"}}>
-                              <div style={{fontSize:11,fontWeight:700,color:"#FBBF24",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>🎮 Tecmo Bowl Legacy</div>
-                              <div style={{fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>{notes.tecmo}</div>
-                            </div>
-                            {/* Hype lines */}
-                            <div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🎙 Streamer Lines</div>
-                              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                {notes.lines.map((l,i)=>(
-                                  <div key={i} style={{background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#F0F0F0",fontStyle:"italic",lineHeight:1.5}}>{l}</div>
-                                ))}
-                              </div>
-                            </div>
-                            {/* Custom notes */}
-                            <div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#7B9CFF",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 Your Notes</div>
-                              {editingNote===hero ? (
-                                <div style={{display:"flex",gap:8}}>
-                                  <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
-                                    placeholder="Add your own lines, personal stories, anything that works on stream..."
-                                    style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:12,fontFamily:"inherit",minHeight:80,resize:"vertical"}}/>
-                                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                    <button onClick={()=>saveCustomNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
-                                    <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div onClick={()=>{setEditingNote(hero);setNoteText(customNotes[hero]||"");}}
-                                  style={{background:"rgba(123,156,255,0.05)",border:"1px dashed rgba(123,156,255,0.2)",borderRadius:8,padding:"10px 12px",fontSize:13,color:customNotes[hero]?"#AAAAAA":"#333",cursor:"pointer",fontStyle:"italic",minHeight:40,lineHeight:1.5}}>
-                                  {customNotes[hero]||"+ Tap to add your own notes, hype lines, or personal stories..."}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                            <div style={{fontSize:12,color:"#555"}}>No broadcaster notes yet for {hero}.</div>
-                            {editingNote===hero ? (
-                              <div style={{display:"flex",gap:8}}>
-                                <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
-                                  placeholder="Add career highlights, talking points, hype lines..."
-                                  style={{flex:1,background:"#111",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:12,fontFamily:"inherit",minHeight:80,resize:"vertical"}}/>
-                                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                  <button onClick={()=>saveCustomNote(hero)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
-                                  <button onClick={()=>setEditingNote(null)} style={{background:"none",border:"1px solid #2a2a2a",color:"#555",borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div onClick={()=>{setEditingNote(hero);setNoteText(customNotes[hero]||"");}}
-                                style={{background:"rgba(123,156,255,0.05)",border:"1px dashed rgba(123,156,255,0.2)",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#333",cursor:"pointer",fontStyle:"italic"}}>
-                                + Add notes for {hero}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {viewMode === "cards" && (loading ? (
+            {viewMode === "cards" && (loading ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
       ) : cards.length === 0 ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
