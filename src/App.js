@@ -12746,6 +12746,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [flippedCard,  setFlippedCard]  = useState(null);
   const [viewMode,       setViewMode]       = useState(defaultView);
   useEffect(()=>{setViewMode(defaultView);},[defaultView]);
+  // Set list / broadcaster notes states
+  const [activeSet,          setActiveSet]          = useState("");
+  const [expandedHeroNotes,  setExpandedHeroNotes]  = useState(null);
+  const [customNotes,        setCustomNotes]        = useState({});
+  const [editingNote,        setEditingNote]        = useState(null);
+  const [noteText,           setNoteText]           = useState("");
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -15835,11 +15841,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         };
 
         const sets = [...new Set(cards.map(c=>c.setName||"Unknown").filter(Boolean))].sort();
-        const [activeSet, setActiveSet] = useState(sets[0]||"");
-        const [expandedHeroNotes, setExpandedHeroNotes] = useState(null);
-        const [customNotes, setCustomNotes] = useState({});
-        const [editingNote, setEditingNote] = useState(null);
-        const [noteText, setNoteText] = useState("");
+        // Initialize activeSet if not set yet
+        if (!activeSet && sets.length > 0) setActiveSet(sets[0]);
 
         // Group by hero — just unique heroes per set
         const setCards = cards.filter(c=>(c.setName||"Unknown")===activeSet);
