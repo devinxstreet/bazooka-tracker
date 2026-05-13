@@ -1181,9 +1181,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         {/* Top KPIs — what you have */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
           {[
-            { l:"Available Now", v:availCount,  c:"#4ade80" },
-            { l:"In Transit",    v:transitCount, c:"#7B9CFF" },
-            { l:"Total Stock",   v:inventory.length, c:"#F0F0F0" },
+            { l:"Available Now", v:availCount,              c:"#4ade80" },
+            { l:"In Transit",    v:transitCount,             c:"#7B9CFF" },
+            { l:"Total Stock",   v:availCount + transitCount, c:"#F0F0F0" },
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
               <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
@@ -19885,23 +19885,43 @@ function PublicSellPage() {
     const files = Array.from(e.target.files);
     files.forEach(file => {
       if (!file.type.startsWith("image/")) return;
-      const reader = new FileReader();
-      reader.onload = ev => setPhotos(p=>[...p, { file, preview:ev.target.result, url:null }]);
-      reader.readAsDataURL(file);
+      setPhotos(p => {
+        if (p.length >= 4) return p;
+        const reader = new FileReader();
+        reader.onload = ev => setPhotos(prev => prev.length >= 4 ? prev : [...prev, { file, preview:ev.target.result, url:null }]);
+        reader.readAsDataURL(file);
+        return p;
+      });
     });
     e.target.value = "";
   }
 
   function removePhoto(idx) { setPhotos(p=>p.filter((_,i)=>i!==idx)); }
 
+  function compressPhoto(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX = 800;
+        let w = img.width, h = img.height;
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = url;
+    });
+  }
+
   async function uploadPhotos(qId) {
     const urls = [];
     for (let i=0; i<photos.length; i++) {
-      const p = photos[i];
-      const storageRef = ref(storage, `lot-photos/${qId}/${i}-${p.file.name}`);
-      await uploadBytes(storageRef, p.file);
-      const url = await getDownloadURL(storageRef);
-      urls.push(url);
+      const compressed = await compressPhoto(photos[i].file);
+      urls.push(compressed);
       setUploadProgress(Math.round((i+1)/photos.length*100));
     }
     return urls;
@@ -20082,11 +20102,11 @@ function PublicSellPage() {
           <label style={S2.lbl}>📸 Lot Photos (optional but recommended)</label>
           <div style={{ fontSize:13, color:"#555", marginBottom:12 }}>Take a photo of your lot spread out so we can see the cards. Helps us make a faster and more accurate offer.</div>
           {/* Upload button */}
-          <label style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.1)", border:"1px dashed rgba(232,49,122,0.4)", borderRadius:10, padding:"12px 20px", cursor:"pointer", fontSize:14, fontWeight:700, color:"#E8317A" }}>
+          <label style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.1)", border:"1px dashed rgba(232,49,122,0.4)", borderRadius:10, padding:"12px 20px", cursor: photos.length >= 4 ? "not-allowed" : "pointer", fontSize:14, fontWeight:700, color: photos.length >= 4 ? "#555" : "#E8317A", opacity: photos.length >= 4 ? 0.5 : 1 }}>
             📷 Add Photos
-            <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
+            <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} disabled={photos.length >= 4} style={{ display:"none" }}/>
           </label>
-          <span style={{ fontSize:11, color:"#333", marginLeft:12 }}>Works with camera or photo library</span>
+          <span style={{ fontSize:11, color:"#333", marginLeft:12 }}>{photos.length}/4 photos · Works with camera or photo library</span>
           {/* Photo previews */}
           {photos.length > 0 && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginTop:14 }}>
@@ -20097,10 +20117,12 @@ function PublicSellPage() {
                     style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%", background:"#E8317A", border:"none", color:"#fff", fontSize:12, fontWeight:900, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
                 </div>
               ))}
-              <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed #2a2a2a", borderRadius:8, cursor:"pointer", color:"#555", fontSize:12, gap:4 }}>
-                <span style={{ fontSize:24 }}>+</span>Add more
-                <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
-              </label>
+              {photos.length < 4 && (
+                <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed #2a2a2a", borderRadius:8, cursor:"pointer", color:"#555", fontSize:12, gap:4 }}>
+                  <span style={{ fontSize:24 }}>+</span>Add more
+                  <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
+                </label>
+              )}
             </div>
           )}
         </div>
