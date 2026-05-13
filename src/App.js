@@ -1791,6 +1791,17 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
                             &nbsp;· {daysLeft}d left
                           </div>
+                          {/* Lot photos */}
+                          {(q.photoUrls||[]).length > 0 && (
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>
+                              {(q.photoUrls||[]).map((url,i)=>(
+                                <a key={i} href={url} target="_blank" rel="noreferrer">
+                                  <img src={url} alt={`Lot photo ${i+1}`} style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:"1px solid #2a2a2a", cursor:"pointer" }}/>
+                                </a>
+                              ))}
+                              <div style={{ fontSize:10, color:"#555", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""}</div>
+                            </div>
+                          )}
                           {/* View tracking */}
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
                             {(q.viewCount||0) === 0
@@ -19851,6 +19862,8 @@ function PublicSellPage() {
   const [acOpen, setAcOpen]         = useState(null);
   const [acQuery, setAcQuery]       = useState({});
   const [bobaCards, setBobaCards]   = useState([]);
+  const [photos, setPhotos]         = useState([]); // {file, preview, url}
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     getDocs(collection(db, "boba_checklist")).then(snap => {
@@ -19862,6 +19875,32 @@ function PublicSellPage() {
   function addRow() { setRows(p=>[...p,{id:uid(),name:"",qty:"1",askingPrice:""}]); }
   function removeRow(id) { setRows(p=>p.filter(r=>r.id!==id)); }
 
+  function handlePhotoSelect(e) {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      if (!file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = ev => setPhotos(p=>[...p, { file, preview:ev.target.result, url:null }]);
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  }
+
+  function removePhoto(idx) { setPhotos(p=>p.filter((_,i)=>i!==idx)); }
+
+  async function uploadPhotos(qId) {
+    const urls = [];
+    for (let i=0; i<photos.length; i++) {
+      const p = photos[i];
+      const storageRef = ref(storage, `lot-photos/${qId}/${i}-${p.file.name}`);
+      await uploadBytes(storageRef, p.file);
+      const url = await getDownloadURL(storageRef);
+      urls.push(url);
+      setUploadProgress(Math.round((i+1)/photos.length*100));
+    }
+    return urls;
+  }
+
   async function handleSubmit() {
     if (!seller.name.trim() || !seller.contact.trim()) { setError("Please fill in your name and contact info."); return; }
     const validRows = rows.filter(r=>r.name.trim());
@@ -19870,10 +19909,16 @@ function PublicSellPage() {
     try {
       const qId = uid();
       const cards = validRows.map(r=>({ cardName:r.name.trim(), name:r.name.trim(), cardType:"", qty:parseInt(r.qty)||1, mktVal:parseFloat(r.askingPrice)||0 }));
+      // Upload photos to Firebase Storage
+      let photoUrls = [];
+      if (photos.length > 0) {
+        try { photoUrls = await uploadPhotos(qId); } catch(pe) { console.warn("Photo upload failed", pe); }
+      }
       await setDoc(doc(db,"quotes",qId), {
         id: qId,
         seller: { name:seller.name.trim(), contact:seller.contact.trim(), source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle },
         cards,
+        photoUrls,
         status: "pending",
         source: seller.source,
         dispOffer: 0,
@@ -20026,11 +20071,39 @@ function PublicSellPage() {
             style={{ ...S2.inp, resize:"vertical", lineHeight:1.5 }}/>
         </div>
 
+        {/* Photo Upload */}
+        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 24px", marginBottom:16 }}>
+          <label style={S2.lbl}>📸 Lot Photos (optional but recommended)</label>
+          <div style={{ fontSize:13, color:"#555", marginBottom:12 }}>Take a photo of your lot spread out so we can see the cards. Helps us make a faster and more accurate offer.</div>
+          {/* Upload button */}
+          <label style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.1)", border:"1px dashed rgba(232,49,122,0.4)", borderRadius:10, padding:"12px 20px", cursor:"pointer", fontSize:14, fontWeight:700, color:"#E8317A" }}>
+            📷 Add Photos
+            <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
+          </label>
+          <span style={{ fontSize:11, color:"#333", marginLeft:12 }}>Works with camera or photo library</span>
+          {/* Photo previews */}
+          {photos.length > 0 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginTop:14 }}>
+              {photos.map((p,i)=>(
+                <div key={i} style={{ position:"relative", width:100, height:100 }}>
+                  <img src={p.preview} alt="" style={{ width:100, height:100, objectFit:"cover", borderRadius:8, border:"1px solid #2a2a2a" }}/>
+                  <button onClick={()=>removePhoto(i)}
+                    style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%", background:"#E8317A", border:"none", color:"#fff", fontSize:12, fontWeight:900, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
+                </div>
+              ))}
+              <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed #2a2a2a", borderRadius:8, cursor:"pointer", color:"#555", fontSize:12, gap:4 }}>
+                <span style={{ fontSize:24 }}>+</span>Add more
+                <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
+              </label>
+            </div>
+          )}
+        </div>
+
         {error && <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#E8317A" }}>{error}</div>}
 
         <button onClick={handleSubmit} disabled={submitting}
           style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:submitting?"not-allowed":"pointer", fontFamily:"inherit", opacity:submitting?0.7:1 }}>
-          {submitting?"Submitting...":"🎯 Submit My Cards for an Offer"}
+          {submitting ? (uploadProgress > 0 ? `Uploading photos... ${uploadProgress}%` : "Submitting...") : "🎯 Submit My Cards for an Offer"}
         </button>
 
         <div style={{ marginTop:16, textAlign:"center", fontSize:12, color:"#333" }}>
