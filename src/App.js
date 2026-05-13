@@ -21065,9 +21065,6 @@ function Finance({ streams=[], userRole, quotes=[] }) {
         </div>
       )}
 
-      {/* Expense list */}
-      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:12}}>
       {/* Auto-deductions */}
       {(weeklyComm.length > 0 || lotPurchases.length > 0) && (
         <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
