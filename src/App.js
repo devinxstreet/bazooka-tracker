@@ -458,6 +458,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const quoteNotifs = canSeeFinancials ? quotes.filter(q => !q.notified && (["accepted","declined","countered"].includes(q.status) || q.submittedBySeller)) : [];
   const [viewStub,  setViewStub]  = useState(null);
   const [viewQuote, setViewQuote] = useState(null);
+  const [lightbox,  setLightbox]  = useState(null);
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
@@ -548,6 +549,18 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
+      {/* Lightbox overlay */}
+      {lightbox && (
+        <div onClick={()=>setLightbox(null)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          <img src={lightbox} alt="Lot photo"
+            style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10, boxShadow:"0 0 60px rgba(0,0,0,0.8)" }}
+            onClick={e=>e.stopPropagation()}/>
+          <button onClick={()=>setLightbox(null)}
+            style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
+        </div>
+      )}
+
       {/* -- QUOTE NOTIFICATIONS (Admin) -- */}
       {quoteNotifs.map(q => {
         const cfg = {
@@ -573,12 +586,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {(q.photoUrls||[]).length > 0 && (
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
                       {(q.photoUrls||[]).map((url,i)=>(
-                        <a key={i} href={url} target="_blank" rel="noreferrer">
-                          <img src={url} alt={`Photo ${i+1}`} style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"pointer" }}
-                            onError={e=>e.target.style.display="none"}/>
-                        </a>
+                        <img key={i} src={url} alt={`Photo ${i+1}`}
+                          onClick={()=>setLightbox(url)}
+                          style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"zoom-in" }}
+                          onError={e=>e.target.style.display="none"}/>
                       ))}
-                      <div style={{ fontSize:11, color:"#7B9CFF", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""} attached</div>
+                      <div style={{ fontSize:11, color:"#7B9CFF", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""} · click to enlarge</div>
                     </div>
                   )}
                   {q.submittedBySeller && !(q.photoUrls||[]).length && (
@@ -1501,6 +1514,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [quickOffer,   setQuickOffer]   = useState("");
   const [counterOffer,        setCounterOffer]        = useState("");
   const [loadedCompId,        setLoadedCompId]        = useState(null);
+  const [lightbox,            setLightbox]            = useState(null);
   const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
   const [acOpen,       setAcOpen]       = useState(null);  // row id with open autocomplete
   const [acQuery,      setAcQuery]      = useState({});    // {rowId: queryString}
@@ -1713,6 +1727,13 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      {lightbox && (
+        <div onClick={()=>setLightbox(null)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10 }} onClick={e=>e.stopPropagation()}/>
+          <button onClick={()=>setLightbox(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
+        </div>
+      )}
       <div style={S.card}>
         <div style={{ display:"none" }}>
           {[["builder","\uD83E\uDDEE Builder"],["quick","\u26A1 Quick Mode"],...(["Admin","Procurement"].includes(userRole?.role)?[["history","\uD83D\uDCCB History"]]:[] )].map(([mode,label]) => (
@@ -1816,9 +1837,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           {(q.photoUrls||[]).length > 0 && (
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>
                               {(q.photoUrls||[]).map((url,i)=>(
-                                <a key={i} href={url} target="_blank" rel="noreferrer">
-                                  <img src={url} alt={`Lot photo ${i+1}`} style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:"1px solid #2a2a2a", cursor:"pointer" }}/>
-                                </a>
+                                <img key={i} src={url} alt={`Lot photo ${i+1}`}
+                                  onClick={()=>setLightbox(url)}
+                                  style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:"1px solid #2a2a2a", cursor:"zoom-in" }}/>
                               ))}
                               <div style={{ fontSize:10, color:"#555", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""}</div>
                             </div>
@@ -21248,12 +21269,10 @@ export default function App() {
         setStreams(data);
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
-      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
-      onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      // Quotes: only load non-closed, recent 90 days for dashboard notifications
+      onSnapshot(query(collection(db,"quotes"), where("bazookaClosed","!=",true)), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
       onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
-      onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))),
-      onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))),
     ];
     return () => unsubs.forEach(u => u());
   }, [user]);
@@ -21266,12 +21285,19 @@ export default function App() {
     if ((tab === "comp" || tab === "dashboard") && !dataLoaded.comp) {
       setDataLoaded(p=>({...p, comp:true}));
       unsubs.push(onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))));
+      unsubs.push(onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))));
+      unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))));
     }
 
     if (tab === "buyers" && !dataLoaded.buyers) {
       setDataLoaded(p=>({...p, buyers:true}));
       unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
       unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
+    }
+
+    if (tab === "shipping" && !dataLoaded.shipping) {
+      setDataLoaded(p=>({...p, shipping:true}));
+      unsubs.push(onSnapshot(collection(db,"shipping_issues"), snap => setShippingIssues?.(snap.docs.map(d=>({id:d.id,...d.data()})))));
     }
 
     if (tab === "inventory" && !dataLoaded.inventory) {
@@ -21287,6 +21313,7 @@ export default function App() {
       setDataLoaded(p=>({...p, streams:true}));
       unsubs.push(onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))));
       unsubs.push(onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }));
+      unsubs.push(onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))));
     }
 
     if (unsubs.length === 0) return;
