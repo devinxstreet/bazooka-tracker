@@ -808,53 +808,63 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             trueNet:    { label:"Bazooka True Net",      color:"#E8317A", val: s => calcStream(s).bazTrueNet||0 },
           }[drillDown];
           return (
-            <div style={{ ...S.card, border:`2px solid ${config.color}33`, marginTop:0 }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+            <div style={{ ...S.card, border:`1px solid #2a2a2a`, marginTop:0, padding:0, overflow:"hidden" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid #1a1a1a" }}>
                 <SectionLabel t={config.label} />
-                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:18 }}>{"\u2715"}</button>
+                <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#AAAAAA", cursor:"pointer", fontSize:14, borderRadius:6, padding:"4px 10px", fontFamily:"inherit" }}>✕ Close</button>
               </div>
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                  <thead><tr>
-                    {["Date","Breaker","Gross","Rate",
-                      ...(drillDown==="trueNet" ? ["Baz 30%","\u2212 Commission","💙 IMC Reimb","= True Net"] : [
-                        drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka Earnings":"Gross"
-                      ])
-                    ].map(h=><th key={h} style={S.th}>{h}</th>)}
-                  </tr></thead>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"1px solid #2a2a2a", background:"#0d0d0d" }}>
+                      {["Date","Breaker","Gross","Rate",
+                        ...(drillDown==="trueNet" ? ["Baz Net","− Commission","💙 IMC Reimb","= True Net"] : [
+                          drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka 30%":"Gross"
+                        ])
+                      ].map(h=><th key={h} style={{ padding:"10px 14px", textAlign:"left", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, whiteSpace:"nowrap" }}>{h}</th>)}
+                    </tr>
+                  </thead>
                   <tbody>
                     {filtered.length===0
-                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet -- add a stream recap in Break Log." : "No streams in this period."} cols={drillDown==="trueNet"?7:5}/>
+                      ? <EmptyRow msg={streams.length===0 ? "No streams logged yet." : "No streams in this period."} cols={drillDown==="trueNet"?8:5}/>
                       : filtered.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
+                          const hasReimb = (c.imcDirectReimb||0) > 0;
                           return (
-                            <tr key={s.id} style={{ background:"#111111" }}>
-                              <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                              <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
-                              <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ ...S.td, color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
+                            <tr key={s.id} style={{ borderBottom:"1px solid #1a1a1a", background:i%2===0?"#111":"#0d0d0d" }}>
+                              <td style={{ padding:"10px 14px", color:"#888", whiteSpace:"nowrap" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                              <td style={{ padding:"10px 14px" }}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
+                              <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
+                              <td style={{ padding:"10px 14px", color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
                               {drillDown==="trueNet" ? <>
-                                <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
-                                <td style={{ ...S.td, color:"#991b1b" }}>{"\u2212"}{fmt(c.commAmt)}</td>
-                                <td style={{ ...S.td, color:"#60A5FA", fontWeight:700 }}>{(c.imcDirectReimb||0)>0 ? "+"+fmt(c.imcDirectReimb) : "—"}</td>
-                                <td style={{ ...S.td, color:"#6B2D8B", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
-                              </> : <td style={{ ...S.td, color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
+                                <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
+                                <td style={{ padding:"10px 14px", color:"#ef4444" }}>−{fmt(c.commAmt)}</td>
+                                <td style={{ padding:"10px 14px" }}>
+                                  {hasReimb ? (
+                                    <div>
+                                      <span style={{ color:"#60A5FA", fontWeight:700 }}>+{fmt(c.imcDirectReimb)}</span>
+                                      {s.imcReimbNote && <div style={{ fontSize:10, color:"#555", marginTop:2, maxWidth:140 }}>{s.imcReimbNote}</div>}
+                                    </div>
+                                  ) : <span style={{ color:"#333" }}>—</span>}
+                                </td>
+                                <td style={{ padding:"10px 14px", color:"#A78BFA", fontWeight:900 }}>{fmt(c.bazTrueNet)}</td>
+                              </> : <td style={{ padding:"10px 14px", color:config.color, fontWeight:900 }}>{fmt(val)}</td>}
                             </tr>
                           );
                         })
                     }
                   </tbody>
                   <tfoot>
-                    <tr style={{ background:"#111111", borderTop:"2px solid #333333" }}>
-                      <td colSpan={5} style={{ ...S.td, fontWeight:800, color:"#F0F0F0" }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                    <tr style={{ background:"#0d0d0d", borderTop:"2px solid #2a2a2a" }}>
+                      <td colSpan={4} style={{ padding:"12px 14px", fontWeight:800, color:"#F0F0F0", fontSize:12 }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
-                        <td style={{ ...S.td, fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#991b1b", fontSize:14 }}>{"\u2212"}{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#60A5FA", fontSize:14 }}>{filtered.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
-                        <td style={{ ...S.td, fontWeight:900, color:"#6B2D8B", fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
-                      </> : <td style={{ ...S.td, fontWeight:900, color:config.color, fontSize:15 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#60A5FA", fontSize:14 }}>{filtered.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
+                      </> : <td style={{ padding:"12px 14px", fontWeight:900, color:config.color, fontSize:16 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
                   </tfoot>
                 </table>
