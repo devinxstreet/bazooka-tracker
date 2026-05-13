@@ -569,6 +569,21 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
                   {q.quotedBy && <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Quoted by <strong style={{color:"#AAAAAA"}}>{q.quotedBy.split(" ")[0]}</strong></div>}
+                  {/* Lot photos */}
+                  {(q.photoUrls||[]).length > 0 && (
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
+                      {(q.photoUrls||[]).map((url,i)=>(
+                        <a key={i} href={url} target="_blank" rel="noreferrer">
+                          <img src={url} alt={`Photo ${i+1}`} style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"pointer" }}
+                            onError={e=>e.target.style.display="none"}/>
+                        </a>
+                      ))}
+                      <div style={{ fontSize:11, color:"#7B9CFF", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""} attached</div>
+                    </div>
+                  )}
+                  {q.submittedBySeller && !(q.photoUrls||[]).length && (
+                    <div style={{ fontSize:11, color:"#333", marginTop:6, fontStyle:"italic" }}>No photos submitted</div>
+                  )}
                   {q.status==="accepted" && q.sellerPayment && (
                     <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>{"\uD83D\uDCB3 Wants payment via "}<strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
                   )}
