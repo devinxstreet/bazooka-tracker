@@ -20845,21 +20845,6 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   const totalPromo  = monthStreams.reduce((s,str) => s + (parseFloat(str.whatnotPromo)||0), 0);
   const netRevIn    = grossIn - totalFees - totalCoupons - totalPromo;
 
-  // Auto: weekly commission grouped by week
-  const weeklyComm = (() => {
-    const weeks = {};
-    monthStreams.forEach(s => {
-      const d = parseLocalDate(s.date);
-      const mon = new Date(d); mon.setDate(d.getDate()-(d.getDay()===0?6:d.getDay()-1));
-      const key = mon.toISOString().split("T")[0];
-      const label = `Week of ${mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
-      if (!weeks[key]) weeks[key] = { key, label, amount:0 };
-      weeks[key].amount += calcStream(s).myComm;
-    });
-    return Object.values(weeks).sort((a,b)=>a.key.localeCompare(b.key));
-  })();
-  const totalAutoComm = weeklyComm.reduce((s,w)=>s+w.amount,0);
-
   // Auto: accepted lot purchases this month
   const lotPurchases = quotes.filter(q =>
     q.status === "accepted" &&
@@ -20873,7 +20858,7 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   }));
   const totalLotPurchases = lotPurchases.reduce((s,l)=>s+l.amount,0);
 
-  const totalAutoOut = totalAutoComm + totalLotPurchases;
+  const totalAutoOut = totalLotPurchases;
   const totalManualOut = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
   const totalOut    = totalAutoOut + totalManualOut;
   const cashFlow    = netRevIn - totalOut;
@@ -20959,7 +20944,6 @@ function Finance({ streams=[], userRole, quotes=[] }) {
             <div style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Total Cash Out</div>
             <div style={{fontSize:24,fontWeight:900,color:"#E8317A"}}>{fmt(totalOut)}</div>
             <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>Rep Commission</span><span style={{color:"#E8317A"}}>−{fmt(totalAutoComm)}</span></div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>Lot Purchases</span><span style={{color:"#E8317A"}}>−{fmt(totalLotPurchases)}</span></div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"#555"}}>Other Expenses</span><span style={{color:"#E8317A"}}>−{fmt(totalManualOut)}</span></div>
             </div>
@@ -21066,20 +21050,10 @@ function Finance({ streams=[], userRole, quotes=[] }) {
       )}
 
       {/* Auto-deductions */}
-      {(weeklyComm.length > 0 || lotPurchases.length > 0) && (
+      {lotPurchases.length > 0 && (
         <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
           <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>⚡ Auto-Calculated Expenses</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {/* Weekly commission */}
-            {weeklyComm.map(w=>(
-              <div key={w.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"rgba(232,49,122,0.05)",border:"1px solid rgba(232,49,122,0.15)",borderRadius:8}}>
-                <div>
-                  <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>💸 Rep Commission — {w.label}</div>
-                  <div style={{fontSize:10,color:"#555",marginTop:1}}>Auto-calculated from stream data</div>
-                </div>
-                <div style={{fontSize:14,fontWeight:900,color:"#E8317A"}}>−{fmt(w.amount)}</div>
-              </div>
-            ))}
             {/* Lot purchases */}
             {lotPurchases.map(l=>(
               <div key={l.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8}}>
@@ -21091,8 +21065,8 @@ function Finance({ streams=[], userRole, quotes=[] }) {
               </div>
             ))}
             <div style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",borderTop:"1px solid #1a1a1a",marginTop:4}}>
-              <div style={{fontSize:11,color:"#555",fontWeight:700}}>Auto Total</div>
-              <div style={{fontSize:13,fontWeight:900,color:"#E8317A"}}>−{fmt(totalAutoOut)}</div>
+              <div style={{fontSize:11,color:"#555",fontWeight:700}}>Lot Purchases Total</div>
+              <div style={{fontSize:13,fontWeight:900,color:"#FBBF24"}}>−{fmt(totalLotPurchases)}</div>
             </div>
           </div>
         </div>
