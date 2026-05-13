@@ -21269,8 +21269,8 @@ export default function App() {
         setStreams(data);
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
-      // Quotes: only load non-closed, recent 90 days for dashboard notifications
-      onSnapshot(query(collection(db,"quotes"), where("bazookaClosed","!=",true)), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      // Load all quotes
+      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
       onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
     ];
