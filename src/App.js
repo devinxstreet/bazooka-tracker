@@ -20846,14 +20846,17 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   const netRevIn    = grossIn - totalFees - totalCoupons - totalPromo;
 
   // Auto: accepted lot purchases this month
-  const lotPurchases = quotes.filter(q =>
-    q.status === "accepted" &&
-    (q.importedAt||q.createdAt||"").startsWith(selMonth) &&
-    parseFloat(q.currentOffer||q.dispOffer||0) > 0
-  ).map(q => ({
+  const lotPurchases = quotes.filter(q => {
+    if (q.status !== "accepted") return false;
+    if (parseFloat(q.currentOffer||q.dispOffer||0) <= 0) return false;
+    const dateStr = q.respondedAt || q.importedAt || q.createdAt || "";
+    // If no date at all, show it (don't hide it)
+    if (!dateStr) return true;
+    return dateStr.startsWith(selMonth);
+  }).map(q => ({
     key: q.id,
     label: `Lot — ${q.seller?.name||"Seller"} (${(q.cards||[]).length} cards)`,
-    date: (q.importedAt||q.createdAt||"").slice(0,10),
+    date: (q.respondedAt||q.importedAt||q.createdAt||"—").slice(0,10),
     amount: parseFloat(q.currentOffer||q.dispOffer||0),
   }));
   const totalLotPurchases = lotPurchases.reduce((s,l)=>s+l.amount,0);
@@ -21269,7 +21272,12 @@ export default function App() {
     for (const card of cards) {
       await setDoc(doc(db,"inventory",card.id), { ...card, addedBy: u?.displayName||"Unknown", dateAdded: new Date().toISOString(), cardStatus:"in_transit" });
     }
-    showToast(`\u2705 ${cards.length} card${cards.length!==1?"s":""} added -- marked In Transit until delivered`);
+    // Mark the quote as accepted with timestamp so Finance can pick it up
+    if (seller?.quoteId || seller?.id) {
+      const qId = seller?.quoteId || seller?.id;
+      await setDoc(doc(db,"quotes",qId), { status:"accepted", respondedAt:new Date().toISOString(), notified:false }, { merge:true });
+    }
+    showToast(`✅ ${cards.length} card${cards.length!==1?"s":""} added -- marked In Transit until delivered`);
     setTab("inventory");
   }
 
