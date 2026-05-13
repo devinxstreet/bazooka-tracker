@@ -20907,7 +20907,6 @@ function Finance({ streams=[], userRole, quotes=[] }) {
     setEditId(e.id); setShowAdd(true);
   }
 
-  const fmt = v => "$"+Number(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   const cashColor = cashFlow >= 0 ? "#4ade80" : "#ef4444";
 
   // Monthly summary for chart (last 6 months)
