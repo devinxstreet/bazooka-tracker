@@ -11520,7 +11520,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;">Period Summary</div>
                   <div class="totals-grid" style="grid-template-columns:${adminPDF?"repeat(4,1fr)":"repeat(3,1fr)"}">
                     <div class="tot-item"><div class="tot-val" style="color:#E8317A;">${fmt(totals.gross)}</div><div class="tot-lbl">Total Gross</div></div>
-                    <div class="tot-item"><div class="tot-val" style="color:#1B4F8A;">${fmt(totals.baz)}</div><div class="tot-lbl">Bazooka Net (30%)</div></div>
+                    <div class="tot-item"><div class="tot-val" style="color:#A78BFA;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
                     ${adminPDF ? `
                     <div class="tot-item"><div class="tot-val" style="color:#991b1b;">-${fmt(totals.comm)}</div><div class="tot-lbl">Commission Paid</div></div>
                     <div class="tot-item"><div class="tot-val" style="color:#166534;">${fmt(totals.trueNet)}</div><div class="tot-lbl">Bazooka True Net</div></div>
@@ -11605,7 +11605,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`, gap:10, marginBottom:12 }}>
                           {[
                             { l:"Gross Revenue",        v:fmt(totals.gross),   c:"#E8317A" },
-                            { l:"Bazooka Net (30%)",    v:fmt(totals.baz),     c:"#1B4F8A" },
+                            { l:"Bazooka True Net",     v:fmt(totals.trueNet), c:"#A78BFA" },
                             ...(isAdmin ? [
                               { l:"\u2212 Commission",       v:fmt(totals.comm),    c:"#991b1b" },
                               { l:"Bazooka True Net",   v:fmt(totals.trueNet), c:"#4ade80" },
