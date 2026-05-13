@@ -1174,74 +1174,79 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <SectionLabel t="Inventory Health Check" />
           <span style={{ fontSize:12, fontWeight:700, padding:"4px 12px", borderRadius:20, background:alerts.length===0?"#D6F4E3":alerts.length<=2?"#FFF9DB":"#FEE2E2", color:alerts.length===0?"#166534":alerts.length<=2?"#92400e":"#991b1b" }}>
-            {alerts.length===0 ? "\u2705 All Good" : `\uD83D\uDEA8 ${alerts.length} Critical`}
+            {alerts.length===0 ? "✅ All Good" : `🚨 ${alerts.length} Critical`}
           </span>
         </div>
-        <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:`repeat(${canSeeFinancials?5:4},1fr)`, gap:10, marginBottom:16 }}>
+
+        {/* Top KPIs — what you have */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
           {[
-            { l:"Total Cards",    v:inventory.length, c:"#F0F0F0" },
-            { l:"Available",      v:availCount,       c:"#166534" },
-            { l:"In Transit",     v:transitCount,     c:"#7B9CFF" },
-            { l:"Used",           v:usedCount,        c:"#991b1b" },
-            ...(canSeeFinancials ? [{ l:"Portfolio Zone", v:oz?oz.label:"No data", c:oz?.color||"#9CA3AF" }] : []),
+            { l:"Available Now", v:availCount,  c:"#4ade80" },
+            { l:"In Transit",    v:transitCount, c:"#7B9CFF" },
+            { l:"Total Stock",   v:inventory.length, c:"#F0F0F0" },
           ].map(({l,v,c}) => (
-            <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
-              <div style={{ fontSize:22, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
+            <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
+              <div style={{ fontSize:26, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
               <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
             </div>
           ))}
         </div>
-        {alerts.length > 0 && (
-          <div style={{ marginBottom:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{"\uD83D\uDEA8 Restock Needed"}</div>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {alerts.map(ct => {
-                const avail = stats[ct].avail;
-                const cc = CC[ct];
-                return <div key={ct} style={{ background:cc.bg, border:`1.5px solid ${cc.border}`, borderRadius:8, padding:"8px 14px" }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:12 }}>{ct}</span>
-                  <span style={{ fontSize:11, color:cc.text, marginLeft:8 }}>{avail} left / {TARGETS[ct].buffer} min</span>
-                </div>;
-              })}
-            </div>
-          </div>
-        )}
+
+        {/* Per card type — simplified */}
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {CARD_TYPES.map(ct => {
             const cc = CC[ct];
             const avail   = stats[ct].avail;
             const transit = stats[ct].inTransit;
-            const days = runway[ct];
-            const pace = TARGETS[ct].monthly > 0 ? stats[ct].used / TARGETS[ct].monthly : 0;
-            const runC  = days >= 14 ? "#166534" : days >= 7 ? "#92400e" : "#991b1b";
-            const runBg = days >= 14 ? "#D6F4E3" : days >= 7 ? "#FFF9DB" : "#FEE2E2";
+            const target  = TARGETS[ct].buffer;
+            const days    = runway[ct];
+            const pct     = Math.min(avail / Math.max(target, 1), 1);
+            const status  = avail === 0 ? { label:"❌ Out", color:"#991b1b", bg:"#FEE2E2" }
+                          : avail < target ? { label:"⚠️ Low", color:"#92400e", bg:"#FFF9DB" }
+                          : { label:"✅ Good", color:"#166534", bg:"#D6F4E3" };
+            const runLabel = days >= 999 ? null : days <= 0 ? "Overdue" : `~${days}d left`;
+
             return (
-              <div key={ct} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:9, padding:"10px 14px" }}>
-                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6, gap:6, flexWrap:"wrap" }}>
-                  <span style={{ fontWeight:700, color:cc.text, fontSize:13, flexShrink:0 }}>{ct}</span>
-                  <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>{avail} avail</span>
-                    {transit > 0 && <span style={{ fontSize:11, color:"#F0F0F0", fontWeight:700, background:"#222", padding:"2px 8px", borderRadius:5 }}>{"\uD83D\uDE9A"} {transit}</span>}
-                    <span style={{ background:runBg, color:runC, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>
-                      {days >= 999 ? "No usage" : `~${days}d`}
-                    </span>
-                    <span style={{ background:"#1a1a1a", color:"#AAAAAA", fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:5 }}>Pace: {(pace*100).toFixed(0)}%</span>
+              <div key={ct} style={{ background:"#111111", border:`1px solid ${avail < target ? (avail===0?"rgba(153,27,27,0.4)":"rgba(146,64,14,0.3)") : "#2a2a2a"}`, borderRadius:10, padding:"12px 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
+                  <span style={{ fontWeight:800, color:cc.text, fontSize:14, flex:1 }}>{ct}</span>
+                  {/* Available count — the main number */}
+                  <div style={{ textAlign:"center", minWidth:60 }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:avail===0?"#991b1b":avail<target?"#FBBF24":"#4ade80" }}>{avail}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Available</div>
                   </div>
+                  {transit > 0 && (
+                    <div style={{ textAlign:"center", minWidth:50 }}>
+                      <div style={{ fontSize:18, fontWeight:700, color:"#7B9CFF" }}>{transit}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Coming</div>
+                    </div>
+                  )}
+                  <div style={{ textAlign:"center", minWidth:50 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#333" }}>{target}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Min</div>
+                  </div>
+                  <span style={{ background:status.bg, color:status.color, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:6, whiteSpace:"nowrap" }}>{status.label}</span>
+                  {runLabel && <span style={{ fontSize:11, color:days<=7?"#991b1b":days<=14?"#92400e":"#555", fontWeight:700, whiteSpace:"nowrap" }}>{runLabel}</span>}
                 </div>
-                <div style={{ height:5, background:"#111111", borderRadius:3, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${Math.min(pace*100,100)}%`, background:pace>=1?"#991b1b":pace>=0.7?"#92400e":"#166534", borderRadius:3 }}/>
+                {/* Progress bar: available vs target */}
+                <div style={{ height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${pct*100}%`, background:pct>=1?"#4ade80":pct>=0.5?"#FBBF24":"#991b1b", borderRadius:3, transition:"width 0.4s" }}/>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                  <div style={{ fontSize:10, color:"#333" }}>0</div>
+                  <div style={{ fontSize:10, color:"#333" }}>min: {target}</div>
                 </div>
               </div>
             );
           })}
         </div>
+
         {canSeeFinancials && (
-        <div className="dash-grid-3" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:14 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:14 }}>
           {[
-            { l:"Market Value (in stock)", v:`$${totMkt.toFixed(2)}`,    c:"#92400e" },
-            { l:"Cost of Current Stock",  v:`$${totInv.toFixed(2)}`,    c:"#6B2D8B" },
-            { l:"Total Spent (all time)", v:`$${totInvAll.toFixed(2)}`,  c:"#444" },
-            { l:"Cards Used (Total)",     v:usedCount,                   c:"#991b1b" },
+            { l:"Market Value (in stock)", v:`$${totMkt.toFixed(2)}`, c:"#92400e" },
+            { l:"Cost of Current Stock",  v:`$${totInv.toFixed(2)}`, c:"#6B2D8B" },
+            { l:"Total Spent (all time)", v:`$${totInvAll.toFixed(2)}`, c:"#444" },
           ].map(({l,v,c}) => (
             <div key={l} style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"10px 14px", textAlign:"center" }}>
               <div style={{ fontSize:18, fontWeight:900, color:c, marginBottom:2 }}>{v}</div>
