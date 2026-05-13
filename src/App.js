@@ -28,7 +28,8 @@ function calcStream(s, targetBreaker=null) {
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
   const collabAmt    = (s.collabPartner&&s.collabPartner!=="_") ? bazNet*(parseFloat(s.collabPct||0)/100) : 0;
-  const eventStaffAmt = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazNet*0.15),0);
+  const bazOwnShare  = bazNet - collabAmt;  // what Bazooka actually keeps before paying the rep
+  const eventStaffAmt = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazOwnShare*0.15),0);
   const imcReimb      = streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
@@ -40,11 +41,11 @@ function calcStream(s, targetBreaker=null) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep  = s.splitRep === targetBreaker;
-    myComm = isEventOnly ? Math.min(1000, bazNet*0.15)
+    myComm = isEventOnly ? Math.min(1000, bazOwnShare*0.15)
            : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
