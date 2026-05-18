@@ -22,21 +22,22 @@ function calcStream(s, targetBreaker=null) {
   const externalCh   = !!s.externalChannel;
   const bazNet       = splitBase * 0.30;
   const imcNet       = externalCh ? 0 : splitBase * 0.70;
+  // Collab split calculated FIRST so commission is based on what Bazooka actually keeps
+  const collabAmt    = (s.collabPartner&&s.collabPartner!=="_") ? bazNet*(parseFloat(s.collabPct||0)/100) : 0;
+  const bazOwnShare  = bazNet - collabAmt;
   const rate         = getRate(s);
-  const commAmt      = bazNet * rate;
+  const commAmt      = bazOwnShare * rate;  // commission on Bazooka's share after collab
   const repExpShare  = streamExp * (rate * 0.30);
   const bazExpShare  = streamExp * ((1-rate) * 0.30);
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
-  const collabAmt    = (s.collabPartner&&s.collabPartner!=="_") ? bazNet*(parseFloat(s.collabPct||0)/100) : 0;
-  const bazOwnShare  = bazNet - collabAmt;
   const eventStaffAmt = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazOwnShare*0.15),0);
   const imcReimb      = externalCh ? 0 : streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
   const primaryCommAmt = s.splitRep ? commAmt*splitPct : commAmt;
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
-  const bazTrueNet    = bazNet - commAmt - collabAmt - eventStaffAmt + imcReimb + imcDirectReimb;
+  const bazTrueNet    = bazOwnShare - commAmt - eventStaffAmt + imcReimb + imcDirectReimb;
   let myComm = primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
@@ -987,23 +988,22 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
       {/* Ops Summary */}
       {canSeeFinancials && (() => {
-        const periodStreams = streams.filter(s => {
-          if (!s.date) return false;
-          const d = parseLocalDate(s.date);
+        const [opsPeriod,    setOpsPeriod]    = useState("month");
+        const [opsFrom,      setOpsFrom]      = useState("");
+        const [opsTo,        setOpsTo]        = useState("");
+
+        function opsInPeriod(dateStr) {
+          if (!dateStr) return false;
+          const d = parseLocalDate(dateStr);
           const now = new Date();
-          if (financialPeriod==="week") {
-            const day=d.getDay(), diff=day===0?6:day-1;
-            const wStart=new Date(d); wStart.setDate(d.getDate()-diff); wStart.setHours(0,0,0,0);
-            const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
-            const today=new Date(); const tDay=today.getDay(), tDiff=tDay===0?6:tDay-1;
-            const twStart=new Date(today); twStart.setDate(today.getDate()-tDiff); twStart.setHours(0,0,0,0);
-            return wStart >= twStart;
-          }
-          if (financialPeriod==="month") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-          if (financialPeriod==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear(); }
-          if (financialPeriod==="year") return d.getFullYear()===now.getFullYear();
+          if (opsPeriod==="month")   return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+          if (opsPeriod==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q&&d.getFullYear()===now.getFullYear(); }
+          if (opsPeriod==="year")    return d.getFullYear()===now.getFullYear();
+          if (opsPeriod==="custom"&&opsFrom&&opsTo) { const f=new Date(opsFrom+"T00:00:00"),t=new Date(opsTo+"T23:59:59"); return d>=f&&d<=t; }
           return true;
-        });
+        }
+
+        const periodStreams = streams.filter(s => opsInPeriod(s.date));
 
         const totMagpros  = periodStreams.reduce((s,r)=>s+(parseFloat(r.magpros)||0),0);
         const totPack     = periodStreams.reduce((s,r)=>s+(parseFloat(r.packagingMaterial)||0),0);
@@ -1015,53 +1015,93 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const totZion     = periodStreams.reduce((s,r)=>s+(parseFloat(r.zionRevenue)||0),0);
         const totCoupons  = periodStreams.reduce((s,r)=>s+(parseFloat(r.coupons)||0),0);
 
-        // Card usage costs by type -- use all breaks in the period by date
+        // Card usage costs by type
         const USAGE_TO_CT_OPS = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
         const cardCostByType = {};
         const cardQtyByType  = {};
-        CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; });
-        const now2 = new Date();
+        const cardRowsByType = {};
+        CARD_TYPES.forEach(ct => { cardCostByType[ct]=0; cardQtyByType[ct]=0; cardRowsByType[ct]=[]; });
         breaks.forEach(b => {
           const ct = USAGE_TO_CT_OPS[b.usage] || b.cardType;
           if (!ct || !CARD_TYPES.includes(ct)) return;
           const breakDate = b.date || (b.dateAdded ? b.dateAdded.split("T")[0] : null);
-          if (!breakDate) return;
-          const d = parseLocalDate(breakDate);
-          let inPrd = false;
-          if (financialPeriod==="week") {
-            const tDay=now2.getDay(), tDiff=tDay===0?6:tDay-1;
-            const wStart=new Date(now2); wStart.setDate(now2.getDate()-tDiff); wStart.setHours(0,0,0,0);
-            const wEnd=new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
-            inPrd = d >= wStart && d <= wEnd;
-          } else if (financialPeriod==="month") {
-            inPrd = d.getMonth()===now2.getMonth() && d.getFullYear()===now2.getFullYear();
-          } else if (financialPeriod==="quarter") {
-            const q=Math.floor(now2.getMonth()/3);
-            inPrd = Math.floor(d.getMonth()/3)===q && d.getFullYear()===now2.getFullYear();
-          } else if (financialPeriod==="year") {
-            inPrd = d.getFullYear()===now2.getFullYear();
-          } else {
-            inPrd = true;
-          }
-          if (!inPrd) return;
+          if (!opsInPeriod(breakDate)) return;
           const inv  = b.isPoolLog ? null : inventory.find(c => c.id === b.inventoryId);
           const cost = inv?.costPerCard || 0;
           const qty  = b.isPoolLog ? (parseInt(b.qty)||1) : 1;
           cardCostByType[ct] += cost * qty;
           cardQtyByType[ct]  += qty;
+          cardRowsByType[ct].push({
+            date: breakDate||"",
+            cardName: inv?.cardName || b.cardName || "Unknown",
+            usage: b.usage || ct,
+            qty,
+            costPerCard: cost,
+            totalCost: cost*qty,
+            streamId: b.streamId||"",
+          });
         });
+
+        function exportCardCSV(ct) {
+          const rows = cardRowsByType[ct];
+          if (!rows.length) return;
+          const header = "Date,Card Name,Usage Type,Qty,Cost Per Card,Total Cost,Stream ID\n";
+          const body   = rows.map(r=>`${r.date},"${r.cardName}","${r.usage}",${r.qty},${r.costPerCard.toFixed(2)},${r.totalCost.toFixed(2)},${r.streamId}`).join("\n");
+          const blob   = new Blob([header+body], { type:"text/csv" });
+          const a      = document.createElement("a");
+          a.href       = URL.createObjectURL(blob);
+          a.download   = `${ct.replace(" ","_")}_usage_${opsPeriod}.csv`;
+          a.click();
+        }
+
+        function exportAllCardsCSV() {
+          const header = "Date,Card Name,Card Type,Usage Type,Qty,Cost Per Card,Total Cost,Stream ID\n";
+          const allRows = CARD_TYPES.flatMap(ct => cardRowsByType[ct].map(r=>({...r, cardType:ct})));
+          allRows.sort((a,b)=>a.date.localeCompare(b.date));
+          const body = allRows.map(r=>`${r.date},"${r.cardName}","${r.cardType}","${r.usage}",${r.qty},${r.costPerCard.toFixed(2)},${r.totalCost.toFixed(2)},${r.streamId}`).join("\n");
+          const blob = new Blob([header+body], { type:"text/csv" });
+          const a    = document.createElement("a");
+          a.href     = URL.createObjectURL(blob);
+          a.download = `all_cards_used_${opsPeriod}.csv`;
+          a.click();
+        }
+
+        const periodLabel = opsPeriod==="month"?"This Month":opsPeriod==="quarter"?"This Quarter":opsPeriod==="year"?"This Year":opsPeriod==="custom"&&opsFrom&&opsTo?`${opsFrom} → ${opsTo}`:"All Time";
+        const totalCardCost = CARD_TYPES.reduce((s,ct)=>s+cardCostByType[ct],0);
+        const totalCardQty  = CARD_TYPES.reduce((s,ct)=>s+cardQtyByType[ct],0);
 
         return (
           <div style={{ ...S.card }}>
-            <SectionLabel t="📦 Ops Summary" />
+            {/* Header + period filter */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:14 }}>
+              <SectionLabel t="📦 Ops Summary" />
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setOpsPeriod(v)}
+                    style={{ background:opsPeriod===v?"rgba(232,49,122,0.15)":"transparent", border:`1px solid ${opsPeriod===v?"#E8317A":"#2a2a2a"}`, color:opsPeriod===v?"#E8317A":"#888", borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {opsPeriod==="custom" && (
+              <div style={{ display:"flex", gap:8, marginBottom:12, alignItems:"center" }}>
+                <input type="date" value={opsFrom} onChange={e=>setOpsFrom(e.target.value)} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
+                <span style={{ color:"#555" }}>to</span>
+                <input type="date" value={opsTo} onChange={e=>setOpsTo(e.target.value)} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
+              </div>
+            )}
+
+            {/* Supplies */}
+            <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Supplies — {periodLabel}</div>
             <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
               {[
-                { l:"MagPros",          v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",         c:"#7B9CFF" },
-                { l:"Packaging",        v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"",        c:"#7B9CFF" },
-                { l:"Top Loaders",      v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",          c:"#7B9CFF" },
-                { l:"Chaser Cards",     v:`$${totChaser.toFixed(2)}`,   sub:"",                                           c:"#E8317A" },
-                { l:"Coupons Given",    v:`$${totCoupons.toFixed(2)}`,  sub:"",                                           c:"#FBBF24" },
-                { l:"\uD83D\uDFE2 Zion Cases",     v:totZion>0?`$${totZion.toFixed(2)}`:"--", sub:totZion>0?`~${Math.round(totZion/3)} units sold`:"Bazooka-only", c:"#4ade80" },
+                { l:"MagPros",       v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",  c:"#7B9CFF" },
+                { l:"Packaging",     v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"", c:"#7B9CFF" },
+                { l:"Top Loaders",   v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",  c:"#7B9CFF" },
+                { l:"Chaser Cards",  v:`$${totChaser.toFixed(2)}`,   sub:"",                                    c:"#E8317A" },
+                { l:"Coupons Given", v:`$${totCoupons.toFixed(2)}`,  sub:"",                                    c:"#FBBF24" },
+                { l:"🟢 Zion Cases", v:totZion>0?`$${totZion.toFixed(2)}`:"--", sub:totZion>0?`~${Math.round(totZion/3)} units`:"Bazooka-only", c:"#4ade80" },
               ].map(({l,v,sub,c}) => (
                 <div key={l} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid #2a2a2a" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -1070,12 +1110,21 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
               ))}
             </div>
-            {/* Card usage by type */}
-            <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
-              <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Cards Used in Streams</div>
+
+            {/* Card usage by type with export */}
+            <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid #1a1a1a" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+                <div style={{ fontSize:10, color:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>Cards Used — {periodLabel}</div>
+                {totalCardQty > 0 && (
+                  <button onClick={exportAllCardsCSV}
+                    style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    ⬇ Export All ({totalCardQty} cards) CSV
+                  </button>
+                )}
+              </div>
               <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
                 {CARD_TYPES.map(ct => {
-                  const cc = CC[ct]||{ text:"#888", bg:"#111" };
+                  const cc  = CC[ct]||{ text:"#888", bg:"#111" };
                   const qty  = cardQtyByType[ct]||0;
                   const cost = cardCostByType[ct]||0;
                   return (
@@ -1083,10 +1132,21 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                       <div style={{ fontSize:18, fontWeight:900, color:cc.text }}>{qty}</div>
                       <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{ct.replace(" Cards","")}</div>
                       {cost>0 && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>${cost.toFixed(2)} cost</div>}
+                      {qty>0 && (
+                        <button onClick={()=>exportCardCSV(ct)}
+                          style={{ marginTop:6, background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+                          ⬇ Export CSV
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
+              {totalCardCost > 0 && (
+                <div style={{ marginTop:8, textAlign:"right", fontSize:12, color:"#555" }}>
+                  Total card cost: <strong style={{ color:"#F0F0F0" }}>${totalCardCost.toFixed(2)}</strong>
+                </div>
+              )}
             </div>
           </div>
         );
