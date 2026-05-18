@@ -1158,6 +1158,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
         const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear());
+        const skippedStreams = streams.filter(s => !s.date || new Date(s.date+"T12:00:00").getFullYear()!==now.getFullYear());
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
@@ -1201,6 +1202,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <span style={{ fontSize:11, color:"#AAAAAA" }}>
                   {ytdStreams.length} stream{ytdStreams.length!==1?"s":""}
                   {ytdHist.length>0 ? ` + ${ytdHist.length} historical` : ""} · {pct}% through {now.getFullYear()}
+                  {skippedStreams.length>0 && <span style={{color:"#FBBF24",marginLeft:6}}>⚠ {skippedStreams.length} streams excluded (wrong/missing date)</span>}
                 </span>
                 <button onClick={()=>{ setGoalForm(goals); setEditGoals(p=>!p); }}
                   style={{ background:"transparent", border:"1px solid #333", color:"#555", borderRadius:7, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
