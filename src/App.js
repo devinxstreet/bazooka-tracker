@@ -5893,6 +5893,28 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 function BuyerRetention({ buyers=[], streams=[] }) {
   const now = new Date();
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+  const [view, setView] = useState("overview"); // overview | cohort | firsttime
+
+  // Per buyer: which months were they active?
+  function buyerActiveMonths(b) {
+    const active = new Set();
+    (b.spendHistory||[]).forEach(h => { if(h.date) active.add(h.date.slice(0,7)); });
+    if(!active.size && b.firstSeen) active.add(b.firstSeen.slice(0,7));
+    return active;
+  }
+
+  // First-time buyer return analysis
+  const firstTimers    = buyers.filter(b => b.firstSeen);
+  const returnedOnce   = firstTimers.filter(b => (b.orderCount||0) >= 2 || buyerActiveMonths(b).size >= 2);
+  const returned2plus  = firstTimers.filter(b => (b.orderCount||0) >= 5 || buyerActiveMonths(b).size >= 3);
+  const returned5plus  = firstTimers.filter(b => (b.orderCount||0) >= 10 || buyerActiveMonths(b).size >= 4);
+  const neverReturned  = firstTimers.filter(b => (b.orderCount||0) <= 1 && buyerActiveMonths(b).size <= 1);
+  const returnRate     = firstTimers.length > 0 ? returnedOnce.length/firstTimers.length*100 : 0;
+
+  // Revenue from returners vs one-timers
+  const returnerRevenue   = returnedOnce.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const oneTimerRevenue   = neverReturned.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalRevenue      = buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
 
   // Build month list (last 6 months)
   const months = Array.from({length:6},(_,i)=>{
@@ -5900,39 +5922,22 @@ function BuyerRetention({ buyers=[], streams=[] }) {
     return { key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}) };
   }).reverse();
 
-  // Per buyer: which months were they active?
-  function buyerActiveMonths(b) {
-    const active = new Set();
-    // From spendHistory
-    (b.spendHistory||[]).forEach(h => { if(h.date) active.add(h.date.slice(0,7)); });
-    // Fallback: firstSeen/lastSeen
-    if(!active.size && b.firstSeen) active.add(b.firstSeen.slice(0,7));
-    return active;
-  }
-
   // Month stats
   const monthStats = months.map((m,i) => {
     const activeBuyers = buyers.filter(b => buyerActiveMonths(b).has(m.key));
     const newBuyers    = activeBuyers.filter(b => (b.firstSeen||"").startsWith(m.key));
     const returning    = activeBuyers.filter(b => !(b.firstSeen||"").startsWith(m.key));
-    const revenue      = activeBuyers.reduce((s,b)=>{
-      const h = (b.spendHistory||[]).filter(x=>x.date?.startsWith(m.key));
-      return s + (h.length ? h.reduce((s2,x)=>s2+(x.spend||0),0) : (activeBuyers.length===1?b.totalSpend:0));
-    },0);
-
-    // Retention: of last month's active buyers, how many are active this month?
     let retentionRate = null;
     if (i > 0) {
-      const prevKey = months[i-1].key;
+      const prevKey    = months[i-1].key;
       const prevActive = buyers.filter(b => buyerActiveMonths(b).has(prevKey));
       const retained   = prevActive.filter(b => buyerActiveMonths(b).has(m.key));
-      retentionRate = prevActive.length > 0 ? retained.length/prevActive.length*100 : null;
+      retentionRate    = prevActive.length > 0 ? retained.length/prevActive.length*100 : null;
     }
-
-    return { ...m, total:activeBuyers.length, new:newBuyers.length, returning:returning.length, revenue, retentionRate };
+    return { ...m, total:activeBuyers.length, new:newBuyers.length, returning:returning.length, retentionRate };
   });
 
-  // Cohort table: buyers who first appeared in a given month, track activity in subsequent months
+  // Cohort table
   const cohorts = months.slice(0,5).map(m => {
     const cohortBuyers = buyers.filter(b=>(b.firstSeen||"").startsWith(m.key));
     const followMonths = months.filter(fm=>fm.key>m.key);
@@ -5940,108 +5945,186 @@ function BuyerRetention({ buyers=[], streams=[] }) {
       ...m,
       size: cohortBuyers.length,
       follow: followMonths.map(fm=>({
-        key: fm.key,
-        label: fm.label,
+        key: fm.key, label: fm.label,
         retained: cohortBuyers.filter(b=>buyerActiveMonths(b).has(fm.key)).length,
         pct: cohortBuyers.length > 0 ? cohortBuyers.filter(b=>buyerActiveMonths(b).has(fm.key)).length/cohortBuyers.length*100 : 0,
       }))
     };
   });
 
-  const retColor = pct => pct >= 40 ? "#4ade80" : pct >= 20 ? "#FBBF24" : "#E8317A";
+  const retColor  = pct => pct >= 40 ? "#4ade80" : pct >= 20 ? "#FBBF24" : "#E8317A";
   const latestRetention = monthStats.filter(m=>m.retentionRate!==null).slice(-1)[0];
+
+  // Spend buckets for one-timers
+  const spendBuckets = [
+    { label:"$0–$25",   buyers: neverReturned.filter(b=>(b.totalSpend||0)<25) },
+    { label:"$25–$100", buyers: neverReturned.filter(b=>(b.totalSpend||0)>=25&&(b.totalSpend||0)<100) },
+    { label:"$100–$250",buyers: neverReturned.filter(b=>(b.totalSpend||0)>=100&&(b.totalSpend||0)<250) },
+    { label:"$250+",    buyers: neverReturned.filter(b=>(b.totalSpend||0)>=250) },
+  ];
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {/* KPI tiles */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:900,color:latestRetention?retColor(latestRetention.retentionRate):"#555"}}>
-            {latestRetention?.retentionRate!=null?latestRetention.retentionRate.toFixed(1)+"%":"--"}
-          </div>
-          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Current Retention Rate</div>
-          <div style={{fontSize:11,color:"#333",marginTop:2}}>vs prior month</div>
-        </div>
-        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:900,color:"#4ade80"}}>
-            {monthStats[monthStats.length-1]?.returning||0}
-          </div>
-          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Returning Buyers This Month</div>
-        </div>
-        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:900,color:"#7B9CFF"}}>
-            {monthStats[monthStats.length-1]?.new||0}
-          </div>
-          <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>New Buyers This Month</div>
-        </div>
+
+      {/* View tabs */}
+      <div style={{display:"flex",gap:6}}>
+        {[["overview","📊 Overview"],["firsttime","🔄 First-Time Return Rate"],["cohort","📅 Cohort Table"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)}
+            style={{background:view===v?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${view===v?"#E8317A":"#1a1a1a"}`,color:view===v?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {l}
+          </button>
+        ))}
       </div>
 
-      {/* Month-over-month chart */}
-      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Monthly Active Buyers & Retention</div>
-        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:140,marginBottom:12}}>
-          {monthStats.map((m,i)=>{
-            const maxT = Math.max(...monthStats.map(x=>x.total),1);
-            const newH = (m.new/maxT)*120;
-            const retH = (m.returning/maxT)*120;
-            return (
-              <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                {m.retentionRate!=null && <div style={{fontSize:9,fontWeight:700,color:retColor(m.retentionRate)}}>{m.retentionRate.toFixed(0)}%</div>}
-                <div style={{width:"100%",display:"flex",alignItems:"flex-end",height:120,gap:1}}>
-                  <div style={{flex:1,height:`${retH}px`,background:"#4ade80",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
-                  <div style={{flex:1,height:`${newH}px`,background:"#7B9CFF",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
+      {/* OVERVIEW */}
+      {view==="overview" && <>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+          <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:900,color:latestRetention?retColor(latestRetention.retentionRate):"#555"}}>
+              {latestRetention?.retentionRate!=null?latestRetention.retentionRate.toFixed(1)+"%":"--"}
+            </div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Monthly Retention Rate</div>
+            <div style={{fontSize:11,color:"#333",marginTop:2}}>buyers who came back vs prior month</div>
+          </div>
+          <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:900,color:"#4ade80"}}>{monthStats[monthStats.length-1]?.returning||0}</div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>Returning This Month</div>
+          </div>
+          <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:900,color:"#7B9CFF"}}>{monthStats[monthStats.length-1]?.new||0}</div>
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>New Buyers This Month</div>
+          </div>
+        </div>
+
+        {/* Month chart */}
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>Monthly Active Buyers & Retention</div>
+          <div style={{display:"flex",gap:4,alignItems:"flex-end",height:140,marginBottom:12}}>
+            {monthStats.map((m,i)=>{
+              const maxT=Math.max(...monthStats.map(x=>x.total),1);
+              const newH=(m.new/maxT)*120; const retH=(m.returning/maxT)*120;
+              return (
+                <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                  {m.retentionRate!=null&&<div style={{fontSize:9,fontWeight:700,color:retColor(m.retentionRate)}}>{m.retentionRate.toFixed(0)}%</div>}
+                  <div style={{width:"100%",display:"flex",alignItems:"flex-end",height:120,gap:1}}>
+                    <div style={{flex:1,height:`${retH}px`,background:"#4ade80",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
+                    <div style={{flex:1,height:`${newH}px`,background:"#7B9CFF",borderRadius:"2px 2px 0 0",opacity:0.8}}/>
+                  </div>
+                  <div style={{fontSize:9,color:"#555",textAlign:"center"}}>{m.label}</div>
+                  <div style={{fontSize:9,color:"#333"}}>{m.total}</div>
                 </div>
-                <div style={{fontSize:9,color:"#555",textAlign:"center"}}>{m.label}</div>
-                <div style={{fontSize:9,color:"#333"}}>{m.total}</div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div style={{display:"flex",gap:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#4ade80"}}><div style={{width:10,height:10,background:"#4ade80",borderRadius:2}}/> Returning</div>
+            <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#7B9CFF"}}><div style={{width:10,height:10,background:"#7B9CFF",borderRadius:2}}/> New</div>
+          </div>
         </div>
-        <div style={{display:"flex",gap:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#4ade80"}}><div style={{width:10,height:10,background:"#4ade80",borderRadius:2}}/> Returning</div>
-          <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#7B9CFF"}}><div style={{width:10,height:10,background:"#7B9CFF",borderRadius:2}}/> New</div>
-        </div>
-      </div>
+      </>}
 
-      {/* Cohort table */}
-      <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px",overflowX:"auto"}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Cohort Retention Table</div>
-        <div style={{fontSize:11,color:"#555",marginBottom:14}}>% of each month's new buyers who came back</div>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:400}}>
-          <thead>
-            <tr>
-              <th style={{padding:"6px 10px",textAlign:"left",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Cohort</th>
-              <th style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Size</th>
-              {months.slice(1).map(m=><th key={m.key} style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>{m.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {cohorts.map(c=>(
-              <tr key={c.key}>
-                <td style={{padding:"8px 10px",fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.label}</td>
-                <td style={{padding:"8px 10px",fontSize:12,color:"#555",textAlign:"center"}}>{c.size}</td>
-                {months.slice(1).map(m=>{
-                  const f = c.follow.find(x=>x.key===m.key);
-                  if (!f) return <td key={m.key} style={{padding:"8px 10px",textAlign:"center",color:"#333",fontSize:11}}>—</td>;
-                  return (
-                    <td key={m.key} style={{padding:"8px 10px",textAlign:"center"}}>
-                      {f.retained > 0 ? (
-                        <div style={{display:"inline-block",background:`${retColor(f.pct)}18`,border:`1px solid ${retColor(f.pct)}44`,borderRadius:6,padding:"2px 8px"}}>
-                          <div style={{fontSize:12,fontWeight:700,color:retColor(f.pct)}}>{f.pct.toFixed(0)}%</div>
-                          <div style={{fontSize:9,color:"#555"}}>{f.retained}</div>
-                        </div>
-                      ) : <span style={{color:"#333",fontSize:11}}>0%</span>}
-                    </td>
-                  );
-                })}
-              </tr>
+      {/* FIRST-TIME RETURN RATE */}
+      {view==="firsttime" && <>
+        {/* Hero stat */}
+        <div style={{background:"linear-gradient(135deg,#0d0005,#0a000d)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:16,padding:"24px 28px",textAlign:"center"}}>
+          <div style={{fontSize:56,fontWeight:900,color:retColor(returnRate)}}>{returnRate.toFixed(1)}%</div>
+          <div style={{fontSize:14,color:"#AAAAAA",marginTop:6}}>of first-time buyers have come back for at least a second purchase</div>
+          <div style={{fontSize:11,color:"#555",marginTop:4}}>{returnedOnce.length} returned out of {firstTimers.length} total buyers</div>
+        </div>
+
+        {/* Breakdown tiles */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+          <div style={{background:"#111",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:"16px 18px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#4ade80",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>✅ Returned Buyers</div>
+            {[
+              {l:"Bought again (2+ orders)",         v:returnedOnce.length,  pct:returnRate},
+              {l:"Loyal (5+ orders or 3+ months)",   v:returned2plus.length, pct:firstTimers.length>0?returned2plus.length/firstTimers.length*100:0},
+              {l:"Super fans (10+ orders / 4+ mo)",  v:returned5plus.length, pct:firstTimers.length>0?returned5plus.length/firstTimers.length*100:0},
+            ].map(({l,v,pct})=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+                <div style={{fontSize:12,color:"#AAAAAA"}}>{l}</div>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{v}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#4ade80",width:42,textAlign:"right"}}>{pct.toFixed(1)}%</div>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+            <div style={{marginTop:10,fontSize:12,color:"#555"}}>Revenue from returners</div>
+            <div style={{fontSize:20,fontWeight:900,color:"#4ade80",marginTop:2}}>{fmt(returnerRevenue)}</div>
+            <div style={{fontSize:10,color:"#333"}}>{totalRevenue>0?(returnerRevenue/totalRevenue*100).toFixed(1):0}% of total revenue</div>
+          </div>
+
+          <div style={{background:"#111",border:"1px solid rgba(239,68,68,0.2)",borderRadius:12,padding:"16px 18px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#ef4444",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>👻 One-Time Buyers</div>
+            <div style={{fontSize:32,fontWeight:900,color:"#ef4444",marginBottom:4}}>{neverReturned.length}</div>
+            <div style={{fontSize:11,color:"#555",marginBottom:12}}>{firstTimers.length>0?((100-returnRate).toFixed(1)):0}% of all buyers — bought once, never returned</div>
+            <div style={{fontSize:11,color:"#555",marginBottom:6}}>Revenue left on the table</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#ef4444",marginBottom:12}}>{fmt(oneTimerRevenue)}</div>
+            {/* Spend buckets */}
+            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>By Spend Amount</div>
+            {spendBuckets.map(({label,buyers:bs})=>(
+              <div key={label} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"4px 0",borderBottom:"1px solid #1a1a1a"}}>
+                <span style={{color:"#888"}}>{label}</span>
+                <span style={{color:"#F0F0F0",fontWeight:700}}>{bs.length} buyers</span>
+              </div>
+            ))}
+            <div style={{marginTop:10,fontSize:11,color:"#555",fontStyle:"italic"}}>
+              💡 {spendBuckets[3]?.buyers?.length||0} buyers spent $250+ and never came back — highest win-back priority
+            </div>
+          </div>
+        </div>
+
+        {/* Win-back opportunity */}
+        <div style={{background:"#111",border:"1px solid rgba(251,191,36,0.2)",borderRadius:12,padding:"16px 18px"}}>
+          <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",marginBottom:6}}>💰 Win-Back Opportunity</div>
+          <div style={{fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>
+            If you could convert just <strong style={{color:"#FBBF24"}}>10%</strong> of your {neverReturned.length} one-time buyers into returning customers at their average spend of <strong style={{color:"#FBBF24"}}>{fmt(neverReturned.length>0?oneTimerRevenue/neverReturned.length:0)}</strong>, that's roughly <strong style={{color:"#4ade80"}}>{fmt(neverReturned.length>0?(oneTimerRevenue/neverReturned.length)*neverReturned.length*0.1:0)}</strong> in additional annual revenue.
+          </div>
+        </div>
+      </>}
+
+      {/* COHORT TABLE */}
+      {view==="cohort" && (
+        <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"18px 20px",overflowX:"auto"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",marginBottom:4}}>Cohort Retention Table</div>
+          <div style={{fontSize:11,color:"#555",marginBottom:14}}>% of each month's new buyers who came back</div>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:400}}>
+            <thead>
+              <tr>
+                <th style={{padding:"6px 10px",textAlign:"left",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Cohort</th>
+                <th style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>Size</th>
+                {months.slice(1).map(m=><th key={m.key} style={{padding:"6px 10px",textAlign:"center",fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>{m.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {cohorts.map(c=>(
+                <tr key={c.key}>
+                  <td style={{padding:"8px 10px",fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.label}</td>
+                  <td style={{padding:"8px 10px",fontSize:12,color:"#555",textAlign:"center"}}>{c.size}</td>
+                  {months.slice(1).map(m=>{
+                    const f=c.follow.find(x=>x.key===m.key);
+                    if(!f) return <td key={m.key} style={{padding:"8px 10px",textAlign:"center",color:"#333",fontSize:11}}>—</td>;
+                    return (
+                      <td key={m.key} style={{padding:"8px 10px",textAlign:"center"}}>
+                        {f.retained>0?(
+                          <div style={{display:"inline-block",background:`${retColor(f.pct)}18`,border:`1px solid ${retColor(f.pct)}44`,borderRadius:6,padding:"2px 8px"}}>
+                            <div style={{fontSize:12,fontWeight:700,color:retColor(f.pct)}}>{f.pct.toFixed(0)}%</div>
+                            <div style={{fontSize:9,color:"#555"}}>{f.retained}</div>
+                          </div>
+                        ):<span style={{color:"#333",fontSize:11}}>0%</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [period, setPeriod] = useState("month");
