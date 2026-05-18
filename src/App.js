@@ -21459,7 +21459,7 @@ export default function App() {
       unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))));
     }
 
-    if (tab === "buyers" && !dataLoaded.buyers) {
+    if ((tab === "buyers" || tab === "performance") && !dataLoaded.buyers) {
       setDataLoaded(p=>({...p, buyers:true}));
       unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
       unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
