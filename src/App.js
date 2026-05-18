@@ -6147,13 +6147,16 @@ function BuyerRetention({ buyers=[], streams=[] }) {
         const avgSpend    = totalRev / total;
         const medianSpend = sorted[Math.floor(total/2)]?.totalSpend||0;
 
+        const totalStreamGross = streams.reduce((s,b)=>s+(parseFloat(b.grossRevenue)||0),0);
+        const trackingGap = totalStreamGross - totalRev;
+
         return (
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             {/* Summary KPIs */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               {[
-                { l:"Total Buyers",   v:total.toLocaleString(),                  c:"#F0F0F0" },
-                { l:"Total Revenue",  v:"$"+Math.round(totalRev).toLocaleString(), c:"#4ade80" },
+                { l:"Total Buyers",   v:total.toLocaleString(),                    c:"#F0F0F0" },
+                { l:"Tracked Revenue",v:"$"+Math.round(totalRev).toLocaleString(), c:"#4ade80" },
                 { l:"Avg Spend",      v:"$"+Math.round(avgSpend).toLocaleString(), c:"#7B9CFF" },
                 { l:"Median Spend",   v:"$"+Math.round(medianSpend).toLocaleString(), c:"#FBBF24" },
               ].map(({l,v,c})=>(
@@ -6163,6 +6166,17 @@ function BuyerRetention({ buyers=[], streams=[] }) {
                 </div>
               ))}
             </div>
+
+            {/* Gap warning */}
+            {trackingGap > 0 && (
+              <div style={{background:"rgba(239,68,68,0.05)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:10,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <div style={{fontSize:12,color:"#AAAAAA"}}>
+                  ⚠️ <strong style={{color:"#ef4444"}}>${Math.round(trackingGap).toLocaleString()}</strong> in gross revenue isn't reflected here — streams with no buyer CSV imported.
+                  <span style={{color:"#555",marginLeft:6}}>Actual gross: <strong style={{color:"#F0F0F0"}}>${Math.round(totalStreamGross).toLocaleString()}</strong></span>
+                </div>
+                <span style={{fontSize:11,color:"#555"}}>Go to Streams tab to see which ones are missing</span>
+              </div>
+            )}
 
             {/* Top spender callout */}
             {topSpender && (
