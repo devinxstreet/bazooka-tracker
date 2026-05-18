@@ -12237,7 +12237,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
-            const missingCSV = isAdmin && parseFloat(s.grossRevenue)>0 && !csvImports.some(imp=>imp.streamId===s.id);
+            const missingCSV = false; // CSV tracking only available in Streams recap view
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = c.myComm;
