@@ -12158,7 +12158,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
 
       {/* Missing CSV tracker */}
-      {isAdmin && (() => {
+      {isAdmin && csvImports && (() => {
         const now = new Date();
         const months = Array.from({length: now.getMonth()+1}, (_,i) => {
           const key = `${now.getFullYear()}-${String(i+1).padStart(2,"0")}`;
@@ -21710,7 +21710,7 @@ export default function App() {
       unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))));
     }
 
-    if ((tab === "buyers" || tab === "performance") && !dataLoaded.buyers) {
+    if ((tab === "buyers" || tab === "performance" || tab === "streams") && !dataLoaded.buyers) {
       setDataLoaded(p=>({...p, buyers:true}));
       unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
       unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
