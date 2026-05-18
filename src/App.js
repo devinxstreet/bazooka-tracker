@@ -19,10 +19,9 @@ function calcStream(s, targetBreaker=null) {
   const coupons      = parseFloat(s.coupons)||0;
   const streamExp    = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
   const splitBase    = gross - fees - coupons;
-  // External channel = collab on partner's channel, no IMC obligation
   const externalCh   = !!s.externalChannel;
-  const bazNet       = externalCh ? splitBase : splitBase * 0.30;
-  const imcNet       = externalCh ? 0         : splitBase * 0.70;
+  const bazNet       = splitBase * 0.30;
+  const imcNet       = externalCh ? 0 : splitBase * 0.70;
   const rate         = getRate(s);
   const commAmt      = bazNet * rate;
   const repExpShare  = streamExp * (rate * 0.30);
@@ -4463,7 +4462,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
           {recap.externalChannel && (
             <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(123,156,255,0.06)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, fontSize:12, color:"#7B9CFF" }}>
-              ✓ IMC split disabled — Bazooka keeps 100% of net revenue. Commission still applies normally.
+              ✓ 70/30 split math unchanged — Bazooka keeps its 30%, commission applies normally. IMC obligation zeroed out.
             </div>
           )}
         </div>
