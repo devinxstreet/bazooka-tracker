@@ -3894,7 +3894,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   );
 }
 
-function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[] }) {
+function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], csvImports=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName?.split(" ")[0] || "";
@@ -11326,7 +11326,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
   );
 }
 
-function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], bobaCards=[] }) {
+function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], skuPrices={}, historicalData=[], onSavePayStub, onUpsertBuyers, payStubs=[], onDeletePayStub, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], bobaCards=[], csvImports=[] }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
@@ -11353,7 +11353,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
         ))}
       </div>
 
-      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl} plannedStreams={plannedStreams}/>}
+      {streamTab === "recap"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} onDeleteStream={onDeleteStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} recapOnly={true} skuPrices={skuPrices} onUpsertBuyers={onUpsertBuyers} imcFormUrl={imcFormUrl} onSaveImcFormUrl={onSaveImcFormUrl} plannedStreams={plannedStreams} csvImports={csvImports}/>}
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
@@ -12131,6 +12131,59 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
 
 
+      {/* Missing CSV tracker */}
+      {isAdmin && (() => {
+        const now = new Date();
+        const months = Array.from({length: now.getMonth()+1}, (_,i) => {
+          const key = `${now.getFullYear()}-${String(i+1).padStart(2,"0")}`;
+          const label = new Date(now.getFullYear(),i,1).toLocaleDateString("en-US",{month:"long"});
+          const monthStreams = streams.filter(s=>(s.date||"").startsWith(key)&&parseFloat(s.grossRevenue)>0);
+          const monthImports = csvImports.filter(imp=>(imp.importedAt||"").startsWith(key)||(imp.streamId&&monthStreams.some(s=>s.id===imp.streamId)));
+          const missing = monthStreams.filter(s=>!csvImports.some(imp=>imp.streamId===s.id));
+          const missingGross = missing.reduce((t,s)=>t+(parseFloat(s.grossRevenue)||0),0);
+          return { key, label, total:monthStreams.length, imported:monthStreams.length-missing.length, missing:missing.length, missingGross, missingStreams:missing };
+        }).filter(m=>m.total>0);
+        const totalMissing = months.reduce((t,m)=>t+m.missing,0);
+        const totalMissingGross = months.reduce((t,m)=>t+m.missingGross,0);
+        if (totalMissing === 0) return null;
+        return (
+          <div style={{background:"rgba(239,68,68,0.05)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:12,padding:"14px 18px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:800,color:"#ef4444"}}>⚠️ Missing CSV Imports — {totalMissing} stream{totalMissing!==1?"s":""}</div>
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>These streams have revenue logged but no buyer CSV imported. This is why your buyer revenue total is lower than gross revenue.</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#ef4444"}}>${Math.round(totalMissingGross).toLocaleString()}</div>
+                <div style={{fontSize:10,color:"#555"}}>gross revenue not in buyer CRM</div>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {months.filter(m=>m.missing>0).map(m=>(
+                <div key={m.key} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"8px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{m.label}</span>
+                      <span style={{fontSize:11,color:"#555",marginLeft:8}}>{m.imported}/{m.total} streams imported</span>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:"#ef4444"}}>−${Math.round(m.missingGross).toLocaleString()} missing</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>
+                    {m.missingStreams.slice(0,8).map(s=>(
+                      <span key={s.id} onClick={()=>{setEditing(s.id); setViewStream(null);}}
+                        style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#ef4444",borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+                        {new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} {s.breaker} ${Math.round(parseFloat(s.grossRevenue)||0).toLocaleString()}
+                      </span>
+                    ))}
+                    {m.missingStreams.length>8&&<span style={{color:"#555",fontSize:10,alignSelf:"center"}}>+{m.missingStreams.length-8} more</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Breaker filter -- admin only */}
       {isAdmin && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -12158,6 +12211,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
+            const missingCSV = isAdmin && parseFloat(s.grossRevenue)>0 && !csvImports.some(imp=>imp.streamId===s.id);
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = c.myComm;
@@ -12171,6 +12225,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
                     {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                     {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
+                    {missingCSV && <span style={{ fontSize:10, color:"#ef4444", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>⚠️ No CSV</span>}
                   </div>
                   <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
                 </div>
@@ -22182,7 +22237,7 @@ export default function App() {
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
-        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards}/>}
+        {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
