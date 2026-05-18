@@ -6661,7 +6661,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
   );
 }
 
-function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[], buyers=[] }) {
+function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[], buyers=[], historicalData=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
   const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
@@ -6803,11 +6803,23 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       </div>
 
       {/* Combined Team Recap */}
-      {isAdmin && thisMonth.length > 0 && (() => {
+      {isAdmin && (thisMonth.length > 0 || historicalData?.length > 0) && (() => {
+        // Include historical data in totals for accurate all-time/year numbers
+        const histInPeriod = (historicalData||[]).filter(h => {
+          if (!h.yearMonth) return false;
+          if (perfPeriod==="month") return h.yearMonth===`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+          if (perfPeriod==="quarter") { const q=Math.floor(now.getMonth()/3); const hm=parseInt(h.yearMonth.split("-")[1])-1; return Math.floor(hm/3)===q&&h.yearMonth.startsWith(String(now.getFullYear())); }
+          if (perfPeriod==="year") return h.yearMonth.startsWith(String(now.getFullYear()));
+          if (perfPeriod==="all") return true;
+          if (perfPeriod==="custom"&&perfFrom&&perfTo) return h.yearMonth>=perfFrom.slice(0,7)&&h.yearMonth<=perfTo.slice(0,7);
+          return false;
+        });
+        const histGross = histInPeriod.reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
+        const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
         const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0);
         const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
-        const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
-        const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
+        const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
+        const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0) + histNewBuyers;
         const mmBuckets = { "< 1.4x":0, "1.4–1.5x":0, "1.5–1.7x":0, "1.7x+":0 };
         mmStreams.forEach(s => {
           const mm = parseFloat(s.marketMultiple);
@@ -22239,7 +22251,7 @@ export default function App() {
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
-        {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers}/>}
+        {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers} historicalData={historicalData}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
