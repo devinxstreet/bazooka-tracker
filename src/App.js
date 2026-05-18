@@ -1211,6 +1211,48 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               </div>
             </div>
 
+            {/* Month-by-month gross breakdown */}
+            {(() => {
+              const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+              const monthData = monthNames.map((label,i) => {
+                const key = `${now.getFullYear()}-${String(i+1).padStart(2,"0")}`;
+                const streamGross = streams
+                  .filter(s => (s.date||"").startsWith(key))
+                  .reduce((s,r)=>s+(parseFloat(r.grossRevenue)||0),0);
+                const histGross = historicalData
+                  .filter(h => h.yearMonth===key)
+                  .reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
+                const total = streamGross + histGross;
+                const streamCount = streams.filter(s=>(s.date||"").startsWith(key)).length;
+                return { label, key, total, streamCount, isFuture: i > now.getMonth() };
+              });
+              const maxMonth = Math.max(...monthData.map(m=>m.total), 1);
+              return (
+                <div style={{marginBottom:16,background:"#0d0d0d",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontWeight:700}}>Gross Revenue by Month</div>
+                  <div style={{display:"flex",gap:4,alignItems:"flex-end",height:80}}>
+                    {monthData.map(m=>(
+                      <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                        <div style={{width:"100%",height:64,display:"flex",alignItems:"flex-end"}}>
+                          <div style={{
+                            width:"100%",
+                            height:m.total>0?`${Math.max((m.total/maxMonth)*64,3)}px`:"2px",
+                            background:m.isFuture?"#1a1a1a":m.total===0&&!m.isFuture?"rgba(239,68,68,0.4)":"#E8317A",
+                            borderRadius:"2px 2px 0 0",
+                            position:"relative",
+                            cursor:"default",
+                          }} title={`${m.label}: $${Math.round(m.total).toLocaleString()} (${m.streamCount} streams)`}/>
+                        </div>
+                        <div style={{fontSize:9,color:m.total===0&&!m.isFuture?"#ef4444":"#555",fontWeight:m.total===0&&!m.isFuture?700:400}}>{m.label}</div>
+                        {m.total>0&&<div style={{fontSize:8,color:"#333"}}>${m.total>=1000?`${(m.total/1000).toFixed(0)}k`:Math.round(m.total)}</div>}
+                        {m.total===0&&!m.isFuture&&<div style={{fontSize:8,color:"#ef4444"}}>⚠ $0</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Goal editor */}
             {editGoals && (
               <div style={{ background:"#0a0a0a", border:"1px solid #222", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
