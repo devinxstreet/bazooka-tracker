@@ -5968,7 +5968,7 @@ function BuyerRetention({ buyers=[], streams=[] }) {
 
       {/* View tabs */}
       <div style={{display:"flex",gap:6}}>
-        {[["overview","📊 Overview"],["firsttime","🔄 First-Time Return Rate"],["cohort","📅 Cohort Table"]].map(([v,l])=>(
+        {[["overview","📊 Overview"],["firsttime","🔄 First-Time Return Rate"],["tiers","💎 Buyer Tiers"],["cohort","📅 Cohort Table"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)}
             style={{background:view===v?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${view===v?"#E8317A":"#1a1a1a"}`,color:view===v?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {l}
@@ -6082,6 +6082,132 @@ function BuyerRetention({ buyers=[], streams=[] }) {
           </div>
         </div>
       </>}
+
+      {/* BUYER TIERS */}
+      {view==="tiers" && (() => {
+        const sorted = [...buyers].filter(b=>b.totalSpend>0).sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0));
+        const total  = sorted.length;
+        if (total === 0) return <div style={{color:"#333",padding:32,textAlign:"center"}}>No buyer data yet</div>;
+
+        const totalRev = sorted.reduce((s,b)=>s+(b.totalSpend||0),0);
+
+        // Tier definitions
+        const tiers = [
+          { label:"🐳 Whales",      desc:"Top 5%",   color:"#A78BFA", bg:"rgba(167,139,250,0.08)", border:"rgba(167,139,250,0.2)", buyers: sorted.slice(0, Math.ceil(total*0.05)) },
+          { label:"💎 VIPs",        desc:"Top 6–20%", color:"#FBBF24", bg:"rgba(251,191,36,0.08)",  border:"rgba(251,191,36,0.2)",  buyers: sorted.slice(Math.ceil(total*0.05), Math.ceil(total*0.20)) },
+          { label:"⭐ Regulars",    desc:"Top 21–50%",color:"#4ade80", bg:"rgba(74,222,128,0.08)",  border:"rgba(74,222,128,0.2)",  buyers: sorted.slice(Math.ceil(total*0.20), Math.ceil(total*0.50)) },
+          { label:"👤 Casuals",     desc:"Bottom 50%",color:"#888",   bg:"rgba(100,100,100,0.06)", border:"rgba(100,100,100,0.15)", buyers: sorted.slice(Math.ceil(total*0.50)) },
+        ];
+
+        const topSpender  = sorted[0];
+        const avgSpend    = totalRev / total;
+        const medianSpend = sorted[Math.floor(total/2)]?.totalSpend||0;
+
+        return (
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {/* Summary KPIs */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+              {[
+                { l:"Total Buyers",   v:total.toLocaleString(),                  c:"#F0F0F0" },
+                { l:"Total Revenue",  v:"$"+Math.round(totalRev).toLocaleString(), c:"#4ade80" },
+                { l:"Avg Spend",      v:"$"+Math.round(avgSpend).toLocaleString(), c:"#7B9CFF" },
+                { l:"Median Spend",   v:"$"+Math.round(medianSpend).toLocaleString(), c:"#FBBF24" },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:900,color:c}}>{v}</div>
+                  <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginTop:4}}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Top spender callout */}
+            {topSpender && (
+              <div style={{background:"linear-gradient(135deg,#0d0005,#0a000d)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:20}}>
+                <div style={{fontSize:32}}>👑</div>
+                <div>
+                  <div style={{fontSize:11,color:"#A78BFA",fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Top Buyer</div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#F0F0F0"}}>@{topSpender.username}</div>
+                  {topSpender.fullName&&<div style={{fontSize:12,color:"#555"}}>{topSpender.fullName}</div>}
+                </div>
+                <div style={{marginLeft:"auto",textAlign:"right"}}>
+                  <div style={{fontSize:28,fontWeight:900,color:"#A78BFA"}}>${Math.round(topSpender.totalSpend||0).toLocaleString()}</div>
+                  <div style={{fontSize:11,color:"#555"}}>lifetime spend · {topSpender.orderCount||0} orders</div>
+                </div>
+              </div>
+            )}
+
+            {/* Tier breakdown */}
+            {tiers.map(tier=>{
+              const tierRev  = tier.buyers.reduce((s,b)=>s+(b.totalSpend||0),0);
+              const revPct   = totalRev>0?tierRev/totalRev*100:0;
+              const buyerPct = total>0?tier.buyers.length/total*100:0;
+              const tierAvg  = tier.buyers.length>0?tierRev/tier.buyers.length:0;
+              const top3     = tier.buyers.slice(0,3);
+
+              return (
+                <div key={tier.label} style={{background:tier.bg,border:`1px solid ${tier.border}`,borderRadius:12,padding:"16px 20px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:16,fontWeight:900,color:tier.color}}>{tier.label}</div>
+                      <div style={{fontSize:11,color:"#555",marginTop:1}}>{tier.desc} · {tier.buyers.length} buyers</div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:22,fontWeight:900,color:tier.color}}>${Math.round(tierRev).toLocaleString()}</div>
+                      <div style={{fontSize:10,color:"#555"}}>total revenue</div>
+                    </div>
+                    <div style={{textAlign:"center",minWidth:60}}>
+                      <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>{revPct.toFixed(1)}%</div>
+                      <div style={{fontSize:10,color:"#555"}}>of revenue</div>
+                    </div>
+                    <div style={{textAlign:"center",minWidth:60}}>
+                      <div style={{fontSize:22,fontWeight:900,color:"#888"}}>{buyerPct.toFixed(1)}%</div>
+                      <div style={{fontSize:10,color:"#555"}}>of buyers</div>
+                    </div>
+                    <div style={{textAlign:"center",minWidth:60}}>
+                      <div style={{fontSize:18,fontWeight:700,color:"#AAAAAA"}}>${Math.round(tierAvg).toLocaleString()}</div>
+                      <div style={{fontSize:10,color:"#555"}}>avg spend</div>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden",marginBottom:10}}>
+                    <div style={{height:"100%",width:`${revPct}%`,background:tier.color,borderRadius:2}}/>
+                  </div>
+                  {/* Top buyers in tier */}
+                  {top3.length>0&&(
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {top3.map(b=>(
+                        <div key={b.id} style={{background:"rgba(0,0,0,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11}}>
+                          <span style={{color:tier.color,fontWeight:700}}>@{b.username}</span>
+                          <span style={{color:"#555",marginLeft:6}}>${Math.round(b.totalSpend||0).toLocaleString()}</span>
+                        </div>
+                      ))}
+                      {tier.buyers.length>3&&<div style={{color:"#333",fontSize:11,alignSelf:"center"}}>+{tier.buyers.length-3} more</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* 80/20 insight */}
+            {(() => {
+              let cumRev=0, cutoffIdx=0;
+              for(let i=0;i<sorted.length;i++){
+                cumRev+=sorted[i].totalSpend||0;
+                if(cumRev>=totalRev*0.80){cutoffIdx=i+1;break;}
+              }
+              const pct=(cutoffIdx/total*100).toFixed(1);
+              return (
+                <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:16}}>
+                  <div style={{fontSize:28}}>💡</div>
+                  <div style={{fontSize:13,color:"#AAAAAA",lineHeight:1.6}}>
+                    <strong style={{color:"#F0F0F0"}}>{pct}%</strong> of your buyers ({cutoffIdx} people) account for <strong style={{color:"#4ade80"}}>80% of your revenue</strong>. These are the buyers worth protecting most — personal outreach, early access, VIP treatment.
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
 
       {/* COHORT TABLE */}
       {view==="cohort" && (
