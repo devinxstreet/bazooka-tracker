@@ -19,8 +19,10 @@ function calcStream(s, targetBreaker=null) {
   const coupons      = parseFloat(s.coupons)||0;
   const streamExp    = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
   const splitBase    = gross - fees - coupons;
-  const bazNet       = splitBase * 0.30;
-  const imcNet       = splitBase * 0.70;
+  // External channel = collab on partner's channel, no IMC obligation
+  const externalCh   = !!s.externalChannel;
+  const bazNet       = externalCh ? splitBase : splitBase * 0.30;
+  const imcNet       = externalCh ? 0         : splitBase * 0.70;
   const rate         = getRate(s);
   const commAmt      = bazNet * rate;
   const repExpShare  = streamExp * (rate * 0.30);
@@ -28,9 +30,9 @@ function calcStream(s, targetBreaker=null) {
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
   const collabAmt    = (s.collabPartner&&s.collabPartner!=="_") ? bazNet*(parseFloat(s.collabPct||0)/100) : 0;
-  const bazOwnShare  = bazNet - collabAmt;  // what Bazooka actually keeps before paying the rep
+  const bazOwnShare  = bazNet - collabAmt;
   const eventStaffAmt = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazOwnShare*0.15),0);
-  const imcReimb      = streamExp * 0.70;
+  const imcReimb      = externalCh ? 0 : streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
   const primaryCommAmt = s.splitRep ? commAmt*splitPct : commAmt;
@@ -45,7 +47,7 @@ function calcStream(s, targetBreaker=null) {
            : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -837,7 +839,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               <td style={{ padding:"10px 14px", color:"#888", whiteSpace:"nowrap" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={{ padding:"10px 14px" }}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
-                              <td style={{ padding:"10px 14px", color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}</td>
+                              <td style={{ padding:"10px 14px", color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}{s.externalChannel&&<span style={{ marginLeft:6, fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:4, padding:"1px 5px" }}>🌐 Ext</span>}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
                                 <td style={{ padding:"10px 14px", color:"#ef4444" }}>−{fmt(c.commAmt)}</td>
@@ -3812,7 +3814,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -3839,7 +3841,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4447,6 +4449,22 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {parseFloat(recap.imcReimbursement)>0 && (
             <input type="text" value={recap.imcReimbNote||""} onChange={e=>rf("imcReimbNote")(e.target.value)} placeholder="Reason (e.g. promotional credit, correction...)"
               style={{ ...S.inp, marginTop:8, fontSize:11, color:"#60A5FA" }}/>
+          )}
+        </div>
+
+        {/* External Channel */}
+        <div style={{ background:"#0a0f1a", border:"1px solid #7B9CFF33", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <input type="checkbox" checked={!!recap.externalChannel} onChange={e=>rf("externalChannel")(e.target.checked)} style={{ width:15, height:15, cursor:"pointer" }}/>
+            <div>
+              <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>🌐 External Channel (No IMC Obligation)</span>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Break happened on a partner's channel (e.g. Valley). Bazooka tracks the revenue internally but owes nothing to IMC — the partner handles their own IMC relationship.</div>
+            </div>
+          </div>
+          {recap.externalChannel && (
+            <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(123,156,255,0.06)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, fontSize:12, color:"#7B9CFF" }}>
+              ✓ IMC split disabled — Bazooka keeps 100% of net revenue. Commission still applies normally.
+            </div>
           )}
         </div>
 
