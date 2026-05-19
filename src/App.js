@@ -22235,7 +22235,7 @@ export default function App() {
                 ],
                 "buyers": [
                   {label:"\uD83D\uDC65 Buyers",sub:"CRM table",action:()=>{setTab("buyers");setBuyerTabDefault("table");setHoverTab(null);}},
-                  {label:"\uD83D\uDDFA\uFE0F By State",sub:"Heatmap",action:()=>{setTab("buyers");setBuyerTabDefault("map");setHoverTab(null);}},
+                  {label:"🗺️ By State",sub:"Heatmap",action:()=>{setTab("buyers");setBuyerTabDefault("map");setTimeout(()=>setBuyerTabDefault("table"),100);setHoverTab(null);}},
                   {label:"\uD83D\uDD50 By Time Zone",sub:"Zone breakdown",action:()=>{setTab("buyers");setBuyerTabDefault("zones");setHoverTab(null);}},
                 ],
                 "performance": [
