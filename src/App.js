@@ -12203,8 +12203,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
-            const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-            const myRepNet = c.myComm;
+            const myEventFee = isEventOnly ? Math.min(1000, c.bazOwnShare * 0.15) : 0;
+            const myRepNet = isEventOnly ? myEventFee : isSplitRep ? calcStream(s, targetBreaker).myComm : c.myComm;
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : isSplitRep ? "1px solid rgba(251,191,36,0.3)" : undefined }}>
                 {/* Row 1: date + breaker + arrow */}
