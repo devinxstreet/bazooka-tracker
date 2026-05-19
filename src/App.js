@@ -12148,6 +12148,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         });
         const histGross     = histInPeriod.reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
         const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
+        console.log("Commission histInPeriod:", histInPeriod.length, "histGross:", histGross, "period:", period, "historicalData length:", (historicalData||[]).length);
         const displayGross  = totals.gross + (isAdmin && breakerFilter==="all" ? histGross : 0);
         const displayNewBuyers = totals.newBuyers + (isAdmin && breakerFilter==="all" ? histNewBuyers : 0);
 
