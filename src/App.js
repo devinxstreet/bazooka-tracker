@@ -5063,6 +5063,59 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 }
 
 
+const US_STATE_PATHS = [
+  {abbr:"AL",lx:595,ly:450,path:"M 580 390 L 600 390 L 610 480 L 575 480 Z"},
+  {abbr:"AK",lx:130,ly:530,path:"M 80 500 L 200 500 L 200 570 L 80 570 Z"},
+  {abbr:"AZ",lx:185,ly:370,path:"M 150 310 L 230 310 L 230 410 L 150 410 Z"},
+  {abbr:"AR",lx:555,ly:400,path:"M 530 370 L 580 370 L 580 420 L 530 420 Z"},
+  {abbr:"CA",lx:110,ly:340,path:"M 80 240 L 155 270 L 155 390 L 90 430 L 70 380 Z"},
+  {abbr:"CO",lx:280,ly:320,path:"M 250 295 L 360 295 L 360 355 L 250 355 Z"},
+  {abbr:"CT",lx:762,ly:230,path:"M 753 220 L 775 220 L 775 240 L 753 240 Z"},
+  {abbr:"DE",lx:745,ly:270,path:"M 738 258 L 752 258 L 752 285 L 738 285 Z"},
+  {abbr:"FL",lx:640,ly:490,path:"M 590 450 L 650 450 L 700 510 L 660 540 L 600 510 Z"},
+  {abbr:"GA",lx:615,ly:430,path:"M 590 390 L 645 390 L 645 460 L 600 470 L 585 440 Z"},
+  {abbr:"HI",lx:280,ly:560,path:"M 250 545 L 330 545 L 330 575 L 250 575 Z"},
+  {abbr:"ID",lx:190,ly:220,path:"M 170 165 L 225 165 L 225 285 L 195 285 L 170 250 Z"},
+  {abbr:"IL",lx:565,ly:320,path:"M 545 280 L 585 280 L 590 370 L 545 380 Z"},
+  {abbr:"IN",lx:595,ly:310,path:"M 580 270 L 615 270 L 615 355 L 580 355 Z"},
+  {abbr:"IA",lx:520,ly:270,path:"M 490 250 L 560 250 L 560 295 L 490 295 Z"},
+  {abbr:"KS",lx:440,ly:340,path:"M 400 315 L 520 315 L 520 365 L 400 365 Z"},
+  {abbr:"KY",lx:615,ly:350,path:"M 575 335 L 675 330 L 675 365 L 575 365 Z"},
+  {abbr:"LA",lx:540,ly:455,path:"M 510 420 L 575 420 L 580 470 L 535 475 L 510 455 Z"},
+  {abbr:"ME",lx:820,ly:165,path:"M 800 140 L 845 140 L 845 195 L 800 195 Z"},
+  {abbr:"MD",lx:720,ly:285,path:"M 690 270 L 760 265 L 760 295 L 690 300 Z"},
+  {abbr:"MA",lx:795,ly:215,path:"M 760 205 L 830 205 L 830 230 L 760 230 Z"},
+  {abbr:"MI",lx:610,ly:240,path:"M 580 200 L 650 200 L 660 270 L 580 280 Z"},
+  {abbr:"MN",lx:500,ly:210,path:"M 470 165 L 555 165 L 555 265 L 470 265 Z"},
+  {abbr:"MS",lx:570,ly:430,path:"M 550 385 L 590 385 L 590 470 L 550 470 Z"},
+  {abbr:"MO",lx:535,ly:340,path:"M 500 305 L 575 305 L 580 385 L 500 385 Z"},
+  {abbr:"MT",lx:255,ly:190,path:"M 195 155 L 365 155 L 365 240 L 195 240 Z"},
+  {abbr:"NE",lx:430,ly:290,path:"M 390 265 L 510 265 L 510 315 L 390 315 Z"},
+  {abbr:"NV",lx:155,ly:300,path:"M 130 235 L 205 265 L 195 365 L 130 365 Z"},
+  {abbr:"NH",lx:795,ly:190,path:"M 785 165 L 805 165 L 805 215 L 785 215 Z"},
+  {abbr:"NJ",lx:748,ly:265,path:"M 738 245 L 762 245 L 762 290 L 738 290 Z"},
+  {abbr:"NM",lx:245,ly:375,path:"M 215 310 L 305 310 L 305 415 L 215 415 Z"},
+  {abbr:"NY",lx:730,ly:210,path:"M 665 185 L 785 185 L 785 255 L 700 270 L 665 240 Z"},
+  {abbr:"NC",lx:672,ly:355,path:"M 625 335 L 750 325 L 755 360 L 630 370 Z"},
+  {abbr:"ND",lx:415,ly:175,path:"M 375 155 L 510 155 L 510 205 L 375 205 Z"},
+  {abbr:"OH",lx:638,ly:295,path:"M 615 260 L 675 260 L 675 340 L 615 340 Z"},
+  {abbr:"OK",lx:445,ly:385,path:"M 395 360 L 540 355 L 545 400 L 395 405 Z"},
+  {abbr:"OR",lx:140,ly:230,path:"M 100 195 L 210 195 L 215 265 L 155 275 L 100 255 Z"},
+  {abbr:"PA",lx:697,ly:255,path:"M 660 235 L 755 235 L 755 278 L 660 278 Z"},
+  {abbr:"RI",lx:785,ly:228,path:"M 778 220 L 793 220 L 793 238 L 778 238 Z"},
+  {abbr:"SC",lx:655,ly:390,path:"M 630 365 L 690 360 L 695 410 L 640 420 Z"},
+  {abbr:"SD",lx:415,ly:225,path:"M 375 205 L 510 205 L 510 260 L 375 260 Z"},
+  {abbr:"TN",lx:605,ly:370,path:"M 555 355 L 685 345 L 685 375 L 555 385 Z"},
+  {abbr:"TX",lx:415,ly:430,path:"M 360 355 L 520 355 L 545 455 L 470 510 L 380 470 L 355 415 Z"},
+  {abbr:"UT",lx:220,ly:315,path:"M 210 265 L 285 265 L 285 360 L 210 360 Z"},
+  {abbr:"VT",lx:778,ly:183,path:"M 768 160 L 788 160 L 788 205 L 768 205 Z"},
+  {abbr:"VA",lx:690,ly:310,path:"M 645 290 L 765 280 L 760 325 L 660 340 L 640 320 Z"},
+  {abbr:"WA",lx:145,ly:175,path:"M 100 155 L 210 155 L 215 200 L 100 200 Z"},
+  {abbr:"WV",lx:672,ly:305,path:"M 650 275 L 700 270 L 705 325 L 655 335 Z"},
+  {abbr:"WI",lx:548,ly:230,path:"M 520 185 L 580 185 L 585 270 L 520 275 Z"},
+  {abbr:"WY",lx:280,ly:245,path:"M 245 205 L 370 205 L 370 275 L 245 275 Z"},
+];
+
 function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
   const [search,       setSearch]       = useState("");
@@ -5391,6 +5444,19 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                 ))}
                 <span>More buyers</span>
                 <span style={{ marginLeft:"auto", color:"#333" }}>Click a state to see buyers</span>
+              </div>
+
+              {/* US SVG Map */}
+              <div style={{ width:"100%", overflowX:"auto" }}>
+                <svg viewBox="0 0 960 600" style={{ width:"100%", maxWidth:960, display:"block", margin:"0 auto" }}>
+                  {US_STATE_PATHS.map(({abbr, path, label, lx, ly}) => (
+                    <g key={abbr} onClick={()=>setSelectedState(selectedState===abbr?null:abbr)} style={{cursor:"pointer"}}>
+                      <path d={path} fill={stateColor(abbr)} stroke="#0d0d0d" strokeWidth="1"
+                        opacity={selectedState&&selectedState!==abbr?0.6:1}/>
+                      {label&&lx&&ly&&<text x={lx} y={ly} fontSize="7" fill="#ffffff88" textAnchor="middle" pointerEvents="none">{abbr}</text>}
+                    </g>
+                  ))}
+                </svg>
               </div>
 
               {selectedState && (() => {
