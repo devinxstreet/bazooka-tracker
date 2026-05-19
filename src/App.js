@@ -12134,16 +12134,33 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {(() => {
         const avgMM = totals.mmCount > 0 ? (totals.mmSum / totals.mmCount) : 0;
         const mmColor = avgMM>=1.7?"#4ade80":avgMM>=1.5?"#86efac":avgMM>=1.4?"#FBBF24":"#E8317A";
+
+        // Add historical data for accurate gross/new buyer totals
+        const now = new Date();
+        const histInPeriod = (historicalData||[]).filter(h => {
+          if (!h.yearMonth) return false;
+          if (period==="month")   return h.yearMonth===`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+          if (period==="quarter") { const q=Math.floor(now.getMonth()/3); const hm=parseInt(h.yearMonth.split("-")[1])-1; return Math.floor(hm/3)===q&&h.yearMonth.startsWith(String(now.getFullYear())); }
+          if (period==="year")    return h.yearMonth.startsWith(String(now.getFullYear()));
+          if (period==="custom"&&customFrom&&customTo) return h.yearMonth>=customFrom.slice(0,7)&&h.yearMonth<=customTo.slice(0,7);
+          if (period==="all")     return true;
+          return false;
+        });
+        const histGross     = histInPeriod.reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
+        const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
+        const displayGross  = totals.gross + (isAdmin && breakerFilter==="all" ? histGross : 0);
+        const displayNewBuyers = totals.newBuyers + (isAdmin && breakerFilter==="all" ? histNewBuyers : 0);
+
         return (
           <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?6:4},1fr)`, gap:12 }}>
             {[
-              { l:"Total Streams",     v:filteredStreams.length,                                    c:"#F0F0F0" },
-              { l:"Total Commission",  v:fmt(totals.comm),                                          c:"#4ade80" },
-              { l:"\uD83C\uDF31 New Buyers",     v:totals.newBuyers,                               c:"#166534" },
-              { l:"Avg Market Multiple", v:avgMM>0?`${avgMM.toFixed(2)}x`:"--",                    c:mmColor   },
+              { l:"Total Streams",      v:filteredStreams.length,                                    c:"#F0F0F0" },
+              { l:"Total Commission",   v:fmt(totals.comm),                                          c:"#4ade80" },
+              { l:"🌱 New Buyers",      v:displayNewBuyers,                                          c:"#166534" },
+              { l:"Avg Market Multiple",v:avgMM>0?`${avgMM.toFixed(2)}x`:"--",                      c:mmColor   },
               ...(isAdmin ? [
-                { l:"Total Gross",       v:fmt(totals.gross),   c:"#E8317A" },
-                { l:"Bazooka True Net",  v:fmt(totals.trueNet), c:"#6B2D8B" },
+                { l:"Total Gross",      v:fmt(displayGross),   c:"#E8317A" },
+                { l:"Bazooka True Net", v:fmt(totals.trueNet), c:"#6B2D8B" },
               ] : []),
             ].map(({l,v,c}) => (
               <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
