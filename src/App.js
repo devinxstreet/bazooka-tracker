@@ -21567,7 +21567,7 @@ export default function App() {
   const [hoverTab,      setHoverTab]  = useState(null);
   const [invTabDefault,  setInvTabDefault]  = useState("cards");
   const [buyerTabDefault,setBuyerTabDefault]= useState("table");
-  const [periodDefault,  setPeriodDefault]  = useState("month");
+  const [periodDefault,  setPeriodDefault]  = useState("year");
   const [perfTabDefault, setPerfTabDefault] = useState("stats");
   const [checklistDefault,setChecklistDefault]=useState("cards");
   const [streamTabDefault,setStreamTabDefault] = useState("recap");
