@@ -98,7 +98,7 @@ const ROLES = {
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
-  "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
+  // "newprocurement": { role:"Procurement", label:"Procurement Mgr", color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
   "cameron": { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
 };
@@ -21635,6 +21635,8 @@ export default function App() {
         setStreams(data);
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
+      // historical_data loaded at startup so Dashboard YTD is correct immediately
+      onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
       // Load all quotes
       onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
@@ -21677,7 +21679,7 @@ export default function App() {
 
     if (tab === "streams" && !dataLoaded.streams) {
       setDataLoaded(p=>({...p, streams:true}));
-      unsubs.push(onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))));
+      // historical_data already loaded at startup
       unsubs.push(onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }));
       unsubs.push(onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))));
     }
