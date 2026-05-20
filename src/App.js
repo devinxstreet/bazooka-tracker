@@ -1232,7 +1232,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontWeight:700}}>Gross Revenue by Month</div>
                   <div style={{display:"flex",gap:4,alignItems:"flex-end",height:80}}>
                     {monthData.map(m=>(
-                      <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}
+                        onMouseEnter={e=>{const t=e.currentTarget.querySelector(".bar-tip");if(t)t.style.display="block";}}
+                        onMouseLeave={e=>{const t=e.currentTarget.querySelector(".bar-tip");if(t)t.style.display="none";}}>
+                        {/* Tooltip */}
+                        {!m.isFuture && m.total > 0 && (
+                          <div className="bar-tip" style={{display:"none",position:"absolute",bottom:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",background:"#1a1a1a",border:"1px solid rgba(232,49,122,0.4)",borderRadius:8,padding:"7px 10px",fontSize:11,whiteSpace:"nowrap",zIndex:100,pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+                            <div style={{fontWeight:900,color:"#E8317A",fontSize:13}}>${m.total.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+                            <div style={{color:"#888",marginTop:2}}>{m.label} · {m.streamCount} stream{m.streamCount!==1?"s":""}</div>
+                          </div>
+                        )}
                         <div style={{width:"100%",height:64,display:"flex",alignItems:"flex-end"}}>
                           <div style={{
                             width:"100%",
@@ -1240,8 +1249,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                             background:m.isFuture?"#1a1a1a":m.total===0&&!m.isFuture?"rgba(239,68,68,0.4)":"#E8317A",
                             borderRadius:"2px 2px 0 0",
                             position:"relative",
-                            cursor:"default",
-                          }} title={`${m.label}: $${Math.round(m.total).toLocaleString()} (${m.streamCount} streams)`}/>
+                            cursor:m.total>0?"pointer":"default",
+                            transition:"opacity 0.15s",
+                          }}
+                          onMouseEnter={e=>{if(m.total>0)e.currentTarget.style.opacity="0.8";}}
+                          onMouseLeave={e=>{e.currentTarget.style.opacity="1";}}
+                          />
                         </div>
                         <div style={{fontSize:9,color:m.total===0&&!m.isFuture?"#ef4444":"#555",fontWeight:m.total===0&&!m.isFuture?700:400}}>{m.label}</div>
                         {m.total>0&&<div style={{fontSize:8,color:"#333"}}>${m.total>=1000?`${(m.total/1000).toFixed(0)}k`:Math.round(m.total)}</div>}
