@@ -566,24 +566,55 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {/* -- QUOTE NOTIFICATIONS (Admin) -- */}
       {quoteNotifs.map(q => {
         const cfg = {
-          accepted: { icon:"\uD83C\uDF89", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
-          declined: { icon:"\u274C", color:"#E8317A", bg:"#1a0a0a", border:"#E8317A33", title:"Offer Declined", body:`${q.seller?.name||"Seller"} declined your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
-          countered:{ icon:"\uD83E\uDD1D", color:"#FBBF24", bg:"#1a1400", border:"#FBBF2433", title:"Counter Offer!", body:`${q.seller?.name||"Seller"} countered at $${parseFloat(q.sellerCounter||0).toFixed(2)} (you offered $${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)})` },
+          accepted: { icon:"🎉", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
+          declined: { icon:"❌", color:"#E8317A", bg:"#1a0a0a", border:"#E8317A33", title:"Offer Declined", body:`${q.seller?.name||"Seller"} declined your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
+          countered:{ icon:"🤝", color:"#FBBF24", bg:"#1a1400", border:"#FBBF2433", title:"Counter Offer!", body:`${q.seller?.name||"Seller"} countered at $${parseFloat(q.sellerCounter||0).toFixed(2)} (you offered $${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)})` },
           pending:  q.submittedBySeller ? { icon:"📬", color:"#7B9CFF", bg:"#0a0a1a", border:"#7B9CFF33", title:"New Lot Submission!", body:`${q.seller?.name||"Someone"} submitted ${(q.cards||[]).length} card${(q.cards||[]).length!==1?"s":""} for a quote via bazookadash.com/sell` } : null,
         }[q.status] || (q.submittedBySeller ? { icon:"📬", color:"#7B9CFF", bg:"#0a0a1a", border:"#7B9CFF33", title:"New Lot Submission!", body:`${q.seller?.name||"Someone"} submitted ${(q.cards||[]).length} card${(q.cards||[]).length!==1?"s":""} for a quote via bazookadash.com/sell` } : null);
         if (!cfg) return null;
+        const cards = q.cards||[];
+        const totalMkt = cards.reduce((s,c)=>s+(parseFloat(c.mktVal)||0),0);
         return (
           <div key={q.id} style={{ background:cfg.bg, border:`2px solid ${cfg.border}`, borderRadius:14, padding:"18px 20px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:14, flex:1 }}>
                 <div style={{ fontSize:28 }}>{cfg.icon}</div>
-                <div>
+                <div style={{ flex:1 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
                     <span style={{ fontSize:14, fontWeight:800, color:cfg.color }}>{cfg.title}</span>
                     {q.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{q.quoteRef}</span>}
                   </div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
                   {q.quotedBy && <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Quoted by <strong style={{color:"#AAAAAA"}}>{q.quotedBy.split(" ")[0]}</strong></div>}
+
+                  {/* Seller info for new submissions */}
+                  {q.submittedBySeller && (
+                    <div style={{ display:"flex", gap:12, marginTop:8, flexWrap:"wrap" }}>
+                      {q.seller?.contact && <span style={{ fontSize:11, color:"#555" }}>📱 {q.seller.contact}</span>}
+                      {q.seller?.source && <span style={{ fontSize:11, color:"#555" }}>📍 {q.seller.source}</span>}
+                      {totalMkt > 0 && <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700 }}>~${Math.round(totalMkt).toLocaleString()} est. value</span>}
+                    </div>
+                  )}
+
+                  {/* Card list preview — always visible for submissions */}
+                  {cards.length > 0 && (
+                    <div style={{ marginTop:10 }}>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                        {cards.slice(0,6).map((c,i)=>(
+                          <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${cfg.border}`, borderRadius:6, padding:"3px 9px", fontSize:11, color:"#AAAAAA" }}>
+                            {c.name||c.cardName||"Card"}
+                            {parseFloat(c.mktVal)>0 && <span style={{ color:cfg.color, marginLeft:5, fontWeight:700 }}>${parseFloat(c.mktVal).toFixed(0)}</span>}
+                          </div>
+                        ))}
+                        {cards.length > 6 && (
+                          <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${cfg.border}`, borderRadius:6, padding:"3px 9px", fontSize:11, color:"#555" }}>
+                            +{cards.length-6} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Lot photos */}
                   {(q.photoUrls||[]).length > 0 && (
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
@@ -600,13 +631,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <div style={{ fontSize:11, color:"#333", marginTop:6, fontStyle:"italic" }}>No photos submitted</div>
                   )}
                   {q.status==="accepted" && q.sellerPayment && (
-                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>{"\uD83D\uDCB3 Wants payment via "}<strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
+                    <div style={{ fontSize:12, color:"#4ade80", marginTop:4 }}>💳 Wants payment via <strong>{q.sellerPayment}</strong>{q.sellerHandle ? ` — ${q.sellerHandle}` : ""}</div>
                   )}
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>{"View Quote \u2197"}</a>
-                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid #333", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2713 Dismiss"}</button>
+                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>{"View Quote ↗"}</a>
+                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid #333", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✓ Dismiss</button>
               </div>
             </div>
           </div>
