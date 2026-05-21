@@ -3778,8 +3778,97 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
           </div>
         </div>
 
-        {/* Bulk Log Out bar */}
-        {bulkLogMode && selected.size > 0 && (
+        {/* Quick Log — log N cards by type without manual selection */}
+        {(() => {
+          const [qlOpen, setQlOpen] = useState(false);
+          const [qlType, setQlType] = useState("Giveaway");
+          const [qlQty, setQlQty] = useState("20");
+          const [qlUsage, setQlUsage] = useState("Giveaway");
+          const [qlBreaker, setQlBreaker] = useState(BREAKERS[0]);
+          const [qlDate, setQlDate] = useState(new Date().toISOString().split("T")[0]);
+
+          const TYPE_TO_CT = {"Giveaway Cards":"Giveaway","Insurance Cards":"Insurance","First-Timer Cards":"First-Timer Pack","Chaser Cards":"Chaser Pull"};
+          const CT_USAGE = {"Giveaway Cards":["Giveaway"],"Insurance Cards":["Insurance"],"First-Timer Cards":["First-Timer Pack"],"Chaser Cards":["Chaser Pull","Chaser"]};
+          const availByType = CARD_TYPES.reduce((acc,ct)=>({...acc,[ct]:inventory.filter(c=>!usedIds.has(c.id)&&c.cardType===ct&&c.cardStatus!=="in_transit")}),{});
+          const qlAvail = availByType[qlType]?.length||0;
+          const qlCount = Math.min(parseInt(qlQty)||0, qlAvail);
+
+          function doQuickLog() {
+            if (!qlCount) return;
+            const cards = (availByType[qlType]||[]).slice(0, qlCount);
+            const USAGE_TO_CT_INV = {"Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards"};
+            const entries = cards.map(card => ({
+              id:uid(), date:qlDate, breaker:qlBreaker, inventoryId:card.id,
+              cardName:card.cardName||"", cardType:USAGE_TO_CT_INV[qlUsage]||card.cardType||"",
+              usage:qlUsage, notes:"Quick log from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown"
+            }));
+            onBulkAdd(entries);
+            setQlOpen(false);
+          }
+
+          return (
+            <div style={{ marginBottom:8 }}>
+              <button onClick={()=>setQlOpen(p=>!p)}
+                style={{ background:qlOpen?"rgba(232,49,122,0.15)":"#111", border:`1.5px solid ${qlOpen?"#E8317A":"rgba(232,49,122,0.3)"}`, color:"#E8317A", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                ⚡ Quick Log Cards
+              </button>
+
+              {qlOpen && (
+                <div style={{ background:"rgba(232,49,122,0.05)", border:"1.5px solid rgba(232,49,122,0.2)", borderRadius:12, padding:"16px 18px", marginTop:8 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", marginBottom:12 }}>⚡ Quick Log — no manual selection needed</div>
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+                    {/* Card type buttons */}
+                    <div style={{ display:"flex", gap:6 }}>
+                      {CARD_TYPES.map(ct=>{
+                        const avail = availByType[ct]?.length||0;
+                        return (
+                          <button key={ct} onClick={()=>{setQlType(ct);setQlUsage(CT_USAGE[ct]?.[0]||"Giveaway");}}
+                            style={{ background:qlType===ct?"rgba(232,49,122,0.15)":"#111", border:`1.5px solid ${qlType===ct?"#E8317A":"#2a2a2a"}`, color:qlType===ct?"#E8317A":"#888", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                            {ct.replace(" Cards","")}
+                            <span style={{ marginLeft:5, color:avail>0?"#4ade80":"#ef4444", fontSize:10 }}>{avail}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Quantity */}
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <span style={{ fontSize:12, color:"#888" }}>Qty:</span>
+                      {[5,10,20,50].map(n=>(
+                        <button key={n} onClick={()=>setQlQty(String(n))}
+                          style={{ background:qlQty===String(n)?"rgba(74,222,128,0.15)":"#111", border:`1px solid ${qlQty===String(n)?"#4ade80":"#2a2a2a"}`, color:qlQty===String(n)?"#4ade80":"#888", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          {n}
+                        </button>
+                      ))}
+                      <input type="number" value={qlQty} onChange={e=>setQlQty(e.target.value)} min="1" max={qlAvail}
+                        style={{ ...S.inp, width:60, textAlign:"center" }}/>
+                    </div>
+
+                    {/* Breaker + date */}
+                    <select value={qlBreaker} onChange={e=>setQlBreaker(e.target.value)} style={{ ...S.inp, width:"auto" }}>
+                      {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <input type="date" value={qlDate} onChange={e=>setQlDate(e.target.value)} style={{ ...S.inp, width:"auto" }}/>
+                  </div>
+
+                  {/* Confirm row */}
+                  <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:12 }}>
+                    <button onClick={doQuickLog} disabled={!qlCount}
+                      style={{ background:qlCount?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#333", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", fontSize:13, fontWeight:800, cursor:qlCount?"pointer":"not-allowed", fontFamily:"inherit", opacity:qlCount?1:0.5 }}>
+                      ✅ Log {qlCount} {qlType.replace(" Cards","")} Card{qlCount!==1?"s":""} for {qlBreaker}
+                    </button>
+                    {qlQty && parseInt(qlQty) > qlAvail && (
+                      <span style={{ fontSize:11, color:"#FBBF24" }}>⚠ Only {qlAvail} available — will log all {qlAvail}</span>
+                    )}
+                    {qlAvail === 0 && (
+                      <span style={{ fontSize:11, color:"#ef4444" }}>No {qlType.toLowerCase()} available to log</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
           <div style={{ background:"rgba(74,222,128,0.06)", border:"1.5px solid rgba(74,222,128,0.2)", borderRadius:10, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <span style={{ fontSize:13, fontWeight:700, color:"#4ade80" }}>✅ Log Out {selected.size} card{selected.size!==1?"s":""}</span>
             <select value={bulkLogForm.breaker} onChange={e=>setBulkLogForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
