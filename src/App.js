@@ -3817,21 +3817,35 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                 <div style={{ background:"rgba(232,49,122,0.05)", border:"1.5px solid rgba(232,49,122,0.2)", borderRadius:12, padding:"16px 18px", marginTop:8 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", marginBottom:12 }}>⚡ Quick Log — no manual selection needed</div>
                   <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-                    {/* Card type buttons */}
-                    <div style={{ display:"flex", gap:6 }}>
-                      {CARD_TYPES.map(ct=>{
-                        const avail = availByType[ct]?.length||0;
-                        return (
-                          <button key={ct} onClick={()=>{setQlType(ct);setQlUsage(CT_USAGE[ct]?.[0]||"Giveaway");}}
-                            style={{ background:qlType===ct?"rgba(232,49,122,0.15)":"#111", border:`1.5px solid ${qlType===ct?"#E8317A":"#2a2a2a"}`, color:qlType===ct?"#E8317A":"#888", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                            {ct.replace(" Cards","")}
-                            <span style={{ marginLeft:5, color:avail>0?"#4ade80":"#ef4444", fontSize:10 }}>{avail}</span>
-                          </button>
-                        );
-                      })}
+                    {/* Card type to pull FROM */}
+                    <div>
+                      <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:5, fontWeight:700 }}>Pull From</div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        {CARD_TYPES.map(ct=>{
+                          const avail = availByType[ct]?.length||0;
+                          return (
+                            <button key={ct} onClick={()=>setQlType(ct)}
+                              style={{ background:qlType===ct?"rgba(232,49,122,0.15)":"#111", border:`1.5px solid ${qlType===ct?"#E8317A":"#2a2a2a"}`, color:qlType===ct?"#E8317A":"#888", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                              {ct.replace(" Cards","")}
+                              <span style={{ marginLeft:5, color:avail>0?"#4ade80":"#ef4444", fontSize:10 }}>{avail}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Quantity */}
+                    {/* Usage type — LOG AS */}
+                    <div>
+                      <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:5, fontWeight:700 }}>Log As</div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        {USAGE_TYPES.map(u=>(
+                          <button key={u} onClick={()=>setQlUsage(u)}
+                            style={{ background:qlUsage===u?"rgba(123,156,255,0.15)":"#111", border:`1.5px solid ${qlUsage===u?"#7B9CFF":"#2a2a2a"}`, color:qlUsage===u?"#7B9CFF":"#888", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                            {u}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <span style={{ fontSize:12, color:"#888" }}>Qty:</span>
                       {[5,10,20,50].map(n=>(
@@ -3855,7 +3869,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                   <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:12 }}>
                     <button onClick={doQuickLog} disabled={!qlCount}
                       style={{ background:qlCount?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#333", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", fontSize:13, fontWeight:800, cursor:qlCount?"pointer":"not-allowed", fontFamily:"inherit", opacity:qlCount?1:0.5 }}>
-                      ✅ Log {qlCount} {qlType.replace(" Cards","")} Card{qlCount!==1?"s":""} for {qlBreaker}
+                      ✅ Log {qlCount} {qlType.replace(" Cards","")} Card{qlCount!==1?"s":""} as {qlUsage} for {qlBreaker}
                     </button>
                     {qlQty && parseInt(qlQty) > qlAvail && (
                       <span style={{ fontSize:11, color:"#FBBF24" }}>⚠ Only {qlAvail} available — will log all {qlAvail}</span>
