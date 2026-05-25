@@ -73,8 +73,7 @@ function getRate(s) {
   if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
   if (s.isEvent) return 0.15;
   const newBuyerBonus = (parseInt(s.newBuyers)||0) >= 5 ? 0.05 : 0;
-  const isFlat = (s.channel && FLAT_RATE_CHANNELS.includes(s.channel)) ||
-                 (!s.channel && FLAT_RATE_BREAKERS.includes(s.breaker));
+  const isFlat = (s.channel && FLAT_RATE_CHANNELS.includes(s.channel)) || (!s.channel && FLAT_RATE_BREAKERS.includes(s.breaker));
   if (isFlat) return Math.min(0.55, 0.50 + newBuyerBonus);
   if (s.binOnly) return 0.35;
   const mm = parseFloat(s.marketMultiple)||0;
@@ -278,13 +277,6 @@ function AccessDenied({ msg }) {
 
 function GlobalStyles() {
   useEffect(() => {
-    // Load SheetJS for xlsx import
-    if (!window.XLSX && !document.getElementById("sheetjs-script")) {
-      const s = document.createElement("script");
-      s.id  = "sheetjs-script";
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-      document.head.appendChild(s);
-    }
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; }
@@ -1644,8 +1636,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
   const [acOpen,       setAcOpen]       = useState(null);  // row id with open autocomplete
   const [acQuery,      setAcQuery]      = useState({});    // {rowId: queryString}
-  const [importPreview, setImportPreview] = useState(null);
-  const [importMapping, setImportMapping] = useState({});
+  const [importing,    setImporting]    = useState(false);
 
 
 
@@ -1653,8 +1644,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
   const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
-  const baseOffer = totalMkt * pctNum; // global % applied to all cards — this is the fixed total
-  // Locked amounts from cards with explicit costOverride or pctOverride
+  // Base offer from global pct — this is the fixed total
+  const baseOffer = totalMkt * pctNum;
+  // Locked cards: those with costOverride OR pctOverride
   const lockedAmt = included.reduce((s,r) => {
     const mv = (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1);
     const co = parseFloat(r.costOverride);
@@ -1668,26 +1660,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     const po = parseFloat(r.pctOverride);
     return (isNaN(co) && isNaN(po)) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
   }, 0);
-  // Total offer stays at baseOffer — locked cards eat from it, remainder splits among unlocked
-  const calcOffer = baseOffer;
-  const offerAmt   = finalOffer !== "" ? parseFloat(finalOffer) : null;
+  // Total offer = locked amounts + unlocked cards at global pct
+  const calcOffer = lockedAmt + unlockedMkt * pctNum;
+  const offerAmt  = finalOffer !== "" ? parseFloat(finalOffer) : null;
   const counterAmt = counterOffer !== "" ? parseFloat(counterOffer) : null;
+  // Priority: counter > manual override > calculated
   const dispOffer  = (counterAmt != null && counterAmt > 0) ? counterAmt : (offerAmt != null && offerAmt > 0) ? offerAmt : calcOffer;
-
-  // Cost allocation per card — locked cards use their override, unlocked share what's left
-  const remainingOffer = Math.max(0, dispOffer - lockedAmt);
-  function getCostPerCard(r) {
-    const co = parseFloat(r.costOverride);
-    if (!isNaN(co)) return co;
-    const po = parseFloat(r.pctOverride);
-    const mv = parseFloat(r.mktVal)||0;
-    if (!isNaN(po)) return mv*(po/100);
-    // Unlocked: proportional share of what's left after locked cards
-    if (unlockedMkt > 0) return (mv / unlockedMkt) * remainingOffer;
-    return 0;
-  }
-  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
-  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
   const dispPct    = totalMkt > 0 ? dispOffer / totalMkt : pctNum;
   const lotZone    = totalMkt > 0 ? getZone(dispOffer/totalMkt) : null;
   const totalCards = included.reduce((s,r) => s+(parseInt(r.qty)||1), 0);
@@ -1697,109 +1675,101 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const quickZone      = quickTotal > 0 ? getZone(quickOfferAmt/quickTotal) : null;
   const counterZone    = totalMkt > 0 && counterAmt != null && counterAmt > 0 ? getZone(counterAmt/totalMkt) : null;
 
+  // Cost allocation per card
+  const manuallyAllocated = lockedAmt;
+  const remainingOffer = Math.max(0, dispOffer - manuallyAllocated);
+  function getCostPerCard(r) {
+    const co = parseFloat(r.costOverride);
+    if (!isNaN(co)) return co;
+    const po = parseFloat(r.pctOverride);
+    const mv = parseFloat(r.mktVal)||0;
+    if (!isNaN(po)) return mv*(po/100);
+    // Unlocked: proportional share of remaining offer
+    if (unlockedMkt > 0) return (mv / unlockedMkt) * remainingOffer;
+    return 0;
+  }
+  const totalAllocated = included.reduce((s,r) => s + getCostPerCard(r)*(parseInt(r.qty)||1), 0);
+  const allocationDiff = dispOffer > 0 ? totalAllocated - dispOffer : 0;
+
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
 
-  function parseCSV(text) {
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (!lines.length) return { headers:[], rows:[] };
-    const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g,"").trim());
-    const rows = lines.slice(1).map(l => {
-      const cells = []; let cur = ""; let inQ = false;
-      for (const ch of l) {
-        if (ch==='"') { inQ=!inQ; }
-        else if (ch===","&&!inQ) { cells.push(cur.trim()); cur=""; }
-        else { cur+=ch; }
-      }
-      cells.push(cur.trim());
-      return cells.map(c=>c.replace(/^"|"$/g,""));
-    }).filter(r=>r.some(c=>c.trim()));
-    return { headers, rows };
-  }
-
-  function autoDetectMapping(headers) {
-    const m = {};
-    headers.forEach((h,i) => {
-      const l = h.toLowerCase();
-      if      (l.includes("hero") || l==="name" || l==="card name") m.name = i;
-      else if (l.includes("weapon"))                                  m.weapon = i;
-      else if (l.includes("treatment") || l.includes("treat"))       m.treatment = i;
-      else if (l.includes("qty") || l.includes("quantity"))          m.qty = i;
-      else if (l.includes("value") || l.includes("market") || l.includes("price") || l.includes("mkt")) m.mktVal = i;
-      else if (l.includes("type"))                                    m.cardType = i;
-    });
-    return m;
-  }
-
-  function loadSheetJS(cb) {
-    if (window.XLSX) { cb(window.XLSX); return; }
-    const existing = document.getElementById("sheetjs");
-    if (existing) { existing.onload = () => cb(window.XLSX); return; }
-    const s = document.createElement("script");
-    s.id = "sheetjs";
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => cb(window.XLSX);
-    s.onerror = () => alert("Could not load XLSX library. Please save your file as CSV and try again.");
-    document.head.appendChild(s);
-  }
-
-  function handleImportFile(file) {
+  function importFromFile(e) {
+    const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
+    setImporting(true);
     const ext = file.name.split(".").pop().toLowerCase();
+
+    function processText(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { alert("File appears empty or has only headers."); setImporting(false); return; }
+      // Parse header row
+      const headers = lines[0].split(",").map(h => h.replace(/^["']|["']$/g,"").trim().toLowerCase());
+      // Auto-detect columns
+      const nameIdx    = headers.findIndex(h => h.includes("hero") || h==="name" || h.includes("card name"));
+      const weaponIdx  = headers.findIndex(h => h.includes("weapon"));
+      const treatIdx   = headers.findIndex(h => h.includes("treatment") || h.includes("treat"));
+      const qtyIdx     = headers.findIndex(h => h.includes("qty") || h.includes("quantity"));
+      const valIdx     = headers.findIndex(h => h.includes("value") || h.includes("market") || h.includes("price") || h.includes("mkt"));
+      const typeIdx    = headers.findIndex(h => h.includes("type"));
+      if (nameIdx === -1) { alert("Could not find a Hero or Name column. Make sure your first row has column headers."); setImporting(false); return; }
+
+      const newRows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cells = [];
+        let cur = ""; let inQ = false;
+        for (const ch of lines[i]) {
+          if (ch==='"'||ch==="'") { inQ=!inQ; }
+          else if (ch===","&&!inQ) { cells.push(cur.trim()); cur=""; }
+          else { cur+=ch; }
+        }
+        cells.push(cur.trim());
+        const hero   = cells[nameIdx]  ? cells[nameIdx].replace(/^["']|["']$/g,"").trim()   : "";
+        const weapon = weaponIdx>=0 && cells[weaponIdx] ? cells[weaponIdx].replace(/^["']|["']$/g,"").trim() : "";
+        const treat  = treatIdx>=0  && cells[treatIdx]  ? cells[treatIdx].replace(/^["']|["']$/g,"").trim()  : "";
+        const name   = [hero, weapon, treat].filter(Boolean).join(" ");
+        if (!name) continue;
+        const qty    = qtyIdx>=0 && cells[qtyIdx]  ? String(Math.max(1,parseInt(cells[qtyIdx])||1)) : "1";
+        const rawVal = valIdx>=0 && cells[valIdx]   ? cells[valIdx].replace(/[$,\s"']/g,"") : "";
+        const mktVal = rawVal && !isNaN(parseFloat(rawVal)) ? String(parseFloat(rawVal)) : "";
+        const cardType = typeIdx>=0 && cells[typeIdx] ? cells[typeIdx].replace(/^["']|["']$/g,"").trim() : "";
+        newRows.push({ id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true });
+      }
+      if (!newRows.length) { alert("No cards found. Check that your file has data rows below the header."); setImporting(false); return; }
+      setRows(p => [...p.filter(r=>r.name.trim()), ...newRows]);
+      setImporting(false);
+      alert(`✅ Imported ${newRows.length} card${newRows.length!==1?"s":""}! Add market values in the list below.`);
+    }
+
     if (ext === "csv") {
       const reader = new FileReader();
-      reader.onload = e => {
-        const { headers, rows } = parseCSV(e.target.result);
-        if (!headers.length) { alert("Could not read CSV — make sure the first row has column headers."); return; }
-        setImportMapping(autoDetectMapping(headers));
-        setImportPreview({ headers, rows });
-      };
-      reader.onerror = () => alert("Failed to read file.");
+      reader.onload = ev => processText(ev.target.result);
+      reader.onerror = () => { alert("Failed to read file."); setImporting(false); };
       reader.readAsText(file);
-    } else if (ext === "xlsx" || ext === "xls") {
+    } else {
+      // XLSX — load SheetJS then convert to CSV-like text
+      const loadXLSX = (cb) => {
+        if (window.XLSX) { cb(); return; }
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+        s.onload = cb;
+        s.onerror = () => { alert("Failed to load XLSX library. Please export your file as CSV and try again."); setImporting(false); };
+        document.head.appendChild(s);
+      };
       const reader = new FileReader();
-      reader.onload = e => {
-        loadSheetJS(XLSX => {
+      reader.onload = ev => {
+        loadXLSX(() => {
           try {
-            const wb   = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
-            const ws   = wb.Sheets[wb.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(ws, { header:1, defval:"" });
-            const headers = (json[0]||[]).map(h=>String(h).trim());
-            const rows    = json.slice(1)
-              .filter(r => r.some(c => String(c||"").trim()))
-              .map(r => headers.map((_,i) => String(r[i]||"").trim()));
-            if (!headers.length) { alert("Could not read XLSX — no data found."); return; }
-            setImportMapping(autoDetectMapping(headers));
-            setImportPreview({ headers, rows });
-          } catch(err) { alert("Error reading XLSX: " + err.message); }
+            const wb = window.XLSX.read(new Uint8Array(ev.target.result), { type:"array" });
+            const csv = window.XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+            processText(csv);
+          } catch(err) { alert("Error reading XLSX: " + err.message); setImporting(false); }
         });
       };
-      reader.onerror = () => alert("Failed to read file.");
+      reader.onerror = () => { alert("Failed to read file."); setImporting(false); };
       reader.readAsArrayBuffer(file);
-    } else {
-      alert("Please use a .csv or .xlsx file.");
     }
-  }
-
-  function doImport() {
-    if (!importPreview || importMapping.name == null) return;
-    const m = importMapping;
-    const newRows = importPreview.rows.map(r => {
-      const hero   = String(r[m.name]      ||"").trim();
-      const weapon = m.weapon    != null ? String(r[m.weapon]    ||"").trim() : "";
-      const treat  = m.treatment != null ? String(r[m.treatment] ||"").trim() : "";
-      const name   = [hero, weapon, treat].filter(Boolean).join(" ");
-      if (!name) return null;
-      const qty    = m.qty    != null ? String(Math.max(1,parseInt(r[m.qty])||1)) : "1";
-      const rawVal = m.mktVal != null ? String(r[m.mktVal]||"").replace(/[$,\s]/g,"") : "";
-      const mktVal = rawVal && !isNaN(parseFloat(rawVal)) ? String(parseFloat(rawVal)) : "";
-      const cardType = m.cardType != null ? String(r[m.cardType]||"").trim() : "";
-      return { id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true };
-    }).filter(Boolean);
-    if (!newRows.length) { alert("No valid cards found — make sure the Hero/Name column is mapped."); return; }
-    setRows(p => [...p.filter(r => r.name.trim()), ...newRows]);
-    setImportPreview(null);
-    setImportMapping({});
   }
 
   function loadComp(comp) {
@@ -2383,11 +2353,11 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         </div>
 
         <div style={S.card}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
             <SectionLabel t="Cards in This Lot" />
-            <label style={{ background:"rgba(123,156,255,0.08)", border:"1.5px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
-              📂 Import CSV / XLSX
-              <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value=""; }}/>
+            <label style={{ background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+              {importing ? "⏳ Importing..." : "📂 Import CSV / XLSX"}
+              <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} disabled={importing} onChange={importFromFile}/>
             </label>
           </div>
           {isMobile ? (
@@ -2560,7 +2530,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           {r.pctOverride?"★ ":""}Custom Comp % (e.g. 70)
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                          <input type="number" min="0" max="200" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); upd(r.id,"costOverride","");}} placeholder="global %" style={{ ...mInp, border:r.pctOverride?"1.5px solid #A78BFA88":"1px solid #2a2a2a", color:r.pctOverride?"#A78BFA":"#888", flex:1 }}/>
+                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); upd(r.id,"costOverride","");}} placeholder="global %" style={{ ...mInp, border:r.pctOverride?"1.5px solid #A78BFA88":"1px solid #2a2a2a", color:r.pctOverride?"#A78BFA":"#888", flex:1 }}/>
                           <span style={{ fontSize:11, color:"#555" }}>%</span>
                         </div>
                         {r.pctOverride && <div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>${((parseFloat(r.mktVal)||0)*(parseFloat(r.pctOverride)/100)).toFixed(2)}/card</div>}
@@ -2575,102 +2545,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   </div>
                 );
               })}
-              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px 16px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
-                <label style={{ background:"transparent", border:"1.5px dashed rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:10, padding:"12px 16px", fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
-                  📂 Import CSV / XLSX
-                  <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value=""; }}/>
-                </label>
-              </div>
-
-              {/* Import preview modal */}
-              {importPreview && (
-                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
-                  onClick={()=>setImportPreview(null)}>
-                  <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:16, padding:"24px 26px", maxWidth:780, width:"100%", maxHeight:"85vh", overflowY:"auto" }}
-                    onClick={e=>e.stopPropagation()}>
-
-                    <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>📂 Import Cards</div>
-                    <div style={{ fontSize:12, color:"#555", marginBottom:18 }}>{importPreview.rows.length} rows detected · Map your columns below, then click Import</div>
-
-                    {/* Column mapping */}
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
-                      {[
-                        { key:"name",      label:"Card Name / Hero *" },
-                        { key:"weapon",    label:"Weapon (added to name)" },
-                        { key:"treatment", label:"Treatment (added to name)" },
-                        { key:"qty",       label:"Quantity" },
-                        { key:"mktVal",    label:"Market Value ($)" },
-                        { key:"cardType",  label:"Card Type" },
-                      ].map(({key,label}) => (
-                        <div key={key}>
-                          <div style={{ fontSize:10, fontWeight:700, color: key==="name"?"#E8317A":"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</div>
-                          <select value={importMapping[key]??""} onChange={e=>setImportMapping(p=>({...p,[key]:e.target.value===""?undefined:parseInt(e.target.value)}))}
-                            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"7px 10px", fontSize:12, fontFamily:"inherit", width:"100%", cursor:"pointer" }}>
-                            <option value="">— skip —</option>
-                            {importPreview.headers.map((h,i)=><option key={i} value={i}>{h||`Column ${i+1}`}</option>)}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Raw preview table */}
-                    <div style={{ overflowX:"auto", border:"1px solid #1a1a1a", borderRadius:8, marginBottom:14 }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                        <thead>
-                          <tr>{importPreview.headers.map((h,i)=>(
-                            <th key={i} style={{ padding:"6px 10px", background:"#0d0d0d", color:"#555", fontWeight:700, textAlign:"left", borderBottom:"1px solid #1a1a1a", whiteSpace:"nowrap" }}>{h||`Col ${i+1}`}</th>
-                          ))}</tr>
-                        </thead>
-                        <tbody>
-                          {importPreview.rows.slice(0,6).map((r,ri)=>(
-                            <tr key={ri} style={{ borderBottom:"1px solid #1a1a1a", background:ri%2===0?"#111":"#0d0d0d" }}>
-                              {importPreview.headers.map((_,ci)=>(
-                                <td key={ci} style={{ padding:"5px 10px", color:"#AAAAAA", maxWidth:130, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{String(r[ci]??"")}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {importPreview.rows.length > 6 && <div style={{ fontSize:11, color:"#555", padding:"6px 10px" }}>+ {importPreview.rows.length - 6} more rows</div>}
-                    </div>
-
-                    {/* Preview of what will import */}
-                    {importMapping.name != null && (
-                      <div style={{ background:"rgba(123,156,255,0.05)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:16 }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", marginBottom:6 }}>PREVIEW — first 3 cards:</div>
-                        {importPreview.rows.slice(0,3).map((r,i) => {
-                          const hero   = importMapping.name      != null ? String(r[importMapping.name]     ||"").trim() : "";
-                          const weapon = importMapping.weapon    != null ? String(r[importMapping.weapon]   ||"").trim() : "";
-                          const treat  = importMapping.treatment != null ? String(r[importMapping.treatment]||"").trim() : "";
-                          const name   = [hero,weapon,treat].filter(Boolean).join(" ");
-                          const qty    = importMapping.qty    != null ? (parseInt(r[importMapping.qty])||1) : 1;
-                          const raw    = importMapping.mktVal != null ? String(r[importMapping.mktVal]||"").replace(/[$,]/g,"") : "";
-                          const val    = parseFloat(raw)||0;
-                          return (
-                            <div key={i} style={{ fontSize:12, color:"#AAAAAA", padding:"3px 0", borderBottom:"1px solid #1a1a1a" }}>
-                              <strong style={{ color:"#F0F0F0" }}>{name||"—"}</strong>
-                              <span style={{ color:"#555", marginLeft:8 }}>×{qty}</span>
-                              {val>0 && <span style={{ color:"#4ade80", marginLeft:8 }}>${val}</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div style={{ display:"flex", gap:10 }}>
-                      <button onClick={doImport} disabled={importMapping.name == null}
-                        style={{ background:importMapping.name!=null?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#333", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:importMapping.name!=null?"pointer":"not-allowed", fontFamily:"inherit", opacity:importMapping.name!=null?1:0.5 }}>
-                        ✅ Import {importPreview.rows.filter(r=>{const n=importMapping.name!=null?String(r[importMapping.name]||"").trim():""; return !!n;}).length} Cards
-                      </button>
-                      <button onClick={()=>setImportPreview(null)}
-                        style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"10px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
             </div>
           ) : (
           <div style={{ overflowX:"auto" }}>
@@ -2857,7 +2732,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       </td>
                       <td style={{ ...S.td, width:80 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:2 }}>
-                          <input type="number" min="0" max="200" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); if(e.target.value) upd(r.id,"costOverride","");}} placeholder="%" style={{ ...S.inp, padding:"5px 6px", fontSize:12, color:r.pctOverride?"#A78BFA":"#555", width:48, border:r.pctOverride?"1px solid #A78BFA88":"1px solid #2a2a2a" }}/>
+                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); if(e.target.value) upd(r.id,"costOverride","");}} placeholder="%" style={{ ...S.inp, padding:"5px 6px", fontSize:12, color:r.pctOverride?"#A78BFA":"#555", width:48, border:r.pctOverride?"1px solid #A78BFA88":"1px solid #2a2a2a" }}/>
                           <span style={{ fontSize:11, color:"#555" }}>%</span>
                         </div>
                       </td>
@@ -4429,7 +4304,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <select value={recap.channel||"Bazooka Vault"} onChange={e=>rf("channel")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
               {CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}
             </select>
-            {FLAT_RATE_CHANNELS.includes(recap.channel||"Bazooka Vault") && <div style={{ fontSize:10, color:"#7B9CFF", marginTop:3 }}>⚡ Flat 50% rate</div>}
+            {FLAT_RATE_CHANNELS.includes(recap.channel) && <div style={{ fontSize:10, color:"#7B9CFF", marginTop:3 }}>⚡ Flat 50% rate</div>}
           </div>
           <TextInput label="Date" type="date" value={date} onChange={setDate}/>
           <div>
