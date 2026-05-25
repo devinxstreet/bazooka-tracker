@@ -1644,6 +1644,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [loadedCompHadCards,  setLoadedCompHadCards]  = useState(true);
   const [acOpen,       setAcOpen]       = useState(null);  // row id with open autocomplete
   const [acQuery,      setAcQuery]      = useState({});    // {rowId: queryString}
+  const [importPreview, setImportPreview] = useState(null);
+  const [importMapping, setImportMapping] = useState({});
 
 
 
@@ -1697,9 +1699,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
-
-  const [importPreview, setImportPreview] = useState(null);
-  const [importMapping, setImportMapping] = useState({});
 
   function parseCSV(text) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
