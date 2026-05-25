@@ -66,8 +66,8 @@ const OFFICE_STAFF = [
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
 const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"];
-const FLAT_RATE_CHANNELS = ["Orbital Society"];
-const FLAT_RATE_BREAKERS = ["Orbital Society"];
+const FLAT_RATE_CHANNELS = []; // no flat-rate channels currently
+const FLAT_RATE_BREAKERS = []; // all breakers use standard tiered commission
 
 function getRate(s) {
   if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
@@ -20601,7 +20601,7 @@ function PublicSellPage() {
           {/* Upload button */}
           <label style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.1)", border:"1px dashed rgba(232,49,122,0.4)", borderRadius:10, padding:"12px 20px", cursor: photos.length >= 4 ? "not-allowed" : "pointer", fontSize:14, fontWeight:700, color: photos.length >= 4 ? "#555" : "#E8317A", opacity: photos.length >= 4 ? 0.5 : 1 }}>
             📷 Add Photos
-            <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} disabled={photos.length >= 4} style={{ display:"none" }}/>
+            <input type="file" accept="image/*" multiple onChange={handlePhotoSelect} disabled={photos.length >= 4} style={{ display:"none" }}/>
           </label>
           <span style={{ fontSize:11, color:"#333", marginLeft:12 }}>{photos.length}/4 photos · Works with camera or photo library</span>
           {/* Photo previews */}
@@ -20617,7 +20617,7 @@ function PublicSellPage() {
               {photos.length < 4 && (
                 <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed #2a2a2a", borderRadius:8, cursor:"pointer", color:"#555", fontSize:12, gap:4 }}>
                   <span style={{ fontSize:24 }}>+</span>Add more
-                  <input type="file" accept="image/*" multiple capture="environment" onChange={handlePhotoSelect} style={{ display:"none" }}/>
+                  <input type="file" accept="image/*" multiple onChange={handlePhotoSelect} style={{ display:"none" }}/>
                 </label>
               )}
             </div>
