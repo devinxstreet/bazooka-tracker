@@ -65,13 +65,17 @@ const OFFICE_STAFF = [
   { id:"jake",    name:"Jake",    color:"#FBBF24", role:"Shipping" },
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
-const FLAT_RATE_BREAKERS = ["Orbital Society"]; // 50/50 split, not tiered
+const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"]; // Whatnot channels we break on
+const FLAT_RATE_CHANNELS = ["Orbital Society"]; // channels that pay flat 50% regardless of breaker
 
 function getRate(s) {
   if (s.commissionOverride !== "" && s.commissionOverride != null) return parseFloat(s.commissionOverride)/100;
   if (s.isEvent) return 0.15; // Event break — 15% of Bazooka's revenue
   const newBuyerBonus = (parseInt(s.newBuyers)||0) >= 5 ? 0.05 : 0;
-  if (FLAT_RATE_BREAKERS.includes(s.breaker)) return Math.min(0.55, 0.50 + newBuyerBonus);
+  // Flat rate applies if the CHANNEL is flat-rate OR if breaker is flat-rate with no channel set
+  const isFlat = (s.channel && FLAT_RATE_CHANNELS.includes(s.channel)) ||
+                 (!s.channel && FLAT_RATE_BREAKERS.includes(s.breaker));
+  if (isFlat) return Math.min(0.55, 0.50 + newBuyerBonus);
   if (s.binOnly) return 0.35;
   const mm = parseFloat(s.marketMultiple)||0;
   const base = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
@@ -428,7 +432,7 @@ function LoginScreen() {
           </div>
         </div>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:11,fontWeight:900,letterSpacing:8,color:"rgba(255,255,255,0.15)",textTransform:"uppercase",marginBottom:6}}>Bazooka Breaks</div>
+          <div style={{fontSize:11,fontWeight:900,letterSpacing:8,color:"rgba(255,255,255,0.15)",textTransform:"uppercase",marginBottom:6}}>{brandCfg.name}</div>
           <div style={{fontSize:52,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-2,lineHeight:1,marginBottom:8}}>Dashboard</div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.2)",letterSpacing:3,textTransform:"uppercase"}}>Internal Operations</div>
         </div>
@@ -1684,8 +1688,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const pctNum    = parseFloat(lotPct)/100 || 0.60;
   const included  = rows.filter(r => r.name && r.include);
   const totalMkt  = included.reduce((s,r) => s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1), 0);
-  // Base offer from global pct — this is the fixed total
-  const baseOffer = totalMkt * pctNum;
   // Locked cards: those with costOverride OR pctOverride
   const lockedAmt = included.reduce((s,r) => {
     const mv = (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1);
@@ -1700,11 +1702,11 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     const po = parseFloat(r.pctOverride);
     return (isNaN(co) && isNaN(po)) ? s + (parseFloat(r.mktVal)||0)*(parseInt(r.qty)||1) : s;
   }, 0);
-  // Total offer = locked amounts + unlocked cards at global pct
+  // Base offer = locked amounts + global pct applied to unlocked cards
   const calcOffer = lockedAmt + unlockedMkt * pctNum;
   const offerAmt  = finalOffer !== "" ? parseFloat(finalOffer) : null;
   const counterAmt = counterOffer !== "" ? parseFloat(counterOffer) : null;
-  // Priority: counter > manual override > calculated
+  // Priority: counter > manual override > calculated (which now respects per-card locks)
   const dispOffer  = (counterAmt != null && counterAmt > 0) ? counterAmt : (offerAmt != null && offerAmt > 0) ? offerAmt : calcOffer;
   const dispPct    = totalMkt > 0 ? dispOffer / totalMkt : pctNum;
   const lotZone    = totalMkt > 0 ? getZone(dispOffer/totalMkt) : null;
@@ -1733,6 +1735,80 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
+
+  const [importPreview, setImportPreview]   = useState(null); // {headers, rows, mapping}
+  const [importMapping, setImportMapping]   = useState({});
+
+  async function handleImportFile(file) {
+    if (!file) return;
+    const ext = file.name.split(".").pop().toLowerCase();
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        let headers = [], dataRows = [];
+        if (ext === "csv") {
+          const text = e.target.result;
+          const lines = text.split("\n").filter(l => l.trim());
+          headers = lines[0].split(",").map(h => h.replace(/^"|"$/g,"").trim());
+          dataRows = lines.slice(1).map(l => {
+            const cells = []; let cur = ""; let inQ = false;
+            for (const ch of l) { if (ch==='"') { inQ=!inQ; } else if (ch===","&&!inQ) { cells.push(cur.trim()); cur=""; } else { cur+=ch; } }
+            cells.push(cur.trim());
+            return cells;
+          });
+        } else {
+          // XLSX — load SheetJS dynamically
+          const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs");
+          const data = new Uint8Array(e.target.result);
+          const wb   = XLSX.read(data, { type:"array" });
+          const ws   = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, { header:1 });
+          headers  = (json[0]||[]).map(h => String(h||"").trim());
+          dataRows = json.slice(1).filter(r => r.some(c => c != null && c !== ""));
+        }
+        // Auto-map columns
+        const autoMap = {};
+        const lc = h => h.toLowerCase();
+        headers.forEach((h,i) => {
+          if (lc(h).includes("hero") || lc(h).includes("name") || lc(h).includes("card name")) autoMap.name = i;
+          else if (lc(h).includes("weapon") || lc(h).includes("variant") || lc(h).includes("variation")) autoMap.weapon = i;
+          else if (lc(h).includes("treatment") || lc(h).includes("treat")) autoMap.treatment = i;
+          else if (lc(h).includes("qty") || lc(h).includes("quantity") || lc(h).includes("count")) autoMap.qty = i;
+          else if (lc(h).includes("value") || lc(h).includes("price") || lc(h).includes("mkt") || lc(h).includes("market")) autoMap.mktVal = i;
+          else if (lc(h).includes("type") || lc(h).includes("card type")) autoMap.cardType = i;
+          else if (lc(h).includes("notation")) autoMap.notation = i;
+        });
+        setImportMapping(autoMap);
+        setImportPreview({ headers, rows: dataRows.slice(0, 200) });
+      } catch(err) {
+        alert("Could not read file: " + err.message);
+      }
+    };
+    if (ext === "csv") reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
+  }
+
+  function doImport() {
+    if (!importPreview) return;
+    const m = importMapping;
+    const newRows = importPreview.rows
+      .filter(r => r.length > 0)
+      .map(r => {
+        const hero    = m.name    != null ? String(r[m.name]    || "").trim() : "";
+        const weapon  = m.weapon  != null ? String(r[m.weapon]  || "").trim() : "";
+        const treat   = m.treatment != null ? String(r[m.treatment] || "").trim() : "";
+        const name    = [hero, weapon, treat].filter(Boolean).join(" ");
+        const qty     = m.qty     != null ? String(parseInt(r[m.qty])||1) : "1";
+        const mktVal  = m.mktVal  != null ? String(parseFloat(r[m.mktVal])||"") : "";
+        const cardType= m.cardType != null ? String(r[m.cardType]||"").trim() : "";
+        if (!name) return null;
+        return { id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true };
+      })
+      .filter(Boolean);
+    setRows(p => [...p.filter(r => r.name), ...newRows]);
+    setImportPreview(null);
+    setImportMapping({});
+  }
 
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
@@ -2501,7 +2577,98 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   </div>
                 );
               })}
-              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+                <label style={{ background:"transparent", border:"1.5px dashed rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:10, padding:"12px 16px", fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+                  📂 Import CSV / XLSX
+                  <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value=""; }}/>
+                </label>
+              </div>
+
+              {/* Import preview modal */}
+              {importPreview && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
+                  onClick={()=>setImportPreview(null)}>
+                  <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:16, padding:"24px", maxWidth:760, width:"100%", maxHeight:"80vh", overflowY:"auto" }}
+                    onClick={e=>e.stopPropagation()}>
+                    <div style={{ fontSize:15, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>📂 Import Cards from Spreadsheet</div>
+                    <div style={{ fontSize:12, color:"#555", marginBottom:16 }}>{importPreview.rows.length} rows found — map columns below, then click Import</div>
+
+                    {/* Column mapping */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
+                      {[
+                        { key:"name",      label:"Card Name / Hero",    required:true  },
+                        { key:"weapon",    label:"Weapon (appended)",   required:false },
+                        { key:"treatment", label:"Treatment (appended)",required:false },
+                        { key:"qty",       label:"Quantity",            required:false },
+                        { key:"mktVal",    label:"Market Value ($)",    required:false },
+                        { key:"cardType",  label:"Card Type",           required:false },
+                      ].map(({key,label,required}) => (
+                        <div key={key}>
+                          <div style={{ fontSize:10, color:required?"#E8317A":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}{required?" *":""}</div>
+                          <select value={importMapping[key]??""} onChange={e=>setImportMapping(p=>({...p,[key]:e.target.value===""?undefined:parseInt(e.target.value)}))}
+                            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"6px 10px", fontSize:12, fontFamily:"inherit", width:"100%", cursor:"pointer" }}>
+                            <option value="">— skip —</option>
+                            {importPreview.headers.map((h,i)=><option key={i} value={i}>{h}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Preview table */}
+                    <div style={{ overflowX:"auto", marginBottom:16, border:"1px solid #1a1a1a", borderRadius:8 }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                        <thead>
+                          <tr>{importPreview.headers.map((h,i)=><th key={i} style={{ padding:"6px 10px", background:"#0d0d0d", color:"#555", fontWeight:700, textAlign:"left", borderBottom:"1px solid #1a1a1a", whiteSpace:"nowrap" }}>{h}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.rows.slice(0,8).map((r,i)=>(
+                            <tr key={i} style={{ borderBottom:"1px solid #1a1a1a", background:i%2===0?"#111":"#0d0d0d" }}>
+                              {importPreview.headers.map((_,ci)=>(
+                                <td key={ci} style={{ padding:"5px 10px", color:"#AAAAAA", maxWidth:120, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{String(r[ci]??"")}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {importPreview.rows.length > 8 && <div style={{ fontSize:11, color:"#555", padding:"6px 10px" }}>+ {importPreview.rows.length - 8} more rows</div>}
+                    </div>
+
+                    {/* Preview of what will be imported */}
+                    {importMapping.name != null && (
+                      <div style={{ background:"rgba(123,156,255,0.05)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:16 }}>
+                        <div style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, marginBottom:6 }}>PREVIEW — first 3 rows will import as:</div>
+                        {importPreview.rows.slice(0,3).map((r,i) => {
+                          const hero   = importMapping.name    != null ? String(r[importMapping.name]   ||"").trim() : "";
+                          const weapon = importMapping.weapon  != null ? String(r[importMapping.weapon] ||"").trim() : "";
+                          const treat  = importMapping.treatment != null ? String(r[importMapping.treatment]||"").trim() : "";
+                          const name   = [hero,weapon,treat].filter(Boolean).join(" ");
+                          const qty    = importMapping.qty    != null ? (parseInt(r[importMapping.qty])||1) : 1;
+                          const val    = importMapping.mktVal != null ? parseFloat(r[importMapping.mktVal])||0 : 0;
+                          return (
+                            <div key={i} style={{ fontSize:11, color:"#AAAAAA", padding:"2px 0" }}>
+                              <strong style={{ color:"#F0F0F0" }}>{name||"—"}</strong>
+                              {" · "}qty {qty}
+                              {val > 0 && <span style={{ color:"#4ade80" }}> · ${val}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ display:"flex", gap:10 }}>
+                      <button onClick={doImport} disabled={importMapping.name == null}
+                        style={{ background:importMapping.name!=null?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#333", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:importMapping.name!=null?"pointer":"not-allowed", fontFamily:"inherit", opacity:importMapping.name!=null?1:0.5 }}>
+                        ✅ Import {importPreview.rows.length} Card{importPreview.rows.length!==1?"s":""}
+                      </button>
+                      <button onClick={()=>setImportPreview(null)}
+                        style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"10px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
           <div style={{ overflowX:"auto" }}>
@@ -4064,7 +4231,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4091,7 +4258,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4355,9 +4522,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
         )}
 
-        {/* Breaker + Date + Break Type */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
+        {/* Breaker + Channel + Date + Stream Name */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
+          <div>
+            <label style={S.lbl}>Channel</label>
+            <select value={recap.channel||"Bazooka Vault"} onChange={e=>rf("channel")(e.target.value)} style={{ ...S.inp, cursor:"pointer", borderColor: recap.channel&&recap.channel!=="Bazooka Vault"?"rgba(123,156,255,0.5)":"" }}>
+              {CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+            {recap.channel&&FLAT_RATE_CHANNELS.includes(recap.channel)&&<div style={{ fontSize:10, color:"#7B9CFF", marginTop:3 }}>⚡ Flat 50% rate applies</div>}
+          </div>
           <TextInput label="Date" type="date" value={date} onChange={setDate}/>
           <div>
             <label style={S.lbl}>Stream Name</label>
@@ -10541,7 +10715,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             return `<tr><td style="padding:10px 14px;font-weight:700;color:#333;white-space:nowrap;vertical-align:top;width:110px;">${DOW_FULL[i]}<br/><span style="font-weight:400;font-size:12px;color:#888;">${ds.slice(5).replace("-","/")}</span></td><td style="padding:10px 14px;">${items}</td></tr>`;
           }).join("");
           const endSun = weekDays[6];
-          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
+          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>{brandCfg.name}</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
           const w = window.open("","_blank");
           w.document.write(html);
           w.document.close();
@@ -11749,6 +11923,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ fontSize:12, color:"#AAAAAA", marginTop:2, display:"flex", gap:10 }}>
               <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
               <span>{s.isEvent ? "🎪 Event Break (15% event fee)" : s.binOnly ? "BIN Break (flat 35%)" : `${s.breakType} · ${(c.rate*100).toFixed(0)}% commission`}</span>
+              {s.channel && s.channel !== "Bazooka Vault" && <span style={{ background:"rgba(123,156,255,0.1)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.2)", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>📺 {s.channel}</span>}
               {s.newBuyers>0 && <span style={{ background:"#111111", color:"#E8317A", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{"\uD83C\uDF31"}{s.newBuyers} new buyers</span>}
               {s.collabPartner && s.collabPartner !== "_" && <span style={{ background:"rgba(123,156,255,0.12)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.25)", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>🤝 Collab: {s.collabPartner}{s.collabPct?` (${s.collabPct}%)`:""}</span>}
             </div>
@@ -20926,7 +21101,225 @@ const EXPENSE_CATEGORIES = [
   "Marketing","Rent / Storage","Equipment","Miscellaneous"
 ];
 
-// ── SHIPPING HUB ──────────────────────────────────────────────────────────────
+// ── BRAND CONFIG ─────────────────────────────────────────────────────────────
+const DEFAULT_BRAND = {
+  name:       "My Breaking Co",
+  appName:    "Breaker Vault",
+  domain:     "yourdomain.com",
+  primaryColor:"#E8317A",
+  secondaryColor:"#7B2FF7",
+  accentColor:"#7B9CFF",
+  imc:        { name:"IMC / BoBA", splitPct:70 },  // IMC gets 70%
+};
+
+const BrandContext = React.createContext(DEFAULT_BRAND);
+function useBrand() { return React.useContext(BrandContext); }
+
+// ── SETUP WIZARD ─────────────────────────────────────────────────────────────
+function SetupWizard({ onComplete }) {
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [cfg, setCfg] = useState({
+    name:"", appName:"", domain:"", primaryColor:"#E8317A", secondaryColor:"#7B2FF7",
+    imc:{ name:"IMC / BoBA", splitPct:70 },
+    breakers:[{ name:"", role:"Admin", color:"#E8317A", flat:false }],
+    shippingStaff:[{ name:"", color:"#FBBF24" }],
+  });
+  const upd = (k,v) => setCfg(p=>({...p,[k]:v}));
+
+  const steps = ["Brand","Team","Commission","Review"];
+
+  async function handleComplete() {
+    setSaving(true);
+    const brand = {
+      ...cfg,
+      appName: cfg.appName || cfg.name + " Vault",
+      domain:  cfg.domain || "yourdomain.com",
+      createdAt: new Date().toISOString(),
+    };
+    await setDoc(doc(db,"config","brand"), brand);
+    onComplete(brand);
+    setSaving(false);
+  }
+
+  const inp = { background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 14px", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0d0d0d", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ maxWidth:580, width:"100%", background:"#111", border:"1px solid #1a1a1a", borderRadius:20, padding:"32px 36px" }}>
+        {/* Header */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ fontSize:32, marginBottom:8 }}>🃏</div>
+          <div style={{ fontSize:24, fontWeight:900, background:`linear-gradient(135deg,${cfg.primaryColor||"#E8317A"},${cfg.secondaryColor||"#7B2FF7"})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+            Welcome to Breaker Vault
+          </div>
+          <div style={{ fontSize:13, color:"#555", marginTop:6 }}>Let's set up your dashboard in about 2 minutes</div>
+        </div>
+
+        {/* Progress */}
+        <div style={{ display:"flex", gap:6, marginBottom:28 }}>
+          {steps.map((s,i)=>(
+            <div key={s} style={{ flex:1, textAlign:"center" }}>
+              <div style={{ height:3, borderRadius:2, background:i<=step?cfg.primaryColor||"#E8317A":"#2a2a2a", marginBottom:5 }}/>
+              <div style={{ fontSize:10, color:i===step?"#F0F0F0":i<step?cfg.primaryColor||"#E8317A":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>{s}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Step 0 — Brand */}
+        {step===0 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Business Name *</label>
+              <input style={inp} placeholder="e.g. Valley Hit House" value={cfg.name} onChange={e=>upd("name",e.target.value)}/></div>
+            <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Dashboard Name</label>
+              <input style={inp} placeholder={cfg.name ? cfg.name+" Vault" : "e.g. Valley Vault"} value={cfg.appName} onChange={e=>upd("appName",e.target.value)}/></div>
+            <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Your Domain (for /sell page)</label>
+              <input style={inp} placeholder="e.g. valleydash.com" value={cfg.domain} onChange={e=>upd("domain",e.target.value)}/></div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Primary Color</label>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <input type="color" value={cfg.primaryColor} onChange={e=>upd("primaryColor",e.target.value)} style={{ width:44, height:44, border:"none", background:"none", cursor:"pointer", borderRadius:8 }}/>
+                  <input style={{ ...inp, flex:1 }} value={cfg.primaryColor} onChange={e=>upd("primaryColor",e.target.value)}/>
+                </div>
+              </div>
+              <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Secondary Color</label>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <input type="color" value={cfg.secondaryColor} onChange={e=>upd("secondaryColor",e.target.value)} style={{ width:44, height:44, border:"none", background:"none", cursor:"pointer", borderRadius:8 }}/>
+                  <input style={{ ...inp, flex:1 }} value={cfg.secondaryColor} onChange={e=>upd("secondaryColor",e.target.value)}/>
+                </div>
+              </div>
+            </div>
+            {/* Preview */}
+            <div style={{ background:"#0d0d0d", borderRadius:10, padding:"12px 16px", border:`1px solid ${cfg.primaryColor||"#E8317A"}33`, textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:900, background:`linear-gradient(135deg,${cfg.primaryColor||"#E8317A"},${cfg.secondaryColor||"#7B2FF7"})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+                {cfg.appName||cfg.name||"Your Dashboard"}
+              </div>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>preview</div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1 — Team */}
+        {step===1 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:12, color:"#888" }}>Add your streamers and shipping staff. The first name must match their Google account display name (first name only, lowercase is fine).</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>Streamers / Admins</div>
+            {cfg.breakers.map((b,i)=>(
+              <div key={i} style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <input style={{ ...inp, flex:1 }} placeholder="First name (matches Google account)" value={b.name} onChange={e=>{ const br=[...cfg.breakers]; br[i]={...br[i],name:e.target.value}; upd("breakers",br); }}/>
+                <select value={b.role} onChange={e=>{ const br=[...cfg.breakers]; br[i]={...br[i],role:e.target.value}; upd("breakers",br); }}
+                  style={{ ...inp, width:"auto" }}>
+                  <option>Admin</option><option>Streamer</option><option>StreamerLite</option>
+                </select>
+                <input type="color" value={b.color} onChange={e=>{ const br=[...cfg.breakers]; br[i]={...br[i],color:e.target.value}; upd("breakers",br); }}
+                  style={{ width:36, height:36, border:"none", background:"none", cursor:"pointer" }}/>
+                <label style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:"#888", whiteSpace:"nowrap", cursor:"pointer" }}>
+                  <input type="checkbox" checked={b.flat} onChange={e=>{ const br=[...cfg.breakers]; br[i]={...br[i],flat:e.target.checked}; upd("breakers",br); }}/>
+                  Flat 50%
+                </label>
+                {cfg.breakers.length>1&&<button onClick={()=>upd("breakers",cfg.breakers.filter((_,j)=>j!==i))} style={{ background:"none", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"4px 8px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕</button>}
+              </div>
+            ))}
+            <button onClick={()=>upd("breakers",[...cfg.breakers,{name:"",role:"Streamer",color:"#7B9CFF",flat:false}])}
+              style={{ background:"transparent", border:"1px dashed #2a2a2a", color:"#555", borderRadius:8, padding:"8px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>+ Add Streamer</button>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>Shipping Staff</div>
+            {cfg.shippingStaff.map((s,i)=>(
+              <div key={i} style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <input style={{ ...inp, flex:1 }} placeholder="First name" value={s.name} onChange={e=>{ const ss=[...cfg.shippingStaff]; ss[i]={...ss[i],name:e.target.value}; upd("shippingStaff",ss); }}/>
+                <input type="color" value={s.color} onChange={e=>{ const ss=[...cfg.shippingStaff]; ss[i]={...ss[i],color:e.target.value}; upd("shippingStaff",ss); }}
+                  style={{ width:36, height:36, border:"none", background:"none", cursor:"pointer" }}/>
+                {cfg.shippingStaff.length>1&&<button onClick={()=>upd("shippingStaff",cfg.shippingStaff.filter((_,j)=>j!==i))} style={{ background:"none", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:6, padding:"4px 8px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕</button>}
+              </div>
+            ))}
+            <button onClick={()=>upd("shippingStaff",[...cfg.shippingStaff,{name:"",color:"#FBBF24"}])}
+              style={{ background:"transparent", border:"1px dashed #2a2a2a", color:"#555", borderRadius:8, padding:"8px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>+ Add Shipping Staff</button>
+          </div>
+        )}
+
+        {/* Step 2 — Commission */}
+        {step===2 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:12, color:"#888" }}>Configure your consignment split with IMC/BoBA and commission tiers for your streamers.</div>
+            <div><label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>Consignment Partner Name</label>
+              <input style={inp} placeholder="e.g. IMC / BoBA" value={cfg.imc.name} onChange={e=>upd("imc",{...cfg.imc,name:e.target.value})}/></div>
+            <div>
+              <label style={{ fontSize:12, color:"#888", fontWeight:700, display:"block", marginBottom:6 }}>IMC Split % <span style={{ color:"#555", fontWeight:400 }}>(they receive this % of every stream)</span></label>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <input type="range" min="50" max="80" value={cfg.imc.splitPct} onChange={e=>upd("imc",{...cfg.imc,splitPct:parseInt(e.target.value)})} style={{ flex:1 }}/>
+                <div style={{ minWidth:80, textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:cfg.primaryColor||"#E8317A" }}>{cfg.imc.splitPct}%</div>
+                  <div style={{ fontSize:10, color:"#555" }}>to {cfg.imc.name||"IMC"}</div>
+                </div>
+                <div style={{ minWidth:80, textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>{100-cfg.imc.splitPct}%</div>
+                  <div style={{ fontSize:10, color:"#555" }}>to you</div>
+                </div>
+              </div>
+            </div>
+            <div style={{ background:"#0d0d0d", borderRadius:10, padding:"14px 16px", border:"1px solid #1a1a1a" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", marginBottom:8 }}>COMMISSION TIERS (applied to your {100-cfg.imc.splitPct}%)</div>
+              {[
+                ["< 1.5x market multiple","35%"],
+                ["1.5x","40%"],
+                ["1.6x","45%"],
+                ["1.7x","50%"],
+                ["1.8x+","55%"],
+                ["+ 5 new buyers","+ 5% bonus (cap 60%)"],
+              ].map(([tier,pct])=>(
+                <div key={tier} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #1a1a1a", fontSize:12 }}>
+                  <span style={{ color:"#888" }}>{tier}</span><span style={{ color:"#F0F0F0", fontWeight:700 }}>{pct}</span>
+                </div>
+              ))}
+              <div style={{ fontSize:10, color:"#555", marginTop:8 }}>These match the standard BoBA commission structure. You can adjust them in the code after setup.</div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3 — Review */}
+        {step===3 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ fontSize:12, color:"#888" }}>Everything look good? You can change any of this later in Settings.</div>
+            {[
+              { l:"Business", v:cfg.name||"—" },
+              { l:"Dashboard", v:cfg.appName||(cfg.name+" Vault")||"—" },
+              { l:"Domain", v:cfg.domain||"—" },
+              { l:"Brand Color", v:<span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><span style={{ width:14, height:14, borderRadius:3, background:cfg.primaryColor, display:"inline-block" }}/>{cfg.primaryColor}</span> },
+              { l:"Streamers", v:cfg.breakers.filter(b=>b.name).map(b=>`${b.name} (${b.role}${b.flat?" flat 50%":""})`).join(", ")||"—" },
+              { l:"Shipping", v:cfg.shippingStaff.filter(s=>s.name).map(s=>s.name).join(", ")||"—" },
+              { l:"IMC Split", v:`${cfg.imc.splitPct}% to ${cfg.imc.name||"IMC"}, ${100-cfg.imc.splitPct}% to you` },
+            ].map(({l,v})=>(
+              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 12px", background:"#0d0d0d", borderRadius:8, fontSize:13 }}>
+                <span style={{ color:"#888", fontWeight:700 }}>{l}</span>
+                <span style={{ color:"#F0F0F0" }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Nav buttons */}
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:24 }}>
+          <button onClick={()=>setStep(p=>Math.max(0,p-1))} disabled={step===0}
+            style={{ background:"transparent", border:"1px solid #2a2a2a", color:step===0?"#333":"#888", borderRadius:8, padding:"10px 20px", fontSize:13, cursor:step===0?"default":"pointer", fontFamily:"inherit" }}>
+            ← Back
+          </button>
+          {step < steps.length-1
+            ? <button onClick={()=>setStep(p=>p+1)} disabled={step===0&&!cfg.name.trim()}
+                style={{ background:step===0&&!cfg.name.trim()?"#333":`linear-gradient(135deg,${cfg.primaryColor||"#E8317A"},${cfg.secondaryColor||"#7B2FF7"})`, color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:step===0&&!cfg.name.trim()?"not-allowed":"pointer", fontFamily:"inherit", opacity:step===0&&!cfg.name.trim()?0.4:1 }}>
+                Next →
+              </button>
+            : <button onClick={handleComplete} disabled={saving}
+                style={{ background:saving?"#333":`linear-gradient(135deg,${cfg.primaryColor||"#E8317A"},${cfg.secondaryColor||"#7B2FF7"})`, color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:saving?"not-allowed":"pointer", fontFamily:"inherit" }}>
+                {saving?"Setting up...":"🚀 Launch My Dashboard"}
+              </button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 const ISSUE_TYPES = [
   { id:"transit",    label:"Stuck in Transit",   emoji:"📦", color:"#FBBF24" },
   { id:"missing",    label:"Missing Item",        emoji:"❓", color:"#E8317A" },
@@ -21682,6 +22075,8 @@ function Finance({ streams=[], userRole, quotes=[] }) {
 }
 
 export default function App() {
+  const [brandCfg, setBrandCfg] = useState(null); // null = loading
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
   const [gOpen,         setGOpen]         = useState(false);
@@ -21748,6 +22143,20 @@ export default function App() {
   // Auth listener
   useEffect(() => {
     return onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
+  }, []);
+
+  // Load brand config from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db,"config","brand"), snap => {
+      if (snap.exists()) {
+        setBrandCfg(snap.data());
+        setNeedsSetup(false);
+      } else {
+        setBrandCfg(DEFAULT_BRAND);
+        setNeedsSetup(true);
+      }
+    });
+    return () => unsub();
   }, []);
 
   const [dataLoaded, setDataLoaded] = useState({}); // tracks which tab groups have been subscribed
@@ -22129,9 +22538,15 @@ export default function App() {
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
 
   // Auth gate -- only for the main app
-  if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
+  if (!authReady || brandCfg === null) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
   if (!user) return <LoginScreen />;
+
+  // First-run setup wizard — shown to first admin before anyone else can use the app
+  if (needsSetup) return <SetupWizard onComplete={cfg=>{ setBrandCfg(cfg); setNeedsSetup(false); }}/>;
+
+  return (
+    <BrandContext.Provider value={brandCfg}>
 
   // Block anyone not on the team
   if (!userRole) return (
@@ -22244,8 +22659,8 @@ export default function App() {
                   <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
                 </div>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
-                  <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
+                  <div style={{fontSize:10,fontWeight:700,color:`${brandCfg.primaryColor||"#E8317A"}bb`,letterSpacing:4,textTransform:"uppercase"}}>{brandCfg.name}</div>
+                  <div style={{fontSize:20,fontWeight:900,background:`linear-gradient(135deg,${brandCfg.primaryColor||"#E8317A"},${brandCfg.secondaryColor||"#7B2FF7"},#7B9CFF)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
                 </div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -22366,5 +22781,6 @@ export default function App() {
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
       </div>
     </div>
+    </BrandContext.Provider>
   );
 }
