@@ -278,6 +278,13 @@ function AccessDenied({ msg }) {
 
 function GlobalStyles() {
   useEffect(() => {
+    // Load SheetJS for xlsx import
+    if (!window.XLSX && !document.getElementById("sheetjs-script")) {
+      const s = document.createElement("script");
+      s.id  = "sheetjs-script";
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      document.head.appendChild(s);
+    }
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; }
@@ -1691,6 +1698,100 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   function upd(id,f,v) { setRows(p => p.map(r => r.id===id ? {...r,[f]:v} : r)); }
   function addRow() { setRows(p => [...p, { id:uid(), name:"", cardType:"", mktVal:"", qty:"1", include:true, costOverride:"", manualEntry:false }]); }
 
+  const [importPreview, setImportPreview] = useState(null);
+  const [importMapping, setImportMapping] = useState({});
+
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return { headers:[], rows:[] };
+    const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g,"").trim());
+    const rows = lines.slice(1).map(l => {
+      const cells = []; let cur = ""; let inQ = false;
+      for (const ch of l) {
+        if (ch==='"') { inQ=!inQ; }
+        else if (ch===","&&!inQ) { cells.push(cur.trim()); cur=""; }
+        else { cur+=ch; }
+      }
+      cells.push(cur.trim());
+      return cells;
+    });
+    return { headers, rows };
+  }
+
+  function autoDetectMapping(headers) {
+    const m = {}; const lc = h => h.toLowerCase();
+    headers.forEach((h,i) => {
+      if      (lc(h).includes("hero") || lc(h).includes("card name") || (lc(h)==="name")) m.name = i;
+      else if (lc(h).includes("weapon"))                                                   m.weapon = i;
+      else if (lc(h).includes("treatment") || lc(h).includes("treat"))                    m.treatment = i;
+      else if (lc(h).includes("qty") || lc(h).includes("quantity") || lc(h).includes("count")) m.qty = i;
+      else if (lc(h).includes("value") || lc(h).includes("market") || lc(h).includes("mkt") || lc(h).includes("price")) m.mktVal = i;
+      else if (lc(h).includes("type"))                                                     m.cardType = i;
+      else if (lc(h).includes("notation"))                                                 m.notation = i;
+    });
+    return m;
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["csv","xlsx","xls"].includes(ext)) { alert("Please use a .csv or .xlsx file."); return; }
+    if (ext === "csv") {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const { headers, rows } = parseCSV(e.target.result);
+        setImportMapping(autoDetectMapping(headers));
+        setImportPreview({ headers, rows: rows.slice(0, 300) });
+      };
+      reader.readAsText(file);
+    } else {
+      // XLSX via FileReader as binary, then parsed with SheetJS if available
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const XLSX = window.XLSX;
+          if (!XLSX) {
+            // Fallback: prompt user to save as CSV
+            alert("XLSX support is loading. Please wait a moment and try again, or save your file as CSV.");
+            return;
+          }
+          const wb   = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
+          const ws   = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, { header:1 });
+          const headers  = (json[0]||[]).map(h => String(h||"").trim());
+          const rows     = json.slice(1).filter(r => r.some(c => c!=null && c!=="")).map(r =>
+            headers.map((_,i) => r[i]!=null ? String(r[i]) : "")
+          );
+          setImportMapping(autoDetectMapping(headers));
+          setImportPreview({ headers, rows: rows.slice(0, 300) });
+        } catch(err) { alert("Could not read XLSX: " + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function doImport() {
+    if (!importPreview) return;
+    const m = importMapping;
+    const newRows = importPreview.rows
+      .map(r => {
+        const hero   = m.name      != null ? String(r[m.name]      ||"").trim() : "";
+        const weapon = m.weapon    != null ? String(r[m.weapon]    ||"").trim() : "";
+        const treat  = m.treatment != null ? String(r[m.treatment] ||"").trim() : "";
+        const name   = [hero, weapon, treat].filter(Boolean).join(" ");
+        if (!name) return null;
+        const qty    = m.qty    != null ? String(Math.max(1, parseInt(r[m.qty])||1)) : "1";
+        const raw    = m.mktVal != null ? String(r[m.mktVal]||"").replace(/[$,]/g,"").trim() : "";
+        const mktVal = raw && !isNaN(parseFloat(raw)) ? String(parseFloat(raw)) : "";
+        const cardType = m.cardType != null ? String(r[m.cardType]||"").trim() : "";
+        return { id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true };
+      })
+      .filter(Boolean);
+    setRows(p => [...p.filter(r => r.name.trim()), ...newRows]);
+    setImportPreview(null);
+    setImportMapping({});
+  }
+
   function loadComp(comp) {
     setSeller({ name:comp.seller||"", contact:comp.contact||"", date:comp.date||"", source:comp.source||"", payment:comp.payment||"", paymentHandle:comp.paymentHandle||"" });
     const hasCards = comp.cards && comp.cards.length > 0;
@@ -2458,7 +2559,102 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   </div>
                 );
               })}
-              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#888", borderRadius:10, padding:"12px 16px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+                <label style={{ background:"transparent", border:"1.5px dashed rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:10, padding:"12px 16px", fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
+                  📂 Import CSV / XLSX
+                  <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value=""; }}/>
+                </label>
+              </div>
+
+              {/* Import preview modal */}
+              {importPreview && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
+                  onClick={()=>setImportPreview(null)}>
+                  <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:16, padding:"24px 26px", maxWidth:780, width:"100%", maxHeight:"85vh", overflowY:"auto" }}
+                    onClick={e=>e.stopPropagation()}>
+
+                    <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>📂 Import Cards</div>
+                    <div style={{ fontSize:12, color:"#555", marginBottom:18 }}>{importPreview.rows.length} rows detected · Map your columns below, then click Import</div>
+
+                    {/* Column mapping */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
+                      {[
+                        { key:"name",      label:"Card Name / Hero *" },
+                        { key:"weapon",    label:"Weapon (added to name)" },
+                        { key:"treatment", label:"Treatment (added to name)" },
+                        { key:"qty",       label:"Quantity" },
+                        { key:"mktVal",    label:"Market Value ($)" },
+                        { key:"cardType",  label:"Card Type" },
+                      ].map(({key,label}) => (
+                        <div key={key}>
+                          <div style={{ fontSize:10, fontWeight:700, color: key==="name"?"#E8317A":"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</div>
+                          <select value={importMapping[key]??""} onChange={e=>setImportMapping(p=>({...p,[key]:e.target.value===""?undefined:parseInt(e.target.value)}))}
+                            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:7, color:"#F0F0F0", padding:"7px 10px", fontSize:12, fontFamily:"inherit", width:"100%", cursor:"pointer" }}>
+                            <option value="">— skip —</option>
+                            {importPreview.headers.map((h,i)=><option key={i} value={i}>{h||`Column ${i+1}`}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Raw preview table */}
+                    <div style={{ overflowX:"auto", border:"1px solid #1a1a1a", borderRadius:8, marginBottom:14 }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                        <thead>
+                          <tr>{importPreview.headers.map((h,i)=>(
+                            <th key={i} style={{ padding:"6px 10px", background:"#0d0d0d", color:"#555", fontWeight:700, textAlign:"left", borderBottom:"1px solid #1a1a1a", whiteSpace:"nowrap" }}>{h||`Col ${i+1}`}</th>
+                          ))}</tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.rows.slice(0,6).map((r,ri)=>(
+                            <tr key={ri} style={{ borderBottom:"1px solid #1a1a1a", background:ri%2===0?"#111":"#0d0d0d" }}>
+                              {importPreview.headers.map((_,ci)=>(
+                                <td key={ci} style={{ padding:"5px 10px", color:"#AAAAAA", maxWidth:130, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{String(r[ci]??"")}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {importPreview.rows.length > 6 && <div style={{ fontSize:11, color:"#555", padding:"6px 10px" }}>+ {importPreview.rows.length - 6} more rows</div>}
+                    </div>
+
+                    {/* Preview of what will import */}
+                    {importMapping.name != null && (
+                      <div style={{ background:"rgba(123,156,255,0.05)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:16 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", marginBottom:6 }}>PREVIEW — first 3 cards:</div>
+                        {importPreview.rows.slice(0,3).map((r,i) => {
+                          const hero   = importMapping.name      != null ? String(r[importMapping.name]     ||"").trim() : "";
+                          const weapon = importMapping.weapon    != null ? String(r[importMapping.weapon]   ||"").trim() : "";
+                          const treat  = importMapping.treatment != null ? String(r[importMapping.treatment]||"").trim() : "";
+                          const name   = [hero,weapon,treat].filter(Boolean).join(" ");
+                          const qty    = importMapping.qty    != null ? (parseInt(r[importMapping.qty])||1) : 1;
+                          const raw    = importMapping.mktVal != null ? String(r[importMapping.mktVal]||"").replace(/[$,]/g,"") : "";
+                          const val    = parseFloat(raw)||0;
+                          return (
+                            <div key={i} style={{ fontSize:12, color:"#AAAAAA", padding:"3px 0", borderBottom:"1px solid #1a1a1a" }}>
+                              <strong style={{ color:"#F0F0F0" }}>{name||"—"}</strong>
+                              <span style={{ color:"#555", marginLeft:8 }}>×{qty}</span>
+                              {val>0 && <span style={{ color:"#4ade80", marginLeft:8 }}>${val}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ display:"flex", gap:10 }}>
+                      <button onClick={doImport} disabled={importMapping.name == null}
+                        style={{ background:importMapping.name!=null?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#333", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:importMapping.name!=null?"pointer":"not-allowed", fontFamily:"inherit", opacity:importMapping.name!=null?1:0.5 }}>
+                        ✅ Import {importPreview.rows.filter(r=>{const n=importMapping.name!=null?String(r[importMapping.name]||"").trim():""; return !!n;}).length} Cards
+                      </button>
+                      <button onClick={()=>setImportPreview(null)}
+                        style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"10px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
           <div style={{ overflowX:"auto" }}>
