@@ -1712,80 +1712,91 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         else { cur+=ch; }
       }
       cells.push(cur.trim());
-      return cells;
-    });
+      return cells.map(c=>c.replace(/^"|"$/g,""));
+    }).filter(r=>r.some(c=>c.trim()));
     return { headers, rows };
   }
 
   function autoDetectMapping(headers) {
-    const m = {}; const lc = h => h.toLowerCase();
+    const m = {};
     headers.forEach((h,i) => {
-      if      (lc(h).includes("hero") || lc(h).includes("card name") || (lc(h)==="name")) m.name = i;
-      else if (lc(h).includes("weapon"))                                                   m.weapon = i;
-      else if (lc(h).includes("treatment") || lc(h).includes("treat"))                    m.treatment = i;
-      else if (lc(h).includes("qty") || lc(h).includes("quantity") || lc(h).includes("count")) m.qty = i;
-      else if (lc(h).includes("value") || lc(h).includes("market") || lc(h).includes("mkt") || lc(h).includes("price")) m.mktVal = i;
-      else if (lc(h).includes("type"))                                                     m.cardType = i;
-      else if (lc(h).includes("notation"))                                                 m.notation = i;
+      const l = h.toLowerCase();
+      if      (l.includes("hero") || l==="name" || l==="card name") m.name = i;
+      else if (l.includes("weapon"))                                  m.weapon = i;
+      else if (l.includes("treatment") || l.includes("treat"))       m.treatment = i;
+      else if (l.includes("qty") || l.includes("quantity"))          m.qty = i;
+      else if (l.includes("value") || l.includes("market") || l.includes("price") || l.includes("mkt")) m.mktVal = i;
+      else if (l.includes("type"))                                    m.cardType = i;
     });
     return m;
+  }
+
+  function loadSheetJS(cb) {
+    if (window.XLSX) { cb(window.XLSX); return; }
+    const existing = document.getElementById("sheetjs");
+    if (existing) { existing.onload = () => cb(window.XLSX); return; }
+    const s = document.createElement("script");
+    s.id = "sheetjs";
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => cb(window.XLSX);
+    s.onerror = () => alert("Could not load XLSX library. Please save your file as CSV and try again.");
+    document.head.appendChild(s);
   }
 
   function handleImportFile(file) {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
-    if (!["csv","xlsx","xls"].includes(ext)) { alert("Please use a .csv or .xlsx file."); return; }
     if (ext === "csv") {
       const reader = new FileReader();
       reader.onload = e => {
         const { headers, rows } = parseCSV(e.target.result);
+        if (!headers.length) { alert("Could not read CSV — make sure the first row has column headers."); return; }
         setImportMapping(autoDetectMapping(headers));
-        setImportPreview({ headers, rows: rows.slice(0, 300) });
+        setImportPreview({ headers, rows });
       };
+      reader.onerror = () => alert("Failed to read file.");
       reader.readAsText(file);
-    } else {
-      // XLSX via FileReader as binary, then parsed with SheetJS if available
+    } else if (ext === "xlsx" || ext === "xls") {
       const reader = new FileReader();
       reader.onload = e => {
-        try {
-          const XLSX = window.XLSX;
-          if (!XLSX) {
-            // Fallback: prompt user to save as CSV
-            alert("XLSX support is loading. Please wait a moment and try again, or save your file as CSV.");
-            return;
-          }
-          const wb   = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
-          const ws   = wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(ws, { header:1 });
-          const headers  = (json[0]||[]).map(h => String(h||"").trim());
-          const rows     = json.slice(1).filter(r => r.some(c => c!=null && c!=="")).map(r =>
-            headers.map((_,i) => r[i]!=null ? String(r[i]) : "")
-          );
-          setImportMapping(autoDetectMapping(headers));
-          setImportPreview({ headers, rows: rows.slice(0, 300) });
-        } catch(err) { alert("Could not read XLSX: " + err.message); }
+        loadSheetJS(XLSX => {
+          try {
+            const wb   = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
+            const ws   = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(ws, { header:1, defval:"" });
+            const headers = (json[0]||[]).map(h=>String(h).trim());
+            const rows    = json.slice(1)
+              .filter(r => r.some(c => String(c||"").trim()))
+              .map(r => headers.map((_,i) => String(r[i]||"").trim()));
+            if (!headers.length) { alert("Could not read XLSX — no data found."); return; }
+            setImportMapping(autoDetectMapping(headers));
+            setImportPreview({ headers, rows });
+          } catch(err) { alert("Error reading XLSX: " + err.message); }
+        });
       };
+      reader.onerror = () => alert("Failed to read file.");
       reader.readAsArrayBuffer(file);
+    } else {
+      alert("Please use a .csv or .xlsx file.");
     }
   }
 
   function doImport() {
-    if (!importPreview) return;
+    if (!importPreview || importMapping.name == null) return;
     const m = importMapping;
-    const newRows = importPreview.rows
-      .map(r => {
-        const hero   = m.name      != null ? String(r[m.name]      ||"").trim() : "";
-        const weapon = m.weapon    != null ? String(r[m.weapon]    ||"").trim() : "";
-        const treat  = m.treatment != null ? String(r[m.treatment] ||"").trim() : "";
-        const name   = [hero, weapon, treat].filter(Boolean).join(" ");
-        if (!name) return null;
-        const qty    = m.qty    != null ? String(Math.max(1, parseInt(r[m.qty])||1)) : "1";
-        const raw    = m.mktVal != null ? String(r[m.mktVal]||"").replace(/[$,]/g,"").trim() : "";
-        const mktVal = raw && !isNaN(parseFloat(raw)) ? String(parseFloat(raw)) : "";
-        const cardType = m.cardType != null ? String(r[m.cardType]||"").trim() : "";
-        return { id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true };
-      })
-      .filter(Boolean);
+    const newRows = importPreview.rows.map(r => {
+      const hero   = String(r[m.name]      ||"").trim();
+      const weapon = m.weapon    != null ? String(r[m.weapon]    ||"").trim() : "";
+      const treat  = m.treatment != null ? String(r[m.treatment] ||"").trim() : "";
+      const name   = [hero, weapon, treat].filter(Boolean).join(" ");
+      if (!name) return null;
+      const qty    = m.qty    != null ? String(Math.max(1,parseInt(r[m.qty])||1)) : "1";
+      const rawVal = m.mktVal != null ? String(r[m.mktVal]||"").replace(/[$,\s]/g,"") : "";
+      const mktVal = rawVal && !isNaN(parseFloat(rawVal)) ? String(parseFloat(rawVal)) : "";
+      const cardType = m.cardType != null ? String(r[m.cardType]||"").trim() : "";
+      return { id:uid(), name, cardType, mktVal, qty, include:true, costOverride:"", pctOverride:"", manualEntry:true };
+    }).filter(Boolean);
+    if (!newRows.length) { alert("No valid cards found — make sure the Hero/Name column is mapped."); return; }
     setRows(p => [...p.filter(r => r.name.trim()), ...newRows]);
     setImportPreview(null);
     setImportMapping({});
