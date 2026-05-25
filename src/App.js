@@ -278,7 +278,12 @@ function AccessDenied({ msg }) {
 
 function GlobalStyles() {
   useEffect(() => {
-    const style = document.createElement("style");
+    // Load SheetJS for xlsx import in Lot Comp
+    if (!window.XLSX) {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      document.head.appendChild(s);
+    }
     style.textContent = `
       * { box-sizing: border-box; }
       html, body { overflow-x: hidden; max-width: 100vw; }
@@ -1743,7 +1748,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         let headers = [], dataRows = [];
         if (ext === "csv") {
@@ -1757,8 +1762,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             return cells;
           });
         } else {
-          // XLSX — load SheetJS dynamically
-          const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs");
+          // XLSX — use global XLSX from window if loaded, otherwise prompt CSV
+          const XLSX = window.XLSX;
+          if (!XLSX) {
+            alert("For .xlsx files please use the XLSX library. Try saving as .csv first, or contact support.");
+            return;
+          }
           const data = new Uint8Array(e.target.result);
           const wb   = XLSX.read(data, { type:"array" });
           const ws   = wb.Sheets[wb.SheetNames[0]];
