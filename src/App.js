@@ -21662,7 +21662,7 @@ export default function App() {
   const [hoverTab,      setHoverTab]  = useState(null);
   const [invTabDefault,  setInvTabDefault]  = useState("cards");
   const [buyerTabDefault,setBuyerTabDefault]= useState("table");
-  const [periodDefault,  setPeriodDefault]  = useState("month");
+  const [periodDefault,  setPeriodDefault]  = useState("year");
   const [perfTabDefault, setPerfTabDefault] = useState("stats");
   const [checklistDefault,setChecklistDefault]=useState("cards");
   const [streamTabDefault,setStreamTabDefault] = useState("recap");
@@ -21732,6 +21732,8 @@ export default function App() {
       }),
       // Load all quotes
       onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      // historical_data at startup so Dashboard YTD is correct immediately
+      onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
       onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
     ];
@@ -21772,7 +21774,7 @@ export default function App() {
 
     if (tab === "streams" && !dataLoaded.streams) {
       setDataLoaded(p=>({...p, streams:true}));
-      unsubs.push(onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))));
+      // historical_data already loaded at startup
       unsubs.push(onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }));
       unsubs.push(onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))));
     }
