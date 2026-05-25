@@ -2373,7 +2373,13 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         </div>
 
         <div style={S.card}>
-          <SectionLabel t="Cards in This Lot" />
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+            <SectionLabel t="Cards in This Lot" />
+            <label style={{ background:"rgba(123,156,255,0.08)", border:"1.5px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+              📂 Import CSV / XLSX
+              <input type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value=""; }}/>
+            </label>
+          </div>
           {isMobile ? (
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               {rows.map((r,i) => {
