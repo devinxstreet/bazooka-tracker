@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit } from "firebase/firestore";
@@ -295,8 +295,8 @@ function AccessDenied({ msg }) {
 
 // ── PERFORMANCE HOOKS ─────────────────────────────────────────────────────────
 function useDebounce(value, delay=220) {
-  const [debounced, setDebounced] = React.useState(value);
-  React.useEffect(() => {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(t);
   }, [value, delay]);
@@ -3375,7 +3375,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [editCostId,  setEditCostId]  = useState(null);
   const [editCostVal, setEditCostVal] = useState("");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
-  const filtered = React.useMemo(() => inventory.filter(c => {
+  const filtered = useMemo(() => inventory.filter(c => {
     const mn      = c.cardName?.toLowerCase().includes(debouncedSearch.toLowerCase());
     const mt      = !typeF || c.cardType===typeF;
     const used    = usedIds.has(c.id);
@@ -5376,7 +5376,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     a.click(); URL.revokeObjectURL(url);
   }
 
-  const filtered = React.useMemo(() => buyers.filter(b => {
+  const filtered = useMemo(() => buyers.filter(b => {
     if (!buyerInPeriod(b)) return false;
     if (filterNew && !b.isNew) return false;
     if (filterZero && (b.totalSpend||0) === 0) return false;
@@ -11738,9 +11738,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return true; // "all"
   }
 
-  const periodFiltered = React.useMemo(() => visibleStreams.filter(s => inPeriod(s.date)),
+  const periodFiltered = useMemo(() => visibleStreams.filter(s => inPeriod(s.date)),
     [visibleStreams, period, customFrom, customTo]);
-  const filteredStreams = React.useMemo(() => isAdmin && breakerFilter !== "all"
+  const filteredStreams = useMemo(() => isAdmin && breakerFilter !== "all"
     ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter) || s.splitRep === breakerFilter)
     : periodFiltered,
     [periodFiltered, isAdmin, breakerFilter]);
