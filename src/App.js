@@ -4983,7 +4983,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             />
           </div>
         )}
-      </div>
 
         </div>{/* end left column */}
 
@@ -5041,9 +5040,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         })()}
 
         </div>{/* end two-column layout */}
-      }
-
-      {/* -- STREAM LOG -- */}
+      </div>}
       {!cardsOnly && (() => {
         const calcS = (s) => calcStream(s);
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
