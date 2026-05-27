@@ -275,6 +275,31 @@ function AccessDenied({ msg }) {
   );
 }
 
+// ── PERFORMANCE HOOKS ─────────────────────────────────────────────────────────
+function useDebounce(value, delay=220) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+// Memoized calcStream — cache results by stream id+fingerprint so we don't
+// recalculate 100 streams on every keystroke
+const streamCalcCache = new Map();
+function calcStreamMemo(s, targetBreaker=null) {
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${targetBreaker||""}`;
+  if (streamCalcCache.has(key)) return streamCalcCache.get(key);
+  const result = calcStream(s, targetBreaker);
+  streamCalcCache.set(key, result);
+  if (streamCalcCache.size > 500) {
+    const firstKey = streamCalcCache.keys().next().value;
+    streamCalcCache.delete(firstKey);
+  }
+  return result;
+}
+
 function GlobalStyles() {
   useEffect(() => {
     const style = document.createElement("style");
@@ -549,7 +574,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
   const alerts = CARD_TYPES.filter(ct => (stats[ct].avail) < TARGETS[ct].buffer);
 
-  const calcStreamDash = (s) => calcStream(s);
+  const calcStreamDash = (s) => calcStreamMemo(s);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -3305,6 +3330,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [poCopied,       setPoCopied]       = useState(false);
 
   const [search,   setSearch]   = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [typeF,    setTypeF]    = useState("");
   const [statusF,  setStatusF]  = useState("available");
   const [sortInv,  setSortInv]  = useState("date");
@@ -3319,8 +3345,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [editCostId,  setEditCostId]  = useState(null);
   const [editCostVal, setEditCostVal] = useState("");
   const usedIds  = new Set(breaks.map(b => b.inventoryId));
-  const filtered = inventory.filter(c => {
-    const mn      = c.cardName?.toLowerCase().includes(search.toLowerCase());
+  const filtered = React.useMemo(() => inventory.filter(c => {
+    const mn      = c.cardName?.toLowerCase().includes(debouncedSearch.toLowerCase());
     const mt      = !typeF || c.cardType===typeF;
     const used    = usedIds.has(c.id);
     const transit = !used && c.cardStatus === "in_transit";
@@ -3336,9 +3362,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
     if (sortInv==="cost_desc") return (b.costPerCard||0)-(a.costPerCard||0);
     if (sortInv==="cost_asc")  return (a.costPerCard||0)-(b.costPerCard||0);
     if (sortInv==="type")    return (a.cardType||"").localeCompare(b.cardType||"");
-    // default: date desc
     return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
-  });
+  }), [inventory, debouncedSearch, typeF, statusF, sortInv, breaks]);
   function toggleSelect(id) { setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function toggleAll() { setSelected(selected.size===filtered.length ? new Set() : new Set(filtered.map(c=>c.id))); }
   function handleBulkDelete() {
@@ -5161,6 +5186,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImport, onClearAll, userRole, streams=[] }) {
   const isAdmin = ["Admin","Streamer"].includes(userRole?.role);
   const [search,       setSearch]       = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [sortBy,       setSortBy]       = useState("totalSpend");
   const [filterNew,    setFilterNew]    = useState(false);
   const [filterZero,   setFilterZero]   = useState(false);
@@ -5248,12 +5274,12 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     a.click(); URL.revokeObjectURL(url);
   }
 
-  const filtered = buyers.filter(b => {
+  const filtered = React.useMemo(() => buyers.filter(b => {
     if (!buyerInPeriod(b)) return false;
     if (filterNew && !b.isNew) return false;
     if (filterZero && (b.totalSpend||0) === 0) return false;
-    if (search) {
-      const q = search.toLowerCase();
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
       return (b.username||"").toLowerCase().includes(q) ||
              (b.fullName||"").toLowerCase().includes(q) ||
              (b.city||"").toLowerCase().includes(q) ||
@@ -5266,7 +5292,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
     if (sortBy==="lastSeen")    return (b.lastSeen||"").localeCompare(a.lastSeen||"");
     if (sortBy==="username")    return (a.username||"").localeCompare(b.username||"");
     return 0;
-  });
+  }), [buyers, debouncedSearch, filterNew, filterZero, sortBy, exportPeriod, exportFrom, exportTo]);
 
   const totalBuyers   = filtered.length;
   const totalRevenue  = filtered.reduce((s,b)=>s+getPeriodSpend(b),0);
@@ -7858,6 +7884,7 @@ function Sellers({ inventory, breaks, userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [selectedSeller, setSelectedSeller] = useState(null);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [sortBy, setSortBy] = useState("spent"); // spent | cards | lots | recent
 
   const usedIds = new Set(breaks.map(b => b.inventoryId));
@@ -10842,6 +10869,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
   const [breakMode,     setBreakMode]     = useState("single");
   const [tierFilter,    setTierFilter]    = useState("all");
   const [search,        setSearch]        = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [sortBy,        setSortBy]        = useState("power-desc");
   const [showAssigned,  setShowAssigned]  = useState(true);
   const [squads,        setSquads]        = useState([{ id:uid(), name:"Squad 1", heroes:[] }]);
@@ -11568,7 +11596,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
   // Commission rate from comp plan
   function getCommRate(stream) { return getRate(stream); }
 
-  const calcStreamDash = (s) => calcStream(s);
+  const calcStreamDash = (s) => calcStreamMemo(s);
 
   // Admins see all streams; streamers see only their own
   const CEO_NAMES = ["Dev","Devin","Derrik"];
@@ -11608,10 +11636,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return true; // "all"
   }
 
-  const periodFiltered = visibleStreams.filter(s => inPeriod(s.date));
-  const filteredStreams = isAdmin && breakerFilter !== "all"
+  const periodFiltered = React.useMemo(() => visibleStreams.filter(s => inPeriod(s.date)),
+    [visibleStreams, period, customFrom, customTo]);
+  const filteredStreams = React.useMemo(() => isAdmin && breakerFilter !== "all"
     ? periodFiltered.filter(s => s.breaker === breakerFilter || (s.eventStaff||[]).some(es => es.breaker === breakerFilter) || s.splitRep === breakerFilter)
-    : periodFiltered;
+    : periodFiltered,
+    [periodFiltered, isAdmin, breakerFilter]);
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
@@ -13468,6 +13498,7 @@ function BroadcasterNotes({ cards=[] }) {
   const [activeSet, setActiveSet]   = useState("");
   const [expandedHero, setExpandedHero] = useState(null);
   const [search, setSearch]         = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [playerNotes, setPlayerNotes] = useState({});
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText]     = useState("");
@@ -13594,6 +13625,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [setNameInput, setSetNameInput] = useState("");
   const [newSetMode,   setNewSetMode]   = useState(false);
   const [search,       setSearch]       = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [filterTreat,  setFilterTreat]  = useState("");
   const [filterWeapon, setFilterWeapon] = useState("");
   const [filterNote,   setFilterNote]   = useState("");
@@ -18575,6 +18607,7 @@ function PublicCardDatabase() {
 
   // -- Cards/filter state --
   const [search,        setSearch]        = useState("");
+  const debouncedSearch = useDebounce(search, 250);
   const [filterSet,     setFilterSet]     = useState("");
   const [filterWeapon,  setFilterWeapon]  = useState("");
   const [filterTreat,   setFilterTreat]   = useState("");
