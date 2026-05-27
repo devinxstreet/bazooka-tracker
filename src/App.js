@@ -409,33 +409,21 @@ function GlobalStyles() {
       }
       .mobile-show { display: inline !important; }
       .nav-tab-label { display: inline; }
-    `;
-        .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-        .lot-comp-grid { grid-template-columns: 1fr !important; }
-        .seller-intel-panel { display: none !important; }
-        .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
-        .mobile-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-        .mobile-scroll-x table { min-width: 500px; }
-        .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
-        .view-mode-row::-webkit-scrollbar { display: none; }
-        .checklist-actions { flex-wrap: wrap !important; }
-        input[type="date"] { width: 100% !important; box-sizing: border-box !important; }
-        .deck-pb-layout { grid-template-columns: 1fr !important; }
-        .deck-pb-panel { order: -1; }
-        .deck-pb-cardlist { max-height: 60vh !important; }
-        .dash-grid-5 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-grid-4 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-grid-3 { grid-template-columns: repeat(2,1fr) !important; }
-        .dash-fin-card { font-size: 18px !important; padding: 12px !important; }
-        .dash-card-row { flex-direction: column !important; }
-        .period-btns { gap: 4px !important; }
-        .period-btns button { padding: 4px 8px !important; font-size: 10px !important; }
-      }
-      @media (max-width: 480px) {
-        .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
-        .tab-content { padding: 8px !important; }
-      }
-
+      .boba-card-grid { grid-template-columns: repeat(2,1fr) !important; gap:6px !important; }
+      .lot-comp-grid { grid-template-columns: 1fr !important; }
+      .stats-grid-4 { grid-template-columns: 1fr 1fr !important; }
+      .mobile-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+      .mobile-scroll-x table { min-width: 500px; }
+      .view-mode-row { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
+      .view-mode-row::-webkit-scrollbar { display: none; }
+      .checklist-actions { flex-wrap: wrap !important; }
+      .deck-pb-layout { grid-template-columns: 1fr !important; }
+      .dash-grid-5 { grid-template-columns: repeat(2,1fr) !important; }
+      .dash-grid-4 { grid-template-columns: repeat(2,1fr) !important; }
+      .dash-grid-3 { grid-template-columns: repeat(2,1fr) !important; }
+      .dash-fin-card { font-size: 18px !important; padding: 12px !important; }
+      .period-btns { gap: 4px !important; }
+      .period-btns button { padding: 4px 8px !important; font-size: 10px !important; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
