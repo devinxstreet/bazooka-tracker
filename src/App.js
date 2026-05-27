@@ -198,12 +198,12 @@ const LIGHT_T = {
 function makeS(dark) {
   const T = dark ? DARK_T : LIGHT_T;
   return {
-    card: { background:T.card, border:`1px solid ${T.cardBorder}`, borderRadius:14, padding:"18px 20px", boxShadow: dark?"0 4px 24px rgba(0,0,0,0.5)":"0 2px 16px rgba(232,49,122,0.07)" },
-    inp:  { background:T.inp, border:`1px solid ${T.inpBorder}`, borderRadius:8, padding:"8px 12px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-    lbl:  { fontSize:10, fontWeight:700, color:T.textMute, textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:5 },
-    th:   { padding:"9px 14px", background:T.thBg, color:"#E8317A", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:1, textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.15)" },
-    td:   { padding:"8px 14px", borderBottom:`1px solid ${T.tdBorder}`, fontSize:13, color:T.text },
-    T, // expose theme tokens
+    card: { background:T.card, border:`1px solid ${T.cardBorder}`, borderRadius:14, padding:"18px 20px" },
+    inp:  { background:T.inp, border:`1px solid ${T.inpBorder}`, borderRadius:8, padding:"8px 12px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s ease" },
+    lbl:  { fontSize:9, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:5 },
+    th:   { padding:"8px 12px", background:"#0a0a0a", color:"#E8317A", fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.12)" },
+    td:   { padding:"9px 12px", borderBottom:`1px solid ${T.tdBorder}`, fontSize:13, color:T.text },
+    T,
   };
 }
 
@@ -214,30 +214,34 @@ const S = makeS(true);
 
 function SectionLabel({ t }) {
   return (
-    <div style={{ fontSize:10, fontWeight:800, color:"#F0F0F0", textTransform:"uppercase", letterSpacing:2.5, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-      <div style={{ width:14, height:2, background:"#E8317A", borderRadius:1, boxShadow:"0 0 8px rgba(232,49,122,0.6)" }} />{t}
+    <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+      {t}
+      <div style={{ flex:1, height:"1px", background:"linear-gradient(90deg,rgba(232,49,122,0.3),transparent)" }}/>
     </div>
   );
 }
 function Badge({ children, bg="#F3F4F6", color="#374151" }) {
-  return <span style={{ background:bg, color, border:`1px solid ${color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{children}</span>;
+  return <span style={{ background:bg, color, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", letterSpacing:"0.2px" }}>{children}</span>;
 }
 function ZoneBadge({ pct }) {
   const z = getZone(pct);
-  if (!z) return <span style={{ color:"#D1D5DB", fontSize:11 }}>--</span>;
+  if (!z) return <span style={{ color:"#444", fontSize:11 }}>—</span>;
   const cls = pct >= 0.70 ? "zone-red" : pct >= 0.65 ? "zone-yellow" : "";
   return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} · {(pct*100).toFixed(1)}%</span>;
 }
 function Btn({ children, onClick, variant="gold", disabled, style:extra }) {
   const V = {
-    gold:  { bg:"#E8317A", c:"#ffffff", b:"#c41e5a" },
-    green: { bg:"#E8317A", c:"#ffffff", b:"#c41e5a" },
-    ghost: { bg:"#F3F4F6", c:"#6B7280", b:"#E5E7EB" },
-    red:   { bg:"#FEE2E2", c:"#991b1b", b:"#fca5a5" },
+    gold:  { bg:"#E8317A", c:"#fff", hover:"#c41e5a" },
+    green: { bg:"rgba(74,222,128,0.15)", c:"#4ade80", hover:"rgba(74,222,128,0.25)" },
+    ghost: { bg:"rgba(255,255,255,0.06)", c:"#888", hover:"rgba(255,255,255,0.1)" },
+    red:   { bg:"rgba(239,68,68,0.12)", c:"#ef4444", hover:"rgba(239,68,68,0.2)" },
   };
   const v = V[variant]||V.gold;
   return (
-    <button onClick={onClick} disabled={disabled} className="btn-lift" style={{ background:v.bg, color:v.c, border:`1.5px solid ${v.b}`, borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.4:1, fontFamily:"inherit", whiteSpace:"nowrap", ...extra }}>
+    <button onClick={onClick} disabled={disabled} className="btn-lift"
+      style={{ background:v.bg, color:v.c, border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.35:1, fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.15s ease", ...extra }}
+      onMouseEnter={e=>{ if(!disabled) e.currentTarget.style.background=v.hover; }}
+      onMouseLeave={e=>{ e.currentTarget.style.background=v.bg; }}>
       {children}
     </button>
   );
@@ -255,7 +259,7 @@ function TextInput({ label, value, onChange, type="text", placeholder }) {
 function SelectInput({ label, value, onChange, options }) {
   return (
     <Field label={label}>
-      <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...S.inp, color:value?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...S.inp, color:value?"#F0F0F0":"#555", cursor:"pointer" }}>
         <option value="">Select...</option>
         {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
@@ -263,14 +267,28 @@ function SelectInput({ label, value, onChange, options }) {
   );
 }
 function EmptyRow({ msg, cols=10 }) {
-  return <tr><td colSpan={cols} style={{ padding:"48px 0", textAlign:"center", color:"#D1D5DB", fontSize:13 }}>{msg}</td></tr>;
+  return (
+    <tr><td colSpan={cols} style={{ padding:"48px 0", textAlign:"center" }}>
+      <div style={{ fontSize:28, marginBottom:10, opacity:0.25 }}>—</div>
+      <div style={{ fontSize:13, color:"#555", fontWeight:500 }}>{msg}</div>
+    </td></tr>
+  );
+}
+function EmptyState({ icon="—", title, body }) {
+  return (
+    <div style={{ textAlign:"center", padding:"48px 24px" }}>
+      <div style={{ fontSize:36, marginBottom:12, opacity:0.3 }}>{icon}</div>
+      {title && <div style={{ fontSize:15, fontWeight:700, color:"#555", marginBottom:6 }}>{title}</div>}
+      {body  && <div style={{ fontSize:12, color:"#444", lineHeight:1.6, maxWidth:320, margin:"0 auto" }}>{body}</div>}
+    </div>
+  );
 }
 function AccessDenied({ msg }) {
   return (
     <div style={{ ...S.card, textAlign:"center", padding:"60px 40px" }}>
-      <div style={{ fontSize:40, marginBottom:12 }}>{"\uD83D\uDD12"}</div>
-      <div style={{ fontSize:18, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>Access Restricted</div>
-      <div style={{ fontSize:13, color:"#AAAAAA" }}>{msg}</div>
+      <div style={{ fontSize:36, marginBottom:12, opacity:0.4 }}>🔒</div>
+      <div style={{ fontSize:16, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>Access Restricted</div>
+      <div style={{ fontSize:13, color:"#555", lineHeight:1.6 }}>{msg}</div>
     </div>
   );
 }
@@ -306,79 +324,80 @@ function GlobalStyles() {
     style.textContent = `
       * { box-sizing: border-box; }
       html, body { overflow-x: hidden; max-width: 100vw; }
-      body { background: #000000 !important; color: #F0F0F0; }
-      #root { background: #000000; min-height: 100vh; overflow-x: hidden; }
-      table { width: 100%; }
+      body { background: #000 !important; color: #F0F0F0; font-family: inherit; -webkit-font-smoothing: antialiased; }
+      #root { background: #000; min-height: 100vh; overflow-x: hidden; }
+      table { width: 100%; border-collapse: collapse; }
       .tab-content { width: 100%; min-width: 0; }
-      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
-      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input::placeholder { color: #555555 !important; }
-      select option { background: #111111; color: #F0F0F0; }
-      @keyframes fadeSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-      @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .toast { animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-      @keyframes toastIn { from { opacity:0; transform:translateY(24px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
-      .card-hover { transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease !important; }
-      .card-hover:hover { transform: translateY(-3px) !important; box-shadow: 0 16px 40px rgba(232,49,122,0.2) !important; }
-      .btn-lift { transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease, opacity 0.15s ease !important; }
-      .btn-lift:hover:not(:disabled) { transform: translateY(-2px) scale(1.02) !important; box-shadow: 0 8px 28px rgba(232,49,122,0.45) !important; }
-      .btn-lift:active:not(:disabled) { transform: translateY(0) scale(0.97) !important; }
-      .nav-tab { transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease !important; }
-      .nav-tab:hover { color: #E8317A !important; background: rgba(232,49,122,0.1) !important; transform: translateY(-1px) !important; }
-      .inv-row { transition: background 0.12s ease !important; }
-      .inv-row:hover { background: #1a1a1a !important; }
-      .break-row { transition: background 0.12s ease !important; }
-      .break-row:hover { background: #1a1a1a !important; }
-      .clickable-row { transition: background 0.12s ease, box-shadow 0.12s ease !important; cursor: pointer !important; }
-      .clickable-row:hover { background: #1a1a1a !important; box-shadow: inset 3px 0 0 #E8317A !important; }
-      .stat-card { transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease !important; }
-      .stat-card:hover { transform: translateY(-4px) scale(1.02) !important; box-shadow: 0 20px 48px rgba(232,49,122,0.25) !important; }
-      .num-pop { animation: numPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-      @keyframes numPop { from { transform: scale(0.7); opacity:0; } to { transform: scale(1); opacity:1; } }
-      .fade-in { animation: fadeIn 0.3s ease forwards; }
-      @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-      .slide-in { animation: slideIn 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
-      @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
-      .zone-red { animation: pulsRed 2.5s ease-in-out infinite; }
-      @keyframes pulsRed { 0%,100% { box-shadow:0 0 0 0 rgba(153,27,27,0.6); } 50% { box-shadow:0 0 0 8px rgba(153,27,27,0); } }
-      .zone-yellow { animation: pulsYellow 2.5s ease-in-out infinite; }
-      @keyframes pulsYellow { 0%,100% { box-shadow:0 0 0 0 rgba(146,64,14,0.5); } 50% { box-shadow:0 0 0 6px rgba(146,64,14,0); } }
-      .status-critical { animation: pulsCritical 2s ease-in-out infinite; }
-      @keyframes pulsCritical { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.8); } 50% { box-shadow:0 0 0 10px rgba(220,38,38,0.05),0 0 20px 4px rgba(220,38,38,0.15); } }
-      .nav-bazooka { text-shadow:0 0 20px rgba(232,49,122,0.7),0 0 40px rgba(232,49,122,0.4); transition:text-shadow 0.3s ease; }
-      .nav-bazooka:hover { text-shadow:0 0 30px rgba(232,49,122,1),0 0 60px rgba(232,49,122,0.6),0 0 100px rgba(232,49,122,0.3); }
-      input[type="checkbox"] { cursor:pointer; accent-color:#E8317A; }
-      input:focus, select:focus, textarea:focus { outline:none !important; border-color:#E8317A !important; box-shadow:0 0 0 3px rgba(232,49,122,0.2) !important; }
-      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
-      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input::placeholder { color: #555555 !important; }
-      select option { background: #111111; color: #F0F0F0; }
-      input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input[type="date"], input[type="month"] { color-scheme: dark; } input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
-      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor:pointer; }
-      input::placeholder { color: #444444 !important; }
-      input, select, textarea { color: #FFFFFF !important; background-color: #000000; }
-      input, select, textarea { transition: border-color 0.15s ease !important; }
-      
-      
-      ::-webkit-scrollbar { width:5px; height:5px; }
-      ::-webkit-scrollbar-track { background: #000000; }
-      ::-webkit-scrollbar-thumb { background: #333333; border-radius:10px; }
+
+      /* Inputs */
+      input::placeholder { color: #444 !important; }
+      select option { background: #111; color: #F0F0F0; }
+      input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease !important; }
+      input:focus, select:focus, textarea:focus { outline: none !important; border-color: rgba(232,49,122,0.6) !important; box-shadow: 0 0 0 3px rgba(232,49,122,0.12) !important; }
+      input[type="date"], input[type="month"] { color-scheme: dark; }
+      input[type="date"]::-webkit-calendar-picker-indicator,
+      input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.6) sepia(1) saturate(5) hue-rotate(290deg); cursor: pointer; }
+      input[type="checkbox"] { cursor: pointer; accent-color: #E8317A; }
+      ::selection { background: rgba(232,49,122,0.25); color: #fff; }
+
+      /* Scrollbars */
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
       ::-webkit-scrollbar-thumb:hover { background: #E8317A; }
-      .drill-down { animation: expandDown 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
-      @keyframes expandDown { from { opacity:0; transform:scaleY(0.95) translateY(-8px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
-      .save-flash { animation: saveFlash 0.6s ease forwards; }
-      @keyframes saveFlash { 0% { box-shadow:0 0 0 0 rgba(22,101,52,0.8); } 50% { box-shadow:0 0 0 14px rgba(22,101,52,0.05); } 100% { box-shadow:none; } }
-      ::selection { background: rgba(232,49,122,0.3); color:#fff; }
+
+      /* Card hover */
+      .card-hover { transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease, border-color 0.18s ease !important; }
+      .card-hover:hover { transform: translateY(-2px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important; border-color: rgba(232,49,122,0.2) !important; }
+
+      /* Buttons */
+      .btn-lift { transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), opacity 0.15s ease !important; }
+      .btn-lift:hover:not(:disabled) { transform: translateY(-1px) scale(1.02) !important; }
+      .btn-lift:active:not(:disabled) { transform: translateY(0) scale(0.98) !important; }
+
+      /* Stat cards */
+      .stat-card { transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease !important; }
+      .stat-card:hover { transform: translateY(-3px) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.6) !important; }
+
+      /* Table rows */
+      .inv-row, .break-row { transition: background 0.1s ease !important; }
+      .inv-row:hover, .break-row:hover { background: rgba(255,255,255,0.03) !important; }
+      .clickable-row { transition: background 0.1s ease !important; cursor: pointer !important; }
+      .clickable-row:hover { background: rgba(255,255,255,0.03) !important; box-shadow: inset 3px 0 0 #E8317A !important; }
+
+      /* Nav */
+      .dash-tab:hover { background: rgba(232,49,122,0.06) !important; color: rgba(232,49,122,0.8) !important; border-bottom: 2px solid rgba(232,49,122,0.4) !important; }
+      .nav-bazooka { transition: opacity 0.2s ease; }
+      .nav-bazooka:hover { opacity: 0.8; }
+
+      /* Animations */
+      @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+      @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+      @keyframes numPop { from { transform:scale(0.8); opacity:0; } to { transform:scale(1); opacity:1; } }
+      @keyframes spin { to { transform:rotate(360deg); } }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+      @keyframes toastIn { from { opacity:0; transform:translateY(20px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+      @keyframes expandDown { from { opacity:0; transform:scaleY(0.96) translateY(-6px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
+      @keyframes saveFlash { 0%{box-shadow:0 0 0 0 rgba(22,101,52,0.6);} 50%{box-shadow:0 0 0 12px rgba(22,101,52,0.02);} 100%{box-shadow:none;} }
+      @keyframes pulsRed { 0%,100%{box-shadow:0 0 0 0 rgba(153,27,27,0.5);} 50%{box-shadow:0 0 0 8px rgba(153,27,27,0);} }
+      @keyframes pulsYellow { 0%,100%{box-shadow:0 0 0 0 rgba(146,64,14,0.4);} 50%{box-shadow:0 0 0 6px rgba(146,64,14,0);} }
+      @keyframes pulsCritical { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.6);} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0.04);} }
+      .toast { animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      .num-pop { animation: numPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      .fade-in { animation: fadeIn 0.25s ease forwards; }
+      .slide-in { animation: slideIn 0.22s cubic-bezier(0.22,1,0.36,1) forwards; }
+      .drill-down { animation: expandDown 0.22s cubic-bezier(0.22,1,0.36,1) forwards; }
+      .save-flash { animation: saveFlash 0.5s ease forwards; }
+      .zone-red { animation: pulsRed 2.5s ease-in-out infinite; }
+      .zone-yellow { animation: pulsYellow 2.5s ease-in-out infinite; }
+      .status-critical { animation: pulsCritical 2s ease-in-out infinite; }
       .boba-flip-card { transform-style: preserve-3d; }
       .boba-flip-card > div { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
       .boba-card-flip { transform-style: preserve-3d; transition: transform 0.5s ease; }
       .boba-card-flip:hover { transform: rotateY(180deg); }
 
-      /* -- MOBILE RESPONSIVE -- */
+      /* Mobile */
       @media (max-width: 768px) {
         .tab-content { padding: 8px !important; }
         table { font-size: 12px !important; }
@@ -386,13 +405,11 @@ function GlobalStyles() {
         .mobile-full { width: 100% !important; grid-template-columns: 1fr !important; }
         .mobile-2col { grid-template-columns: 1fr 1fr !important; }
         .mobile-hide { display: none !important; }
-        input, select, textarea { font-size: 16px !important; } /* prevents iOS zoom */
+        input, select, textarea { font-size: 16px !important; }
       }
-        .mobile-hide { display: none !important; }
-        .mobile-show { display: inline !important; }
-        .nav-tab-label { display: inline; }
-        .nav-tab { padding: 10px 14px !important; font-size: 18px !important; }
-        .tab-content { padding: 10px !important; }
+      .mobile-show { display: inline !important; }
+      .nav-tab-label { display: inline; }
+    `;
         .boba-card-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
         .lot-comp-grid { grid-template-columns: 1fr !important; }
         .seller-intel-panel { display: none !important; }
@@ -907,44 +924,78 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <>
           <div style={{ ...S.card, border:"2px solid #333333" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
-              <SectionLabel t="Financial Overview" />
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }} className="checklist-actions period-btns">
-                {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
-                  <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1A1A2E":"transparent", color:financialPeriod===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${financialPeriod===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+              <div>
+                <SectionLabel t="Financial Overview" />
+                <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
+              </div>
+              <div style={{ display:"flex", gap:4, background:"#0d0d0d", borderRadius:10, padding:4 }}>
+                {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All"],["custom","Custom"]].map(([val,label]) => (
+                  <button key={val} onClick={()=>setFinancialPeriod(val)} style={{ background:financialPeriod===val?"#1a1a1a":"transparent", color:financialPeriod===val?"#E8317A":"#555", border:`1px solid ${financialPeriod===val?"#E8317A33":"transparent"}`, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.15s" }}>{label}</button>
                 ))}
               </div>
             </div>
 
             {financialPeriod === "custom" && (
-              <div style={{ display:"flex", gap:10, marginBottom:16, alignItems:"center" }}>
+              <div style={{ display:"flex", gap:10, marginBottom:14, alignItems:"center" }}>
                 <div><label style={S.lbl}>From</label><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
                 <div><label style={S.lbl}>To</label><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{ ...S.inp, width:"auto" }}/></div>
-                <div style={{ fontSize:12, color:"#AAAAAA", marginTop:14 }}>{filtered.length} stream{filtered.length!==1?"s":""} in range</div>
+                <div style={{ fontSize:12, color:"#555", marginTop:14 }}>{filtered.length} stream{filtered.length!==1?"s":""} in range</div>
               </div>
             )}
 
-            <div style={{ fontSize:11, color:"#AAAAAA", marginBottom:12, fontWeight:600 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
-
-            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
+            <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",       val:totals.gross,                color:"#E8317A", sub:"click for stream breakdown ▼" },
-                { key:"expenses",   label:"Stream Expenses",     val:totals.expenses,             color:"#991b1b", sub:"deducted before split" },
-                { key:"imc",        label:"Owed to IMC",          val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#E8317A", sub:"70% of split base − direct reimbursements" },
-                { key:"bazooka",    label:"Bazooka 30% Split",    val:totals.baz,                  color:"#E8317A", sub:"before commission" },
-                { key:"trueNet",    label:"Bazooka True Net",     val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#6B2D8B", sub:"after commission + expenses" },
-                { key:"commission", label:"Net Commission Owed",  val:totals.comm,                 color:"#4ade80", sub:"after rep expense share" },
-              ].map(({key,label,val,color,sub}) => (
-                <div
-                  key={key}
-                  onClick={()=>setDrillDown(drillDown===key?null:key)}
-                  className="stat-card dash-fin-card"
-                  style={{ background:drillDown===key?"#1A1A2E":"#1a1a1a", border:`2px solid ${drillDown===key?color:color+"22"}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer" }}
-                >
-                  <div style={{ fontSize:26, fontWeight:900, color:drillDown===key?"#FFFFFF":color, marginBottom:4 }}>{fmt(val)}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color:drillDown===key?"#E8317A":"#F0F0F0", marginBottom:3 }}>{label}</div>
-                  <div style={{ fontSize:10, color:drillDown===key?"#888":"#9CA3AF" }}>{drillDown===key?"\u25B2 hide":"\u25BC "+sub}</div>
-                </div>
-              ))}
+                { key:"gross",      label:"Gross Revenue",      val:totals.gross,    color:"#E8317A", icon:"📈", sub:"total across all streams" },
+                { key:"expenses",   label:"Stream Expenses",    val:totals.expenses, color:"#888",    icon:"📦", sub:"before IMC split" },
+                { key:"imc",        label:"Owed to IMC",        val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#7B9CFF", icon:"💙", sub:"70% of split base" },
+                { key:"bazooka",    label:"Bazooka 30%",        val:totals.baz,      color:"#E8317A", icon:"🏦", sub:"before commission" },
+                { key:"trueNet",    label:"True Net",           val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#A78BFA", icon:"✨", sub:"after all deductions" },
+                { key:"commission", label:"Commission Owed",    val:totals.comm,     color:"#4ade80", icon:"💰", sub:"net rep payout" },
+              ].map(({key,label,val,color,icon,sub}) => {
+                const isActive = drillDown === key;
+                const isPositive = val >= 0;
+                return (
+                  <div
+                    key={key}
+                    onClick={()=>setDrillDown(isActive?null:key)}
+                    className="stat-card dash-fin-card"
+                    style={{
+                      background: isActive ? `${color}18` : "#111",
+                      border: `1.5px solid ${isActive ? color : color+"28"}`,
+                      borderRadius: 14,
+                      padding: "14px 14px 12px",
+                      cursor: "pointer",
+                      position: "relative",
+                      transition: "border-color 0.15s",
+                    }}
+                  >
+                    {/* Active indicator */}
+                    {isActive && <div style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:32, height:3, background:color, borderRadius:"0 0 4px 4px" }}/>}
+
+                    {/* Label row */}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.8px" }}>{label}</div>
+                      <div style={{ fontSize:13, opacity:0.7 }}>{icon}</div>
+                    </div>
+
+                    {/* Big number */}
+                    <div style={{ fontSize:22, fontWeight:900, color, lineHeight:1, marginBottom:6, letterSpacing:"-0.5px" }}>
+                      {fmt(val)}
+                    </div>
+
+                    {/* Sub label */}
+                    <div style={{ fontSize:10, color:"#555", marginBottom:8 }}>{sub}</div>
+
+                    {/* Drill affordance */}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4, background: isActive ? `${color}22` : "rgba(255,255,255,0.04)", borderRadius:6, padding:"4px 0" }}>
+                      <span style={{ fontSize:10, fontWeight:700, color: isActive ? color : "#555" }}>
+                        {isActive ? "▲ Hide breakdown" : "▼ See breakdown"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             </div>
 
             {/* IMC Manual Adjustment — per month */}
@@ -2323,56 +2374,84 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           </div>
         </div>
 
-        <div style={S.card}>
-          <SectionLabel t="Lot-Level Controls" />
-          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12, alignItems:"end" }}>
+        {/* ── STICKY OFFER SUMMARY BAR ── */}
+        <div style={{ position:"sticky", top:64, zIndex:200, background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, padding:"12px 16px", marginBottom:12, backdropFilter:"blur(12px)" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(5,1fr)", gap:10, alignItems:"end" }}>
+
+            {/* Buy % */}
             <div>
-              <label style={S.lbl}>Buy % (blank = 60%)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={lotPct}
-                onChange={e => { setLotPct(e.target.value); setFOffer(""); }}
-                placeholder="60"
-                style={{ ...S.inp, fontWeight:700, color: lotPct ? "#1B4F8A" : "#9CA3AF" }}
-              />
+              <label style={{ ...S.lbl, color:"#E8317A" }}>Buy % of Market</label>
+              <div style={{ position:"relative" }}>
+                <input type="text" inputMode="decimal" value={lotPct}
+                  onChange={e => { setLotPct(e.target.value); setFOffer(""); }}
+                  placeholder="60"
+                  style={{ ...S.inp, fontWeight:800, color:"#E8317A", fontSize:15, paddingRight:28, border:"1px solid rgba(232,49,122,0.3)" }}/>
+                <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"#555" }}>%</span>
+              </div>
             </div>
+
+            {/* Override $ */}
             <div>
               <label style={S.lbl}>Override Offer ($)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={finalOffer}
+              <input type="text" inputMode="decimal" value={finalOffer}
                 onChange={e => { setFOffer(e.target.value); setLotPct(""); }}
                 placeholder={totalMkt > 0 ? calcOffer.toFixed(2) : "0.00"}
-                style={{ ...S.inp, fontWeight:700, color: (offerAmt != null && offerAmt > 0) ? "#E8317A" : "#9CA3AF", border: (offerAmt != null && offerAmt > 0) ? "2px solid #E8317A" : "1px solid #F0D0DC" }}
-              />
+                style={{ ...S.inp, fontWeight:700, color:(offerAmt!=null&&offerAmt>0)?"#E8317A":"#9CA3AF", border:(offerAmt!=null&&offerAmt>0)?"1.5px solid rgba(232,49,122,0.5)":"1px solid #2a2a2a" }}/>
             </div>
+
+            {/* Active Offer — big */}
             <div>
               <label style={S.lbl}>Active Offer</label>
-              <div style={{ ...S.inp, background: (counterAmt!=null&&counterAmt>0)?"#FFF9DB":(offerAmt!=null&&offerAmt>0)?"#FFF0F5":"#F9FAFB", color:(counterAmt!=null&&counterAmt>0)?"#92400e":(offerAmt!=null&&offerAmt>0)?"#E8317A":"#166534", fontWeight:900, fontSize:15, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <span>${dispOffer.toFixed(2)}</span>
-                <span style={{ fontSize:10, color:"#AAAAAA", fontWeight:600 }}>{(counterAmt!=null&&counterAmt>0)?"counter":(offerAmt!=null&&offerAmt>0)?"override":`${(dispPct*100).toFixed(0)}%`}</span>
+              <div style={{ background:"rgba(232,49,122,0.08)", border:"1.5px solid rgba(232,49,122,0.25)", borderRadius:8, padding:"8px 14px", display:"flex", alignItems:"baseline", justifyContent:"space-between" }}>
+                <span style={{ fontSize:20, fontWeight:900, color:"#E8317A" }}>${dispOffer.toFixed(2)}</span>
+                <span style={{ fontSize:10, color:"#555" }}>{(dispPct*100).toFixed(0)}%</span>
               </div>
             </div>
+
+            {/* Market value */}
             <div>
-              <label style={S.lbl}>Zone</label>
-              <div style={{ ...S.inp, background:lotZone?.bg||"#F9FAFB", border:`1.5px solid ${lotZone?.color||"#D1D5DB"}`, color:lotZone?.color||"#9CA3AF", fontWeight:700 }}>
-                {lotZone ? lotZone.label : totalMkt > 0 ? "--" : "Add cards first"}
+              <label style={S.lbl}>Total Market Value</label>
+              <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 14px", display:"flex", alignItems:"baseline", justifyContent:"space-between" }}>
+                <span style={{ fontSize:16, fontWeight:700, color:"#888" }}>{totalMkt>0?`$${totalMkt.toFixed(2)}`:"—"}</span>
+                {totalMkt>0&&<span style={{ fontSize:10, color:"#555" }}>{totalCards} card{totalCards!==1?"s":""}</span>}
               </div>
             </div>
+
+            {/* Zone — big color chip */}
+            {(() => {
+              const z = lotZone;
+              const ZONES = {
+                "🟢 Green":  { bg:"rgba(74,222,128,0.1)",  border:"rgba(74,222,128,0.3)",  text:"#4ade80",  label:"Slam Dunk",    sub:"Under 65%" },
+                "🟡 Yellow": { bg:"rgba(251,191,36,0.1)",  border:"rgba(251,191,36,0.3)",  text:"#FBBF24",  label:"Fair Deal",    sub:"65–70%" },
+                "🔴 Red":    { bg:"rgba(239,68,68,0.1)",   border:"rgba(239,68,68,0.3)",   text:"#ef4444",  label:"Stretch",      sub:"Over 70%" },
+              };
+              const zc = z ? ZONES[z.label] : null;
+              return (
+                <div>
+                  <label style={S.lbl}>Zone</label>
+                  <div style={{ background: zc?.bg||"#111", border:`1.5px solid ${zc?.border||"#2a2a2a"}`, borderRadius:8, padding:"6px 14px", textAlign:"center" }}>
+                    {zc ? (
+                      <>
+                        <div style={{ fontSize:14, fontWeight:900, color:zc.text }}>{zc.label}</div>
+                        <div style={{ fontSize:10, color:zc.text, opacity:0.7 }}>{zc.sub} of market</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize:12, color:"#555" }}>{totalMkt>0?"—":"Add cards first"}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-          {(offerAmt != null && offerAmt > 0) && totalMkt > 0 && (
-            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Effective buy rate: <strong style={{ color: lotZone?.color||"#F0F0F0" }}>{(dispPct*100).toFixed(1)}%</strong></span>
-              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear override</button>
-            </div>
-          )}
-          {(offerAmt != null && offerAmt > 0) && totalMkt === 0 && totalCards > 0 && (
-            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-              <span style={{ fontSize:12, color:"#E8317A", fontWeight:700 }}>${(dispOffer/totalCards).toFixed(2)}/card</span>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>equal split across {totalCards} cards (no market values entered)</span>
-              <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#AAAAAA", cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:"inherit" }}>Clear</button>
+
+          {/* Est margin row */}
+          {dispOffer>0 && totalMkt>0 && (
+            <div style={{ display:"flex", gap:16, marginTop:8, paddingTop:8, borderTop:"1px solid #1a1a1a", flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:"#555" }}>Margin <strong style={{ color:"#4ade80" }}>${(totalMkt-dispOffer).toFixed(2)}</strong></span>
+              <span style={{ fontSize:11, color:"#555" }}>Per card <strong style={{ color:"#AAAAAA" }}>{totalCards>0?"$"+(dispOffer/totalCards).toFixed(2):"—"}</strong></span>
+              {(offerAmt!=null&&offerAmt>0) && <button onClick={()=>setFOffer("")} style={{ background:"none", border:"none", color:"#E8317A", cursor:"pointer", fontSize:11, fontFamily:"inherit", textDecoration:"underline" }}>Clear override</button>}
+              {Math.abs(allocationDiff) >= 0.01 && <span style={{ fontSize:11, fontWeight:700, color:allocationDiff>0?"#ef4444":"#FBBF24" }}>{allocationDiff>0?`⚠ $${allocationDiff.toFixed(2)} over offer`:`$${Math.abs(allocationDiff).toFixed(2)} unallocated`}</span>}
+              {Math.abs(allocationDiff) < 0.01 && included.length>0 && <span style={{ fontSize:11, color:"#4ade80" }}>✓ Perfectly balanced</span>}
             </div>
           )}
         </div>
@@ -2575,167 +2654,175 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:750 }}>
-              <thead><tr>{["#","Card Name","Card Type","Qty","Value/Card ($)","Total Value ($)","Cost/Card ($)","Comp %","Offer/Card","Zone","\u2713"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead>
+                <tr style={{ background:"#0d0d0d" }}>
+                  {["#","Card","Type","Qty","Mkt Val","Total","Offer/Card","Override","Zone","✓"].map(h=>(
+                    <th key={h} style={{ ...S.th, fontSize:9, letterSpacing:"0.8px", padding:"8px 10px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {rows.map((r,i) => {
                   const mv  = parseFloat(r.mktVal)||0;
                   const qty = parseInt(r.qty)||1;
-                  const perCardOffer = totalMkt > 0
-                    ? mv * dispPct
-                    : (totalCards > 0 ? dispOffer / totalCards : 0);
-                  const cz = totalMkt > 0 && mv > 0 ? getZone(dispPct) : (totalCards > 0 && dispOffer > 0 ? getZone(dispOffer / (totalCards * 5)) : null);
+                  const perCardOffer = mv > 0 ? getCostPerCard(r) : (totalCards > 0 ? dispOffer / totalCards : 0);
+                  const cardPct = mv > 0 ? perCardOffer / mv : 0;
+                  const isLocked = r.costOverride || r.pctOverride;
+                  // Per-card zone based on what this card actually gets
+                  const cz = mv > 0 && perCardOffer > 0 ? (() => {
+                    const p = cardPct;
+                    if (p < 0.65) return { label:"Dunk",  color:"#4ade80", bg:"rgba(74,222,128,0.12)",  border:"rgba(74,222,128,0.3)" };
+                    if (p <= 0.70) return { label:"Fair",  color:"#FBBF24", bg:"rgba(251,191,36,0.12)",  border:"rgba(251,191,36,0.3)" };
+                    return              { label:"Stretch", color:"#ef4444", bg:"rgba(239,68,68,0.12)",   border:"rgba(239,68,68,0.3)" };
+                  })() : null;
+
                   return (
-                    <tr key={r.id} style={{ background:"#111111", opacity:r.include?1:0.35 }}>
-                      <td style={{ ...S.td, color:"#D1D5DB", width:32, textAlign:"center" }}>{i+1}</td>
-                      <td style={{ ...S.td, width:220, position:"relative" }}>
-                        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-                          {POOL_TYPES.includes(r.cardType) ? (
-                            <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
-                              {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
-                                <select
-                                  value={r.name}
-                                  onChange={e=>{
-                                    if (e.target.value==="__manual__") {
-                                      setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));
-                                    } else {
-                                      upd(r.id,"name",e.target.value);
-                                    }
-                                  }}
-                                  style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}
-                                >
-                                  <option value="">-- Select Pool or Treatment --</option>
-                                  <optgroup label="Your Pools">
-                                    {cardPools.filter(p=>p.cardType===r.cardType).map(p=>(
-                                      <option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label="All Treatments">
-                                    {[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(
-                                      <option key={t} value={t}>{t}</option>
-                                    ))}
-                                  </optgroup>
-                                  <option value="__manual__">✏️ Type manually instead...</option>
-                                </select>
-                              ) : (
-                                <div style={{display:"flex",gap:4,alignItems:"center",flex:1}}>
-                                  <div style={{position:"relative",flex:1}}>
-                                    <input
-                                      value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
-                                      onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
-                                      onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
-                                      onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
-                                      placeholder="Type hero name or card #..."
-                                      style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
-                                    />
-                                    {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
-                                      const raw=(acQuery[r.id]||"").toLowerCase();
-                                      const terms=raw.trim().split(/\s+/).filter(Boolean);
-                                      const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
-                                      if(!hits.length) return null;
-                                      return (
-                                        <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
-                                          {hits.map(c=>{
-                                            const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
-                                            return <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
-                                              style={{padding:"8px 12px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}}
-                                              className="inv-row">{label}</div>;
-                                          })}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                  {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && (
-                                    <button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} title="Back to pool select" style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>
-                                  )}
+                    <tr key={r.id} style={{ background: i%2===0?"#111":"#0d0d0d", opacity:r.include?1:0.4, borderBottom:"1px solid #1a1a1a" }}>
+
+                      {/* # */}
+                      <td style={{ ...S.td, color:"#333", width:28, textAlign:"center", fontSize:11 }}>{i+1}</td>
+
+                      {/* Card name */}
+                      <td style={{ ...S.td, width:200, position:"relative" }}>
+                        {POOL_TYPES.includes(r.cardType) ? (
+                          <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
+                            {cardPools.filter(p=>p.cardType===r.cardType).length > 0 && !r.manualEntry ? (
+                              <select value={r.name} onChange={e=>{ if(e.target.value==="__manual__"){setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:true}:x));} else {upd(r.id,"name",e.target.value);}}}
+                                style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.name?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
+                                <option value="">-- Pool / Treatment --</option>
+                                <optgroup label="Your Pools">{cardPools.filter(p=>p.cardType===r.cardType).map(p=>(<option key={p.id} value={p.cardName}>{p.cardName} ({(parseInt(p.totalQty)||0)-(parseInt(p.usedQty)||0)} avail)</option>))}</optgroup>
+                                <optgroup label="All Treatments">{[...new Set(bobaCards.map(c=>c.treatment).filter(Boolean))].sort().map(t=>(<option key={t} value={t}>{t}</option>))}</optgroup>
+                                <option value="__manual__">✏️ Type manually...</option>
+                              </select>
+                            ) : (
+                              <div style={{display:"flex",gap:4,alignItems:"center",flex:1}}>
+                                <div style={{position:"relative",flex:1}}>
+                                  <input value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
+                                    onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
+                                    onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
+                                    onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                                    placeholder="Type name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}/>
+                                  {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{const raw=(acQuery[r.id]||"").toLowerCase();const hits=bobaCards.filter(c=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(raw)).slice(0,8);if(!hits.length)return null;return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:220,overflowY:"auto"}}>{hits.map(c=>{const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return<div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}} style={{padding:"7px 10px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"#F0F0F0"}} className="inv-row">{label}</div>;})}</div>);})()}
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            // Individual type -- BoBA checklist autocomplete
-                            <>
-                              <div style={{ position:"relative", flex:1 }}>
-                                <input
-                                  value={acOpen === r.id ? (acQuery[r.id] ?? r.name) : r.name}
-                                  onChange={e => {
-                                    setAcOpen(r.id);
-                                    setAcQuery(q => ({ ...q, [r.id]: e.target.value }));
-                                    upd(r.id, "name", e.target.value);
-                                  }}
-                                  onFocus={() => {
-                                    setAcOpen(r.id);
-                                    setAcQuery(q => ({ ...q, [r.id]: r.name }));
-                                  }}
-                                  onBlur={() => setTimeout(() => setAcOpen(p => p === r.id ? null : p), 150)}
-                                  placeholder="Type hero name or card #..."
-                                  style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}
-                                />
-                                {acOpen === r.id && (acQuery[r.id]||"").length >= 1 && (() => {
-                                  const raw = (acQuery[r.id]||"").toLowerCase();
-                                  // Multi-term fuzzy: split on spaces, every term must match somewhere
-                                  const terms = raw.trim().split(/\s+/).filter(Boolean);
-                                  const searchFields = c => [
-                                    c.hero||"", c.weapon||"", c.treatment||"",
-                                    String(c.cardNum||""), c.notation||"", c.setName||""
-                                  ].join(" ").toLowerCase();
-                                  const hits = bobaCards.filter(c =>
-                                    terms.every(t => searchFields(c).includes(t))
-                                  ).sort((a,b) => {
-                                    const aHero = (a.hero||"").toLowerCase();
-                                    const bHero = (b.hero||"").toLowerCase();
-                                    // Exact hero match first, then startsWith, then contains
-                                    const score = h => h === raw ? 0 : h.startsWith(terms[0]) ? 1 : 2;
-                                    return score(aHero) - score(bHero) || aHero.localeCompare(bHero);
-                                  });
-                                  if (hits.length === 0) return null;
-                                  return (
-                                    <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:400, overflowY:"auto" }}>
-                                      <div style={{ padding:"4px 10px", fontSize:10, color:"#555", borderBottom:"1px solid #111" }}>{hits.length} match{hits.length!==1?"es":""}</div>
-                                      {hits.map(c => {
-                                        const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
-                                        const label = [c.hero, c.treatment, c.weapon ? "("+c.weapon+")" : "", c.cardNum ? "#"+c.cardNum : ""].filter(Boolean).join(" -- ");
-                                        return (
-                                          <div key={c.id}
-                                            onMouseDown={() => {
-                                              upd(r.id, "name", label);
-                                              setAcOpen(null);
-                                              setAcQuery(q2 => ({ ...q2, [r.id]: label }));
-                                            }}
-                                            style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", cursor:"pointer", borderBottom:"1px solid #111" }}
-                                            className="inv-row">
-                                            {/* Card image -- large on hover via title tooltip, small inline */}
-                                            <div style={{ position:"relative", flexShrink:0 }}>
-                                              {c.imageUrl
-                                                ? <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4 }}/>
-                                                : <div style={{ width:36, height:48, background:"#2a2a2a", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, color:"#555", textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>
-                                              }
-                                            </div>
-                                            <div style={{ flex:1, minWidth:0 }}>
-                                              <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
-                                              <div style={{ display:"flex", gap:6, fontSize:10, flexWrap:"wrap" }}>
-                                                <span style={{ color:"#555" }}>#{c.cardNum}</span>
-                                                {c.weapon && <span style={{ color:wc, fontWeight:700 }}>{c.weapon}</span>}
-                                                {c.treatment && <span style={{ color:"#888" }}>{c.treatment}</span>}
-                                                {c.setName && <span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
-                                              </div>
-                                            </div>
-                                            {c.power && <span style={{ fontSize:16, fontWeight:900, color:wc, flexShrink:0 }}>{c.power}</span>}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                })()}
+                                {cardPools.filter(p=>p.cardType===r.cardType).length>0&&<button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>}
                               </div>
-                              {r.name.trim() && (
-                                <a
-                                  href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Search on 130point"
-                                  style={{ background:"#111111", color:"#E8317A", border:"1.5px solid #E8317A44", borderRadius:6, padding:"4px 8px", fontSize:11, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, display:"inline-flex", alignItems:"center" }}
-                                >{"\uD83D\uDD0D"}</a>
-                              )}
-                            </>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                            <div style={{ position:"relative", flex:1 }}>
+                              <input value={acOpen===r.id?(acQuery[r.id]??r.name):r.name}
+                                onChange={e=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:e.target.value}));upd(r.id,"name",e.target.value);}}
+                                onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
+                                onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
+                                placeholder="Hero name or card #..."
+                                style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}/>
+                              {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{
+                                const raw=(acQuery[r.id]||"").toLowerCase();
+                                const terms=raw.trim().split(/\s+/).filter(Boolean);
+                                const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).sort((a,b)=>{const s=h=>h.toLowerCase()===raw?0:h.toLowerCase().startsWith(terms[0])?1:2;return s(a.hero||"")-s(b.hero||"");}).slice(0,10);
+                                if(!hits.length)return null;
+                                return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:260,overflowY:"auto"}}>
+                                  {hits.map(c=>{const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return(
+                                    <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
+                                      style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
+                                      <div style={{flex:1,minWidth:0}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
+                                        <div style={{display:"flex",gap:5,fontSize:10}}>
+                                          {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
+                                          {c.treatment&&<span style={{color:"#666"}}>{c.treatment}</span>}
+                                          {c.cardNum&&<span style={{color:"#444"}}>#{c.cardNum}</span>}
+                                        </div>
+                                      </div>
+                                      {(c.mktValue||c.marketValue)&&<span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</span>}
+                                    </div>);
+                                  })}
+                                </div>);
+                              })()}
+                            </div>
+                            {r.name.trim()&&(
+                              <a href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`} target="_blank" rel="noreferrer"
+                                style={{background:"#111",color:"#E8317A",border:"1px solid #E8317A33",borderRadius:6,padding:"4px 7px",fontSize:11,textDecoration:"none",flexShrink:0}}>🔍</a>
+                            )}
+                          </div>
+                        )}
+                        <button onClick={()=>setRows(p=>p.filter(x=>x.id!==r.id))}
+                          style={{position:"absolute",top:6,right:6,background:"none",border:"none",color:"#333",cursor:"pointer",fontSize:13,padding:2,lineHeight:1}} title="Remove row">×</button>
+                      </td>
+
+                      {/* Type */}
+                      <td style={{ ...S.td, width:130 }}>
+                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)}
+                          style={{ ...S.inp, padding:"4px 8px", fontSize:11, color:r.cardType?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
+                          <option value="">Type...</option>
+                          {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct.replace(" Cards","")}</option>)}
+                        </select>
+                      </td>
+
+                      {/* Qty */}
+                      <td style={{ ...S.td, width:52 }}>
+                        <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1"
+                          style={{ ...S.inp, padding:"4px 6px", fontSize:12, width:44, textAlign:"center" }}/>
+                      </td>
+
+                      {/* Mkt Val */}
+                      <td style={{ ...S.td, width:90 }}>
+                        <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00"
+                          style={{ ...S.inp, padding:"4px 8px", fontSize:12, color:mv?"#AAAAAA":"#333", width:78 }}/>
+                      </td>
+
+                      {/* Total mkt */}
+                      <td style={{ ...S.td, color:"#555", fontWeight:600, fontSize:12, width:80 }}>
+                        {mv>0 ? `$${(mv*qty).toFixed(2)}` : "—"}
+                      </td>
+
+                      {/* Offer/card — highlighted */}
+                      <td style={{ ...S.td, width:90 }}>
+                        <div style={{ fontWeight:800, fontSize:13, color: isLocked?"#FBBF24":"#E8317A" }}>
+                          ${perCardOffer.toFixed(2)}
+                          {r.pctOverride&&<span style={{fontSize:9,color:"#A78BFA",marginLeft:3}}>%</span>}
+                          {r.costOverride&&<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>}
+                        </div>
+                        {mv>0&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{(cardPct*100).toFixed(0)}% of mkt</div>}
+                      </td>
+
+                      {/* Cost/pct override — two mini inputs */}
+                      <td style={{ ...S.td, width:130 }}>
+                        <div style={{ display:"flex", gap:4 }}>
+                          <input type="text" inputMode="decimal" value={r.costOverride}
+                            onChange={e=>{upd(r.id,"costOverride",e.target.value);if(e.target.value)upd(r.id,"pctOverride","");}}
+                            placeholder="$"
+                            style={{ ...S.inp, padding:"4px 6px", fontSize:11, width:50, color:r.costOverride?"#FBBF24":"#555", border:r.costOverride?"1px solid #FBBF2455":"1px solid #2a2a2a", textAlign:"center" }}/>
+                          <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+                            <input type="number" min="0" max="200" value={r.pctOverride}
+                              onChange={e=>{upd(r.id,"pctOverride",e.target.value);if(e.target.value)upd(r.id,"costOverride","");}}
+                              placeholder="%"
+                              style={{ ...S.inp, padding:"4px 4px", fontSize:11, width:40, color:r.pctOverride?"#A78BFA":"#555", border:r.pctOverride?"1px solid #A78BFA55":"1px solid #2a2a2a", textAlign:"center" }}/>
+                            <span style={{fontSize:10,color:"#555"}}>%</span>
+                          </div>
+                        </div>
+                        {(r.costOverride||r.pctOverride)&&(
+                          <button onClick={()=>{upd(r.id,"costOverride","");upd(r.id,"pctOverride","");}}
+                            style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:10,fontFamily:"inherit",padding:"2px 0"}}>↩ reset</button>
+                        )}
+                      </td>
+
+                      {/* Zone chip */}
+                      <td style={{ ...S.td, width:72 }}>
+                        {cz ? (
+                          <div style={{ background:cz.bg, border:`1px solid ${cz.border}`, borderRadius:6, padding:"3px 8px", textAlign:"center" }}>
+                            <div style={{ fontSize:10, fontWeight:800, color:cz.color }}>{cz.label}</div>
+                          </div>
+                        ) : <span style={{ color:"#333", fontSize:11 }}>—</span>}
+                      </td>
+
+                      {/* Include checkbox */}
+                      <td style={{ ...S.td, textAlign:"center", width:32 }}>
+                        <input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/>
+                      </td>
+                    </tr>
+                  );
+                })}
                           )}
                           {r.name === "__new__" && (
                             <input autoFocus value={r._newName||""} onChange={e=>upd(r.id,"_newName",e.target.value)} onBlur={e=>{ if(e.target.value.trim()) upd(r.id,"name",e.target.value.trim()); }} placeholder="New pool name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1, marginTop:4 }}/>
@@ -2772,19 +2859,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           </div>
           )}
           {!isMobile && <div style={{ marginTop:10 }}><Btn onClick={addRow} variant="ghost">+ Add Row</Btn></div>}
-          {dispOffer > 0 && included.length > 0 && (
-            <div style={{ marginTop:12, padding:"10px 14px", background: Math.abs(allocationDiff) < 0.01 ? "#0a1a0a" : allocationDiff > 0 ? "#1a0a0a" : "#1a1400", border:`1px solid ${Math.abs(allocationDiff)<0.01?"#4ade8033":allocationDiff>0?"#E8317A33":"#FBBF2433"}`, borderRadius:8, display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Offer: <strong style={{color:"#F0F0F0"}}>${dispOffer.toFixed(2)}</strong></span>
-              <span style={{ fontSize:12, color:"#AAAAAA" }}>Allocated: <strong style={{color: Math.abs(allocationDiff)<0.01?"#4ade80":allocationDiff>0?"#E8317A":"#FBBF24"}}>${totalAllocated.toFixed(2)}</strong></span>
-              {Math.abs(allocationDiff) >= 0.01 && (
-                <span style={{ fontSize:12, fontWeight:700, color:allocationDiff>0?"#E8317A":"#FBBF24" }}>
-                  {allocationDiff>0?`⚠ $${allocationDiff.toFixed(2)} over offer`:`$${Math.abs(allocationDiff).toFixed(2)} unallocated (auto-distributed)`}
-                </span>
-              )}
-              {Math.abs(allocationDiff) < 0.01 && <span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Perfectly balanced</span>}
-              {included.some(r=>r.costOverride) && <span style={{fontSize:11,color:"#FBBF24"}}>★ = manual override</span>}
-            </div>
-          )}
         </div>
 
         <div style={{ ...S.card, border:"2px solid #333333" }}>
@@ -4321,6 +4395,23 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
         )}
 
+        {/* Live preview panel + form side by side */}
+        <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+
+        {/* ── LEFT: form ── */}
+        <div style={{ flex:1, minWidth:0 }}>
+
+        {/* Section helper */}
+        {(()=>{
+          const SectionHeader = ({label, icon, sectionKey, open, onToggle}) => (
+            <button onClick={onToggle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"transparent", border:"none", borderBottom:`1px solid ${open?"rgba(232,49,122,0.3)":"#1a1a1a"}`, padding:"10px 2px 8px", cursor:"pointer", fontFamily:"inherit", marginBottom:open?14:8 }}>
+              <span style={{ fontSize:12, fontWeight:800, color:open?"#E8317A":"#888", letterSpacing:"0.5px", textTransform:"uppercase" }}>{icon} {label}</span>
+              <span style={{ fontSize:12, color:open?"#E8317A":"#555" }}>{open?"▲":"▼"}</span>
+            </button>
+          );
+          return null; // helper defined, used below
+        })()}
+
         {/* Breaker + Channel + Date + Break Type */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
@@ -4936,7 +5027,65 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             />
           </div>
         )}
-      </div>}
+      </div>
+
+        </div>{/* end left column */}
+
+        {/* ── RIGHT: live preview panel ── */}
+        {(()=>{
+          const rc = hasRecapData ? calcStream({ ...recap, breaker, date }) : null;
+          const mm = parseFloat(recap.marketMultiple)||0;
+          const mmColor = mm>=1.8?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":mm>0?"#E8317A":"#555";
+          const rate = rc ? rc.rate : 0;
+          return (
+            <div style={{ width:210, flexShrink:0, position:"sticky", top:80 }}>
+              <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, padding:"16px 14px" }}>
+                <div style={{ fontSize:10, fontWeight:800, color:"#555", textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Live Preview</div>
+                {!hasRecapData ? (
+                  <div style={{ textAlign:"center", padding:"20px 0", color:"#333", fontSize:12 }}>Enter gross revenue<br/>to see the math</div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                    {mm > 0 && (
+                      <div style={{ background:`${mmColor}12`, border:`1px solid ${mmColor}33`, borderRadius:8, padding:"6px 10px", display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ fontSize:11, color:mmColor, fontWeight:700 }}>{mm.toFixed(2)}x MM</span>
+                        <span style={{ fontSize:11, color:mmColor, fontWeight:800 }}>{(rate*100).toFixed(0)}% rate</span>
+                      </div>
+                    )}
+                    {[
+                      { l:"Gross",       v:rc.gross,     c:"#F0F0F0" },
+                      { l:"Split Base",  v:rc.splitBase, c:"#888" },
+                      { l:"IMC (70%)",   v:rc.imcNet,    c:"#7B9CFF" },
+                      { l:"Baz (30%)",   v:rc.bazNet,    c:"#E8317A" },
+                      ...(rc.collabAmt>0?[{ l:"Collab cut", v:-rc.collabAmt, c:"#7B9CFF" }]:[]),
+                      { l:"Commission",  v:-rc.commAmt,  c:"#ef4444" },
+                      ...(rc.imcReimb>0?[{ l:"IMC Reimb",  v:rc.imcReimb,  c:"#4ade80" }]:[]),
+                    ].map(({l,v,c},i,arr) => (
+                      <div key={l} style={{ display:"flex", justifyContent:"space-between", paddingBottom:i<arr.length-1?"6px":0, borderBottom:i<arr.length-1?"1px solid #1a1a1a":"none" }}>
+                        <span style={{ fontSize:11, color:"#555" }}>{l}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:c }}>{v<0?"-":""}${Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                      </div>
+                    ))}
+                    <div style={{ background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, padding:"10px", marginTop:2 }}>
+                      <div style={{ fontSize:10, color:"#555", marginBottom:4, textTransform:"uppercase", letterSpacing:"0.5px" }}>Rep payout</div>
+                      <div style={{ fontSize:20, fontWeight:900, color:"#4ade80" }}>
+                        ${(rc.commAmt-(rc.repExpShare||0)+(parseFloat(recap.salesBonus)||0)+(parseFloat(recap.tips)||0)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                      </div>
+                      {(parseFloat(recap.tips)||0)>0&&<div style={{ fontSize:10, color:"#FBBF24", marginTop:3 }}>incl. ${parseFloat(recap.tips).toFixed(2)} tips</div>}
+                      {(parseFloat(recap.salesBonus)||0)>0&&<div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>+ ${parseFloat(recap.salesBonus).toFixed(2)} bonus</div>}
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid #1a1a1a", paddingTop:8 }}>
+                      <span style={{ fontSize:11, color:"#888" }}>True Net</span>
+                      <span style={{ fontSize:14, fontWeight:900, color:"#A78BFA" }}>${rc.bazTrueNet.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        </div>{/* end two-column layout */}
+      }
 
       {/* -- STREAM LOG -- */}
       {!cardsOnly && (() => {
@@ -12312,51 +12461,79 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = c.myComm;
+
+            // Color-code performance by MM
+            const mm = parseFloat(s.marketMultiple)||0;
+            const mmColor = mm>=1.8?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":mm>0?"#E8317A":"#555";
+            const mmBg    = mm>=1.8?"rgba(74,222,128,0.08)":mm>=1.7?"rgba(134,239,172,0.06)":mm>=1.5?"rgba(251,191,36,0.08)":mm>0?"rgba(232,49,122,0.06)":"transparent";
+            const accentColor = isEventOnly?"#A78BFA":isSplitRep?"#FBBF24":"#4ade80";
+
             return (
-              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover" style={{ ...S.card, cursor:"pointer", border: isEventOnly ? "1px solid rgba(167,139,250,0.3)" : isSplitRep ? "1px solid rgba(251,191,36,0.3)" : undefined }}>
-                {/* Row 1: date + breaker + arrow */}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <div style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
-                    <Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge>
-                    {s.binOnly && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
-                    {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
-                    {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
+              <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover"
+                style={{ background:"#111", borderRadius:12, border:`1px solid ${isEventOnly?"rgba(167,139,250,0.25)":isSplitRep?"rgba(251,191,36,0.25)":"#1a1a1a"}`, cursor:"pointer", overflow:"hidden" }}>
+
+                {/* Top accent bar — color = performance */}
+                {mm > 0 && !isEventOnly && <div style={{ height:3, background:mmColor, opacity:0.7 }}/>}
+
+                <div style={{ padding:"12px 14px" }}>
+                  {/* Header row: date + breaker + channel + badges + arrow */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
+                      <span style={{ fontWeight:700, fontSize:13, color:"#F0F0F0" }}>
+                        {new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
+                      </span>
+                      <span style={{ background:bc.bg, color:bc.text, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{s.breaker}</span>
+                      {s.channel && s.channel !== "Bazooka Vault" && <span style={{ fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>📺 {s.channel}</span>}
+                      {s.binOnly && <span style={{ fontSize:10, color:"#888", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
+                      {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
+                      {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
+                      {s.newBuyers>0 && <span style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.08)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
+                    </div>
+                    <span style={{ color:"#333", fontSize:16, flexShrink:0 }}>›</span>
                   </div>
-                  <span style={{ color:"#555", fontSize:16 }}>{"\u203A"}</span>
+
+                  {/* Main numbers grid */}
+                  <div style={{ display:"grid", gridTemplateColumns: isAdmin ? "1.4fr 1fr 1fr 1fr" : "1.4fr 1fr 1fr", gap:8 }}>
+
+                    {/* Gross — largest, most prominent */}
+                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"10px 12px" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0", letterSpacing:"-0.5px" }}>{fmt(c.gross)}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>Gross</div>
+                    </div>
+
+                    {/* Rate + MM — color coded */}
+                    <div style={{ background:mm>0?mmBg:"#0d0d0d", borderRadius:8, padding:"10px 12px", border:`1px solid ${mm>0?mmColor+"22":"transparent"}` }}>
+                      <div style={{ fontSize:15, fontWeight:800, color:mm>0?mmColor:"#888" }}>
+                        {isEventOnly ? "15% evt" : `${(c.rate*100).toFixed(0)}%`}
+                      </div>
+                      {mm > 0 && !s.binOnly && !isEventOnly && (
+                        <div style={{ fontSize:10, color:mmColor, fontWeight:700, marginTop:1 }}>{mm.toFixed(2)}x MM</div>
+                      )}
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:2 }}>Rate</div>
+                    </div>
+
+                    {/* Rep payout — always highlighted */}
+                    <div style={{ background: isEventOnly?"rgba(167,139,250,0.08)":isSplitRep?"rgba(251,191,36,0.08)":"rgba(74,222,128,0.06)", borderRadius:8, padding:"10px 12px", border:`1px solid ${accentColor}22` }}>
+                      <div style={{ fontSize:15, fontWeight:900, color:accentColor }}>{fmt(isEventOnly?myEventFee:myRepNet)}</div>
+                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>
+                        {isEventOnly?"Event Fee":isSplitRep?"Split":"Rep Net"}
+                      </div>
+                    </div>
+
+                    {/* True Net — admin only */}
+                    {isAdmin && (
+                      <div style={{ background:"#0d0d0d", borderRadius:8, padding:"10px 12px" }}>
+                        <div style={{ fontSize:15, fontWeight:700, color:"#A78BFA" }}>{fmt(c.bazTrueNet)}</div>
+                        <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>True Net</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stream name if present */}
+                  {s.streamName && (
+                    <div style={{ marginTop:8, fontSize:10, color:"#555", fontStyle:"italic" }}>{s.streamName}</div>
+                  )}
                 </div>
-                {/* Row 2: key numbers */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom: isAdmin ? 8 : 0 }}>
-                  <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{fmt(c.gross)}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Gross</div>
-                  </div>
-                  <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#AAAAAA" }}>{isEventOnly ? "15% Event" : `${(c.rate*100).toFixed(0)}%${s.marketMultiple&&!s.binOnly?` · ${s.marketMultiple}x`:""}`}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Rate</div>
-                  </div>
-                  <div style={{ background: isEventOnly?"rgba(167,139,250,0.06)":isSplitRep?"rgba(251,191,36,0.06)":"#0a1a0a", borderRadius:8, padding:"8px 10px", border:`1px solid ${isEventOnly?"rgba(167,139,250,0.2)":isSplitRep?"rgba(251,191,36,0.2)":"#4ade8022"}` }}>
-                    <div style={{ fontSize:13, fontWeight:900, color: isEventOnly?"#A78BFA":isSplitRep?"#FBBF24":"#4ade80" }}>{fmt(myRepNet)}</div>
-                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>{isEventOnly?"Event Fee":isSplitRep?"Split Share":"Rep Net"}</div>
-                  </div>
-                </div>
-                {/* Row 3: admin financials */}
-                {isAdmin && (
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                      <div style={{ fontSize:12, fontWeight:700, color:"#E8317A" }}>{fmt(c.bazNet)}</div>
-                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Baz 30%</div>
-                    </div>
-                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                      <div style={{ fontSize:12, fontWeight:700, color:"#6B2D8B" }}>{fmt(c.bazTrueNet)}</div>
-                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>True Net</div>
-                    </div>
-                    <div style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 10px" }}>
-                      <div style={{ fontSize:12, fontWeight:700, color: s.newBuyers>0?"#4ade80":"#333" }}>{s.newBuyers>0?`+${s.newBuyers} 🌱`:"--"}</div>
-                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>New Buyers</div>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })
@@ -22208,7 +22385,7 @@ export default function App() {
         <style>{`
           @keyframes dashGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
           @keyframes dashOrb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-10px) scale(1.05)}}
-          .dash-tab:hover{background:rgba(232,49,122,0.12)!important;color:rgba(255,255,255,0.9)!important;border-color:rgba(232,49,122,0.4)!important;transform:translateY(-1px)}
+          .dash-tab:hover{background:rgba(232,49,122,0.06)!important;color:rgba(232,49,122,0.8)!important;border-bottom:2px solid rgba(232,49,122,0.4)!important}
         `}</style>
 
         {/* Gradient header */}
@@ -22257,7 +22434,7 @@ export default function App() {
             </div>
 
             {/* Tab bar */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:16,overflow:"visible",overflowX:"auto",scrollbarWidth:"none"}}>
+            <div style={{display:"flex",gap:0,flexWrap:"nowrap",overflow:"auto",scrollbarWidth:"none",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
               {ALL_TABS.map(t=>{
                 const menuItems = ({
                 "dashboard": [],
@@ -22308,20 +22485,40 @@ export default function App() {
                 return (
                   <div key={t.id} style={{position:"relative"}} onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoverTab({id:t.id,x:r.left,y:r.bottom})}} onMouseLeave={()=>setTimeout(()=>setHoverTab(null),100)}>
                     <button onClick={()=>setTab(t.id)} className="dash-tab"
-                      style={{background:tab===t.id?"rgba(232,49,122,0.15)":"transparent",color:tab===t.id?"#E8317A":"rgba(255,255,255,0.45)",border:`1.5px solid ${tab===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",backdropFilter:"blur(10px)",transition:"all 0.15s ease",boxShadow:tab===t.id?"0 0 20px rgba(232,49,122,0.2)":"none",display:"flex",alignItems:"center",gap:5}}>
-                      <span className="nav-tab-icon" style={{display:"none"}}>{t.icon}</span>
-                      <span className="nav-tab-label">{t.icon} {t.label}</span>
-                      {menuItems.length>1&&<span style={{fontSize:9,opacity:0.5,marginLeft:2}}>{"\u25BE"}</span>}
+                      style={{
+                        background: tab===t.id ? "rgba(232,49,122,0.12)" : "transparent",
+                        color: tab===t.id ? "#E8317A" : "rgba(255,255,255,0.4)",
+                        border: "none",
+                        borderBottom: tab===t.id ? "2px solid #E8317A" : "2px solid transparent",
+                        borderRadius: 0,
+                        padding: "10px 14px 8px",
+                        fontSize: 12,
+                        fontWeight: tab===t.id ? 700 : 500,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.15s ease",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 3,
+                        minWidth: 60,
+                      }}>
+                      <span style={{fontSize:16,lineHeight:1}}>{t.icon}</span>
+                      <span className="nav-tab-label" style={{fontSize:10,letterSpacing:"0.2px"}}>{t.label}</span>
+                      {menuItems.length>1&&<span style={{fontSize:7,opacity:0.5,lineHeight:1}}>▾</span>}
                     </button>
                     {hoverTab?.id===t.id&&menuItems.length>1&&(
-                      <div onMouseEnter={()=>{}} onMouseLeave={()=>setHoverTab(null)} style={{position:"fixed",top:`${hoverTab?.y??0}px`,left:`${hoverTab?.x??0}px`,background:"rgba(8,0,12,0.97)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:14,padding:"6px",minWidth:180,zIndex:99999,backdropFilter:"blur(24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(232,49,122,0.1)"}}>
+                      <div onMouseEnter={()=>{}} onMouseLeave={()=>setHoverTab(null)} style={{position:"fixed",top:`${hoverTab?.y??0}px`,left:`${hoverTab?.x??0}px`,background:"#0d0d0d",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px",minWidth:190,zIndex:99999,boxShadow:"0 16px 48px rgba(0,0,0,0.8)"}}>
                         {menuItems.map((item,idx)=>(
                           <button key={idx} onClick={item.action}
-                            style={{display:"block",width:"100%",background:"transparent",border:"none",borderRadius:10,padding:"9px 14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
-                            onMouseEnter={e=>e.currentTarget.style.background="rgba(232,49,122,0.1)"}
+                            style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",borderRadius:8,padding:"8px 12px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(232,49,122,0.08)"}
                             onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{item.label}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{item.sub}</div>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:12,fontWeight:600,color:"#F0F0F0"}}>{item.label}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{item.sub}</div>
+                            </div>
                           </button>
                         ))}
                       </div>
