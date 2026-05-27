@@ -2810,37 +2810,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     </tr>
                   );
                 })}
-                          )}
-                          {r.name === "__new__" && (
-                            <input autoFocus value={r._newName||""} onChange={e=>upd(r.id,"_newName",e.target.value)} onBlur={e=>{ if(e.target.value.trim()) upd(r.id,"name",e.target.value.trim()); }} placeholder="New pool name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, flex:1, marginTop:4 }}/>
-                          )}
-                        </div>
-
-                      </td>
-                      <td style={{ ...S.td, width:155 }}>
-                        <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.cardType?"#F0F0F0":"#9CA3AF", cursor:"pointer" }}>
-                          <option value="">Type...</option>
-                          {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct}</option>)}
-                        </select>
-                      </td>
-                      <td style={{ ...S.td, width:70 }}><input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#F0F0F0", width:55 }}/></td>
-                      <td style={{ ...S.td, width:110 }}><input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:"#AAAAAA", width:80 }}/></td>
-                      <td style={{ ...S.td, color:"#AAAAAA", fontWeight:700 }}>${(mv*qty).toFixed(2)}</td>
-                      <td style={{ ...S.td, width:100 }}>
-                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>{upd(r.id,"costOverride",e.target.value); if(e.target.value) upd(r.id,"pctOverride","");}} placeholder="auto" style={{ ...S.inp, padding:"5px 8px", fontSize:12, color:r.costOverride?"#FBBF24":"#555", width:75, border:r.costOverride?"1px solid #FBBF2488":"1px solid #2a2a2a" }}/>
-                      </td>
-                      <td style={{ ...S.td, width:80 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:2 }}>
-                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); if(e.target.value) upd(r.id,"costOverride","");}} placeholder="%" style={{ ...S.inp, padding:"5px 6px", fontSize:12, color:r.pctOverride?"#A78BFA":"#555", width:48, border:r.pctOverride?"1px solid #A78BFA88":"1px solid #2a2a2a" }}/>
-                          <span style={{ fontSize:11, color:"#555" }}>%</span>
-                        </div>
-                      </td>
-                      <td style={{ ...S.td, color: r.pctOverride?"#A78BFA":r.costOverride?"#FBBF24":"#E8317A", fontWeight:700 }}>${getCostPerCard(r).toFixed(2)}{r.pctOverride?<span style={{fontSize:9,color:"#A78BFA",marginLeft:3}}>%</span>:r.costOverride?<span style={{fontSize:9,color:"#FBBF24",marginLeft:3}}>★</span>:""}</td>
-                      <td style={S.td}>{cz?<Badge bg={cz.bg} color={cz.color}>{cz.label}</Badge>:<span style={{color:"#D1D5DB"}}>--</span>}</td>
-                      <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={r.include} onChange={e=>upd(r.id,"include",e.target.checked)}/></td>
-                    </tr>
-                  );
-                })}
               </tbody>
             </table>
           </div>
