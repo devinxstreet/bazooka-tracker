@@ -1674,6 +1674,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
+  useEffect(() => { setCompMode(defaultMode); }, [defaultMode]);
   useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
