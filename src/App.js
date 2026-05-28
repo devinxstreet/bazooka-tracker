@@ -5011,14 +5011,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       </div>
                     )}
                     {[
-                      { l:"Gross",       v:rc.gross,     c:"#F0F0F0" },
-                      { l:"Split Base",  v:rc.splitBase, c:"#888" },
-                      { l:"IMC (70%)",   v:rc.imcNet,    c:"#7B9CFF" },
-                      { l:"Baz (30%)",   v:rc.bazNet,    c:"#E8317A" },
-                      ...(rc.collabAmt>0?[{ l:"Collab cut", v:-rc.collabAmt, c:"#7B9CFF" }]:[]),
-                      { l:"Commission",  v:-rc.commAmt,  c:"#ef4444" },
-                      ...(rc.imcReimb>0?[{ l:"IMC Reimb",  v:rc.imcReimb,  c:"#4ade80" }]:[]),
-                    ].map(({l,v,c},i,arr) => (
+                      { l:"Gross",       v:rc.gross,          c:"#F0F0F0" },
+                      { l:"Split Base",  v:rc.splitBase,      c:"#888" },
+                      { l:"IMC (70%)",   v:rc.imcNet,         c:"#7B9CFF" },
+                      { l:"Baz (30%)",   v:rc.bazNet,         c:"#E8317A" },
+                      ...(rc.collabAmt>0?[{ l:"Collab cut",   v:-rc.collabAmt,        c:"#7B9CFF" }]:[]),
+                      { l:"Commission",  v:-rc.primaryCommAmt, c:"#ef4444" },
+                      { l:"Exp share",   v:-rc.repExpShare,    c:"#ef4444" },
+                      ...(rc.imcReimb>0?[{ l:"IMC Reimb",     v:rc.imcReimb,          c:"#4ade80" }]:[]),
+                    ].filter(x=>x.v!==0).map(({l,v,c},i,arr) => (
                       <div key={l} style={{ display:"flex", justifyContent:"space-between", paddingBottom:i<arr.length-1?"6px":0, borderBottom:i<arr.length-1?"1px solid #1a1a1a":"none" }}>
                         <span style={{ fontSize:11, color:"#555" }}>{l}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:c }}>{v<0?"-":""}${Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
@@ -5027,7 +5028,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     <div style={{ background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, padding:"10px", marginTop:2 }}>
                       <div style={{ fontSize:10, color:"#555", marginBottom:4, textTransform:"uppercase", letterSpacing:"0.5px" }}>Rep payout</div>
                       <div style={{ fontSize:20, fontWeight:900, color:"#4ade80" }}>
-                        ${(rc.commAmt-(rc.repExpShare||0)+(parseFloat(recap.salesBonus)||0)+(parseFloat(recap.tips)||0)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                        ${rc.myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
                       </div>
                       {(parseFloat(recap.tips)||0)>0&&<div style={{ fontSize:10, color:"#FBBF24", marginTop:3 }}>incl. ${parseFloat(recap.tips).toFixed(2)} tips</div>}
                       {(parseFloat(recap.salesBonus)||0)>0&&<div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>+ ${parseFloat(recap.salesBonus).toFixed(2)} bonus</div>}
