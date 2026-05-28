@@ -3366,7 +3366,10 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [search,   setSearch]   = useState("");
   const debouncedSearch = useDebounce(search, 250);
   const [typeF,    setTypeF]    = useState("");
-  const [statusF,  setStatusF]  = useState("available");
+  const [statusF,  setStatusF]  = useState("all");
+
+  const transitCards = inventory.filter(c => c.cardStatus === "in_transit");
+  const transitCount = transitCards.length;
   const [sortInv,  setSortInv]  = useState("date");
   const [logOutCard, setLogOutCard] = useState(null);
   const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
@@ -3864,9 +3867,18 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               <option value="cost_desc">{"Sort: Cost High\u2192Low"}</option>
               <option value="cost_asc">{"Sort: Cost Low\u2192High"}</option>
             </select>
+            {transitCount > 0 && (
+              <div onClick={()=>setStatusF("in_transit")} style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"8px 14px", marginBottom:10, cursor:"pointer" }}>
+                <span style={{ fontSize:16 }}>🚚</span>
+                <span style={{ fontSize:13, fontWeight:700, color:"#FBBF24" }}>{transitCount} card{transitCount!==1?"s":""} awaiting delivery</span>
+                <span style={{ fontSize:11, color:"#888", marginLeft:"auto" }}>Click to view →</span>
+              </div>
+            )}
             <div style={{ display:"flex", gap:4 }}>
-              {[["available","\u2705 Available"],["in_transit","\uD83D\uDE9A In Transit"],["used","\uD83D\uDD34 Used"],["all","All"]].map(([val,label]) => (
-                <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{label}</button>
+              {[["available","✅ Available"],["in_transit","🚚 In Transit"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
+                <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  {label}{val==="in_transit"&&transitCount>0?<span style={{ marginLeft:5, background:"#FBBF24", color:"#000", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{transitCount}</span>:""}
+                </button>
               ))}
             </div>
             <span style={{ color:"#AAAAAA", fontSize:12 }}>{filtered.length} cards</span>
