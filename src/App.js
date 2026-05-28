@@ -1852,7 +1852,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   }
 
   function saveComp(status) {
+    if (!onSaveComp) { alert("Save not available — please refresh and try again."); return; }
+    if (included.length === 0) { alert("Add at least one card before saving."); return; }
     onSaveComp({
+      id: loadedCompId || undefined,
       seller:seller.name, contact:seller.contact, date:seller.date||new Date().toLocaleDateString(),
       source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle, totalCards, totalMarket:totalMkt,
       offer:dispOffer, blendedPct:totalMkt>0?dispOffer/totalMkt:0,
@@ -22018,9 +22021,20 @@ export default function App() {
   }
 
   async function handleSaveComp(comp) {
-    const id = uid();
-    await setDoc(doc(db,"comps",id), { ...comp, id, dateAdded:new Date().toISOString(), savedBy:user?.displayName||"Unknown" });
-    showToast("\uD83D\uDCBE Comp saved");
+    try {
+      const id = comp.id || uid();
+      await setDoc(doc(db,"comps",id), {
+        ...comp,
+        id,
+        dateAdded: comp.dateAdded || new Date().toISOString(),
+        savedBy: user?.displayName || "Unknown",
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      showToast("\uD83D\uDCBE Comp saved");
+    } catch(err) {
+      console.error("Save comp error:", err);
+      showToast("❌ Failed to save comp — check connection");
+    }
   }
 
   async function handleDeleteComp(id) { await deleteDoc(doc(db,"comps",id)); showToast("\uD83D\uDDD1 Comp deleted"); }
