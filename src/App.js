@@ -1867,16 +1867,18 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   function doAccept() {
     if (included.length === 0) return;
     const cards = [];
+    const lotDate = seller.date || new Date().toISOString().split("T")[0]; // always ISO YYYY-MM-DD
+    const lotSeller = seller.name?.trim() || "Unknown Seller";
     included.forEach(r => {
       const qty = parseInt(r.qty)||1;
       const mv  = parseFloat(r.mktVal)||0;
       const cardName = (r.name === "__new__" || r.name === "__manual__") ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
       const costPerCard = getCostPerCard(r);
       for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:seller.date||new Date().toLocaleDateString(), source:seller.source, seller:seller.name, payment:seller.payment, dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:lotDate, source:seller.source||"", seller:lotSeller, payment:seller.payment||"", paymentHandle:seller.paymentHandle||"", dateAdded:new Date().toISOString() });
       }
     });
-    onAccept(cards, seller, user, custNote);
+    onAccept(cards, { ...seller, name:lotSeller, date:lotDate }, user, custNote);
   }
 
   if (custView) return (
@@ -3485,8 +3487,15 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
         {invTab==="lots" && (() => {
           const lots = {};
           inventory.forEach(c => {
-            const key = `${c.seller||"Unknown"}__${c.date||"Unknown"}`;
-            if (!lots[key]) lots[key] = { key, seller:c.seller||"Unknown", date:c.date||"Unknown", source:c.source||"--", payment:c.payment||"--", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"--" };
+            // Normalize date to YYYY-MM-DD so locale dates (5/28/2026) and ISO dates group together
+            let normDate = c.date || "Unknown";
+            if (normDate !== "Unknown") {
+              const d = new Date(normDate);
+              if (!isNaN(d)) normDate = d.toISOString().split("T")[0];
+            }
+            const sellerName = c.seller?.trim() || "Unknown Seller";
+            const key = `${sellerName}__${normDate}`;
+            if (!lots[key]) lots[key] = { key, seller:sellerName, date:normDate, source:c.source||"--", payment:c.payment||"--", lotPaid:c.lotTotalPaid||0, cards:[], addedBy:c.addedBy||"--" };
             lots[key].cards.push(c);
           });
           const lotList = Object.values(lots).sort((a,b) => new Date(b.date)-new Date(a.date));
