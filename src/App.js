@@ -8,7 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
-const BREAKERS = ["Dev","Dre","Krystal","Orbital Society"];
+const BREAKERS = ["Dev","Dre","Krystal","BigU","Orbital Society"];
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
@@ -100,6 +100,7 @@ const ROLES = {
   "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
+  "bigu":    { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
@@ -121,6 +122,7 @@ const BC = {
   Dev:     { bg:"#0a0a1a", text:"#7B9CFF", border:"#3730a3" },
   Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
   Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
+  BigU:    { bg:"#1a0e00", text:"#FB923C", border:"#9a3412" },
   "Orbital Society": { bg:"#0a1a10", text:"#34d399", border:"#065f46" },
 };
 const CAN_DELETE        = ["Admin"];
@@ -21030,7 +21032,8 @@ function PublicQuote({ quoteId }) {
           </div>
         )}
 
-        {/* Ship-to */}
+        {/* Ship-to — only show before acceptance */}
+        {quote.status !== "accepted" && !submitted && (
         <div style={{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 18px", marginBottom:12 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Ship Cards To</div>
           <div style={{ fontSize:13, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
@@ -21039,10 +21042,125 @@ function PublicQuote({ quoteId }) {
             Warsaw, IN 46582
           </div>
         </div>
+        )}
 
-        {submitted && (
-          <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:12, padding:"20px", textAlign:"center" }}>
-            <div style={{ fontSize:28, marginBottom:8 }}>{"\u2705"}</div>
+        {/* Already accepted — show ship-to reminder */}
+        {quote.status === "accepted" && !submitted && (
+          <div style={{ background:"#0a1a0a", border:"1px solid rgba(74,222,128,0.2)", borderRadius:14, padding:"20px 22px", marginBottom:12 }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14 }}>✅ You already accepted this offer</div>
+            <div style={{ fontSize:14, color:"#888", marginBottom:14 }}>Here's a reminder of what to do next:</div>
+            <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"14px 16px", marginBottom:12 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#555", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>📦 Ship your cards to</div>
+              <div style={{ fontSize:14, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>Devin — Bazooka Breaks<br/>425 Prosperity Dr<br/>Warsaw, IN 46582</div>
+            </div>
+            <div style={{ fontSize:13, color:"#666", lineHeight:1.7 }}>
+              Use top loaders and a tracked shipping method. Once sent, share your tracking number with us on Discord at <strong style={{ color:"#888" }}>BubbleGumKing</strong> or via Whatnot.<br/><br/>
+              Payment of <strong style={{ color:"#4ade80" }}>${offer.toFixed(2)}</strong> will be sent once your cards arrive and are verified.
+            </div>
+          </div>
+        )}
+
+        {submitted && quote.status === "accepted" && (
+          <div style={{ marginBottom:16 }}>
+            {/* Big confirmation */}
+            <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:16, padding:"28px 24px", textAlign:"center", marginBottom:16 }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>🎉</div>
+              <div style={{ fontSize:22, fontWeight:900, color:"#4ade80", marginBottom:6 }}>Offer Accepted!</div>
+              <div style={{ fontSize:14, color:"#888", marginBottom:16 }}>You've locked in <strong style={{ color:"#F0F0F0" }}>${offer.toFixed(2)}</strong> for your {quote.totalCards || (quote.cards||[]).length} cards.</div>
+              <div style={{ background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:10, padding:"12px 16px", fontSize:13, color:"#4ade80", fontWeight:700 }}>
+                Bazooka Breaks has been notified and will follow up shortly.
+              </div>
+            </div>
+
+            {/* Step-by-step next steps */}
+            <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:14, padding:"20px 22px", marginBottom:12 }}>
+              <div style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:16 }}>What Happens Next</div>
+
+              {[
+                {
+                  step:"1",
+                  icon:"📦",
+                  title:"Pack your cards carefully",
+                  body:"Use top loaders or card sleeves for each card. Put them in a small box or padded envelope — avoid using plain envelopes alone. Include a note with your name inside the package.",
+                  color:"#7B9CFF"
+                },
+                {
+                  step:"2",
+                  icon:"🚚",
+                  title:"Ship to Bazooka Breaks",
+                  body:"Send your cards to the address below. We recommend using USPS First Class or Priority Mail with tracking so you can confirm delivery. Once shipped, send us your tracking number on Discord or via the contact below.",
+                  color:"#FBBF24",
+                  extra: (
+                    <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"12px 14px", marginTop:8 }}>
+                      <div style={{ fontSize:11, color:"#555", fontWeight:700, marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Ship To</div>
+                      <div style={{ fontSize:14, color:"#F0F0F0", fontWeight:700, lineHeight:1.8 }}>
+                        Devin — Bazooka Breaks<br/>
+                        425 Prosperity Dr<br/>
+                        Warsaw, IN 46582
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  step:"3",
+                  icon:"✅",
+                  title:"We receive and verify your cards",
+                  body:"Once your package arrives we'll verify everything matches the lot. This usually takes 1–2 business days after delivery.",
+                  color:"#4ade80"
+                },
+                {
+                  step:"4",
+                  icon:"💸",
+                  title:"You get paid",
+                  body:`Payment will be sent via ${(quote.seller?.payment || payment) || "your selected method"} after we confirm the cards. Keep an eye on your ${(quote.seller?.payment || payment) === "PayPal" ? "PayPal inbox" : (quote.seller?.payment || payment) === "Zelle" ? "Zelle / bank account" : "payment account"}.`,
+                  color:"#4ade80"
+                },
+              ].map(({ step, icon, title, body, color, extra }) => (
+                <div key={step} style={{ display:"flex", gap:14, paddingBottom:16, marginBottom:16, borderBottom:"1px solid #1a1a1a" }}>
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:`${color}18`, border:`1.5px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{icon}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                      <span style={{ fontSize:10, fontWeight:800, color:color, background:`${color}18`, borderRadius:10, padding:"1px 8px" }}>Step {step}</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:"#F0F0F0" }}>{title}</span>
+                    </div>
+                    <div style={{ fontSize:13, color:"#666", lineHeight:1.6 }}>{body}</div>
+                    {extra}
+                  </div>
+                </div>
+              ))}
+
+              {/* Final reassurance row */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(123,156,255,0.06)", border:"1px solid rgba(123,156,255,0.15)", borderRadius:10, padding:"12px 14px" }}>
+                <span style={{ fontSize:20 }}>💬</span>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#7B9CFF", marginBottom:2 }}>Questions? Reach out anytime.</div>
+                  <div style={{ fontSize:12, color:"#555" }}>Find us on Discord as <strong style={{ color:"#888" }}>BubbleGumKing</strong> or message us on Whatnot.</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary card */}
+            <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 18px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:11, color:"#555", marginBottom:2 }}>Your payout</div>
+                <div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>${offer.toFixed(2)}</div>
+              </div>
+              {(quote.seller?.payment || payment) && (
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:2 }}>Via</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0" }}>{quote.seller?.payment || payment}</div>
+                  {(quote.seller?.paymentHandle || paymentHandle) && (
+                    <div style={{ fontSize:12, color:"#888" }}>{quote.seller?.paymentHandle || paymentHandle}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {submitted && quote.status !== "accepted" && (
+          <div style={{ background:"#0a1a0a", border:"2px solid #4ade80", borderRadius:12, padding:"20px", textAlign:"center", marginBottom:16 }}>
+            <div style={{ fontSize:28, marginBottom:8 }}>✅</div>
             <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>Response sent!</div>
             <div style={{ fontSize:12, color:"#555", marginTop:6 }}>Bazooka Breaks will be in touch soon.</div>
           </div>
