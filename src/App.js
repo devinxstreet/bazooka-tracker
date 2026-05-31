@@ -8878,6 +8878,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       Dev:     { from:"#4f46e5", to:"#7c3aed", dot:"#818cf8" },
       Dre:     { from:"#7c3aed", to:"#a855f7", dot:"#c084fc" },
       Krystal: { from:"#0d9488", to:"#0891b2", dot:"#2dd4bf" },
+      BigU:    { from:"#c2410c", to:"#ea580c", dot:"#fb923c" },
       "Orbital Society": { from:"#065f46", to:"#0d9488", dot:"#34d399" },
     };
 
@@ -9051,29 +9052,40 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 {dayPlans.slice(0,compact?1:3).map((p,pi)=>{
                   const bg = BREAKER_GRADIENTS[p.breaker];
                   const missed = isMissed && !streams.find(s=>s.date===ds&&s.breaker===p.breaker);
+                  const products = (p.products||[]).filter(x=>x.type&&x.qty);
+                  const totalBoxes = products.reduce((s,x)=>s+(parseInt(x.qty)||0),0);
                   return (
                     <div key={p.id} className="cal-chip" style={{
-                      fontSize:8,fontWeight:700,
+                      fontSize:8, fontWeight:700,
                       color: missed ? "#FBBF24" : "#fff",
                       background: missed
-                        ? "linear-gradient(90deg,rgba(120,80,0,0.6),rgba(80,50,0,0.6))"
-                        : bg ? `linear-gradient(90deg,${bg.from}88,${bg.to}88)` : "rgba(255,255,255,0.07)",
-                      border: missed ? "1px solid rgba(251,191,36,0.3)" : `1px solid ${bg?bg.dot+"33":"rgba(255,255,255,0.1)"}`,
-                      borderRadius:4,padding:"2px 5px",marginBottom:2,
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                        ? "linear-gradient(90deg,rgba(120,80,0,0.7),rgba(80,50,0,0.7))"
+                        : bg ? `linear-gradient(135deg,${bg.from}cc,${bg.to}cc)` : "rgba(255,255,255,0.08)",
+                      border: missed ? "1px solid rgba(251,191,36,0.4)" : `1px solid ${bg?bg.dot+"44":"rgba(255,255,255,0.12)"}`,
+                      borderLeft: bg ? `3px solid ${bg.dot}` : undefined,
+                      borderRadius:4, padding:"3px 5px", marginBottom:2,
+                      overflow:"hidden", whiteSpace:"nowrap",
                       animationDelay:`${(pi+1)*0.05}s`,
-                      display:"flex",alignItems:"center",gap:3,
                     }}>
-                      {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName||p.breaker||"Plan"}{p.startTime?` · ${p.startTime}`:""}{p.endTime?`–${p.endTime}`:""}</span>
-                      {/* Staff dots */}
-                      {(p.staffOnDuty||[]).length>0 && canSeeFinancials && (
-                        <div style={{display:"flex",gap:2,marginLeft:"auto",flexShrink:0}}>
-                          {(p.staffOnDuty||[]).slice(0,3).map(sid=>{
-                            const s=OFFICE_STAFF.find(x=>x.id===sid);
-                            return s?<div key={sid} title={s.name} style={{width:4,height:4,borderRadius:"50%",background:s.color}}/>:null;
-                          })}
+                      {/* Row 1: breaker + time */}
+                      <div style={{ display:"flex", alignItems:"center", gap:3, marginBottom: products.length>0?2:0 }}>
+                        {bg && <div style={{width:5,height:5,borderRadius:"50%",background:bg.dot,flexShrink:0,boxShadow:`0 0 3px ${bg.dot}`}}/>}
+                        <span style={{fontWeight:900,fontSize:9,letterSpacing:"0.3px",overflow:"hidden",textOverflow:"ellipsis"}}>{p.breaker||"TBD"}</span>
+                        {p.startTime && <span style={{opacity:0.6,fontSize:7,marginLeft:"auto",flexShrink:0}}>{p.startTime}{p.endTime?`–${p.endTime}`:""}</span>}
+                      </div>
+                      {/* Row 2: sets */}
+                      {products.length > 0 && (
+                        <div style={{ display:"flex", gap:2, flexWrap:"nowrap", overflow:"hidden" }}>
+                          {products.slice(0,3).map((prod,pi2)=>(
+                            <span key={pi2} style={{ background:"rgba(255,255,255,0.12)", borderRadius:3, padding:"1px 4px", fontSize:7, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:60 }}>
+                              {parseInt(prod.qty)>1?`${prod.qty}× `:""}{prod.type?.split(" - ")[0]||prod.type}
+                            </span>
+                          ))}
+                          {products.length > 3 && <span style={{fontSize:7,opacity:0.5}}>+{products.length-3}</span>}
                         </div>
+                      )}
+                      {p.streamName && !products.length && (
+                        <div style={{fontSize:7,opacity:0.6,overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName}</div>
                       )}
                     </div>
                   );
@@ -10810,6 +10822,85 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           {canSeeFinancials && renderMonthProjection()}
           {canSeeFinancials && renderStreamScorecard()}
           {renderCalendar(curYear,curMonth)}
+
+          {/* Weekly product summary — admin only */}
+          {canSeeFinancials && (() => {
+            // Build weeks for current month
+            const days = daysInMonth(curYear,curMonth);
+            const weeks = [];
+            let week = null;
+            for (let d=1; d<=days; d++) {
+              const ds = dateStr(curYear,curMonth,d);
+              const dow = new Date(ds+"T12:00:00").getDay(); // 0=Sun
+              if (!week || dow === 0) {
+                if (week) weeks.push(week);
+                const weekStart = ds;
+                const weekEnd = dateStr(curYear,curMonth,Math.min(d+6-dow,days));
+                week = { label:`Week of ${new Date(weekStart+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}`, start:weekStart, end:weekEnd, plans:[] };
+              }
+              plansForDate(ds).forEach(p => week.plans.push({ ...p, date:ds }));
+            }
+            if (week) weeks.push(week);
+
+            return (
+              <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, padding:"16px 18px", marginTop:12 }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14 }}>📦 Weekly Product Schedule — {MONTH_NAMES[curMonth]}</div>
+                <div style={{ display:"grid", gap:10 }}>
+                  {weeks.map((w,wi) => {
+                    // Aggregate boxes by product type
+                    const byProduct = {};
+                    let totalBoxes = 0;
+                    w.plans.forEach(p => {
+                      (p.products||[]).forEach(prod => {
+                        if (!prod.type) return;
+                        const qty = parseInt(prod.qty)||0;
+                        byProduct[prod.type] = (byProduct[prod.type]||0) + qty;
+                        totalBoxes += qty;
+                      });
+                    });
+                    const breakers = [...new Set(w.plans.map(p=>p.breaker).filter(Boolean))];
+                    const streamCount = w.plans.length;
+
+                    return (
+                      <div key={wi} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:streamCount>0?10:0, flexWrap:"wrap", gap:6 }}>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{w.label}</div>
+                            <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                              {streamCount > 0
+                                ? `${streamCount} stream${streamCount!==1?"s":""} · ${breakers.join(", ")}`
+                                : <span style={{ color:"#333" }}>No streams scheduled</span>}
+                            </div>
+                          </div>
+                          {totalBoxes > 0 && (
+                            <div style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"5px 12px", textAlign:"center" }}>
+                              <div style={{ fontSize:16, fontWeight:900, color:"#7B9CFF" }}>{totalBoxes}</div>
+                              <div style={{ fontSize:9, color:"#555" }}>total boxes</div>
+                            </div>
+                          )}
+                        </div>
+
+                        {Object.keys(byProduct).length > 0 && (
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                            {Object.entries(byProduct).sort((a,b)=>b[1]-a[1]).map(([type,qty])=>(
+                              <div key={type} style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 10px", display:"flex", alignItems:"center", gap:6 }}>
+                                <span style={{ fontSize:11, fontWeight:900, color:"#FBBF24" }}>{qty}×</span>
+                                <span style={{ fontSize:11, color:"#AAAAAA" }}>{type}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {streamCount === 0 && (
+                          <div style={{ fontSize:11, color:"#2a2a2a", fontStyle:"italic" }}>—</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           {canSeeFinancials && renderBestDayPredictor()}
           {canSeeFinancials && renderRevenueTiers()}
           {canSeeFinancials && renderGapAdvisor()}
