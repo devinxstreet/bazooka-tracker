@@ -794,7 +794,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const splitRepComm = s.splitRep ? c.commAmt*(1-splitPct) : 0;
           const eventStaffComm = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,c.bazNet*0.15),0);
           acc.gross    += c.gross;
-          acc.imc      += c.imcNet;
+          acc.imc      += c.imcNet - (c.imcDirectReimb||0);
           acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0) + (c.tips||0);
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
@@ -937,7 +937,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               {[
                 { key:"gross",      label:"Gross Revenue",      val:totals.gross,    color:"#E8317A", icon:"📈", sub:"total across all streams" },
                 { key:"expenses",   label:"Stream Expenses",    val:totals.expenses, color:"#888",    icon:"📦", sub:"before IMC split" },
-                { key:"imc",        label:"Owed to IMC",        val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0) - (totals.imcDirectReimb||0), color:"#7B9CFF", icon:"💙", sub:"70% of split base" },
+                { key:"imc",        label:"Owed to IMC",        val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#7B9CFF", icon:"💙", sub:"70% of split base" },
                 { key:"bazooka",    label:"Bazooka 30%",        val:totals.baz,      color:"#E8317A", icon:"🏦", sub:"before commission" },
                 { key:"trueNet",    label:"True Net",           val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#A78BFA", icon:"✨", sub:"after all deductions" },
                 { key:"commission", label:"Commission Owed",    val:totals.comm,     color:"#4ade80", icon:"💰", sub:"net rep payout" },
@@ -1016,7 +1016,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               const adjNum = parseFloat(adj)||0;
                               // Calc IMC for this month from streams
                               const monthStreams = streams.filter(s=>s.date&&s.date.startsWith(mk));
-                              const calcImc = monthStreams.reduce((s,str)=>{ const c=calcStreamDash(str); return s+c.imcNet; },0);
+                              const calcImc = monthStreams.reduce((s,str)=>{ const c=calcStreamDash(str); return s + c.imcNet - (c.imcDirectReimb||0); },0);
                               return (
                                 <div key={mk} style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr auto",gap:8,alignItems:"center"}}>
                                   <span style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{monthLabel}</span>
