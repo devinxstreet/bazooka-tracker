@@ -4313,10 +4313,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     // Parse buyers for CRM
                     if (onUpsertBuyers) {
                       const buyerMap = {};
-                      const usernameIdx = rawHeaders.indexOf("buyer_username");
-                      const addressIdx  = rawHeaders.indexOf("shipping_address");
-                      const zipIdx      = rawHeaders.indexOf("postal_code");
-                      const couponCodeIdx = rawHeaders.indexOf("coupon_code");
+                      const usernameIdx    = rawHeaders.indexOf("buyer_username");
+                      const addressIdx     = rawHeaders.indexOf("shipping_address");
+                      const zipIdx         = rawHeaders.indexOf("postal_code");
+                      const couponCodeIdx  = rawHeaders.indexOf("coupon_code");
+                      const couponPriceIdx = rawHeaders.indexOf("coupon_price");
                       for (let i=1; i<lines.length; i++) {
                         const cols=[]; let cur="", inQuote=false;
                         for (const ch of lines[i]) {
@@ -4336,13 +4337,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         const state = parts[parts.length-3]||"";
                         const zip   = cols[zipIdx]||"";
                         const spend = parseFloat(cols[origIdx]||0)||0;
-                        const couponCode = (cols[couponCodeIdx]||"").trim().toUpperCase();
+                        const couponCode     = (cols[couponCodeIdx]||"").trim().toUpperCase();
+                        const couponDiscount = couponPriceIdx>=0 ? Math.abs(parseFloat(cols[couponPriceIdx]||0)||0) : 0;
                         const hasCoupon = !!couponCode;
-                        if (!buyerMap[username]) buyerMap[username] = { username, fullName, city, state, zip, spend:0, orders:0, couponCount:0, couponsUsed:[], date:streamDate };
+                        if (!buyerMap[username]) buyerMap[username] = { username, fullName, city, state, zip, spend:0, orders:0, couponCount:0, couponDiscount:0, couponsUsed:[], date:streamDate };
                         buyerMap[username].spend += spend;
                         buyerMap[username].orders++;
                         if (hasCoupon) {
                           buyerMap[username].couponCount++;
+                          buyerMap[username].couponDiscount += couponDiscount;
                           if (!buyerMap[username].couponsUsed.includes(couponCode)) {
                             buyerMap[username].couponsUsed.push(couponCode);
                           }
@@ -6357,8 +6360,78 @@ function CampaignTracker({ buyers=[], streams=[] }) {
 
   const [backfillCode,    setBackfillCode]    = useState("");
   const [backfilling,     setBackfilling]     = useState(false);
+  const [importing,       setImporting]       = useState(false);
+  const [importMsg,       setImportMsg]       = useState(null);
 
-  async function backfillLegacy(code) {
+  // Parse a Whatnot CSV and extract only coupon data — safe to re-import without duplicating spend
+  function importCouponCSV(file) {
+    if (!file) return;
+    setImporting(true); setImportMsg(null);
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(l=>l.trim());
+        if (lines.length < 2) { setImportMsg({ type:"error", text:"File appears empty." }); setImporting(false); return; }
+        const headers = lines[0].split(",").map(h=>h.replace(/"/g,"").toLowerCase().trim());
+        const usernameIdx    = headers.indexOf("buyer_username");
+        const couponCodeIdx  = headers.indexOf("coupon_code");
+        const couponPriceIdx = headers.indexOf("coupon_price");
+        const origIdx        = headers.indexOf("original_item_price");
+        const cancelIdx      = headers.indexOf("cancelled_or_failed");
+        if (usernameIdx===-1||couponCodeIdx===-1) {
+          setImportMsg({ type:"error", text:"Couldn't find buyer_username or coupon_code columns. Make sure this is a Whatnot live sales CSV." });
+          setImporting(false); return;
+        }
+        const byUser = {};
+        for (let i=1; i<lines.length; i++) {
+          const cols=[]; let cur="", inQ=false;
+          for (const ch of lines[i]) {
+            if (ch==='"') inQ=!inQ;
+            else if (ch===","&&!inQ) { cols.push(cur.trim()); cur=""; }
+            else cur+=ch;
+          }
+          cols.push(cur.trim());
+          const cv=(cols[cancelIdx]||"").toLowerCase();
+          if (cv==="true"||cv==="failed") continue;
+          const username=(cols[usernameIdx]||"").trim();
+          if (!username) continue;
+          const code=(cols[couponCodeIdx]||"").trim().toUpperCase();
+          if (!code) continue;
+          const discount=couponPriceIdx>=0?Math.abs(parseFloat(cols[couponPriceIdx]||0)||0):0;
+          const spend=origIdx>=0?parseFloat(cols[origIdx]||0)||0:0;
+          if (!byUser[username]) byUser[username]={ codes:new Set(), discount:0, spend:0 };
+          byUser[username].codes.add(code);
+          byUser[username].discount+=discount;
+          byUser[username].spend+=spend;
+        }
+        const entries=Object.entries(byUser);
+        if (!entries.length) { setImportMsg({ type:"error", text:"No rows with coupon codes found in this file." }); setImporting(false); return; }
+        // Only update coupon fields — don't touch totalSpend/orderCount to avoid duplication
+        let tagged=0;
+        await Promise.all(entries.map(([username,data])=>{
+          const buyer=buyers.find(b=>b.username===username);
+          if (!buyer) return Promise.resolve();
+          const newCodes=[...(buyer.couponsUsed||[]),...[...data.codes]].filter((v,i,a)=>a.indexOf(v)===i);
+          const changed=newCodes.length!==(buyer.couponsUsed||[]).length;
+          if (!changed && !(data.discount>0)) return Promise.resolve();
+          tagged++;
+          return setDoc(doc(db,"buyers",buyer.id),{
+            couponsUsed: newCodes,
+            couponCount: (buyer.couponCount||0)+[...data.codes].filter(c=>!(buyer.couponsUsed||[]).includes(c)).length,
+            couponDiscount: (buyer.couponDiscount||0)+data.discount,
+          },{ merge:true });
+        }));
+        const codes=[...new Set(entries.flatMap(([,d])=>[...d.codes]))];
+        setImportMsg({ type:"success", text:`✅ Updated ${tagged} buyer${tagged!==1?"s":""} with coupon data. Codes found: ${codes.join(", ")}` });
+        if (codes.length===1&&!allCodes.includes(codes[0])) setActiveCode(codes[0]);
+      } catch(err) {
+        setImportMsg({ type:"error", text:"Failed to parse CSV: "+err.message });
+      }
+      setImporting(false);
+    };
+    reader.readAsText(file);
+  }
     if (!code.trim() || !legacyBuyers.length) return;
     if (!window.confirm(`Tag ${legacyBuyers.length} buyers (who used a coupon in past imports) with code "${code}"?`)) return;
     setBackfilling(true);
@@ -6395,9 +6468,11 @@ function CampaignTracker({ buyers=[], streams=[] }) {
     const cohort     = buyers.filter(b => (b.couponsUsed||[]).includes(code));
     const returned   = cohort.filter(b => (b.orderCount||0) > 1);
     const totalSpend = cohort.reduce((s,b)=>s+(b.totalSpend||0),0);
+    const totalDiscount = cohort.reduce((s,b)=>s+(b.couponDiscount||0),0);
     const avgSpend   = cohort.length ? totalSpend/cohort.length : 0;
     const whales     = cohort.filter(b=>(b.totalSpend||0)>=200).length;
     const retPct     = cohort.length ? returned.length/cohort.length*100 : 0;
+    const roi        = totalDiscount > 0 ? totalSpend/totalDiscount : null;
     const isOpen     = activeCode===code;
     const search     = tagSearch[code]||"";
 
@@ -6432,12 +6507,16 @@ function CampaignTracker({ buyers=[], streams=[] }) {
           <div style={{ padding:"0 18px 18px", borderTop:"1px solid #1a1a1a" }}>
 
             {/* Stats */}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, margin:"14px 0" }}>
+            <div style={{ display:"grid", gridTemplateColumns:`repeat(${totalDiscount>0?6:4},1fr)`, gap:8, margin:"14px 0" }}>
               {[
-                { l:"Return Rate", v:`${retPct.toFixed(0)}%`, c:retPct>=40?"#4ade80":retPct>=20?"#FBBF24":"#ef4444" },
-                { l:"Avg Spend",   v:fmt2(avgSpend),          c:"#E8317A" },
-                { l:"Total Spend", v:fmt2(totalSpend),        c:"#7B9CFF" },
-                { l:"$200+ Buyers",v:whales,                  c:"#A78BFA" },
+                { l:"Return Rate",    v:`${retPct.toFixed(0)}%`,  c:retPct>=40?"#4ade80":retPct>=20?"#FBBF24":"#ef4444" },
+                { l:"Avg Spend",      v:fmt2(avgSpend),            c:"#E8317A" },
+                { l:"Total Spend",    v:fmt2(totalSpend),          c:"#7B9CFF" },
+                { l:"$200+ Buyers",   v:whales,                    c:"#A78BFA" },
+                ...(totalDiscount>0 ? [
+                  { l:"Discounts Given", v:fmt2(totalDiscount),   c:"#FBBF24" },
+                  { l:"ROI",             v:roi?`${roi.toFixed(1)}x`:"—", c:roi&&roi>=5?"#4ade80":roi&&roi>=2?"#FBBF24":"#ef4444" },
+                ] : []),
               ].map(({l,v,c})=>(
                 <div key={l} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
@@ -6522,6 +6601,24 @@ function CampaignTracker({ buyers=[], streams=[] }) {
       <div style={{ ...S.card }}>
         <SectionLabel t="🎯 Campaign Tracker"/>
         <div style={{ fontSize:13, color:"#555", marginBottom:16 }}>Track coupon campaigns, see who used them, and measure whether they're bringing back buyers.</div>
+
+        {/* Import CSV for coupon data */}
+        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginBottom:16, padding:"12px 14px", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10 }}>
+          <div style={{ flex:1, minWidth:200 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", marginBottom:2 }}>📂 Import a past CSV to pull coupon data</div>
+            <div style={{ fontSize:11, color:"#555" }}>Only updates coupon tags — won't duplicate spend or order counts</div>
+          </div>
+          <label style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+            {importing ? "⏳ Importing..." : "📂 Import Whatnot CSV"}
+            <input type="file" accept=".csv" style={{ display:"none" }} disabled={importing} onChange={e=>{ if(e.target.files[0]) importCouponCSV(e.target.files[0]); e.target.value=""; }}/>
+          </label>
+        </div>
+        {importMsg && (
+          <div style={{ padding:"10px 14px", background:importMsg.type==="success"?"rgba(74,222,128,0.08)":"rgba(239,68,68,0.08)", border:`1px solid ${importMsg.type==="success"?"rgba(74,222,128,0.2)":"rgba(239,68,68,0.2)"}`, borderRadius:8, fontSize:12, color:importMsg.type==="success"?"#4ade80":"#ef4444", marginBottom:12, display:"flex", justifyContent:"space-between" }}>
+            <span>{importMsg.text}</span>
+            <button onClick={()=>setImportMsg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
+          </div>
+        )}
 
         {/* Create new campaign */}
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -22823,6 +22920,7 @@ export default function App() {
         totalSpend: (prev?.totalSpend || 0) + b.spend,
         orderCount: (prev?.orderCount || 0) + b.orders,
         couponCount: (prev?.couponCount || 0) + (b.couponCount||0),
+        couponDiscount: (prev?.couponDiscount || 0) + (b.couponDiscount||0),
         couponsUsed: [...new Set([...(prev?.couponsUsed||[]), ...(b.couponsUsed||[])])],
         streams: [...new Set([...(prev?.streams||[]), streamId])],
         // Per-stream spend history for period filtering
