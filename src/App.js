@@ -6352,6 +6352,26 @@ function CampaignTracker({ buyers=[], streams=[] }) {
 
   const allCodes = [...new Set(buyers.flatMap(b => b.couponsUsed||[]).filter(Boolean))].sort();
 
+  // Buyers who have couponCount > 0 but no couponsUsed — legacy imports
+  const legacyBuyers = buyers.filter(b => (b.couponCount||0) > 0 && !(b.couponsUsed||[]).length);
+
+  const [backfillCode,    setBackfillCode]    = useState("");
+  const [backfilling,     setBackfilling]     = useState(false);
+
+  async function backfillLegacy(code) {
+    if (!code.trim() || !legacyBuyers.length) return;
+    if (!window.confirm(`Tag ${legacyBuyers.length} buyers (who used a coupon in past imports) with code "${code}"?`)) return;
+    setBackfilling(true);
+    await Promise.all(legacyBuyers.map(b =>
+      setDoc(doc(db,"buyers",b.id), {
+        couponsUsed: [...(b.couponsUsed||[]), code.trim().toUpperCase()],
+      }, { merge:true })
+    ));
+    setBackfilling(false);
+    setBackfillCode("");
+    setActiveCode(code.trim().toUpperCase());
+  }
+
   async function tagBuyer(buyer, code) {
     if (!buyer?.id || !code) return;
     if ((buyer.couponsUsed||[]).includes(code)) return;
@@ -6515,6 +6535,39 @@ function CampaignTracker({ buyers=[], streams=[] }) {
         </div>
         {newCode && allCodes.includes(newCode) && <div style={{ fontSize:11, color:"#FBBF24", marginTop:6 }}>This code already has a campaign</div>}
       </div>
+
+      {/* Legacy backfill banner */}
+      {legacyBuyers.length > 0 && (
+        <div style={{ background:"rgba(251,191,36,0.06)", border:"1.5px solid rgba(251,191,36,0.25)", borderRadius:12, padding:"16px 18px" }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+            <span style={{ fontSize:22, flexShrink:0 }}>⚠️</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:4 }}>
+                {legacyBuyers.length} buyer{legacyBuyers.length!==1?"s":""} used a coupon in past imports but the code wasn't tracked
+              </div>
+              <div style={{ fontSize:12, color:"#888", marginBottom:12, lineHeight:1.6 }}>
+                Older CSV imports saved that a coupon was used but not which code. Enter the coupon code they used and we'll tag all of them at once.
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <input value={backfillCode} onChange={e=>setBackfillCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. FIRSTTIME25"
+                  style={{ ...S.inp, maxWidth:240, fontFamily:"monospace", fontWeight:700, border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24" }}
+                  onKeyDown={e=>{ if(e.key==="Enter") backfillLegacy(backfillCode); }}
+                />
+                <Btn onClick={()=>backfillLegacy(backfillCode)} disabled={!backfillCode.trim()||backfilling}>
+                  {backfilling ? "Tagging..." : `🏷 Tag All ${legacyBuyers.length} Buyers`}
+                </Btn>
+              </div>
+              <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:4 }}>
+                {legacyBuyers.slice(0,12).map(b=>(
+                  <span key={b.id} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:5, padding:"2px 8px", fontSize:11, color:"#FBBF24" }}>{b.username}</span>
+                ))}
+                {legacyBuyers.length > 12 && <span style={{ fontSize:11, color:"#555" }}>+{legacyBuyers.length-12} more</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active campaigns from CSV imports */}
       {allCodes.length === 0 && !activeCode && (
