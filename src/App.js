@@ -4938,8 +4938,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             {recapSaving ? "Saving..." : recapSaved ? "\u2705 Update Recap" : "\uD83D\uDCBE Save Stream Recap"}
           </Btn>
           {recapSaved && (() => {
-            // Build IMC pre-fill URL
-            const formBase = (imcFormUrl||"").trim() || "https://docs.google.com/forms/d/e/1FAIpQLSeElbeOg-0ZsXcKBVA4xuaG0x66H_8qzgjMRLVMvDVHa6DmIA/viewform";
+            // Build IMC pre-fill URL — only use the saved URL from Firestore, no fallback
+            const formBase = (imcFormUrl||"").trim();
             const hobby  = parseInt(recap[`prod_Hobby`])||0;
             const jumbo  = parseInt(recap[`prod_Jumbo`])||0;
             const dmega  = parseInt(recap[`prod_Double Mega`])||0;
@@ -4995,6 +4995,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               [`entry.1117405477`]: "Devin Street",
             });
             const imcUrl = `${formBase}?usp=pp_url&entry.emailAddress=devin%40bazookabreaks.com&${params.toString()}`;
+            if (!formBase) return <span style={{ fontSize:11, color:"#E8317A" }}>⚠ Set IMC Form URL below before submitting</span>;
             return (
               <a href={imcUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#1a0a0f", border:"1.5px solid #E8317A44", color:"#E8317A", borderRadius:9, padding:"8px 16px", fontSize:12, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
                 {"\uD83D\uDCCB Submit to IMC \u2197"}</a>
@@ -5009,14 +5010,21 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         </div>
         {/* IMC Form URL setting -- Admin only */}
         {userRole?.role === "Admin" && (
-          <div style={{ marginTop:12, display:"flex", gap:8, alignItems:"center" }}>
-            <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>IMC Form URL:</span>
-            <input
-              defaultValue={imcFormUrl}
-              onBlur={e=>{ if(onSaveImcFormUrl && e.target.value.trim() !== imcFormUrl) onSaveImcFormUrl(e.target.value.trim()); }}
-              placeholder="Paste new Google Form URL here each month..."
-              style={{ ...S.inp, fontSize:11, padding:"4px 10px", color:"#666" }}
-            />
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>IMC Form URL (updates for all future submissions)</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input
+                key={imcFormUrl}
+                defaultValue={imcFormUrl}
+                onBlur={e=>{ if(onSaveImcFormUrl && e.target.value.trim()) onSaveImcFormUrl(e.target.value.trim()); }}
+                onKeyDown={e=>{ if(e.key==="Enter"&&onSaveImcFormUrl&&e.target.value.trim()) { onSaveImcFormUrl(e.target.value.trim()); e.target.blur(); }}}
+                placeholder="Paste new Google Form URL here..."
+                style={{ ...S.inp, fontSize:11, padding:"6px 10px", color:imcFormUrl?"#7B9CFF":"#555", border:imcFormUrl?"1px solid rgba(123,156,255,0.3)":"1px solid #2a2a2a", flex:1 }}
+              />
+              {imcFormUrl && <span style={{ fontSize:10, color:"#4ade80", whiteSpace:"nowrap" }}>✓ Saved</span>}
+              {!imcFormUrl && <span style={{ fontSize:10, color:"#E8317A", whiteSpace:"nowrap" }}>⚠ No URL set</span>}
+            </div>
+            {imcFormUrl && <div style={{ fontSize:10, color:"#555", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{imcFormUrl}</div>}
           </div>
         )}
 
