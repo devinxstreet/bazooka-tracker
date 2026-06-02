@@ -6195,381 +6195,191 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 // ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
 // ── BUYER RETENTION ──────────────────────────────────────────────────────────
 // ── CAMPAIGN TRACKER ─────────────────────────────────────────────────────────
-function CampaignTracker({ buyers=[], streams=[] }) {
+const CAMPAIGN_CODE = "FIRSTTIME25";
+
+function CampaignTracker({ buyers=[] }) {
   const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const [newCode,      setNewCode]      = useState("");
-  const [tagSearch,    setTagSearch]    = useState({});   // { [code]: searchStr }
-  const [saving,       setSaving]       = useState(null); // code being saved
-  const [activeCode,   setActiveCode]   = useState(null); // expanded campaign
+  const [search,    setSearch]    = useState("");
+  const [saving,    setSaving]    = useState(false);
+  const [importMsg, setImportMsg] = useState(null);
+  const [importing, setImporting] = useState(false);
 
-  const allCodes = [...new Set(buyers.flatMap(b => b.couponsUsed||[]).filter(Boolean))].sort();
+  const tagged   = buyers.filter(b => (b.couponsUsed||[]).includes(CAMPAIGN_CODE));
+  const untagged = buyers.filter(b => !(b.couponsUsed||[]).includes(CAMPAIGN_CODE));
 
-  // Buyers who have couponCount > 0 but no couponsUsed — legacy imports
-  const legacyBuyers = buyers.filter(b => (b.couponCount||0) > 0 && !(b.couponsUsed||[]).length);
+  const totalSpend    = tagged.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalDiscount = tagged.reduce((s,b)=>s+(b.couponDiscount||0),0);
+  const returned      = tagged.filter(b=>(b.orderCount||0)>1);
+  const retPct        = tagged.length ? (returned.length/tagged.length*100) : 0;
+  const roi           = totalDiscount > 0 ? (totalSpend/totalDiscount) : null;
 
-  const [backfillCode,    setBackfillCode]    = useState("");
-  const [backfilling,     setBackfilling]     = useState(false);
-  const [importing,       setImporting]       = useState(false);
-  const [importMsg,       setImportMsg]       = useState(null);
+  const searchResults = search.length > 1
+    ? untagged.filter(b=>(b.username||"").toLowerCase().includes(search.toLowerCase())).slice(0,10)
+    : [];
 
-  function importCouponCSV(file) {
+  async function tagBuyer(buyer) {
+    setSaving(true);
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: [...(buyer.couponsUsed||[]), CAMPAIGN_CODE],
+    }, { merge:true });
+    setSearch("");
+    setSaving(false);
+  }
+
+  async function untagBuyer(buyer) {
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: (buyer.couponsUsed||[]).filter(c=>c!==CAMPAIGN_CODE),
+    }, { merge:true });
+  }
+
+  function importCSV(file) {
     if (!file) return;
     setImporting(true); setImportMsg(null);
     const reader = new FileReader();
     reader.onload = async e => {
       try {
-        const text = e.target.result;
-        const lines = text.split(/\r?\n/).filter(l=>l.trim());
-        if (lines.length < 2) { setImportMsg({ type:"error", text:"File appears empty." }); setImporting(false); return; }
+        const lines = e.target.result.split(/\r?\n/).filter(l=>l.trim());
+        const headers = lines[0].split(",").map(h=>h.replace(/^"|"$/g,"").toLowerCase().trim());
+        const uIdx = headers.findIndex(h=>h.includes("buyer_username")||h==="username");
+        const cIdx = headers.findIndex(h=>h.includes("coupon_code")||h.includes("coupon code"));
+        const dIdx = headers.findIndex(h=>h.includes("coupon_price")||h.includes("coupon_discount")||h.includes("discount"));
+        const xIdx = headers.findIndex(h=>h.includes("cancelled")||h.includes("canceled")||h.includes("failed"));
 
-        // Parse headers — try multiple name variants Whatnot uses
-        const rawHeaders = lines[0].split(",").map(h=>h.replace(/^"|"$/g,"").toLowerCase().trim());
+        if (uIdx===-1) { setImportMsg(`❌ No buyer_username column found. Headers: ${headers.join(", ")}`); setImporting(false); return; }
+        if (cIdx===-1) { setImportMsg(`❌ No coupon_code column found. Headers: ${headers.join(", ")}`); setImporting(false); return; }
 
-        const findCol = (...names) => { for (const n of names) { const i=rawHeaders.indexOf(n); if(i>=0) return i; } return -1; };
-        const usernameIdx    = findCol("buyer_username","username","buyer");
-        const couponCodeIdx  = findCol("coupon_code","coupon code","promo_code","promo code","discount_code");
-        const couponPriceIdx = findCol("coupon_price","coupon price","coupon_discount","discount_amount","discount");
-        const origIdx        = findCol("original_item_price","item_price","price");
-        const cancelIdx      = findCol("cancelled_or_failed","cancelled","canceled","failed");
-
-        // Debug: show what columns were found
-        const foundCols = rawHeaders.join(", ");
-
-        if (usernameIdx===-1) {
-          setImportMsg({ type:"error", text:`Couldn't find username column. Headers found: ${foundCols}` });
-          setImporting(false); return;
-        }
-        if (couponCodeIdx===-1) {
-          setImportMsg({ type:"error", text:`Couldn't find coupon_code column. Headers found: ${foundCols}` });
-          setImporting(false); return;
-        }
-
-        const byUser = {};
-        let totalRows = 0, couponRows = 0;
-
+        const couponUsers = {};
         for (let i=1; i<lines.length; i++) {
-          const cols=[]; let cur="", inQ=false;
-          for (const ch of lines[i]) {
-            if (ch==='"') inQ=!inQ;
-            else if (ch===","&&!inQ) { cols.push(cur.trim()); cur=""; }
-            else cur+=ch;
-          }
+          const cols=[]; let cur="",inQ=false;
+          for (const ch of lines[i]) { if(ch==='"')inQ=!inQ; else if(ch===','&&!inQ){cols.push(cur.trim());cur="";}else cur+=ch; }
           cols.push(cur.trim());
-
-          if (cancelIdx>=0) {
-            const cv=(cols[cancelIdx]||"").toLowerCase();
-            if (cv==="true"||cv==="failed"||cv==="yes") continue;
-          }
-
-          const username=(cols[usernameIdx]||"").replace(/^"|"$/g,"").trim();
-          if (!username) continue;
-          totalRows++;
-
-          const code=(cols[couponCodeIdx]||"").replace(/^"|"$/g,"").trim().toUpperCase();
-          if (!code) continue;
-          couponRows++;
-
-          const discount = couponPriceIdx>=0 ? Math.abs(parseFloat((cols[couponPriceIdx]||"").replace(/[$,]/g,""))||0) : 0;
-
-          if (!byUser[username]) byUser[username]={ codes:new Set(), discount:0 };
-          byUser[username].codes.add(code);
-          byUser[username].discount += discount;
+          if (xIdx>=0&&["true","yes","failed"].includes((cols[xIdx]||"").toLowerCase())) continue;
+          const u = (cols[uIdx]||"").replace(/^"|"$/g,"").trim();
+          const c = (cols[cIdx]||"").replace(/^"|"$/g,"").trim().toUpperCase();
+          if (!u||c!==CAMPAIGN_CODE) continue;
+          const disc = dIdx>=0 ? Math.abs(parseFloat((cols[dIdx]||"").replace(/[$,"]/g,""))||0) : 0;
+          if (!couponUsers[u]) couponUsers[u] = 0;
+          couponUsers[u] += disc;
         }
 
-        const entries = Object.entries(byUser);
+        const found = Object.entries(couponUsers);
+        if (!found.length) { setImportMsg(`⚠️ No rows with ${CAMPAIGN_CODE} found in this file.`); setImporting(false); return; }
 
-        if (!entries.length) {
-          setImportMsg({ type:"error", text:`Found ${totalRows} rows but 0 had a coupon code. The coupon_code column may be empty. Check that buyers actually used a coupon in this stream.` });
-          setImporting(false); return;
-        }
-
-        // Match against existing buyers
-        let tagged=0, notFound=[];
-        await Promise.all(entries.map(([username, data])=>{
+        let tagged=0, missing=[];
+        await Promise.all(found.map(([username, disc]) => {
           const buyer = buyers.find(b=>(b.username||"").toLowerCase()===username.toLowerCase());
-          if (!buyer) { notFound.push(username); return Promise.resolve(); }
-
-          const newCodes = [...new Set([...(buyer.couponsUsed||[]),...[...data.codes]])];
+          if (!buyer) { missing.push(username); return Promise.resolve(); }
           tagged++;
           return setDoc(doc(db,"buyers",buyer.id),{
-            couponsUsed: newCodes,
-            couponCount: newCodes.length,
-            couponDiscount: (buyer.couponDiscount||0)+data.discount,
+            couponsUsed: [...new Set([...(buyer.couponsUsed||[]), CAMPAIGN_CODE])],
+            couponDiscount: (buyer.couponDiscount||0)+disc,
           },{ merge:true });
         }));
 
-        const codes = [...new Set(entries.flatMap(([,d])=>[...d.codes]))];
-        let msg = `✅ Tagged ${tagged} buyer${tagged!==1?"s":""} with ${codes.join(", ")}.`;
-        if (notFound.length) msg += ` ${notFound.length} username${notFound.length!==1?"s":""} not found in CRM (import their stream CSV first): ${notFound.slice(0,5).join(", ")}${notFound.length>5?`... +${notFound.length-5} more`:""}`;
-        if (couponRows===0) msg = `⚠️ ${totalRows} rows found but none had a coupon code.`;
-
-        setImportMsg({ type: tagged>0?"success":"error", text: msg });
-        if (tagged>0 && codes.length===1) setActiveCode(codes[0]);
-      } catch(err) {
-        setImportMsg({ type:"error", text:"Failed to parse: "+err.message });
-      }
+        let msg = `✅ Tagged ${tagged} buyer${tagged!==1?"s":""}`;
+        if (missing.length) msg += ` · ${missing.length} not in CRM yet: ${missing.slice(0,3).join(", ")}${missing.length>3?` +${missing.length-3} more`:""}`;
+        setImportMsg(msg);
+      } catch(err) { setImportMsg("❌ Error: "+err.message); }
       setImporting(false);
     };
     reader.readAsText(file);
   }
 
-  async function backfillLegacy(code) {
-    if (!code.trim() || !legacyBuyers.length) return;
-    if (!window.confirm(`Tag ${legacyBuyers.length} buyers (who used a coupon in past imports) with code "${code}"?`)) return;
-    setBackfilling(true);
-    await Promise.all(legacyBuyers.map(b =>
-      setDoc(doc(db,"buyers",b.id), {
-        couponsUsed: [...(b.couponsUsed||[]), code.trim().toUpperCase()],
-      }, { merge:true })
-    ));
-    setBackfilling(false);
-    setBackfillCode("");
-    setActiveCode(code.trim().toUpperCase());
-  }
-
-  async function tagBuyer(buyer, code) {
-    if (!buyer?.id || !code) return;
-    if ((buyer.couponsUsed||[]).includes(code)) return;
-    setSaving(code);
-    await setDoc(doc(db,"buyers",buyer.id), {
-      couponsUsed: [...(buyer.couponsUsed||[]), code],
-      couponCount: (buyer.couponCount||0)+1,
-    }, { merge:true });
-    setTagSearch(p=>({...p,[code]:""}));
-    setSaving(null);
-  }
-
-  async function untagBuyer(buyer, code) {
-    if (!window.confirm(`Remove ${code} tag from ${buyer.username}?`)) return;
-    await setDoc(doc(db,"buyers",buyer.id), {
-      couponsUsed: (buyer.couponsUsed||[]).filter(c=>c!==code),
-    }, { merge:true });
-  }
-
-  function CampaignCard({ code }) {
-    const cohort     = buyers.filter(b => (b.couponsUsed||[]).includes(code));
-    const returned   = cohort.filter(b => (b.orderCount||0) > 1);
-    const totalSpend = cohort.reduce((s,b)=>s+(b.totalSpend||0),0);
-    const totalDiscount = cohort.reduce((s,b)=>s+(b.couponDiscount||0),0);
-    const avgSpend   = cohort.length ? totalSpend/cohort.length : 0;
-    const whales     = cohort.filter(b=>(b.totalSpend||0)>=200).length;
-    const retPct     = cohort.length ? returned.length/cohort.length*100 : 0;
-    const roi        = totalDiscount > 0 ? totalSpend/totalDiscount : null;
-    const isOpen     = activeCode===code;
-    const search     = tagSearch[code]||"";
-
-    const verdict = retPct>=40 ? { text:"✅ Working — strong return rate", color:"#4ade80", bg:"rgba(74,222,128,0.06)", border:"rgba(74,222,128,0.2)" }
-                  : retPct>=20 ? { text:"🟡 Showing results — keep monitoring", color:"#FBBF24", bg:"rgba(251,191,36,0.06)", border:"rgba(251,191,36,0.2)" }
-                  : cohort.length<5 ? { text:"⏳ Need more data", color:"#7B9CFF", bg:"rgba(123,156,255,0.06)", border:"rgba(123,156,255,0.2)" }
-                  :               { text:"⚠️ Low retention — buyers not returning", color:"#ef4444", bg:"rgba(239,68,68,0.06)", border:"rgba(239,68,68,0.2)" };
-
-    const searchResults = search.length > 1
-      ? buyers.filter(b => b.username?.toLowerCase().includes(search.toLowerCase()) && !(b.couponsUsed||[]).includes(code)).slice(0,8)
-      : [];
-
-    return (
-      <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:14, overflow:"hidden" }}>
-        {/* Header */}
-        <div onClick={()=>setActiveCode(isOpen?null:code)}
-          style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", cursor:"pointer" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ background:"rgba(251,191,36,0.1)", border:"1.5px solid rgba(251,191,36,0.3)", borderRadius:7, padding:"4px 12px", fontFamily:"monospace", fontSize:14, fontWeight:900, color:"#FBBF24" }}>{code}</div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cohort.length} buyer{cohort.length!==1?"s":""} tagged</div>
-              <div style={{ fontSize:11, color:"#555" }}>{returned.length} returned · {fmt2(totalSpend)} total spend</div>
-            </div>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ fontSize:14, fontWeight:900, color:verdict.color }}>{retPct.toFixed(0)}% retention</div>
-            <span style={{ color:"#333", fontSize:14 }}>{isOpen?"▲":"▼"}</span>
-          </div>
-        </div>
-
-        {isOpen && (
-          <div style={{ padding:"0 18px 18px", borderTop:"1px solid #1a1a1a" }}>
-
-            {/* Stats */}
-            <div style={{ display:"grid", gridTemplateColumns:`repeat(${totalDiscount>0?6:4},1fr)`, gap:8, margin:"14px 0" }}>
-              {[
-                { l:"Return Rate",    v:`${retPct.toFixed(0)}%`,  c:retPct>=40?"#4ade80":retPct>=20?"#FBBF24":"#ef4444" },
-                { l:"Avg Spend",      v:fmt2(avgSpend),            c:"#E8317A" },
-                { l:"Total Spend",    v:fmt2(totalSpend),          c:"#7B9CFF" },
-                { l:"$200+ Buyers",   v:whales,                    c:"#A78BFA" },
-                ...(totalDiscount>0 ? [
-                  { l:"Discounts Given", v:fmt2(totalDiscount),   c:"#FBBF24" },
-                  { l:"ROI",             v:roi?`${roi.toFixed(1)}x`:"—", c:roi&&roi>=5?"#4ade80":roi&&roi>=2?"#FBBF24":"#ef4444" },
-                ] : []),
-              ].map(({l,v,c})=>(
-                <div key={l} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
-                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>{l}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Verdict */}
-            <div style={{ background:verdict.bg, border:`1px solid ${verdict.border}`, borderRadius:8, padding:"9px 14px", marginBottom:14, fontSize:12, fontWeight:700, color:verdict.color }}>{verdict.text}</div>
-
-            {/* Manual tag */}
-            <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px", marginBottom:14 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>✋ Manually tag a buyer</div>
-              <div style={{ fontSize:11, color:"#555", marginBottom:8 }}>Search by username — for buyers who forgot to use the coupon</div>
-              <div style={{ position:"relative" }}>
-                <input
-                  value={search}
-                  onChange={e=>setTagSearch(p=>({...p,[code]:e.target.value}))}
-                  placeholder="Type a username..."
-                  style={{ ...S.inp, width:"100%" }}
-                />
-                {searchResults.length > 0 && (
-                  <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:99, maxHeight:200, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
-                    {searchResults.map(b => (
-                      <div key={b.id} onClick={()=>tagBuyer(b,code)}
-                        style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #111" }}
-                        className="inv-row">
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
-                          <div style={{ fontSize:10, color:"#555" }}>{b.orderCount||0} orders · {fmt2(b.totalSpend||0)}</div>
-                        </div>
-                        <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", background:"rgba(232,49,122,0.1)", borderRadius:6, padding:"3px 10px" }}>
-                          {saving===code?"Saving...":"+ Tag"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {search.length > 1 && searchResults.length === 0 && (
-                  <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"12px 14px", fontSize:12, color:"#555" }}>
-                    No untagged buyers matching "{search}"
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Buyer list */}
-            <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Tagged buyers ({cohort.length})</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {cohort.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b => {
-                const hasReturned = (b.orderCount||0) > 1;
-                return (
-                  <div key={b.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0d0d0d", border:`1px solid ${hasReturned?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"9px 14px" }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
-                      <div style={{ fontSize:10, color:"#555", marginTop:1 }}>
-                        {b.orderCount||0} orders · {(b.streams||[]).length} streams
-                        {hasReturned && <span style={{ color:"#4ade80", marginLeft:8 }}>↩ returned</span>}
-                        {!hasReturned && (b.orderCount||0) > 0 && <span style={{ color:"#555", marginLeft:8 }}>no return yet</span>}
-                      </div>
-                    </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <div style={{ fontSize:14, fontWeight:800, color:(b.totalSpend||0)>=200?"#A78BFA":(b.totalSpend||0)>=50?"#E8317A":"#888" }}>{fmt2(b.totalSpend||0)}</div>
-                      <button onClick={()=>untagBuyer(b,code)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                    </div>
-                  </div>
-                );
-              })}
-              {cohort.length === 0 && <div style={{ fontSize:12, color:"#555", textAlign:"center", padding:"20px 0" }}>No buyers tagged yet — use the search above</div>}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12, padding:20 }}>
 
-      {/* Header */}
+      {/* Stats */}
       <div style={{ ...S.card }}>
-        <SectionLabel t="🎯 Campaign Tracker"/>
-        <div style={{ fontSize:13, color:"#555", marginBottom:16 }}>Track coupon campaigns, see who used them, and measure whether they're bringing back buyers.</div>
+        <SectionLabel t={`🎯 ${CAMPAIGN_CODE} Campaign`}/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, marginBottom:16 }}>
+          {[
+            { l:"Buyers Tagged",   v:tagged.length,               c:"#F0F0F0" },
+            { l:"Came Back",       v:`${retPct.toFixed(0)}%`,     c:retPct>=30?"#4ade80":"#FBBF24" },
+            { l:"Total Spend",     v:fmt2(totalSpend),            c:"#7B9CFF" },
+            { l:"Discounts Given", v:fmt2(totalDiscount),         c:"#FBBF24", hide:!totalDiscount },
+            { l:"ROI",             v:roi?`${roi.toFixed(1)}x`:"—", c:roi>=5?"#4ade80":"#E8317A", hide:!roi },
+          ].filter(x=>!x.hide).map(({l,v,c})=>(
+            <div key={l} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
+              <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:4 }}>{l}</div>
+            </div>
+          ))}
+        </div>
 
-        {/* Import CSV for coupon data */}
-        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginBottom:16, padding:"12px 14px", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10 }}>
-          <div style={{ flex:1, minWidth:200 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", marginBottom:2 }}>📂 Import a past CSV to pull coupon data</div>
-            <div style={{ fontSize:11, color:"#555" }}>Only updates coupon tags — won't duplicate spend or order counts</div>
+        {/* Import CSV */}
+        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", padding:"10px 12px", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8 }}>
+          <div style={{ flex:1, minWidth:160 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"#888" }}>Import a Whatnot CSV to auto-tag buyers</div>
+            <div style={{ fontSize:11, color:"#444" }}>Won't duplicate spend data</div>
           </div>
-          <label style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
-            {importing ? "⏳ Importing..." : "📂 Import Whatnot CSV"}
-            <input type="file" accept=".csv" style={{ display:"none" }} disabled={importing} onChange={e=>{ if(e.target.files[0]) importCouponCSV(e.target.files[0]); e.target.value=""; }}/>
+          <label style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+            {importing?"⏳ Importing...":"📂 Import CSV"}
+            <input type="file" accept=".csv" style={{ display:"none" }} disabled={importing} onChange={e=>{ if(e.target.files[0]) importCSV(e.target.files[0]); e.target.value=""; }}/>
           </label>
         </div>
-        {importMsg && (
-          <div style={{ padding:"10px 14px", background:importMsg.type==="success"?"rgba(74,222,128,0.08)":"rgba(239,68,68,0.08)", border:`1px solid ${importMsg.type==="success"?"rgba(74,222,128,0.2)":"rgba(239,68,68,0.2)"}`, borderRadius:8, fontSize:12, color:importMsg.type==="success"?"#4ade80":"#ef4444", marginBottom:12, display:"flex", justifyContent:"space-between" }}>
-            <span>{importMsg.text}</span>
-            <button onClick={()=>setImportMsg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:13 }}>✕</button>
-          </div>
-        )}
-
-        {/* Create new campaign */}
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <input value={newCode} onChange={e=>setNewCode(e.target.value.toUpperCase())} placeholder="Enter coupon code e.g. FIRSTTIME25"
-            style={{ ...S.inp, flex:1, maxWidth:320, fontFamily:"monospace", fontWeight:700 }}
-            onKeyDown={e=>{ if(e.key==="Enter"&&newCode.trim()&&!allCodes.includes(newCode.trim())) { setActiveCode(newCode.trim()); setNewCode(""); } }}
-          />
-          <Btn onClick={()=>{ if(newCode.trim()&&!allCodes.includes(newCode.trim())){ setActiveCode(newCode.trim()); setNewCode(""); } }} disabled={!newCode.trim()||allCodes.includes(newCode.trim())}>
-            + Create Campaign
-          </Btn>
-        </div>
-        {newCode && allCodes.includes(newCode) && <div style={{ fontSize:11, color:"#FBBF24", marginTop:6 }}>This code already has a campaign</div>}
+        {importMsg && <div style={{ marginTop:8, fontSize:12, color:importMsg.startsWith("✅")?"#4ade80":importMsg.startsWith("⚠️")?"#FBBF24":"#ef4444", padding:"8px 12px", background:"#0d0d0d", borderRadius:7 }}>{importMsg}</div>}
       </div>
 
-      {/* Legacy backfill banner */}
-      {legacyBuyers.length > 0 && (
-        <div style={{ background:"rgba(251,191,36,0.06)", border:"1.5px solid rgba(251,191,36,0.25)", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
-            <span style={{ fontSize:22, flexShrink:0 }}>⚠️</span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:4 }}>
-                {legacyBuyers.length} buyer{legacyBuyers.length!==1?"s":""} used a coupon in past imports but the code wasn't tracked
-              </div>
-              <div style={{ fontSize:12, color:"#888", marginBottom:12, lineHeight:1.6 }}>
-                Older CSV imports saved that a coupon was used but not which code. Enter the coupon code they used and we'll tag all of them at once.
-              </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                <input value={backfillCode} onChange={e=>setBackfillCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. FIRSTTIME25"
-                  style={{ ...S.inp, maxWidth:240, fontFamily:"monospace", fontWeight:700, border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24" }}
-                  onKeyDown={e=>{ if(e.key==="Enter") backfillLegacy(backfillCode); }}
-                />
-                <Btn onClick={()=>backfillLegacy(backfillCode)} disabled={!backfillCode.trim()||backfilling}>
-                  {backfilling ? "Tagging..." : `🏷 Tag All ${legacyBuyers.length} Buyers`}
-                </Btn>
-              </div>
-              <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:4 }}>
-                {legacyBuyers.slice(0,12).map(b=>(
-                  <span key={b.id} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:5, padding:"2px 8px", fontSize:11, color:"#FBBF24" }}>{b.username}</span>
-                ))}
-                {legacyBuyers.length > 12 && <span style={{ fontSize:11, color:"#555" }}>+{legacyBuyers.length-12} more</span>}
-              </div>
+      {/* Manual tag */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="✋ Manually Tag a Buyer"/>
+        <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>For buyers who forgot to use the coupon — search and click to tag</div>
+        <div style={{ position:"relative", maxWidth:400 }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by username..."
+            style={{ ...S.inp, width:"100%" }}/>
+          {searchResults.length > 0 && (
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, zIndex:99, maxHeight:260, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
+              {searchResults.map(b=>(
+                <div key={b.id} onClick={()=>!saving&&tagBuyer(b)}
+                  style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                  className="inv-row">
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                    <div style={{ fontSize:10, color:"#555" }}>{b.orderCount||0} orders · {fmt2(b.totalSpend||0)} total spend</div>
+                  </div>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", background:"rgba(232,49,122,0.1)", borderRadius:6, padding:"4px 12px" }}>
+                    {saving?"...":"+ Tag"}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
+          {search.length>1&&searchResults.length===0&&<div style={{ marginTop:6, fontSize:12, color:"#555" }}>No untagged buyers matching "{search}"</div>}
         </div>
-      )}
+      </div>
 
-      {/* Active campaigns from CSV imports */}
-      {allCodes.length === 0 && !activeCode && (
-        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
-          <div style={{ fontSize:32, marginBottom:12, opacity:0.3 }}>🎯</div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:6 }}>No campaigns yet</div>
-          <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>
-            Import a Whatnot CSV with coupon codes and they'll appear automatically.<br/>
-            Or type a code above and click Create Campaign to start tagging buyers manually.
-          </div>
+      {/* Tagged buyers list */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t={`Tagged Buyers (${tagged.length})`}/>
+        {tagged.length===0&&<div style={{ fontSize:13, color:"#444", textAlign:"center", padding:"24px 0" }}>No buyers tagged yet. Import a CSV or use the search above.</div>}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {tagged.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b=>{
+            const isBack=(b.orderCount||0)>1;
+            return (
+              <div key={b.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0d0d0d", border:`1px solid ${isBack?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"10px 14px" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                  <div style={{ fontSize:11, color:"#555", marginTop:2 }}>
+                    {b.orderCount||0} orders · {(b.streams||[]).length} streams
+                    {isBack&&<span style={{ color:"#4ade80", marginLeft:8, fontWeight:700 }}>↩ came back</span>}
+                    {!isBack&&<span style={{ color:"#444", marginLeft:8 }}>not returned yet</span>}
+                    {(b.couponDiscount||0)>0&&<span style={{ color:"#FBBF24", marginLeft:8 }}>💸 {fmt2(b.couponDiscount)} discount</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ fontSize:15, fontWeight:900, color:(b.totalSpend||0)>=200?"#A78BFA":(b.totalSpend||0)>=50?"#E8317A":"#888", textAlign:"right" }}>
+                    {fmt2(b.totalSpend||0)}
+                  </div>
+                  <button onClick={()=>untagBuyer(b)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
-
-      {/* Campaign cards — from CSV imports */}
-      {allCodes.map(code => <CampaignCard key={code} code={code}/>)}
-
-      {/* Campaign created manually but not yet in any buyer's couponsUsed */}
-      {activeCode && !allCodes.includes(activeCode) && <CampaignCard key={activeCode} code={activeCode}/>}
-
+      </div>
     </div>
   );
 }
-
 function BuyerRetention({ buyers=[], streams=[] }) {
   const now = new Date();
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -22535,7 +22345,7 @@ export default function App() {
       unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))));
     }
 
-    if ((tab === "buyers" || tab === "performance" || tab === "streams") && !dataLoaded.buyers) {
+    if ((tab === "buyers" || tab === "performance" || tab === "streams" || tab === "campaigns") && !dataLoaded.buyers) {
       setDataLoaded(p=>({...p, buyers:true}));
       unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
       unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
