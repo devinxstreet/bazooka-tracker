@@ -6363,7 +6363,6 @@ function CampaignTracker({ buyers=[], streams=[] }) {
   const [importing,       setImporting]       = useState(false);
   const [importMsg,       setImportMsg]       = useState(null);
 
-  // Parse a Whatnot CSV and extract only coupon data — safe to re-import without duplicating spend
   function importCouponCSV(file) {
     if (!file) return;
     setImporting(true); setImportMsg(null);
@@ -6373,17 +6372,32 @@ function CampaignTracker({ buyers=[], streams=[] }) {
         const text = e.target.result;
         const lines = text.split(/\r?\n/).filter(l=>l.trim());
         if (lines.length < 2) { setImportMsg({ type:"error", text:"File appears empty." }); setImporting(false); return; }
-        const headers = lines[0].split(",").map(h=>h.replace(/"/g,"").toLowerCase().trim());
-        const usernameIdx    = headers.indexOf("buyer_username");
-        const couponCodeIdx  = headers.indexOf("coupon_code");
-        const couponPriceIdx = headers.indexOf("coupon_price");
-        const origIdx        = headers.indexOf("original_item_price");
-        const cancelIdx      = headers.indexOf("cancelled_or_failed");
-        if (usernameIdx===-1||couponCodeIdx===-1) {
-          setImportMsg({ type:"error", text:"Couldn't find buyer_username or coupon_code columns. Make sure this is a Whatnot live sales CSV." });
+
+        // Parse headers — try multiple name variants Whatnot uses
+        const rawHeaders = lines[0].split(",").map(h=>h.replace(/^"|"$/g,"").toLowerCase().trim());
+
+        const findCol = (...names) => { for (const n of names) { const i=rawHeaders.indexOf(n); if(i>=0) return i; } return -1; };
+        const usernameIdx    = findCol("buyer_username","username","buyer");
+        const couponCodeIdx  = findCol("coupon_code","coupon code","promo_code","promo code","discount_code");
+        const couponPriceIdx = findCol("coupon_price","coupon price","coupon_discount","discount_amount","discount");
+        const origIdx        = findCol("original_item_price","item_price","price");
+        const cancelIdx      = findCol("cancelled_or_failed","cancelled","canceled","failed");
+
+        // Debug: show what columns were found
+        const foundCols = rawHeaders.join(", ");
+
+        if (usernameIdx===-1) {
+          setImportMsg({ type:"error", text:`Couldn't find username column. Headers found: ${foundCols}` });
           setImporting(false); return;
         }
+        if (couponCodeIdx===-1) {
+          setImportMsg({ type:"error", text:`Couldn't find coupon_code column. Headers found: ${foundCols}` });
+          setImporting(false); return;
+        }
+
         const byUser = {};
+        let totalRows = 0, couponRows = 0;
+
         for (let i=1; i<lines.length; i++) {
           const cols=[]; let cur="", inQ=false;
           for (const ch of lines[i]) {
@@ -6392,41 +6406,58 @@ function CampaignTracker({ buyers=[], streams=[] }) {
             else cur+=ch;
           }
           cols.push(cur.trim());
-          const cv=(cols[cancelIdx]||"").toLowerCase();
-          if (cv==="true"||cv==="failed") continue;
-          const username=(cols[usernameIdx]||"").trim();
+
+          if (cancelIdx>=0) {
+            const cv=(cols[cancelIdx]||"").toLowerCase();
+            if (cv==="true"||cv==="failed"||cv==="yes") continue;
+          }
+
+          const username=(cols[usernameIdx]||"").replace(/^"|"$/g,"").trim();
           if (!username) continue;
-          const code=(cols[couponCodeIdx]||"").trim().toUpperCase();
+          totalRows++;
+
+          const code=(cols[couponCodeIdx]||"").replace(/^"|"$/g,"").trim().toUpperCase();
           if (!code) continue;
-          const discount=couponPriceIdx>=0?Math.abs(parseFloat(cols[couponPriceIdx]||0)||0):0;
-          const spend=origIdx>=0?parseFloat(cols[origIdx]||0)||0:0;
-          if (!byUser[username]) byUser[username]={ codes:new Set(), discount:0, spend:0 };
+          couponRows++;
+
+          const discount = couponPriceIdx>=0 ? Math.abs(parseFloat((cols[couponPriceIdx]||"").replace(/[$,]/g,""))||0) : 0;
+
+          if (!byUser[username]) byUser[username]={ codes:new Set(), discount:0 };
           byUser[username].codes.add(code);
-          byUser[username].discount+=discount;
-          byUser[username].spend+=spend;
+          byUser[username].discount += discount;
         }
-        const entries=Object.entries(byUser);
-        if (!entries.length) { setImportMsg({ type:"error", text:"No rows with coupon codes found in this file." }); setImporting(false); return; }
-        // Only update coupon fields — don't touch totalSpend/orderCount to avoid duplication
-        let tagged=0;
-        await Promise.all(entries.map(([username,data])=>{
-          const buyer=buyers.find(b=>b.username===username);
-          if (!buyer) return Promise.resolve();
-          const newCodes=[...(buyer.couponsUsed||[]),...[...data.codes]].filter((v,i,a)=>a.indexOf(v)===i);
-          const changed=newCodes.length!==(buyer.couponsUsed||[]).length;
-          if (!changed && !(data.discount>0)) return Promise.resolve();
+
+        const entries = Object.entries(byUser);
+
+        if (!entries.length) {
+          setImportMsg({ type:"error", text:`Found ${totalRows} rows but 0 had a coupon code. The coupon_code column may be empty. Check that buyers actually used a coupon in this stream.` });
+          setImporting(false); return;
+        }
+
+        // Match against existing buyers
+        let tagged=0, notFound=[];
+        await Promise.all(entries.map(([username, data])=>{
+          const buyer = buyers.find(b=>(b.username||"").toLowerCase()===username.toLowerCase());
+          if (!buyer) { notFound.push(username); return Promise.resolve(); }
+
+          const newCodes = [...new Set([...(buyer.couponsUsed||[]),...[...data.codes]])];
           tagged++;
           return setDoc(doc(db,"buyers",buyer.id),{
             couponsUsed: newCodes,
-            couponCount: (buyer.couponCount||0)+[...data.codes].filter(c=>!(buyer.couponsUsed||[]).includes(c)).length,
+            couponCount: newCodes.length,
             couponDiscount: (buyer.couponDiscount||0)+data.discount,
           },{ merge:true });
         }));
-        const codes=[...new Set(entries.flatMap(([,d])=>[...d.codes]))];
-        setImportMsg({ type:"success", text:`✅ Updated ${tagged} buyer${tagged!==1?"s":""} with coupon data. Codes found: ${codes.join(", ")}` });
-        if (codes.length===1&&!allCodes.includes(codes[0])) setActiveCode(codes[0]);
+
+        const codes = [...new Set(entries.flatMap(([,d])=>[...d.codes]))];
+        let msg = `✅ Tagged ${tagged} buyer${tagged!==1?"s":""} with ${codes.join(", ")}.`;
+        if (notFound.length) msg += ` ${notFound.length} username${notFound.length!==1?"s":""} not found in CRM (import their stream CSV first): ${notFound.slice(0,5).join(", ")}${notFound.length>5?`... +${notFound.length-5} more`:""}`;
+        if (couponRows===0) msg = `⚠️ ${totalRows} rows found but none had a coupon code.`;
+
+        setImportMsg({ type: tagged>0?"success":"error", text: msg });
+        if (tagged>0 && codes.length===1) setActiveCode(codes[0]);
       } catch(err) {
-        setImportMsg({ type:"error", text:"Failed to parse CSV: "+err.message });
+        setImportMsg({ type:"error", text:"Failed to parse: "+err.message });
       }
       setImporting(false);
     };
