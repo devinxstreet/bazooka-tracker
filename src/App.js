@@ -5701,45 +5701,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
         )}
       </div>
 
-      {/* ── CAMPAIGNS ── */}
-      {(() => {
-        const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
-        const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-
-        async function manuallyTagBuyer(buyer, code) {
-          if (!buyer || !code) return;
-          const already = (buyer.couponsUsed||[]).includes(code);
-          if (already) { alert(`${buyer.username} is already tagged with ${code}`); return; }
-          setManualTagging(true);
-          const updated = { ...buyer, couponsUsed:[...(buyer.couponsUsed||[]), code], couponCount:(buyer.couponCount||0)+1 };
-          await setDoc(doc(db,"buyers",buyer.id), updated, { merge:true });
-          setManualTagging(false);
-          setManualTagSearch("");
-        }
-
-        async function untagBuyer(buyer, code) {
-          if (!window.confirm(`Remove ${code} tag from ${buyer.username}?`)) return;
-          const updated = { ...buyer, couponsUsed:(buyer.couponsUsed||[]).filter(c=>c!==code) };
-          await setDoc(doc(db,"buyers",buyer.id), updated, { merge:true });
-        }
-
-        // Find all coupon codes used across all buyers
-        const allCodes = [...new Set(buyers.flatMap(b => b.couponsUsed||[]).filter(Boolean))].sort();
-        const legacyCount = buyers.filter(b => (b.couponCount||0) > 0 && !(b.couponsUsed||[]).length).length;
-
-        if (allCodes.length === 0 && legacyCount === 0) return (
-          <div style={{ ...S.card, background:"#0d0d0d" }}>
-            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
-              🎯 Campaigns
-              <div style={{ flex:1, height:1, background:"linear-gradient(90deg,rgba(232,49,122,0.3),transparent)" }}/>
-            </div>
-            <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>No campaign data yet. Import CSVs with coupon codes, or manually tag buyers below.</div>
-            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-              <input value={manualTagCode} onChange={e=>setManualTagCode(e.target.value.toUpperCase())} placeholder="Enter coupon code e.g. FIRSTTIME25" style={{ ...S.inp, flex:1, minWidth:200, fontFamily:"monospace", fontWeight:700 }}/>
-              <div style={{ fontSize:11, color:"#555" }}>Then search for a buyer below to tag them.</div>
-            </div>
-          </div>
-        );
+      {/* CSV Imports -- collapsible */}
 
         return (
           <div style={{ ...S.card }}>
@@ -6380,6 +6342,202 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 
 // ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
 // ── BUYER RETENTION ──────────────────────────────────────────────────────────
+// ── CAMPAIGN TRACKER ─────────────────────────────────────────────────────────
+function CampaignTracker({ buyers=[], streams=[] }) {
+  const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const [newCode,      setNewCode]      = useState("");
+  const [tagSearch,    setTagSearch]    = useState({});   // { [code]: searchStr }
+  const [saving,       setSaving]       = useState(null); // code being saved
+  const [activeCode,   setActiveCode]   = useState(null); // expanded campaign
+
+  const allCodes = [...new Set(buyers.flatMap(b => b.couponsUsed||[]).filter(Boolean))].sort();
+
+  async function tagBuyer(buyer, code) {
+    if (!buyer?.id || !code) return;
+    if ((buyer.couponsUsed||[]).includes(code)) return;
+    setSaving(code);
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: [...(buyer.couponsUsed||[]), code],
+      couponCount: (buyer.couponCount||0)+1,
+    }, { merge:true });
+    setTagSearch(p=>({...p,[code]:""}));
+    setSaving(null);
+  }
+
+  async function untagBuyer(buyer, code) {
+    if (!window.confirm(`Remove ${code} tag from ${buyer.username}?`)) return;
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: (buyer.couponsUsed||[]).filter(c=>c!==code),
+    }, { merge:true });
+  }
+
+  function CampaignCard({ code }) {
+    const cohort     = buyers.filter(b => (b.couponsUsed||[]).includes(code));
+    const returned   = cohort.filter(b => (b.orderCount||0) > 1);
+    const totalSpend = cohort.reduce((s,b)=>s+(b.totalSpend||0),0);
+    const avgSpend   = cohort.length ? totalSpend/cohort.length : 0;
+    const whales     = cohort.filter(b=>(b.totalSpend||0)>=200).length;
+    const retPct     = cohort.length ? returned.length/cohort.length*100 : 0;
+    const isOpen     = activeCode===code;
+    const search     = tagSearch[code]||"";
+
+    const verdict = retPct>=40 ? { text:"✅ Working — strong return rate", color:"#4ade80", bg:"rgba(74,222,128,0.06)", border:"rgba(74,222,128,0.2)" }
+                  : retPct>=20 ? { text:"🟡 Showing results — keep monitoring", color:"#FBBF24", bg:"rgba(251,191,36,0.06)", border:"rgba(251,191,36,0.2)" }
+                  : cohort.length<5 ? { text:"⏳ Need more data", color:"#7B9CFF", bg:"rgba(123,156,255,0.06)", border:"rgba(123,156,255,0.2)" }
+                  :               { text:"⚠️ Low retention — buyers not returning", color:"#ef4444", bg:"rgba(239,68,68,0.06)", border:"rgba(239,68,68,0.2)" };
+
+    const searchResults = search.length > 1
+      ? buyers.filter(b => b.username?.toLowerCase().includes(search.toLowerCase()) && !(b.couponsUsed||[]).includes(code)).slice(0,8)
+      : [];
+
+    return (
+      <div style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:14, overflow:"hidden" }}>
+        {/* Header */}
+        <div onClick={()=>setActiveCode(isOpen?null:code)}
+          style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ background:"rgba(251,191,36,0.1)", border:"1.5px solid rgba(251,191,36,0.3)", borderRadius:7, padding:"4px 12px", fontFamily:"monospace", fontSize:14, fontWeight:900, color:"#FBBF24" }}>{code}</div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cohort.length} buyer{cohort.length!==1?"s":""} tagged</div>
+              <div style={{ fontSize:11, color:"#555" }}>{returned.length} returned · {fmt2(totalSpend)} total spend</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ fontSize:14, fontWeight:900, color:verdict.color }}>{retPct.toFixed(0)}% retention</div>
+            <span style={{ color:"#333", fontSize:14 }}>{isOpen?"▲":"▼"}</span>
+          </div>
+        </div>
+
+        {isOpen && (
+          <div style={{ padding:"0 18px 18px", borderTop:"1px solid #1a1a1a" }}>
+
+            {/* Stats */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, margin:"14px 0" }}>
+              {[
+                { l:"Return Rate", v:`${retPct.toFixed(0)}%`, c:retPct>=40?"#4ade80":retPct>=20?"#FBBF24":"#ef4444" },
+                { l:"Avg Spend",   v:fmt2(avgSpend),          c:"#E8317A" },
+                { l:"Total Spend", v:fmt2(totalSpend),        c:"#7B9CFF" },
+                { l:"$200+ Buyers",v:whales,                  c:"#A78BFA" },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Verdict */}
+            <div style={{ background:verdict.bg, border:`1px solid ${verdict.border}`, borderRadius:8, padding:"9px 14px", marginBottom:14, fontSize:12, fontWeight:700, color:verdict.color }}>{verdict.text}</div>
+
+            {/* Manual tag */}
+            <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px", marginBottom:14 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>✋ Manually tag a buyer</div>
+              <div style={{ fontSize:11, color:"#555", marginBottom:8 }}>Search by username — for buyers who forgot to use the coupon</div>
+              <div style={{ position:"relative" }}>
+                <input
+                  value={search}
+                  onChange={e=>setTagSearch(p=>({...p,[code]:e.target.value}))}
+                  placeholder="Type a username..."
+                  style={{ ...S.inp, width:"100%" }}
+                />
+                {searchResults.length > 0 && (
+                  <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:99, maxHeight:200, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
+                    {searchResults.map(b => (
+                      <div key={b.id} onClick={()=>tagBuyer(b,code)}
+                        style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                        className="inv-row">
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                          <div style={{ fontSize:10, color:"#555" }}>{b.orderCount||0} orders · {fmt2(b.totalSpend||0)}</div>
+                        </div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", background:"rgba(232,49,122,0.1)", borderRadius:6, padding:"3px 10px" }}>
+                          {saving===code?"Saving...":"+ Tag"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {search.length > 1 && searchResults.length === 0 && (
+                  <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"12px 14px", fontSize:12, color:"#555" }}>
+                    No untagged buyers matching "{search}"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Buyer list */}
+            <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Tagged buyers ({cohort.length})</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {cohort.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b => {
+                const hasReturned = (b.orderCount||0) > 1;
+                return (
+                  <div key={b.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0d0d0d", border:`1px solid ${hasReturned?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"9px 14px" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                      <div style={{ fontSize:10, color:"#555", marginTop:1 }}>
+                        {b.orderCount||0} orders · {(b.streams||[]).length} streams
+                        {hasReturned && <span style={{ color:"#4ade80", marginLeft:8 }}>↩ returned</span>}
+                        {!hasReturned && (b.orderCount||0) > 0 && <span style={{ color:"#555", marginLeft:8 }}>no return yet</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:(b.totalSpend||0)>=200?"#A78BFA":(b.totalSpend||0)>=50?"#E8317A":"#888" }}>{fmt2(b.totalSpend||0)}</div>
+                      <button onClick={()=>untagBuyer(b,code)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+              {cohort.length === 0 && <div style={{ fontSize:12, color:"#555", textAlign:"center", padding:"20px 0" }}>No buyers tagged yet — use the search above</div>}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12, padding:20 }}>
+
+      {/* Header */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🎯 Campaign Tracker"/>
+        <div style={{ fontSize:13, color:"#555", marginBottom:16 }}>Track coupon campaigns, see who used them, and measure whether they're bringing back buyers.</div>
+
+        {/* Create new campaign */}
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <input value={newCode} onChange={e=>setNewCode(e.target.value.toUpperCase())} placeholder="Enter coupon code e.g. FIRSTTIME25"
+            style={{ ...S.inp, flex:1, maxWidth:320, fontFamily:"monospace", fontWeight:700 }}
+            onKeyDown={e=>{ if(e.key==="Enter"&&newCode.trim()&&!allCodes.includes(newCode.trim())) { setActiveCode(newCode.trim()); setNewCode(""); } }}
+          />
+          <Btn onClick={()=>{ if(newCode.trim()&&!allCodes.includes(newCode.trim())){ setActiveCode(newCode.trim()); setNewCode(""); } }} disabled={!newCode.trim()||allCodes.includes(newCode.trim())}>
+            + Create Campaign
+          </Btn>
+        </div>
+        {newCode && allCodes.includes(newCode) && <div style={{ fontSize:11, color:"#FBBF24", marginTop:6 }}>This code already has a campaign</div>}
+      </div>
+
+      {/* Active campaigns from CSV imports */}
+      {allCodes.length === 0 && !activeCode && (
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, marginBottom:12, opacity:0.3 }}>🎯</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:6 }}>No campaigns yet</div>
+          <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>
+            Import a Whatnot CSV with coupon codes and they'll appear automatically.<br/>
+            Or type a code above and click Create Campaign to start tagging buyers manually.
+          </div>
+        </div>
+      )}
+
+      {/* Campaign cards — from CSV imports */}
+      {allCodes.map(code => <CampaignCard key={code} code={code}/>)}
+
+      {/* Campaign created manually but not yet in any buyer's couponsUsed */}
+      {activeCode && !allCodes.includes(activeCode) && <CampaignCard key={activeCode} code={activeCode}/>}
+
+    </div>
+  );
+}
+
 function BuyerRetention({ buyers=[], streams=[] }) {
   const now = new Date();
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -22659,6 +22817,7 @@ export default function App() {
     { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
+    { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
@@ -22932,6 +23091,7 @@ export default function App() {
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
+        {tab==="campaigns"  && <CampaignTracker buyers={buyers} streams={streams}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers} historicalData={historicalData}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
