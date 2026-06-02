@@ -6208,7 +6208,7 @@ function CampaignTracker({ buyers=[] }) {
   const untagged = buyers.filter(b => !(b.couponsUsed||[]).includes(CAMPAIGN_CODE));
 
   const totalSpend    = tagged.reduce((s,b)=>s+(b.totalSpend||0),0);
-  const totalDiscount = tagged.reduce((s,b)=>s+(b.couponDiscount||0),0);
+  const totalDiscount = tagged.length * 25;  // FIRSTTIME25 = $25 off per buyer
   const returned      = tagged.filter(b=>(b.orderCount||0)>1);
   const retPct        = tagged.length ? (returned.length/tagged.length*100) : 0;
   const roi           = totalDiscount > 0 ? (totalSpend/totalDiscount) : null;
@@ -6296,9 +6296,9 @@ function CampaignTracker({ buyers=[] }) {
             { l:"Buyers Tagged",   v:tagged.length,               c:"#F0F0F0" },
             { l:"Came Back",       v:`${retPct.toFixed(0)}%`,     c:retPct>=30?"#4ade80":"#FBBF24" },
             { l:"Total Spend",     v:fmt2(totalSpend),            c:"#7B9CFF" },
-            { l:"Discounts Given", v:fmt2(totalDiscount),         c:"#FBBF24", hide:!totalDiscount },
-            { l:"ROI",             v:roi?`${roi.toFixed(1)}x`:"—", c:roi>=5?"#4ade80":"#E8317A", hide:!roi },
-          ].filter(x=>!x.hide).map(({l,v,c})=>(
+            { l:"Discounts Given", v:fmt2(totalDiscount),         c:"#FBBF24" },
+            { l:"ROI",             v:tagged.length?`${roi.toFixed(1)}x`:"—", c:roi&&roi>=5?"#4ade80":roi&&roi>=2?"#FBBF24":"#E8317A" },
+          ].map(({l,v,c})=>(
             <div key={l} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
               <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
               <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:4 }}>{l}</div>
