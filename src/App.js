@@ -6432,6 +6432,8 @@ function CampaignTracker({ buyers=[], streams=[] }) {
     };
     reader.readAsText(file);
   }
+
+  async function backfillLegacy(code) {
     if (!code.trim() || !legacyBuyers.length) return;
     if (!window.confirm(`Tag ${legacyBuyers.length} buyers (who used a coupon in past imports) with code "${code}"?`)) return;
     setBackfilling(true);
