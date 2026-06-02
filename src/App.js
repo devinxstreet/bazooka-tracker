@@ -4336,11 +4336,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         const state = parts[parts.length-3]||"";
                         const zip   = cols[zipIdx]||"";
                         const spend = parseFloat(cols[origIdx]||0)||0;
-                        const hasCoupon = !!(cols[couponCodeIdx]||"").trim();
-                        if (!buyerMap[username]) buyerMap[username] = { username, fullName, city, state, zip, spend:0, orders:0, couponCount:0, date:streamDate };
+                        const couponCode = (cols[couponCodeIdx]||"").trim().toUpperCase();
+                        const hasCoupon = !!couponCode;
+                        if (!buyerMap[username]) buyerMap[username] = { username, fullName, city, state, zip, spend:0, orders:0, couponCount:0, couponsUsed:[], date:streamDate };
                         buyerMap[username].spend += spend;
                         buyerMap[username].orders++;
-                        if (hasCoupon) buyerMap[username].couponCount++;
+                        if (hasCoupon) {
+                          buyerMap[username].couponCount++;
+                          if (!buyerMap[username].couponsUsed.includes(couponCode)) {
+                            buyerMap[username].couponsUsed.push(couponCode);
+                          }
+                        }
                       }
                       // Use actual stream Firestore ID so multiple streams on same day don't collide
                       const streamId = editingStreamId || `${breaker}_${streamDate}`;
@@ -5325,6 +5331,9 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   const [activeTab,    setActiveTab]    = useState(defaultTab);
   useEffect(()=>{setActiveTab(defaultTab);},[defaultTab]);
   const [selectedState, setSelectedState] = useState(null);
+  const [manualTagCode,   setManualTagCode]   = useState("");
+  const [manualTagSearch, setManualTagSearch] = useState("");
+  const [manualTagging,   setManualTagging]   = useState(false);
 
   // Export filters
   const [exportPeriod,  setExportPeriod]  = useState("all");
@@ -5691,6 +5700,192 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
           </div>
         )}
       </div>
+
+      {/* ── CAMPAIGNS ── */}
+      {(() => {
+        const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+        const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+        async function manuallyTagBuyer(buyer, code) {
+          if (!buyer || !code) return;
+          const already = (buyer.couponsUsed||[]).includes(code);
+          if (already) { alert(`${buyer.username} is already tagged with ${code}`); return; }
+          setManualTagging(true);
+          const updated = { ...buyer, couponsUsed:[...(buyer.couponsUsed||[]), code], couponCount:(buyer.couponCount||0)+1 };
+          await setDoc(doc(db,"buyers",buyer.id), updated, { merge:true });
+          setManualTagging(false);
+          setManualTagSearch("");
+        }
+
+        async function untagBuyer(buyer, code) {
+          if (!window.confirm(`Remove ${code} tag from ${buyer.username}?`)) return;
+          const updated = { ...buyer, couponsUsed:(buyer.couponsUsed||[]).filter(c=>c!==code) };
+          await setDoc(doc(db,"buyers",buyer.id), updated, { merge:true });
+        }
+
+        // Find all coupon codes used across all buyers
+        const allCodes = [...new Set(buyers.flatMap(b => b.couponsUsed||[]).filter(Boolean))].sort();
+        const legacyCount = buyers.filter(b => (b.couponCount||0) > 0 && !(b.couponsUsed||[]).length).length;
+
+        if (allCodes.length === 0 && legacyCount === 0) return (
+          <div style={{ ...S.card, background:"#0d0d0d" }}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+              🎯 Campaigns
+              <div style={{ flex:1, height:1, background:"linear-gradient(90deg,rgba(232,49,122,0.3),transparent)" }}/>
+            </div>
+            <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>No campaign data yet. Import CSVs with coupon codes, or manually tag buyers below.</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+              <input value={manualTagCode} onChange={e=>setManualTagCode(e.target.value.toUpperCase())} placeholder="Enter coupon code e.g. FIRSTTIME25" style={{ ...S.inp, flex:1, minWidth:200, fontFamily:"monospace", fontWeight:700 }}/>
+              <div style={{ fontSize:11, color:"#555" }}>Then search for a buyer below to tag them.</div>
+            </div>
+          </div>
+        );
+
+        return (
+          <div style={{ ...S.card }}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
+              🎯 Campaigns
+              <div style={{ flex:1, height:1, background:"linear-gradient(90deg,rgba(232,49,122,0.3),transparent)" }}/>
+            </div>
+
+            {allCodes.map(code => {
+              // Buyers who used this coupon
+              const couponBuyers = buyers.filter(b => (b.couponsUsed||[]).includes(code));
+
+              // Split into: first-timers (isNew at time of coupon use) vs returners
+              // We use a proxy: if buyer only has 1 stream total they were likely new
+              const newBuyers = couponBuyers.filter(b => (b.streams||[]).length <= 2);
+              const returners = couponBuyers.filter(b => (b.streams||[]).length > 2);
+
+              const totalCouponSpend = couponBuyers.reduce((s,b)=>s+(b.totalSpend||0),0);
+              const avgSpend = couponBuyers.length > 0 ? totalCouponSpend/couponBuyers.length : 0;
+
+              // Repeat buyers: used coupon AND came back (orderCount > 1)
+              const repeatedBuyers = couponBuyers.filter(b => (b.orderCount||0) > 1);
+              const retentionRate = couponBuyers.length > 0 ? (repeatedBuyers.length/couponBuyers.length)*100 : 0;
+
+              // High-value buyers from coupon cohort
+              const whales = couponBuyers.filter(b => (b.totalSpend||0) >= 200);
+
+              return (
+                <div key={code} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 18px", marginBottom:12 }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+                    <div>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ background:"rgba(251,191,36,0.1)", border:"1.5px solid rgba(251,191,36,0.3)", borderRadius:7, padding:"4px 12px", fontFamily:"monospace", fontSize:14, fontWeight:900, color:"#FBBF24", letterSpacing:"1px" }}>{code}</div>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{couponBuyers.length} buyer{couponBuyers.length!==1?"s":""} used this coupon</div>
+                      </div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:4 }}>{newBuyers.length} likely new buyers · {returners.length} existing buyers</div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <div style={{ textAlign:"center", background:"#111", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 14px" }}>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#4ade80" }}>{retentionRate.toFixed(0)}%</div>
+                        <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Came Back</div>
+                      </div>
+                      <div style={{ textAlign:"center", background:"#111", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 14px" }}>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>{fmt2(avgSpend)}</div>
+                        <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Avg Spend</div>
+                      </div>
+                      <div style={{ textAlign:"center", background:"#111", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 14px" }}>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#7B9CFF" }}>{fmt(totalCouponSpend)}</div>
+                        <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Total Spent</div>
+                      </div>
+                      {whales.length > 0 && (
+                        <div style={{ textAlign:"center", background:"rgba(123,156,255,0.06)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"8px 14px" }}>
+                          <div style={{ fontSize:16, fontWeight:900, color:"#7B9CFF" }}>{whales.length}</div>
+                          <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Became $200+ Buyers</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Verdict */}
+                  <div style={{ background: retentionRate >= 40 ? "rgba(74,222,128,0.06)" : retentionRate >= 20 ? "rgba(251,191,36,0.06)" : "rgba(239,68,68,0.06)", border:`1px solid ${retentionRate>=40?"rgba(74,222,128,0.2)":retentionRate>=20?"rgba(251,191,36,0.2)":"rgba(239,68,68,0.2)"}`, borderRadius:8, padding:"8px 14px", marginBottom:14 }}>
+                    <span style={{ fontSize:12, color: retentionRate>=40?"#4ade80":retentionRate>=20?"#FBBF24":"#ef4444", fontWeight:700 }}>
+                      {retentionRate >= 40 ? "✅ Campaign is working — strong repeat purchase rate" :
+                       retentionRate >= 20 ? "🟡 Campaign showing some results — monitor for another month" :
+                       couponBuyers.length < 5 ? "⏳ Not enough data yet — keep going" :
+                       "⚠️ Low retention — coupon buyers not returning"}
+                    </span>
+                  </div>
+
+                  {/* Manual tagging */}
+                  <div style={{ marginTop:14, borderTop:"1px solid #1a1a1a", paddingTop:12 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>
+                      ✋ Manually tag a buyer — for people who forgot the coupon
+                    </div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <div style={{ position:"relative", flex:1, maxWidth:360 }}>
+                        <input
+                          value={manualTagCode===code ? manualTagSearch : ""}
+                          onFocus={()=>setManualTagCode(code)}
+                          onChange={e=>{ setManualTagCode(code); setManualTagSearch(e.target.value); }}
+                          placeholder="Search buyer username..."
+                          style={{ ...S.inp, paddingRight:32 }}
+                        />
+                        {manualTagCode===code && manualTagSearch && (
+                          <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:99, maxHeight:220, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.6)" }}>
+                            {buyers
+                              .filter(b => b.username?.toLowerCase().includes(manualTagSearch.toLowerCase()) && !(b.couponsUsed||[]).includes(code))
+                              .slice(0,8)
+                              .map(b => (
+                                <div key={b.id}
+                                  onClick={()=>manuallyTagBuyer(b, code)}
+                                  style={{ padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #111", display:"flex", alignItems:"center", justifyContent:"space-between" }}
+                                  className="inv-row">
+                                  <div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                                    <div style={{ fontSize:10, color:"#555" }}>{b.orderCount||0} orders · ${(b.totalSpend||0).toFixed(2)} total</div>
+                                  </div>
+                                  <div style={{ fontSize:11, color:"#E8317A", fontWeight:700 }}>+ Tag</div>
+                                </div>
+                              ))}
+                            {buyers.filter(b => b.username?.toLowerCase().includes(manualTagSearch.toLowerCase()) && !(b.couponsUsed||[]).includes(code)).length === 0 && (
+                              <div style={{ padding:"12px 14px", fontSize:12, color:"#555" }}>No matching buyers found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {manualTagging && <span style={{ fontSize:11, color:"#555" }}>Saving...</span>}
+                    </div>
+                  </div>
+
+                  {/* Buyer list */}
+                  <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Buyers from this campaign</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:6 }}>
+                    {couponBuyers.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b => {
+                      const isRepeat = (b.orderCount||0) > 1;
+                      const totalStreams = (b.streams||[]).length;
+                      return (
+                        <div key={b.id} style={{ background:"#111", border:`1px solid ${isRepeat?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                          <div style={{ minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.username}</div>
+                            <div style={{ fontSize:10, color:"#555", marginTop:1 }}>
+                              {b.orderCount||0} orders · {totalStreams} stream{totalStreams!==1?"s":""}
+                              {isRepeat && <span style={{ color:"#4ade80", marginLeft:5 }}>↩ returned</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:"right", flexShrink:0 }}>
+                            <div style={{ fontSize:13, fontWeight:800, color:(b.totalSpend||0)>=200?"#7B9CFF":(b.totalSpend||0)>=50?"#E8317A":"#888" }}>{fmt2(b.totalSpend||0)}</div>
+                            <button onClick={()=>untagBuyer(b, code)} style={{ fontSize:9, color:"#333", background:"none", border:"none", cursor:"pointer", marginTop:2 }}>✕ remove</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {legacyCount > 0 && allCodes.length === 0 && (
+              <div style={{ fontSize:12, color:"#555", padding:"10px 0" }}>
+                {legacyCount} buyers used a coupon in an older import (coupon codes weren't tracked then). Re-import those CSVs to see the breakdown.
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* CSV Imports -- collapsible */}
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
@@ -22417,6 +22612,7 @@ export default function App() {
         totalSpend: (prev?.totalSpend || 0) + b.spend,
         orderCount: (prev?.orderCount || 0) + b.orders,
         couponCount: (prev?.couponCount || 0) + (b.couponCount||0),
+        couponsUsed: [...new Set([...(prev?.couponsUsed||[]), ...(b.couponsUsed||[])])],
         streams: [...new Set([...(prev?.streams||[]), streamId])],
         // Per-stream spend history for period filtering
         spendHistory: [
