@@ -8,7 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
-const BREAKERS = ["Dev","Dre","Krystal","BigU","Orbital Society"];
+const BREAKERS = ["Dev","Dre","Krystal","BigU"];
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
@@ -8845,7 +8845,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return { gross, netRev, splitBase, bazNet, imcNet, commAmt, imcReimb:0, bazTrueNet, rate };
   }
 
-  const EMPTY_PLAN = { breaker:BREAKERS[0], products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"", staffOnDuty:[], startTime:"", endTime:"" };
+  const EMPTY_PLAN = { breaker:BREAKERS[0], channel:"Bazooka Vault", products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"", staffOnDuty:[], startTime:"", endTime:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
   const S2 = { inp:{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"#111111", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 20px" } };
@@ -8948,7 +8948,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   function openModal(ds, plan=null) {
     setModalDate(ds);
-    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""}); }
+    if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],channel:plan.channel||"Bazooka Vault",products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:"",staffOnDuty:plan.staffOnDuty||[],startTime:plan.startTime||"",endTime:plan.endTime||""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
   }
   function closeModal() { setModalDate(null); setEditingId(null); setForm(EMPTY_PLAN); }
@@ -9354,12 +9354,18 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       animationDelay:`${(pi+1)*0.05}s`,
                     }}>
                       {/* Row 1: breaker + time */}
-                      <div style={{ display:"flex", alignItems:"center", gap:3, marginBottom: products.length>0?2:0 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:3, marginBottom: (products.length>0||p.channel)?2:0 }}>
                         {bg && <div style={{width:5,height:5,borderRadius:"50%",background:bg.dot,flexShrink:0,boxShadow:`0 0 3px ${bg.dot}`}}/>}
                         <span style={{fontWeight:900,fontSize:9,letterSpacing:"0.3px",overflow:"hidden",textOverflow:"ellipsis"}}>{p.breaker||"TBD"}</span>
                         {p.startTime && <span style={{opacity:0.6,fontSize:7,marginLeft:"auto",flexShrink:0}}>{p.startTime}{p.endTime?`–${p.endTime}`:""}</span>}
                       </div>
-                      {/* Row 2: sets */}
+                      {/* Row 2: channel (if not Bazooka Vault) */}
+                      {p.channel && p.channel !== "Bazooka Vault" && (
+                        <div style={{ fontSize:7, color:"#7B9CFF", background:"rgba(123,156,255,0.15)", borderRadius:3, padding:"1px 4px", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          📺 {p.channel}
+                        </div>
+                      )}
+                      {/* Row 3: sets */}
                       {products.length > 0 && (
                         <div style={{ display:"flex", gap:2, flexWrap:"nowrap", overflow:"hidden" }}>
                           {products.slice(0,3).map((prod,pi2)=>(
@@ -10762,11 +10768,17 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 </div>
               </div>
             )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div>
                 <div style={{fontSize:11,color:"#555",marginBottom:4}}>Breaker</div>
                 <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{...S2.inp,cursor:"pointer"}}>
                   {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#555",marginBottom:4}}>Channel</div>
+                <select value={form.channel||"Bazooka Vault"} onChange={e=>setForm(p=>({...p,channel:e.target.value}))} style={{...S2.inp,cursor:"pointer",color:form.channel&&form.channel!=="Bazooka Vault"?"#7B9CFF":"#F0F0F0"}}>
+                  {CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -11145,6 +11157,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       });
                     });
                     const breakers = [...new Set(w.plans.map(p=>p.breaker).filter(Boolean))];
+                    const channels = [...new Set(w.plans.map(p=>p.channel||"Bazooka Vault"))];
                     const streamCount = w.plans.length;
 
                     return (
@@ -11157,6 +11170,15 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                                 ? `${streamCount} stream${streamCount!==1?"s":""} · ${breakers.join(", ")}`
                                 : <span style={{ color:"#333" }}>No streams scheduled</span>}
                             </div>
+                            {streamCount > 0 && channels.length > 0 && (
+                              <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                                {channels.map(ch=>(
+                                  <span key={ch} style={{ fontSize:9, color:ch==="Bazooka Vault"?"#E8317A":ch==="Orbital Society"?"#7B9CFF":"#FBBF24", background:ch==="Bazooka Vault"?"rgba(232,49,122,0.08)":ch==="Orbital Society"?"rgba(123,156,255,0.08)":"rgba(251,191,36,0.08)", borderRadius:4, padding:"1px 6px" }}>
+                                    {ch}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           {totalBoxes > 0 && (
                             <div style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"5px 12px", textAlign:"center" }}>
@@ -21607,7 +21629,7 @@ function PublicQuote({ quoteId }) {
             </div>
             <div style={{ fontSize:13, color:"#666", lineHeight:1.7 }}>
               Use top loaders and a tracked shipping method. Once sent, share your tracking number with us on Discord at <strong style={{ color:"#888" }}>BubbleGumKing</strong> or via Whatnot.<br/><br/>
-              Payment of <strong style={{ color:"#4ade80" }}>${offer.toFixed(2)}</strong> will be sent once your cards arrive and are verified.
+              Payment of <strong style={{ color:"#4ade80" }}>${offer.toFixed(2)}</strong> will be sent as soon as possible — thank you!
             </div>
           </div>
         )}
