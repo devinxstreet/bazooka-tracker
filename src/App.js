@@ -11394,8 +11394,6 @@ const TIER_CFG = {
 };
 
 // ── BREAK SPOTS ──────────────────────────────────────────────────────────────
-const BOBA_SETS = ["Alpha Edition", "Alpha Update", "Griffey 2026", "Tecmo Bowl"];
-
 function BreakSpots({ bobaCards=[] }) {
   const [setName,    setSetName]    = useState("");
   const [pastedList, setPastedList] = useState("");
