@@ -11395,31 +11395,43 @@ const TIER_CFG = {
 
 // ── BREAK SPOTS ──────────────────────────────────────────────────────────────
 function BreakSpots() {
+  const fmt = v => v;
   const [setName,    setSetName]    = useState("");
   const [pastedList, setPastedList] = useState("");
-  const [savedSets,  setSavedSets]  = useState(() => {
-    try { return JSON.parse(localStorage.getItem("breakSpotsSets")||"{}"); } catch { return {}; }
-  });
+  const [savedSets,  setSavedSets]  = useState({});
   const [copied,     setCopied]     = useState(false);
   const [activeSet,  setActiveSet]  = useState(null);
   const [shuffle,    setShuffle]    = useState(false);
+  const [saving,     setSaving]     = useState(false);
 
-  function saveSet() {
-    if (!setName.trim() || !pastedList.trim()) return;
-    const lines = pastedList.split("\n").map(l=>l.trim()).filter(Boolean);
-    const updated = { ...savedSets, [setName.trim()]: lines };
+  // Load from Firestore on mount
+  useEffect(() => {
+    getDoc(doc(db,"config","breakSpots")).then(snap => {
+      if (snap.exists()) setSavedSets(snap.data().sets||{});
+    }).catch(()=>{});
+  }, []);
+
+  async function persistSets(updated) {
     setSavedSets(updated);
-    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
-    setActiveSet(setName.trim());
-    setSetName(""); setPastedList("");
+    await setDoc(doc(db,"config","breakSpots"), { sets: updated }, { merge:true });
   }
 
-  function deleteSet(name) {
+  async function saveSet() {
+    if (!setName.trim() || !pastedList.trim()) return;
+    setSaving(true);
+    const lines = pastedList.split("\n").map(l=>l.trim()).filter(Boolean);
+    const updated = { ...savedSets, [setName.trim()]: lines };
+    await persistSets(updated);
+    setActiveSet(setName.trim());
+    setSetName(""); setPastedList("");
+    setSaving(false);
+  }
+
+  async function deleteSet(name) {
     if (!window.confirm(`Delete "${name}" spots list?`)) return;
     const updated = { ...savedSets };
     delete updated[name];
-    setSavedSets(updated);
-    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
+    await persistSets(updated);
     if (activeSet === name) setActiveSet(null);
   }
 
@@ -11472,8 +11484,8 @@ function BreakSpots() {
               style={{ ...S.inp, resize:"vertical", fontFamily:"monospace", fontSize:12, lineHeight:1.6 }}/>
           </div>
           <div style={{ paddingTop:20 }}>
-            <Btn onClick={saveSet} disabled={!setName.trim()||!pastedList.trim()}>
-              💾 Save List
+            <Btn onClick={saveSet} disabled={!setName.trim()||!pastedList.trim()||saving}>
+              {saving ? "⏳ Saving..." : "💾 Save List"}
             </Btn>
           </div>
         </div>
