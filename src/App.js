@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit } from "firebase/firestore";
@@ -6213,6 +6213,7 @@ function CampaignTracker({ buyers=[], streams=[] }) {
   const [importMsg,  setImportMsg]  = useState(null);
   const [importing,  setImporting]  = useState(false);
   const [importDate, setImportDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expandedDay, setExpandedDay] = useState(null);
 
   const tagged   = buyers.filter(b => (b.couponsUsed||[]).includes(CAMPAIGN_CODE));
   const untagged = buyers.filter(b => !(b.couponsUsed||[]).includes(CAMPAIGN_CODE));
@@ -6365,24 +6366,57 @@ function CampaignTracker({ buyers=[], streams=[] }) {
                   const ret    = db2.filter(b=>(b.orderCount||0)>1).length;
                   const retP   = db2.length ? ret/db2.length*100 : 0;
                   const dayROI = disc > 0 ? spend/disc : 0;
+                  const isOpen = expandedDay === day;
                   const label  = day==="unknown" ? "Unknown date" :
                     new Date(day+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
                   return (
-                    <tr key={day} style={{ background:i%2===0?"#111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }} className="clickable-row">
-                      <td style={{ ...S.td, fontWeight:700, color:"#F0F0F0", whiteSpace:"nowrap" }}>{label}</td>
-                      <td style={{ ...S.td, textAlign:"center" }}>
-                        <span style={{ fontWeight:700, color:"#F0F0F0" }}>{db2.length}</span>
-                      </td>
-                      <td style={{ ...S.td, textAlign:"center", color:"#4ade80", fontWeight:700 }}>{ret}</td>
-                      <td style={{ ...S.td, textAlign:"center" }}>
-                        <span style={{ fontWeight:800, color:retP>=30?"#4ade80":retP>=15?"#FBBF24":"#888" }}>{retP.toFixed(0)}%</span>
-                      </td>
-                      <td style={{ ...S.td, textAlign:"right", color:"#7B9CFF", fontWeight:700 }}>{fmt2(spend)}</td>
-                      <td style={{ ...S.td, textAlign:"right", color:"#FBBF24" }}>{fmt2(disc)}</td>
-                      <td style={{ ...S.td, textAlign:"right" }}>
-                        <span style={{ fontWeight:900, color:dayROI>=5?"#4ade80":dayROI>=2?"#FBBF24":"#E8317A" }}>{dayROI>0?`${dayROI.toFixed(1)}x`:"—"}</span>
-                      </td>
-                    </tr>
+                    <React.Fragment key={day}>
+                      <tr onClick={()=>setExpandedDay(isOpen?null:day)}
+                        style={{ background:isOpen?"rgba(232,49,122,0.06)":i%2===0?"#111":"#0d0d0d", borderBottom:isOpen?"none":"1px solid #1a1a1a", cursor:"pointer" }}
+                        className="clickable-row">
+                        <td style={{ ...S.td, fontWeight:700, color:"#F0F0F0", whiteSpace:"nowrap" }}>
+                          <span style={{ marginRight:6, color:"#555", fontSize:10 }}>{isOpen?"▼":"▶"}</span>
+                          {label}
+                        </td>
+                        <td style={{ ...S.td, textAlign:"center", fontWeight:700, color:"#F0F0F0" }}>{db2.length}</td>
+                        <td style={{ ...S.td, textAlign:"center", color:"#4ade80", fontWeight:700 }}>{ret}</td>
+                        <td style={{ ...S.td, textAlign:"center" }}>
+                          <span style={{ fontWeight:800, color:retP>=30?"#4ade80":retP>=15?"#FBBF24":"#888" }}>{retP.toFixed(0)}%</span>
+                        </td>
+                        <td style={{ ...S.td, textAlign:"right", color:"#7B9CFF", fontWeight:700 }}>{fmt2(spend)}</td>
+                        <td style={{ ...S.td, textAlign:"right", color:"#FBBF24" }}>{fmt2(disc)}</td>
+                        <td style={{ ...S.td, textAlign:"right" }}>
+                          <span style={{ fontWeight:900, color:dayROI>=5?"#4ade80":dayROI>=2?"#FBBF24":"#E8317A" }}>{dayROI>0?`${dayROI.toFixed(1)}x`:"—"}</span>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={7} style={{ padding:0, background:"rgba(232,49,122,0.03)", borderBottom:"1px solid rgba(232,49,122,0.15)" }}>
+                            <div style={{ padding:"12px 16px", display:"flex", flexWrap:"wrap", gap:8 }}>
+                              {db2.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b => {
+                                const isBack = (b.orderCount||0) > 1;
+                                return (
+                                  <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#111", border:`1px solid ${isBack?"rgba(74,222,128,0.2)":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", minWidth:180 }}>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                                      <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                                        {b.orderCount||0} orders
+                                        {isBack ? <span style={{ color:"#4ade80", marginLeft:6, fontWeight:700 }}>↩ came back</span>
+                                                : <span style={{ color:"#555", marginLeft:6 }}>not returned</span>}
+                                      </div>
+                                    </div>
+                                    <div style={{ textAlign:"right", flexShrink:0 }}>
+                                      <div style={{ fontSize:13, fontWeight:800, color:(b.totalSpend||0)>=200?"#A78BFA":(b.totalSpend||0)>=50?"#E8317A":"#888" }}>{fmt2(b.totalSpend||0)}</div>
+                                      <button onClick={e=>{e.stopPropagation();untagBuyer(b);}} style={{ fontSize:9, color:"#444", background:"none", border:"none", cursor:"pointer", padding:0 }}>✕ remove</button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
                 {/* Totals row */}
