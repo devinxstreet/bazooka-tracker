@@ -11394,7 +11394,7 @@ const TIER_CFG = {
 };
 
 // ── BREAK SPOTS ──────────────────────────────────────────────────────────────
-function BreakSpots({ bobaCards=[] }) {
+function BreakSpots() {
   const [setName,    setSetName]    = useState("");
   const [pastedList, setPastedList] = useState("");
   const [savedSets,  setSavedSets]  = useState(() => {
@@ -11424,19 +11424,6 @@ function BreakSpots({ bobaCards=[] }) {
   }
 
   // Build spots from bobaCards for a known set
-  function buildFromBobaCards(setNameFilter) {
-    const heroes = [...new Set(
-      bobaCards.filter(c => (c.setName||"").toLowerCase().includes(setNameFilter.toLowerCase()))
-               .map(c => c.hero).filter(Boolean)
-    )].sort();
-    if (!heroes.length) return null;
-    const updated = { ...savedSets, [setNameFilter]: heroes };
-    setSavedSets(updated);
-    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
-    setActiveSet(setNameFilter);
-    return heroes;
-  }
-
   const currentSpots = activeSet ? (savedSets[activeSet]||[]) : [];
   const displaySpots = shuffle
     ? [...currentSpots].sort(()=>Math.random()-0.5)
@@ -11470,25 +11457,6 @@ function BreakSpots({ bobaCards=[] }) {
           Build a hero list for each set, then copy it to paste into Whatnot as individual break spots.
         </div>
 
-        {/* Quick-load from BoBA cards */}
-        <div style={{ marginBottom:14 }}>
-          <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Load from BoBA card database</div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {BOBA_SETS.map(s => (
-              <button key={s} onClick={()=>buildFromBobaCards(s)}
-                style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.25)", color:"#7B9CFF", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                {s}
-              </button>
-            ))}
-          </div>
-          {BOBA_SETS.map(s => savedSets[s] && <span key={s} style={{ fontSize:10, color:"#4ade80", marginLeft:6 }}>✓ {savedSets[s].length} heroes loaded for {s}</span>)}
-        </div>
-
-        {/* Divider */}
-        <div style={{ height:1, background:"#1a1a1a", margin:"8px 0 14px" }}/>
-
-        {/* Paste custom list */}
-        <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Or paste a custom list</div>
         <div style={{ display:"grid", gridTemplateColumns:"200px 1fr auto", gap:10, alignItems:"flex-start" }}>
           <div>
             <label style={S.lbl}>Set Name</label>
@@ -23135,6 +23103,7 @@ export default function App() {
                 "streams": [
                   {label:"\uD83D\uDCCB Stream Recap",sub:"Log & review streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
+                  {label:"🎯 Break Spots",sub:"Build & copy hero lists",action:()=>{setTab("streams");setStreamTabDefault("breakspots");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
