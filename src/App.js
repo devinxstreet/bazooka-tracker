@@ -11371,6 +11371,179 @@ const TIER_CFG = {
   "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
 };
 
+// ── BREAK SPOTS ──────────────────────────────────────────────────────────────
+const BOBA_SETS = ["Alpha Edition", "Alpha Update", "Griffey 2026", "Tecmo Bowl"];
+
+function BreakSpots({ bobaCards=[] }) {
+  const [setName,    setSetName]    = useState("");
+  const [pastedList, setPastedList] = useState("");
+  const [savedSets,  setSavedSets]  = useState(() => {
+    try { return JSON.parse(localStorage.getItem("breakSpotsSets")||"{}"); } catch { return {}; }
+  });
+  const [copied,     setCopied]     = useState(false);
+  const [activeSet,  setActiveSet]  = useState(null);
+  const [shuffle,    setShuffle]    = useState(false);
+
+  function saveSet() {
+    if (!setName.trim() || !pastedList.trim()) return;
+    const lines = pastedList.split("\n").map(l=>l.trim()).filter(Boolean);
+    const updated = { ...savedSets, [setName.trim()]: lines };
+    setSavedSets(updated);
+    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
+    setActiveSet(setName.trim());
+    setSetName(""); setPastedList("");
+  }
+
+  function deleteSet(name) {
+    if (!window.confirm(`Delete "${name}" spots list?`)) return;
+    const updated = { ...savedSets };
+    delete updated[name];
+    setSavedSets(updated);
+    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
+    if (activeSet === name) setActiveSet(null);
+  }
+
+  // Build spots from bobaCards for a known set
+  function buildFromBobaCards(setNameFilter) {
+    const heroes = [...new Set(
+      bobaCards.filter(c => (c.setName||"").toLowerCase().includes(setNameFilter.toLowerCase()))
+               .map(c => c.hero).filter(Boolean)
+    )].sort();
+    if (!heroes.length) return null;
+    const updated = { ...savedSets, [setNameFilter]: heroes };
+    setSavedSets(updated);
+    try { localStorage.setItem("breakSpotsSets", JSON.stringify(updated)); } catch {}
+    setActiveSet(setNameFilter);
+    return heroes;
+  }
+
+  const currentSpots = activeSet ? (savedSets[activeSet]||[]) : [];
+  const displaySpots = shuffle
+    ? [...currentSpots].sort(()=>Math.random()-0.5)
+    : currentSpots;
+
+  function copyToClipboard() {
+    const text = displaySpots.join("\n");
+    navigator.clipboard.writeText(text).then(()=>{
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 2500);
+    }).catch(()=>{
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 2500);
+    });
+  }
+
+  const allSetNames = Object.keys(savedSets);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:"0 0 20px" }}>
+
+      {/* ── Saved sets row ── */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🎯 Break Spots"/>
+        <div style={{ fontSize:12, color:"#555", marginBottom:14 }}>
+          Build a hero list for each set, then copy it to paste into Whatnot as individual break spots.
+        </div>
+
+        {/* Quick-load from BoBA cards */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Load from BoBA card database</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {BOBA_SETS.map(s => (
+              <button key={s} onClick={()=>buildFromBobaCards(s)}
+                style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.25)", color:"#7B9CFF", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {s}
+              </button>
+            ))}
+          </div>
+          {BOBA_SETS.map(s => savedSets[s] && <span key={s} style={{ fontSize:10, color:"#4ade80", marginLeft:6 }}>✓ {savedSets[s].length} heroes loaded for {s}</span>)}
+        </div>
+
+        {/* Divider */}
+        <div style={{ height:1, background:"#1a1a1a", margin:"8px 0 14px" }}/>
+
+        {/* Paste custom list */}
+        <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Or paste a custom list</div>
+        <div style={{ display:"grid", gridTemplateColumns:"200px 1fr auto", gap:10, alignItems:"flex-start" }}>
+          <div>
+            <label style={S.lbl}>Set Name</label>
+            <input value={setName} onChange={e=>setSetName(e.target.value)}
+              placeholder="e.g. Tecmo Bowl"
+              style={{ ...S.inp }}/>
+          </div>
+          <div>
+            <label style={S.lbl}>Heroes (one per line)</label>
+            <textarea value={pastedList} onChange={e=>setPastedList(e.target.value)}
+              placeholder={"Paste your hero list here...\nOne hero per line\n\ne.g.\nBo Jackson\nBarry Sanders\nJerry Rice"}
+              rows={6}
+              style={{ ...S.inp, resize:"vertical", fontFamily:"monospace", fontSize:12, lineHeight:1.6 }}/>
+          </div>
+          <div style={{ paddingTop:20 }}>
+            <Btn onClick={saveSet} disabled={!setName.trim()||!pastedList.trim()}>
+              💾 Save List
+            </Btn>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Set selector + copy panel ── */}
+      {allSetNames.length > 0 && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="Copy for Whatnot"/>
+
+          {/* Set picker */}
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+            {allSetNames.map(name => (
+              <div key={name} style={{ display:"flex", alignItems:"center", gap:0 }}>
+                <button onClick={()=>setActiveSet(activeSet===name?null:name)}
+                  style={{ background:activeSet===name?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${activeSet===name?"#E8317A":"#2a2a2a"}`, color:activeSet===name?"#E8317A":"#888", borderRadius:"8px 0 0 8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {name} <span style={{ fontSize:10, opacity:0.6 }}>({(savedSets[name]||[]).length})</span>
+                </button>
+                <button onClick={()=>deleteSet(name)}
+                  style={{ background:"#0d0d0d", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#444", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              </div>
+            ))}
+          </div>
+
+          {activeSet && currentSpots.length > 0 && (
+            <>
+              {/* Controls */}
+              <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12, flexWrap:"wrap" }}>
+                <div style={{ fontSize:13, color:"#888" }}><strong style={{ color:"#F0F0F0" }}>{currentSpots.length}</strong> spots for <strong style={{ color:"#E8317A" }}>{activeSet}</strong></div>
+                <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#888", cursor:"pointer" }}>
+                  <input type="checkbox" checked={shuffle} onChange={e=>setShuffle(e.target.checked)}/> Shuffle order
+                </label>
+                {shuffle && <button onClick={()=>setShuffle(false)||setShuffle(true)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>🔀 Re-shuffle</button>}
+                <Btn onClick={copyToClipboard} style={{ marginLeft:"auto" }}>
+                  {copied ? "✅ Copied!" : "📋 Copy All Spots"}
+                </Btn>
+              </div>
+
+              {/* Preview list */}
+              <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 16px", maxHeight:400, overflowY:"auto" }}>
+                {displaySpots.map((hero,i) => (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"5px 0", borderBottom:"1px solid #1a1a1a" }}>
+                    <span style={{ fontSize:10, color:"#333", minWidth:24, textAlign:"right" }}>{i+1}</span>
+                    <span style={{ fontSize:13, color:"#F0F0F0", fontWeight:600 }}>{hero}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize:11, color:"#555", marginTop:8 }}>
+                Click <strong style={{ color:"#7B9CFF" }}>Copy All Spots</strong> then paste directly into Whatnot's break spot input — each hero becomes its own row.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HeroBreakBuilder({ userRole, bobaCards=[] }) {
   const [selectedSets,  setSelectedSets]  = useState(new Set(["Tecmo Bowl"]));
   const [breakMode,     setBreakMode]     = useState("single");
@@ -11986,12 +12159,13 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const isShipping = userRole?.role === "Shipping";
   const ALL_STREAM_TABS = [
-    { id:"recap",      label:"\uD83D\uDCCB Stream Recap",     roles:["Admin","Streamer","StreamerLite"] },
-    { id:"cards",      label:"\uD83C\uDCCF Log Cards",        roles:["Admin","Streamer","Shipping","StreamerLite"] },
-    { id:"commission", label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
-    { id:"planner",    label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
-    { id:"calendar",   label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
-    { id:"herobreak",  label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
+    { id:"recap",       label:"\uD83D\uDCCB Stream Recap",     roles:["Admin","Streamer","StreamerLite"] },
+    { id:"cards",       label:"\uD83C\uDCCF Log Cards",        roles:["Admin","Streamer","Shipping","StreamerLite"] },
+    { id:"commission",  label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
+    { id:"breakspots",  label:"🎯 Break Spots",                roles:["Admin","Streamer","StreamerLite"] },
+    { id:"planner",     label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
+    { id:"calendar",    label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
+    { id:"herobreak",   label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
   ];
   const STREAM_TABS = ALL_STREAM_TABS.filter(t => t.roles.includes(userRole?.role));
   const [streamTab, setStreamTab] = useState(defaultStreamTab !== "recap" ? defaultStreamTab : (isShipping ? "cards" : "recap"));
@@ -12015,6 +12189,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
       {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
       {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
+      {streamTab === "breakspots" && <BreakSpots bobaCards={bobaCards}/>}
     </div>
   );
 }
