@@ -6212,7 +6212,8 @@ function CampaignTracker({ buyers=[], streams=[] }) {
   const [saving,     setSaving]     = useState(false);
   const [importMsg,  setImportMsg]  = useState(null);
   const [importing,  setImporting]  = useState(false);
-  const [importDate, setImportDate] = useState(new Date().toISOString().split("T")[0]);
+  const localToday = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const [importDate, setImportDate] = useState(localToday());
   const [expandedDay, setExpandedDay] = useState(null);
 
   const tagged   = buyers.filter(b => (b.couponsUsed||[]).includes(CAMPAIGN_CODE));
@@ -6367,8 +6368,10 @@ function CampaignTracker({ buyers=[], streams=[] }) {
                   const retP   = db2.length ? ret/db2.length*100 : 0;
                   const dayROI = disc > 0 ? spend/disc : 0;
                   const isOpen = expandedDay === day;
-                  const label  = day==="unknown" ? "Unknown date" :
-                    new Date(day+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                  const label  = day==="unknown" ? "Unknown date" : (() => {
+                    const [y,m,d] = day.split("-").map(Number);
+                    return new Date(y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+                  })();
                   return (
                     <React.Fragment key={day}>
                       <tr onClick={()=>setExpandedDay(isOpen?null:day)}
