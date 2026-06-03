@@ -6204,8 +6204,239 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 // ── BUYER RETENTION ──────────────────────────────────────────────────────────
 // ── CAMPAIGN TRACKER ─────────────────────────────────────────────────────────
 const CAMPAIGN_CODE = "FIRSTTIME25";
+const COUPON_VALUE  = 25;
 
-function CampaignTracker({ buyers=[] }) {
+function CampaignTracker({ buyers=[], streams=[] }) {
+  const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const [search,     setSearch]     = useState("");
+  const [saving,     setSaving]     = useState(false);
+  const [importMsg,  setImportMsg]  = useState(null);
+  const [importing,  setImporting]  = useState(false);
+  const [importDate, setImportDate] = useState(new Date().toISOString().split("T")[0]);
+
+  const tagged   = buyers.filter(b => (b.couponsUsed||[]).includes(CAMPAIGN_CODE));
+  const untagged = buyers.filter(b => !(b.couponsUsed||[]).includes(CAMPAIGN_CODE));
+
+  // Build per-day data — use couponTagDate if set, otherwise try spendHistory to find earliest stream
+  const byDay = {};
+  tagged.forEach(b => {
+    let date = b.couponTagDate;
+    if (!date && b.spendHistory?.length) {
+      // Use the earliest stream date in their spend history as a proxy
+      date = b.spendHistory.reduce((min,h)=>(!min||h.date<min)?h.date:min, null);
+    }
+    const key = date || "unknown";
+    if (!byDay[key]) byDay[key] = [];
+    byDay[key].push(b);
+  });
+  const sortedDays = Object.keys(byDay).filter(d=>d!=="unknown").sort();
+  if (byDay.unknown?.length) sortedDays.push("unknown");
+
+  const totalTagged   = tagged.length;
+  const totalSpend    = tagged.reduce((s,b)=>s+(b.totalSpend||0),0);
+  const totalDiscount = totalTagged * COUPON_VALUE;
+  const totalReturned = tagged.filter(b=>(b.orderCount||0)>1).length;
+  const retPct        = totalTagged ? (totalReturned/totalTagged*100) : 0;
+  const roi           = totalDiscount > 0 ? totalSpend/totalDiscount : 0;
+
+  const searchResults = search.length > 1
+    ? untagged.filter(b=>(b.username||"").toLowerCase().includes(search.toLowerCase())).slice(0,10)
+    : [];
+
+  async function tagBuyer(buyer) {
+    setSaving(true);
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: [...(buyer.couponsUsed||[]), CAMPAIGN_CODE],
+      couponTagDate: importDate,
+    }, { merge:true });
+    setSearch(""); setSaving(false);
+  }
+
+  async function untagBuyer(buyer) {
+    await setDoc(doc(db,"buyers",buyer.id), {
+      couponsUsed: (buyer.couponsUsed||[]).filter(c=>c!==CAMPAIGN_CODE),
+    }, { merge:true });
+  }
+
+  function importCSV(file) {
+    if (!file) return;
+    setImporting(true); setImportMsg(null);
+    const streamDate = importDate;
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const lines = e.target.result.split(/\r?\n/).filter(l=>l.trim());
+        const headers = lines[0].split(",").map(h=>h.replace(/^"|"$/g,"").toLowerCase().trim());
+        const uIdx = headers.findIndex(h=>h.includes("buyer_username")||h==="username");
+        const cIdx = headers.findIndex(h=>h.includes("coupon_code")||h.includes("coupon code"));
+        const dIdx = headers.findIndex(h=>h.includes("coupon_price")||h.includes("discount"));
+        const xIdx = headers.findIndex(h=>h.includes("cancelled")||h.includes("failed"));
+        if (uIdx===-1) { setImportMsg(`❌ No username column. Found: ${headers.join(", ")}`); setImporting(false); return; }
+        if (cIdx===-1) { setImportMsg(`❌ No coupon_code column. Found: ${headers.join(", ")}`); setImporting(false); return; }
+        const couponUsers = {};
+        for (let i=1; i<lines.length; i++) {
+          const cols=[]; let cur="",inQ=false;
+          for (const ch of lines[i]) { if(ch==='"')inQ=!inQ; else if(ch===','&&!inQ){cols.push(cur.trim());cur="";}else cur+=ch; }
+          cols.push(cur.trim());
+          if (xIdx>=0&&["true","yes","failed"].includes((cols[xIdx]||"").toLowerCase())) continue;
+          const u=(cols[uIdx]||"").replace(/^"|"$/g,"").trim();
+          const c=(cols[cIdx]||"").replace(/^"|"$/g,"").trim().toUpperCase();
+          if (!u||c!==CAMPAIGN_CODE) continue;
+          const disc=dIdx>=0?Math.abs(parseFloat((cols[dIdx]||"").replace(/[$,"]/g,""))||0):0;
+          if (!couponUsers[u]) couponUsers[u]=0;
+          couponUsers[u]+=disc;
+        }
+        const found=Object.entries(couponUsers);
+        if (!found.length) { setImportMsg(`⚠️ No ${CAMPAIGN_CODE} rows found in this file.`); setImporting(false); return; }
+        let tagged=0, missing=[];
+        await Promise.all(found.map(([username,disc])=>{
+          const buyer=buyers.find(b=>(b.username||"").toLowerCase()===username.toLowerCase());
+          if (!buyer) { missing.push(username); return Promise.resolve(); }
+          tagged++;
+          return setDoc(doc(db,"buyers",buyer.id),{
+            couponsUsed:[...new Set([...(buyer.couponsUsed||[]),CAMPAIGN_CODE])],
+            couponTagDate: buyer.couponTagDate || streamDate,
+          },{ merge:true });
+        }));
+        let msg=`✅ Tagged ${tagged} buyer${tagged!==1?"s":""} on ${streamDate}`;
+        if (missing.length) msg+=` · ${missing.length} not in CRM: ${missing.slice(0,3).join(", ")}${missing.length>3?` +${missing.length-3}`:""}`;
+        setImportMsg(msg);
+      } catch(err) { setImportMsg("❌ "+err.message); }
+      setImporting(false);
+    };
+    reader.readAsText(file);
+  }
+
+  const StatBox = ({label,value,color,sub}) => (
+    <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
+      <div style={{ fontSize:22, fontWeight:900, color, lineHeight:1 }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{sub}</div>}
+      <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:"1px", marginTop:6 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
+
+      {/* ── OVERALL SUMMARY ── */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t={`🎯 ${CAMPAIGN_CODE} — Campaign Overview`}/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10, marginBottom:16 }}>
+          <StatBox label="Total Tagged"   value={totalTagged}              color="#F0F0F0"/>
+          <StatBox label="Returned"       value={`${retPct.toFixed(0)}%`}  color={retPct>=30?"#4ade80":"#FBBF24"} sub={`${totalReturned} of ${totalTagged}`}/>
+          <StatBox label="Total Spend"    value={fmt2(totalSpend)}         color="#7B9CFF"/>
+          <StatBox label="Discounts Out"  value={fmt2(totalDiscount)}      color="#FBBF24" sub={`${totalTagged} × $${COUPON_VALUE}`}/>
+          <StatBox label="Overall ROI"    value={roi>0?`${roi.toFixed(1)}x`:"—"} color={roi>=5?"#4ade80":roi>=2?"#FBBF24":"#E8317A"}/>
+        </div>
+
+        {/* Import + date */}
+        <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap", padding:"10px 14px", background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8 }}>
+          <div>
+            <div style={{ fontSize:9, color:"#555", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Stream Date</div>
+            <input type="date" value={importDate} onChange={e=>setImportDate(e.target.value)} style={{ ...S.inp, width:"auto" }}/>
+          </div>
+          <label style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+            {importing?"⏳ Importing...":"📂 Import Whatnot CSV"}
+            <input type="file" accept=".csv" style={{ display:"none" }} disabled={importing} onChange={e=>{ if(e.target.files[0]) importCSV(e.target.files[0]); e.target.value=""; }}/>
+          </label>
+          <div style={{ fontSize:11, color:"#444" }}>Only updates coupon data — won't duplicate spend</div>
+        </div>
+        {importMsg && <div style={{ marginTop:8, fontSize:12, color:importMsg.startsWith("✅")?"#4ade80":importMsg.startsWith("⚠️")?"#FBBF24":"#ef4444", padding:"6px 10px", background:"#0d0d0d", borderRadius:6 }}>{importMsg}</div>}
+      </div>
+
+      {/* ── PER-DAY TABLE ── */}
+      {sortedDays.length > 0 && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="📅 By Stream Day"/>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr>
+                  {["Stream Date","Buyers","Returned","Return %","Total Spend","Discount","ROI"].map(h=>(
+                    <th key={h} style={{ ...S.th, padding:"8px 12px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedDays.map((day,i) => {
+                  const db2    = byDay[day];
+                  const spend  = db2.reduce((s,b)=>s+(b.totalSpend||0),0);
+                  const disc   = db2.length * COUPON_VALUE;
+                  const ret    = db2.filter(b=>(b.orderCount||0)>1).length;
+                  const retP   = db2.length ? ret/db2.length*100 : 0;
+                  const dayROI = disc > 0 ? spend/disc : 0;
+                  const label  = day==="unknown" ? "Unknown date" :
+                    new Date(day+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                  return (
+                    <tr key={day} style={{ background:i%2===0?"#111":"#0d0d0d", borderBottom:"1px solid #1a1a1a" }} className="clickable-row">
+                      <td style={{ ...S.td, fontWeight:700, color:"#F0F0F0", whiteSpace:"nowrap" }}>{label}</td>
+                      <td style={{ ...S.td, textAlign:"center" }}>
+                        <span style={{ fontWeight:700, color:"#F0F0F0" }}>{db2.length}</span>
+                      </td>
+                      <td style={{ ...S.td, textAlign:"center", color:"#4ade80", fontWeight:700 }}>{ret}</td>
+                      <td style={{ ...S.td, textAlign:"center" }}>
+                        <span style={{ fontWeight:800, color:retP>=30?"#4ade80":retP>=15?"#FBBF24":"#888" }}>{retP.toFixed(0)}%</span>
+                      </td>
+                      <td style={{ ...S.td, textAlign:"right", color:"#7B9CFF", fontWeight:700 }}>{fmt2(spend)}</td>
+                      <td style={{ ...S.td, textAlign:"right", color:"#FBBF24" }}>{fmt2(disc)}</td>
+                      <td style={{ ...S.td, textAlign:"right" }}>
+                        <span style={{ fontWeight:900, color:dayROI>=5?"#4ade80":dayROI>=2?"#FBBF24":"#E8317A" }}>{dayROI>0?`${dayROI.toFixed(1)}x`:"—"}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Totals row */}
+                <tr style={{ background:"#0a0a0a", borderTop:"2px solid rgba(232,49,122,0.2)" }}>
+                  <td style={{ ...S.td, fontWeight:800, color:"#E8317A" }}>TOTAL</td>
+                  <td style={{ ...S.td, textAlign:"center", fontWeight:900, color:"#F0F0F0" }}>{totalTagged}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontWeight:900, color:"#4ade80" }}>{totalReturned}</td>
+                  <td style={{ ...S.td, textAlign:"center", fontWeight:900, color:retPct>=30?"#4ade80":"#FBBF24" }}>{retPct.toFixed(0)}%</td>
+                  <td style={{ ...S.td, textAlign:"right", fontWeight:900, color:"#7B9CFF" }}>{fmt2(totalSpend)}</td>
+                  <td style={{ ...S.td, textAlign:"right", fontWeight:900, color:"#FBBF24" }}>{fmt2(totalDiscount)}</td>
+                  <td style={{ ...S.td, textAlign:"right", fontWeight:900, color:roi>=5?"#4ade80":roi>=2?"#FBBF24":"#E8317A" }}>{roi>0?`${roi.toFixed(1)}x`:"—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── MANUAL TAG ── */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="✋ Manually Tag a Buyer"/>
+        <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>For buyers who forgot to use the coupon. Uses the Stream Date selected above.</div>
+        <div style={{ position:"relative", maxWidth:380 }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by username..."
+            style={{ ...S.inp, width:"100%" }}/>
+          {searchResults.length > 0 && (
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, zIndex:99, maxHeight:240, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
+              {searchResults.map(b=>(
+                <div key={b.id} onClick={()=>!saving&&tagBuyer(b)}
+                  style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #111" }}
+                  className="inv-row">
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{b.username}</div>
+                    <div style={{ fontSize:10, color:"#555" }}>{b.orderCount||0} orders · {fmt2(b.totalSpend||0)}</div>
+                  </div>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", background:"rgba(232,49,122,0.1)", borderRadius:6, padding:"4px 12px" }}>{saving?"...":"+ Tag"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {search.length>1&&!searchResults.length&&<div style={{ marginTop:6, fontSize:12, color:"#555" }}>No untagged buyers matching "{search}"</div>}
+        </div>
+      </div>
+
+      {tagged.length===0&&(
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555" }}>No buyers tagged yet</div>
+          <div style={{ fontSize:12, color:"#444", marginTop:4 }}>Import a Whatnot CSV above or manually search and tag buyers</div>
+        </div>
+      )}
+    </div>
+  );
+}
   const fmt2 = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   const [search,    setSearch]    = useState("");
   const [saving,    setSaving]    = useState(false);
@@ -6500,6 +6731,10 @@ function CampaignTracker({ buyers=[] }) {
           {search.length>1&&searchResults.length===0&&<div style={{ marginTop:6, fontSize:12, color:"#555" }}>No untagged buyers matching "{search}"</div>}
         </div>
       </div>
+
+    </div>
+  );
+}
 
 function BuyerRetention({ buyers=[], streams=[] }) {
   const now = new Date();
