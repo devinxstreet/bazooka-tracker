@@ -6308,6 +6308,25 @@ function CampaignTracker({ buyers=[], streams=[] }) {
     reader.readAsText(file);
   }
 
+  function exportCSV() {
+    const couponValue = COUPON_VALUE;
+    const rows = [
+      ["Username","Coupon Discount","Lifetime Spend","ROI","Returned","Orders"],
+      ...tagged.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map(b => {
+        const spend = b.totalSpend||0;
+        const disc  = couponValue;
+        const roi   = (spend/disc).toFixed(2);
+        const returned = (b.orderCount||0)>1 ? "Yes" : "No";
+        return [b.username, `$${disc.toFixed(2)}`, `$${spend.toFixed(2)}`, `${roi}x`, returned, b.orderCount||0];
+      })
+    ];
+    const csv = rows.map(r=>r.map(v=>`"${v}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+    a.download = `${CAMPAIGN_CODE}-campaign-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  }
+
   const StatBox = ({label,value,color,sub}) => (
     <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
       <div style={{ fontSize:22, fontWeight:900, color, lineHeight:1 }}>{value}</div>
@@ -6321,7 +6340,14 @@ function CampaignTracker({ buyers=[], streams=[] }) {
 
       {/* ── OVERALL SUMMARY ── */}
       <div style={{ ...S.card }}>
-        <SectionLabel t={`🎯 ${CAMPAIGN_CODE} — Campaign Overview`}/>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:0 }}>
+          <SectionLabel t={`🎯 ${CAMPAIGN_CODE} — Campaign Overview`}/>
+          {tagged.length > 0 && (
+            <button onClick={exportCSV} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.25)", color:"#4ade80", borderRadius:7, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              ⬇ Export CSV
+            </button>
+          )}
+        </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10, marginBottom:16 }}>
           <StatBox label="Total Tagged"   value={totalTagged}              color="#F0F0F0"/>
           <StatBox label="Returned"       value={`${retPct.toFixed(0)}%`}  color={retPct>=30?"#4ade80":"#FBBF24"} sub={`${totalReturned} of ${totalTagged}`}/>
@@ -11302,6 +11328,158 @@ const TIER_CFG = {
   "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
 };
 
+// ── SHOW NOTES ───────────────────────────────────────────────────────────────
+function ShowNotes({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [notes,       setNotes]       = useState({});   // { name: text }
+  const [activeName,  setActiveName]  = useState(null);
+  const [noteName,    setNoteName]    = useState("");
+  const [noteText,    setNoteText]    = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const [copied,      setCopied]      = useState(false);
+  const [editing,     setEditing]     = useState(false);
+
+  useEffect(() => {
+    getDoc(doc(db,"config","showNotes")).then(snap => {
+      if (snap.exists()) {
+        const data = snap.data().notes || {};
+        setNotes(data);
+        if (!activeName && Object.keys(data).length > 0) {
+          setActiveName(Object.keys(data)[0]);
+        }
+      }
+    }).catch(()=>{});
+  }, []);
+
+  async function saveNote() {
+    if (!noteName.trim() || !noteText.trim()) return;
+    setSaving(true);
+    const updated = { ...notes, [noteName.trim()]: noteText };
+    setNotes(updated);
+    await setDoc(doc(db,"config","showNotes"), { notes: updated }, { merge:true });
+    setActiveName(noteName.trim());
+    setNoteName(""); setNoteText(""); setEditing(false);
+    setSaving(false);
+  }
+
+  async function deleteNote(name) {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    const updated = { ...notes };
+    delete updated[name];
+    setNotes(updated);
+    await setDoc(doc(db,"config","showNotes"), { notes: updated }, { merge:true });
+    if (activeName === name) setActiveName(Object.keys(updated)[0]||null);
+  }
+
+  function startEdit(name) {
+    setNoteName(name);
+    setNoteText(notes[name]||"");
+    setEditing(true);
+  }
+
+  function copyNote() {
+    const text = notes[activeName]||"";
+    navigator.clipboard.writeText(text).then(()=>{
+      setCopied(true); setTimeout(()=>setCopied(false),2500);
+    }).catch(()=>{
+      const ta=document.createElement("textarea"); ta.value=text;
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true); setTimeout(()=>setCopied(false),2500);
+    });
+  }
+
+  const allNames = Object.keys(notes);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:"0 0 20px" }}>
+
+      {/* Template selector */}
+      {allNames.length > 0 && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="📝 Show Notes Templates"/>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom: activeName ? 14 : 0 }}>
+            {allNames.map(name => (
+              <div key={name} style={{ display:"flex", alignItems:"center" }}>
+                <button onClick={()=>{ setActiveName(name); setEditing(false); }}
+                  style={{ background:activeName===name?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${activeName===name?"#E8317A":"#2a2a2a"}`, color:activeName===name?"#E8317A":"#888", borderRadius:isAdmin?"8px 0 0 8px":"8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {name}
+                </button>
+                {isAdmin && <>
+                  <button onClick={()=>startEdit(name)}
+                    style={{ background:"#0d0d0d", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#555", borderRadius:"0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit">✏️</button>
+                  <button onClick={()=>deleteNote(name)}
+                    style={{ background:"#0d0d0d", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#444", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Delete">✕</button>
+                </>}
+              </div>
+            ))}
+            {isAdmin && (
+              <button onClick={()=>{ setEditing(true); setNoteName(""); setNoteText(""); setActiveName(null); }}
+                style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"#555", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                + New Template
+              </button>
+            )}
+          </div>
+
+          {/* Preview + copy */}
+          {activeName && notes[activeName] && !editing && (
+            <>
+              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
+                <Btn onClick={copyNote}>{copied?"✅ Copied!":"📋 Copy to Clipboard"}</Btn>
+              </div>
+              <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"#AAAAAA", lineHeight:1.8, maxHeight:500, overflowY:"auto", fontFamily:"inherit" }}>
+                {notes[activeName]}
+              </div>
+              <div style={{ fontSize:11, color:"#555", marginTop:8 }}>
+                Click <strong style={{ color:"#7B9CFF" }}>Copy to Clipboard</strong> then paste directly into Whatnot's show notes field.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {allNames.length === 0 && !editing && (
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>📝</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:6 }}>No show notes templates yet</div>
+          {isAdmin
+            ? <Btn onClick={()=>setEditing(true)}>+ Create First Template</Btn>
+            : <div style={{ fontSize:12, color:"#444" }}>Ask an admin to add show notes templates</div>}
+        </div>
+      )}
+
+      {/* Admin: create / edit form */}
+      {isAdmin && editing && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t={noteName && notes[noteName] ? `✏️ Editing — ${noteName}` : "✨ New Template"}/>
+          <div style={{ display:"grid", gridTemplateColumns:"220px 1fr", gap:12, alignItems:"flex-start" }}>
+            <div>
+              <label style={S.lbl}>Template Name</label>
+              <input value={noteName} onChange={e=>setNoteName(e.target.value)}
+                placeholder="e.g. Standard Break, Tecmo Bowl Night"
+                style={{ ...S.inp }}/>
+              <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                <Btn onClick={saveNote} disabled={!noteName.trim()||!noteText.trim()||saving}>
+                  {saving?"⏳ Saving...":"💾 Save"}
+                </Btn>
+                <Btn variant="ghost" onClick={()=>{ setEditing(false); setNoteName(""); setNoteText(""); }}>Cancel</Btn>
+              </div>
+            </div>
+            <div>
+              <label style={S.lbl}>Show Notes Content</label>
+              <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
+                placeholder={"Paste your show notes template here...\n\nUse placeholders like [SET NAME], [DATE], [BREAKER] and swap them out before each stream.\n\nExample:\n🔴 LIVE — [SET NAME] Break!\n\nHow to buy:\n1. Click any item to bid\n2. Highest bid wins\n..."}
+                rows={14}
+                style={{ ...S.inp, resize:"vertical", lineHeight:1.7, fontSize:13 }}/>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── BREAK SPOTS ──────────────────────────────────────────────────────────────
 function BreakSpots() {
   const fmt = v => v;
@@ -12072,6 +12250,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"cards",       label:"\uD83C\uDCCF Log Cards",        roles:["Admin","Streamer","Shipping","StreamerLite"] },
     { id:"commission",  label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
     { id:"breakspots",  label:"🎯 Break Spots",                roles:["Admin","Streamer","StreamerLite"] },
+    { id:"shownotes",   label:"📝 Show Notes",                 roles:["Admin","Streamer","StreamerLite"] },
     { id:"planner",     label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
     { id:"calendar",    label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",   label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
@@ -12099,6 +12278,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
       {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
       {streamTab === "breakspots" && <BreakSpots bobaCards={bobaCards}/>}
+      {streamTab === "shownotes"  && <ShowNotes userRole={userRole}/>}
     </div>
   );
 }
@@ -23025,6 +23205,7 @@ export default function App() {
                   {label:"\uD83D\uDCCB Stream Recap",sub:"Log & review streams",action:()=>{setTab("streams");setStreamTabDefault("recap");setHoverTab(null);}},
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"🎯 Break Spots",sub:"Build & copy hero lists",action:()=>{setTab("streams");setStreamTabDefault("breakspots");setHoverTab(null);}},
+                  {label:"📝 Show Notes",sub:"Templates for Whatnot",action:()=>{setTab("streams");setStreamTabDefault("shownotes");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
