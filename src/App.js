@@ -22126,6 +22126,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
   const [showForm,    setShowForm]    = useState(false);
   const [editId,      setEditId]      = useState(null);
   const [activeChase, setActiveChase] = useState(null);
+  const [chaseSorts,  setChaseSorts]  = useState({});
   const [saving,      setSaving]      = useState(false);
 
   // Form state — DB-driven
@@ -22432,9 +22433,34 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
             </button>
 
             {/* Card grid — checklist style */}
-            {isOpen && (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
-                {cards.map(card=>{
+            {isOpen && (() => {
+              const sortKey = chaseSorts[chase.id] || "weapon";
+              const WEAPON_ORDER2 = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+              const sorted = [...cards].sort((a,b) => {
+                const la = cardLookup[a.cardId]||{};
+                const lb = cardLookup[b.cardId]||{};
+                const wa = a.weapon||la.weapon||""; const wb = b.weapon||lb.weapon||"";
+                const ta = a.treatment||la.treatment||""; const tb = b.treatment||lb.treatment||"";
+                const pa = la.power||0; const pb = lb.power||0;
+                const ha = a.hero||la.hero||""; const hb = b.hero||lb.hero||"";
+                if (sortKey==="weapon")    return WEAPON_ORDER2.indexOf(wa)-WEAPON_ORDER2.indexOf(wb) || ha.localeCompare(hb);
+                if (sortKey==="treatment") return ta.localeCompare(tb) || WEAPON_ORDER2.indexOf(wa)-WEAPON_ORDER2.indexOf(wb);
+                if (sortKey==="power")     return pb-pa || ha.localeCompare(hb);
+                if (sortKey==="hero")      return ha.localeCompare(hb) || WEAPON_ORDER2.indexOf(wa)-WEAPON_ORDER2.indexOf(wb);
+                return 0;
+              });
+              return (
+                <>
+                  <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+                    {[["weapon","⚔️ Weapon"],["treatment","✨ Treatment"],["power","💪 Power"],["hero","🦸 Hero"]].map(([k,l])=>(
+                      <button key={k} onClick={()=>setChaseSorts(p=>({...p,[chase.id]:k}))}
+                        style={{ background:sortKey===k?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1px solid ${sortKey===k?"#E8317A":"#2a2a2a"}`, color:sortKey===k?"#E8317A":"#555", borderRadius:6, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                    {sorted.map(card=>{
                   // Merge live DB data so treatment/cardNum always shows even on old saves
                   const live = cardLookup[card.cardId] || {};
                   const treatment = card.treatment || live.treatment || "";
@@ -22482,8 +22508,10 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                     </div>
                   );
                 })}
-              </div>
-            )}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Submissions */}
             {subs.length>0 && (
