@@ -21795,6 +21795,7 @@ function parseLocalDate(dateStr) {
 // ── PUBLIC CHASE TRACKER (/chases) ───────────────────────────────────────────
 function PublicChaseTracker() {
   const [chases,      setChases]      = useState([]);
+  const [bobaCards,   setBobaCards]   = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [activeChase, setActiveChase] = useState(null);
   const [submitForm,  setSubmitForm]  = useState(null);
@@ -21803,13 +21804,26 @@ function PublicChaseTracker() {
   const [submitted,   setSubmitted]   = useState(false);
 
   useEffect(() => {
-    onSnapshot(collection(db,"chases"), snap => {
+    // Load chases
+    const u1 = onSnapshot(collection(db,"chases"), snap => {
       const all = snap.docs.map(d=>({id:d.id,...d.data()}))
         .filter(c=>c.active!==false && (c.cards||[]).some(x=>!x.owned));
       setChases(all.sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")));
       setLoading(false);
     });
+    // Load card database for live treatment/image lookup
+    getDocs(collection(db,"cards")).then(snap => {
+      setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+    }).catch(()=>{});
+    return ()=>u1();
   }, []);
+
+  // Build lookup map
+  const cardLookup = useMemo(() => {
+    const m = {};
+    bobaCards.forEach(c=>{ if(c.id) m[c.id]=c; });
+    return m;
+  }, [bobaCards]);
 
   async function submitHaveCard() {
     if (!submitForm) return;
@@ -21988,24 +22002,31 @@ function PublicChaseTracker() {
                               <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Needed — {needed.length}</div>
                               <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                                 {needed.map((card,i)=>{
-                                  const wc = getWeaponColor(card.name);
+                                  const live = cardLookup[card.cardId]||{};
+                                  const weapon    = card.weapon    || live.weapon    || "";
+                                  const treatment = card.treatment || live.treatment || "";
+                                  const cardNum   = card.cardNum   || live.cardNum   || "";
+                                  const imageUrl  = card.imageUrl  || live.imageUrl  || null;
+                                  const hero      = card.hero      || live.hero      || card.name;
+                                  const WCOLORS = { Fire:"#F97316",Ice:"#38BDF8",Glow:"#4ade80",Hex:"#A78BFA",Gum:"#EC4899",Super:"#FBBF24",Steel:"#94A3B8",Brawl:"#EF4444" };
+                                  const wc = WCOLORS[weapon] || getWeaponColor(card.name);
                                   return (
                                     <div key={i} className="card-row"
-                                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:"1px solid #1a1a1a", borderRadius:10, padding:"8px 12px", gap:10 }}>
+                                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:`1px solid ${wc}22`, borderRadius:10, padding:"8px 12px", gap:10 }}>
                                       <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
                                         {/* Card image */}
-                                        {card.imageUrl
-                                          ? <img src={card.imageUrl} alt={card.hero||card.name} style={{ width:36, height:50, objectFit:"cover", borderRadius:5, flexShrink:0, border:`1px solid ${wc}33` }}/>
-                                          : <div style={{ width:36, height:50, borderRadius:5, background:`${wc}18`, border:`1px solid ${wc}22`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                              <div style={{ width:16, height:16, borderRadius:"50%", background:wc, opacity:0.5 }}/>
+                                        {imageUrl
+                                          ? <img src={imageUrl} alt={hero} style={{ width:44, height:60, objectFit:"cover", borderRadius:6, flexShrink:0, border:`1px solid ${wc}44`, boxShadow:`0 2px 8px rgba(0,0,0,0.5)` }}/>
+                                          : <div style={{ width:44, height:60, borderRadius:6, background:`${wc}18`, border:`1px solid ${wc}22`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                              <div style={{ fontSize:10, color:wc, fontWeight:900 }}>{(weapon||"?")[0]}</div>
                                             </div>
                                         }
                                         <div style={{ minWidth:0 }}>
-                                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{card.hero||card.name}</div>
-                                          <div style={{ display:"flex", gap:4, marginTop:3, flexWrap:"wrap" }}>
-                                            <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"1px 6px" }}>{card.weapon}</span>
-                                            {card.treatment&&<span style={{ fontSize:10, color:"#888", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{card.treatment}</span>}
-                                            {card.cardNum&&<span style={{ fontSize:10, color:"#555" }}>#{card.cardNum}</span>}
+                                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:4 }}>{hero}</div>
+                                          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                                            {weapon && <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"2px 8px" }}>{weapon}</span>}
+                                            {treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px" }}>{treatment}</span>}
+                                            {cardNum && <span style={{ fontSize:10, color:"#555" }}>#{cardNum}</span>}
                                           </div>
                                         </div>
                                       </div>
