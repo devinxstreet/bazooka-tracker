@@ -15091,6 +15091,155 @@ function BroadcasterNotes({ cards=[] }) {
 }
 
 
+// ── COMPANY DIRECTORY ────────────────────────────────────────────────────────
+const DIR_GROUPS = ["Bazooka Breaks","IMC / BoBA","Vendor","Other"];
+
+function CompanyDirectory({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [people,    setPeople]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [showForm,  setShowForm]  = useState(false);
+  const [editId,    setEditId]    = useState(null);
+  const [search,    setSearch]    = useState("");
+  const [groupF,    setGroupF]    = useState("All");
+  const [saving,    setSaving]    = useState(false);
+
+  const EMPTY = { name:"", role:"", group:"Bazooka Breaks", phone:"", email:"", discord:"", whatnot:"", notes:"" };
+  const [form, setForm] = useState(EMPTY);
+  const f = k => v => setForm(p=>({...p,[k]:v}));
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"directory"), snap => {
+      setPeople(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")));
+      setLoading(false);
+    });
+    return ()=>unsub();
+  }, []);
+
+  async function savePerson() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    const id = editId || uid();
+    await setDoc(doc(db,"directory",id), { ...form, id, updatedAt:new Date().toISOString() }, { merge:true });
+    setShowForm(false); setEditId(null); setForm(EMPTY); setSaving(false);
+  }
+
+  async function deletePerson(id, name) {
+    if (!window.confirm(`Remove ${name} from directory?`)) return;
+    await deleteDoc(doc(db,"directory",id));
+  }
+
+  function startEdit(p) { setForm({ name:p.name||"", role:p.role||"", group:p.group||"Bazooka Breaks", phone:p.phone||"", email:p.email||"", discord:p.discord||"", whatnot:p.whatnot||"", notes:p.notes||"" }); setEditId(p.id); setShowForm(true); }
+
+  const filtered = people.filter(p =>
+    (groupF === "All" || p.group === groupF) &&
+    (!search || [p.name,p.role,p.email,p.discord].join(" ").toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const grouped = DIR_GROUPS.reduce((acc,g)=>{ acc[g]=filtered.filter(p=>p.group===g); return acc; },{});
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+        <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>📋 Company Directory</div>
+        {isAdmin && <Btn onClick={()=>{ setForm(EMPTY); setEditId(null); setShowForm(true); }}>+ Add Person</Btn>}
+      </div>
+
+      {/* Search + group filter */}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role, email..."
+          style={{ ...S.inp, flex:1, minWidth:200 }}/>
+        <div style={{ display:"flex", gap:4 }}>
+          {["All",...DIR_GROUPS].map(g=>(
+            <button key={g} onClick={()=>setGroupF(g)}
+              style={{ background:groupF===g?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${groupF===g?"#E8317A":"#2a2a2a"}`, color:groupF===g?"#E8317A":"#888", borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Add/Edit form */}
+      {showForm && isAdmin && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t={editId?"✏️ Edit Person":"+ Add Person"}/>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10, marginBottom:14 }}>
+            <div><label style={S.lbl}>Name *</label><input value={form.name} onChange={e=>f("name")(e.target.value)} placeholder="Full name" style={S.inp} autoFocus/></div>
+            <div><label style={S.lbl}>Role / Title</label><input value={form.role} onChange={e=>f("role")(e.target.value)} placeholder="e.g. Streamer, CFO" style={S.inp}/></div>
+            <div><label style={S.lbl}>Group</label>
+              <select value={form.group} onChange={e=>f("group")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                {DIR_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div><label style={S.lbl}>Phone</label><input value={form.phone} onChange={e=>f("phone")(e.target.value)} placeholder="555-555-5555" style={S.inp}/></div>
+            <div><label style={S.lbl}>Email</label><input value={form.email} onChange={e=>f("email")(e.target.value)} placeholder="email@example.com" style={S.inp}/></div>
+            <div><label style={S.lbl}>Discord</label><input value={form.discord} onChange={e=>f("discord")(e.target.value)} placeholder="@username" style={S.inp}/></div>
+            <div><label style={S.lbl}>Whatnot</label><input value={form.whatnot} onChange={e=>f("whatnot")(e.target.value)} placeholder="@username" style={S.inp}/></div>
+            <div style={{ gridColumn:"1/-1" }}><label style={S.lbl}>Notes</label><textarea value={form.notes} onChange={e=>f("notes")(e.target.value)} placeholder="Anything useful..." rows={2} style={{ ...S.inp, resize:"vertical" }}/></div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn onClick={savePerson} disabled={!form.name.trim()||saving}>{saving?"Saving...":"💾 Save"}</Btn>
+            <Btn variant="ghost" onClick={()=>{ setShowForm(false); setEditId(null); }}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{ textAlign:"center", padding:40, color:"#555" }}>Loading...</div>}
+
+      {!loading && filtered.length === 0 && (
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, opacity:0.2, marginBottom:10 }}>📋</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:6 }}>
+            {search || groupF!=="All" ? "No results" : "Directory is empty"}
+          </div>
+          {isAdmin && !search && groupF==="All" && <Btn onClick={()=>{ setForm(EMPTY); setEditId(null); setShowForm(true); }}>+ Add First Person</Btn>}
+        </div>
+      )}
+
+      {/* People grouped by category */}
+      {DIR_GROUPS.map(group => {
+        const list = grouped[group];
+        if (!list?.length) return null;
+        return (
+          <div key={group}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
+              {group}
+              <div style={{ flex:1, height:1, background:"linear-gradient(90deg,rgba(232,49,122,0.3),transparent)" }}/>
+              <span style={{ fontSize:10, color:"#555", fontWeight:500, textTransform:"none", letterSpacing:0 }}>{list.length}</span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:10 }}>
+              {list.map(p => (
+                <div key={p.id} className="card-hover" style={{ ...S.card, padding:"14px 16px" }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{p.name}</div>
+                      {p.role && <div style={{ fontSize:11, color:"#E8317A", marginTop:2 }}>{p.role}</div>}
+                    </div>
+                    {isAdmin && (
+                      <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                        <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                        <button onClick={()=>deletePerson(p.id,p.name)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                    {p.phone   && <a href={`tel:${p.phone}`}   style={{ fontSize:12, color:"#7B9CFF", textDecoration:"none", display:"flex", alignItems:"center", gap:6 }}>📞 {p.phone}</a>}
+                    {p.email   && <a href={`mailto:${p.email}`} style={{ fontSize:12, color:"#7B9CFF", textDecoration:"none", display:"flex", alignItems:"center", gap:6 }}>✉️ {p.email}</a>}
+                    {p.discord && <div style={{ fontSize:12, color:"#AAAAAA", display:"flex", alignItems:"center", gap:6 }}>💬 {p.discord}</div>}
+                    {p.whatnot && <div style={{ fontSize:12, color:"#AAAAAA", display:"flex", alignItems:"center", gap:6 }}>🎥 {p.whatnot}</div>}
+                    {p.notes   && <div style={{ fontSize:11, color:"#555", marginTop:4, paddingTop:6, borderTop:"1px solid #1a1a1a", lineHeight:1.5 }}>{p.notes}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
@@ -21954,7 +22103,7 @@ function PublicChaseTracker() {
             <div>
               <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:"3px", marginBottom:10, opacity:0.8 }}>Bazooka Breaks</div>
               <h1 style={{ margin:0, fontSize:"clamp(28px,5vw,44px)", fontWeight:900, color:"#fff", letterSpacing:"-0.5px", lineHeight:1.1 }}>
-                Chase Tracker
+                Bazooka Chase Tracker
               </h1>
               <p style={{ margin:"10px 0 0", fontSize:14, color:"#555", lineHeight:1.6, maxWidth:480 }}>
                 Cards we're hunting. If you have one, hit the button — we want to hear from you.
@@ -21972,21 +22121,7 @@ function PublicChaseTracker() {
             </div>
           </div>
 
-          {/* Stats bar */}
-          {!loading && chases.length > 0 && (
-            <div style={{ display:"flex", gap:24, marginTop:28, paddingTop:24, borderTop:"1px solid #1a1a1a", flexWrap:"wrap" }}>
-              {[
-                { l:"Active Chases", v:chases.length },
-                { l:"Cards Needed", v:chases.reduce((s,c)=>s+(c.cards||[]).filter(x=>!x.owned).length,0) },
-                { l:"Cards Owned",  v:chases.reduce((s,c)=>s+(c.cards||[]).filter(x=>x.owned).length,0) },
-              ].map(({l,v})=>(
-                <div key={l}>
-                  <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{v}</div>
-                  <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Stats bar removed — per-chase progress shown on each card */}
         </div>
       </div>
 
@@ -24479,6 +24614,7 @@ export default function App() {
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","Streamer","StreamerLite"] },
     { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Streamer","Viewer"] },
+    { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin","Streamer"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
@@ -24758,6 +24894,7 @@ export default function App() {
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
+        {tab==="directory"  && <CompanyDirectory userRole={effectiveRole}/>}
       </div>
     </div>
   );
