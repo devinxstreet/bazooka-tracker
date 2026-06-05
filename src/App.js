@@ -21911,12 +21911,13 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
   const [saving,      setSaving]      = useState(false);
 
   // Form state — DB-driven
-  const [fBreaker,    setFBreaker]    = useState(BREAKERS[0]);
-  const [fSet,        setFSet]        = useState("");
-  const [fMode,       setFMode]       = useState("hero");    // "hero" | "insert"
-  const [fHero,       setFHero]       = useState("");
-  const [fInsert,     setFInsert]     = useState("");        // weapon type for insert chase
-  const [fDesc,       setFDesc]       = useState("");
+  const [fBreaker,  setFBreaker]  = useState(BREAKERS[0]);
+  const [fSet,      setFSet]      = useState("");
+  const [fMode,     setFMode]     = useState("hero"); // "hero" | "weapon" | "treatment" | "hero_weapon" | "fullset"
+  const [fHero,     setFHero]     = useState("");
+  const [fWeapon,   setFWeapon]   = useState("");
+  const [fTreat,    setFTreat]    = useState("");
+  const [fDesc,     setFDesc]     = useState("");
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"chases"), snap =>
@@ -21931,28 +21932,42 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
   const myChases = isAdmin ? chases : chases.filter(c => c.breaker === myBreaker);
 
   // Derived options from bobaCards
-  const allSets    = [...new Set(bobaCards.map(c=>c.setName).filter(Boolean))].sort();
-  const setHeroes  = fSet ? [...new Set(bobaCards.filter(c=>c.setName===fSet).map(c=>c.hero).filter(Boolean))].sort() : [];
-  const setWeapons = fSet ? [...new Set(bobaCards.filter(c=>c.setName===fSet).map(c=>c.weapon).filter(Boolean))].sort() : [];
+  const WEAPON_ORDER = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+  const allSets      = [...new Set(bobaCards.map(c=>c.setName).filter(Boolean))].sort();
+  const setCards     = fSet ? bobaCards.filter(c=>c.setName===fSet) : [];
+  const setHeroes    = [...new Set(setCards.map(c=>c.hero).filter(Boolean))].sort();
+  const setWeapons   = [...new Set(setCards.map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b));
+  const setTreats    = [...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
+  const heroWeapons  = fHero ? [...new Set(setCards.filter(c=>c.hero===fHero).map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b)) : [];
 
-  // Cards that would be in this chase
+  const CHASE_MODES = [
+    { id:"hero",            label:"🦸 Hero Rainbow",              desc:"Every card for one hero — all weapons, all treatments" },
+    { id:"treatment",       label:"✨ Insert/Treatment Rainbow",   desc:"Every card of one treatment across all heroes" },
+    { id:"treatment_weapon",label:"🎯 Insert + Weapon Rainbow",    desc:"One treatment × one weapon type" },
+  ];
+
   const previewCards = useMemo(() => {
     if (!fSet) return [];
-    if (fMode === "hero" && fHero) {
-      return bobaCards
-        .filter(c => c.setName===fSet && c.hero===fHero)
-        .sort((a,b) => {
-          const order = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
-          return (order.indexOf(a.weapon)||99) - (order.indexOf(b.weapon)||99);
-        });
+    const byWeapon = (a,b) => WEAPON_ORDER.indexOf(a.weapon) - WEAPON_ORDER.indexOf(b.weapon) || (a.hero||"").localeCompare(b.hero||"");
+    switch(fMode) {
+      case "hero":
+        return fHero ? setCards.filter(c=>c.hero===fHero).sort(byWeapon) : [];
+      case "treatment":
+        return fTreat ? setCards.filter(c=>c.treatment===fTreat).sort(byWeapon) : [];
+      case "treatment_weapon":
+        return (fTreat&&fWeapon) ? setCards.filter(c=>c.treatment===fTreat&&c.weapon===fWeapon).sort((a,b)=>(a.hero||"").localeCompare(b.hero||"")) : [];
+      default: return [];
     }
-    if (fMode === "insert" && fInsert) {
-      return bobaCards
-        .filter(c => c.setName===fSet && c.weapon===fInsert)
-        .sort((a,b) => (a.hero||"").localeCompare(b.hero||""));
+  }, [fSet, fMode, fHero, fWeapon, fTreat, bobaCards]);
+
+  const chaseLabel = () => {
+    switch(fMode) {
+      case "hero":             return fHero ? `${fHero} Rainbow` : "";
+      case "treatment":        return fTreat ? `${fTreat} Rainbow` : "";
+      case "treatment_weapon": return (fTreat&&fWeapon) ? `${fTreat} ${fWeapon} Rainbow` : "";
+      default: return "";
     }
-    return [];
-  }, [fSet, fMode, fHero, fInsert, bobaCards]);
+  };
 
   async function saveChase() {
     if (!previewCards.length) return;
@@ -21963,7 +21978,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
         : null;
       return { cardId:c.id, name:[c.hero,c.weapon,c.treatment,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — "), weapon:c.weapon||"", hero:c.hero||"", imageUrl:c.imageUrl||null, owned:existing?.owned||false };
     });
-    const chaseType = fMode==="hero" ? `${fHero} Rainbow` : `${fInsert} Insert Chase`;
+    const chaseType = chaseLabel() || fMode;
     const data = { breaker:fBreaker, setName:fSet, chaseType, description:fDesc.trim(), cards, active:true, updatedAt:new Date().toISOString() };
     if (editId) await setDoc(doc(db,"chases",editId), data, { merge:true });
     else        await setDoc(doc(db,"chases",uid()), { ...data, createdAt:new Date().toISOString() });
@@ -21991,13 +22006,21 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
     setFBreaker(chase.breaker||BREAKERS[0]);
     setFSet(chase.setName||"");
     setFDesc(chase.description||"");
-    // detect mode from chaseType
-    if ((chase.chaseType||"").includes("Rainbow")) {
-      setFMode("hero");
-      setFHero(chase.chaseType.replace(" Rainbow",""));
+    const ct = chase.chaseType||"";
+    const parts = ct.replace(" Rainbow","").split(" ");
+    // Detect mode: if ends with a weapon name it's treatment_weapon, if it's a hero it's hero, else treatment
+    const lastWord = parts[parts.length-1];
+    const isWeapon = WEAPON_ORDER.includes(lastWord);
+    if (isWeapon && parts.length > 1) {
+      setFMode("treatment_weapon");
+      setFWeapon(lastWord);
+      setFTreat(parts.slice(0,-1).join(" "));
+      setFHero("");
+    } else if (ct.endsWith("Rainbow") && !isWeapon) {
+      // Could be hero or treatment — we'll default to hero if it matches a known pattern
+      setFMode("hero"); setFHero(parts.join(" ")); setFWeapon(""); setFTreat("");
     } else {
-      setFMode("insert");
-      setFInsert(chase.chaseType.replace(" Insert Chase",""));
+      setFMode("treatment"); setFTreat(parts.join(" ")); setFHero(""); setFWeapon("");
     }
     setEditId(chase.id); setShowForm(true);
   }
@@ -22014,7 +22037,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <a href="/chases" target="_blank" rel="noreferrer" style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>🔗 Public Page</a>
-          <Btn onClick={()=>{ setShowForm(true); setEditId(null); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); setFSet(""); setFHero(""); setFInsert(""); setFDesc(""); setFMode("hero"); }}>+ New Chase</Btn>
+          <Btn onClick={()=>{ setShowForm(true); setEditId(null); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); setFSet(""); setFHero(""); setFWeapon(""); setFTreat(""); setFDesc(""); setFMode("hero"); }}>+ New Chase</Btn>
         </div>
       </div>
 
@@ -22032,45 +22055,66 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
             </div>
             <div>
               <label style={S.lbl}>Set</label>
-              <select value={fSet} onChange={e=>{ setFSet(e.target.value); setFHero(""); setFInsert(""); }} style={{ ...S.inp, cursor:"pointer", color:fSet?"#F0F0F0":"#555" }}>
+              <select value={fSet} onChange={e=>{ setFSet(e.target.value); setFHero(""); setFWeapon(""); setFTreat(""); }} style={{ ...S.inp, cursor:"pointer", color:fSet?"#F0F0F0":"#555" }}>
                 <option value="">— Choose set —</option>
                 {allSets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div>
-              <label style={S.lbl}>Chase Type</label>
-              <div style={{ display:"flex", gap:4 }}>
-                {["hero","insert"].map(m=>(
-                  <button key={m} onClick={()=>{ setFMode(m); setFHero(""); setFInsert(""); }}
-                    style={{ flex:1, background:fMode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${fMode===m?"#E8317A":"#2a2a2a"}`, color:fMode===m?"#E8317A":"#888", borderRadius:7, padding:"8px 4px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textTransform:"capitalize" }}>
-                    {m==="hero"?"🦸 Hero":"🎴 Insert"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {fSet && fMode==="hero" && (
-              <div>
-                <label style={S.lbl}>Hero</label>
-                <select value={fHero} onChange={e=>setFHero(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fHero?"#F0F0F0":"#555" }}>
-                  <option value="">— Choose hero —</option>
-                  {setHeroes.map(h=><option key={h} value={h}>{h}</option>)}
-                </select>
-              </div>
-            )}
-            {fSet && fMode==="insert" && (
-              <div>
-                <label style={S.lbl}>Weapon / Insert Type</label>
-                <select value={fInsert} onChange={e=>setFInsert(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fInsert?"#F0F0F0":"#555" }}>
-                  <option value="">— Choose weapon —</option>
-                  {setWeapons.map(w=><option key={w} value={w}>{w}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <label style={S.lbl}>Description (optional)</label>
-              <input value={fDesc} onChange={e=>setFDesc(e.target.value)} placeholder="e.g. Need the /10 and /25" style={S.inp}/>
-            </div>
           </div>
+
+          {/* Chase mode pills */}
+          <div style={{ marginBottom:14 }}>
+            <label style={S.lbl}>Chase Type</label>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {CHASE_MODES.map(m=>(
+                <button key={m.id} onClick={()=>{ setFMode(m.id); setFHero(""); setFWeapon(""); setFTreat(""); }}
+                  title={m.desc}
+                  style={{ background:fMode===m.id?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${fMode===m.id?"#E8317A":"#2a2a2a"}`, color:fMode===m.id?"#E8317A":"#888", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {fMode && <div style={{ fontSize:10, color:"#555", marginTop:5 }}>{CHASE_MODES.find(m=>m.id===fMode)?.desc}</div>}
+          </div>
+
+          {/* Contextual selectors */}
+          {fSet && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10, marginBottom:14 }}>
+              {fMode==="hero" && (
+                <div>
+                  <label style={S.lbl}>Hero</label>
+                  <select value={fHero} onChange={e=>setFHero(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fHero?"#F0F0F0":"#555" }}>
+                    <option value="">— Choose hero —</option>
+                    {setHeroes.map(h=><option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              )}
+              {(fMode==="treatment"||fMode==="treatment_weapon") && (
+                <div>
+                  <label style={S.lbl}>Treatment / Insert</label>
+                  <select value={fTreat} onChange={e=>{ setFTreat(e.target.value); setFWeapon(""); }} style={{ ...S.inp, cursor:"pointer", color:fTreat?"#F0F0F0":"#555" }}>
+                    <option value="">— Choose treatment —</option>
+                    {setTreats.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+              {fMode==="treatment_weapon" && fTreat && (
+                <div>
+                  <label style={S.lbl}>Weapon Type</label>
+                  <select value={fWeapon} onChange={e=>setFWeapon(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fWeapon?"#F0F0F0":"#555" }}>
+                    <option value="">— Choose weapon —</option>
+                    {[...new Set(setCards.filter(c=>c.treatment===fTreat).map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b)).map(w=>(
+                      <option key={w} value={w}>{w}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label style={S.lbl}>Notes (optional)</label>
+                <input value={fDesc} onChange={e=>setFDesc(e.target.value)} placeholder="e.g. Still need the /10" style={S.inp}/>
+              </div>
+            </div>
+          )}
 
           {/* Preview */}
           {previewCards.length > 0 && (
@@ -22109,7 +22153,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
         <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
           <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
           <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:10 }}>No chases yet</div>
-          <Btn onClick={()=>{ setShowForm(true); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); }}>+ Create First Chase</Btn>
+          <Btn onClick={()=>{ setShowForm(true); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); setFSet(""); setFHero(""); setFWeapon(""); setFTreat(""); setFDesc(""); setFMode("hero"); }}>+ Create First Chase</Btn>
         </div>
       )}
 
