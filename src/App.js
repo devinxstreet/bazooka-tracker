@@ -7178,6 +7178,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
   function getPerfStreams() {
     return streams.filter(s => {
       if (!s.date) return false;
+      if ((s.channel||"Bazooka Vault") === "Orbital Society") return false; // tracked separately
       const d = parseLocalDate(s.date);
       if (perfPeriod === "week") {
         const day=d.getDay(), diff=day===0?6:day-1;
@@ -7239,7 +7240,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
     const breakerBoxTotal = Object.values(breakerBoxes).reduce((a,b)=>a+b,0);
     const breakerGross = breakerMonthStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0);
     const breakerNewBuyers = breakerMonthStreams.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0);
-    const mmStreams = breakerMonthStreams.filter(s=>parseFloat(s.marketMultiple)>0);
+    const mmStreams = breakerMonthStreams.filter(s=>parseFloat(s.marketMultiple)>0 && (s.channel||"Bazooka Vault")!=="Orbital Society");
     const breakerAvgMM = mmStreams.length>0 ? mmStreams.reduce((sum,s)=>sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
     return { all, month, byType, byDay, last7, streak, topType, breakerBoxes, breakerBoxTotal, breakerGross, breakerNewBuyers, breakerAvgMM };
   }
@@ -7315,7 +7316,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
         });
         const histGross = histInPeriod.reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
         const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
-        const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0);
+        const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
         const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
         const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
         const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0) + histNewBuyers;
@@ -7403,6 +7404,67 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
                 </div>
               </div>
             )}
+
+            {/* Market Multiple by Channel */}
+            {(() => {
+              const channels = [...new Set(thisMonth.map(s=>s.channel||"Bazooka Vault"))].sort();
+              if (channels.length < 2) return null;
+              const mmCol = v => !v?"#555":v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
+              return (
+                <div style={{ marginTop:16 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📺 Market Multiple by Channel</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {channels.map(ch => {
+                      const chStreams = thisMonth.filter(s=>(s.channel||"Bazooka Vault")===ch);
+                      const chMM = chStreams.filter(s=>parseFloat(s.marketMultiple)>0);
+                      const chAvg = chMM.length>0 ? chMM.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/chMM.length : null;
+                      const chGross = chStreams.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+
+                      // Breaker breakdown per channel
+                      const breakersInCh = [...new Set(chStreams.map(s=>s.breaker).filter(Boolean))];
+
+                      return (
+                        <div key={ch} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: breakersInCh.length>0?10:0 }}>
+                            <div>
+                              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{ch}</div>
+                              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{chStreams.length} stream{chStreams.length!==1?"s":""} · ${chGross.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
+                            </div>
+                            <div style={{ textAlign:"right" }}>
+                              <div style={{ fontSize:22, fontWeight:900, color:mmCol(chAvg) }}>{chAvg?`${chAvg.toFixed(2)}x`:"—"}</div>
+                              <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Avg MM</div>
+                            </div>
+                          </div>
+                          {/* Breakers within this channel */}
+                          {breakersInCh.length > 1 && (
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", paddingTop:8, borderTop:"1px solid #1a1a1a" }}>
+                              {breakersInCh.map(b => {
+                                const bChStreams = chStreams.filter(s=>s.breaker===b);
+                                const bChMM = bChStreams.filter(s=>parseFloat(s.marketMultiple)>0);
+                                const bChAvg = bChMM.length>0 ? bChMM.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/bChMM.length : null;
+                                const bc = BC[b]||{text:"#888"};
+                                return (
+                                  <div key={b} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:7, padding:"5px 12px", display:"flex", alignItems:"center", gap:8 }}>
+                                    <span style={{ fontSize:11, fontWeight:700, color:bc.text }}>{b}</span>
+                                    <span style={{ fontSize:11, color:"#555" }}>{bChStreams.length}str</span>
+                                    <span style={{ fontSize:13, fontWeight:800, color:mmCol(bChAvg) }}>{bChAvg?`${bChAvg.toFixed(2)}x`:"—"}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {breakersInCh.length === 1 && (
+                            <div style={{ fontSize:11, color:"#555", paddingTop:4 }}>
+                              {breakersInCh[0]} · {chStreams.length} stream{chStreams.length!==1?"s":""}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -13051,7 +13113,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
-    if (!isEventOnly && parseFloat(s.marketMultiple) > 0) {
+    if (!isEventOnly && parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society") {
       acc.mmSum   += parseFloat(s.marketMultiple);
       acc.mmCount += 1;
     }
