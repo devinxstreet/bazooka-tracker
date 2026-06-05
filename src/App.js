@@ -4104,10 +4104,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Check if a stream recap already exists for this breaker+date
   const [editingStreamId, setEditingStreamId] = useState(null);
 
-  // Find existing stream: prefer by ID when editing, fall back to breaker+date for new entries
+  // Find existing stream: match on breaker + date + channel (all three must match)
   const existingStream = editingStreamId
     ? streams.find(s => s.id === editingStreamId)
-    : streams.find(s => s.breaker === breaker && s.date === date && (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault"));
+    : streams.find(s =>
+        s.breaker === breaker &&
+        s.date === date &&
+        (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault")
+      );
 
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
@@ -4169,17 +4173,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (!breaker || !date || !recap.grossRevenue) return;
     setRecapSaving(true);
     try {
-      // Find a precise match — breaker + date + channel + streamName all must match
-      // This prevents same-day same-breaker streams from overwriting each other
-      const preciseMatch = editingStreamId
+      // Only reuse existing stream ID if breaker + date + channel all match precisely
+      // This prevents same-day different-channel streams from overwriting each other
+      const matchingStream = editingStreamId
         ? streams.find(s => s.id === editingStreamId)
         : streams.find(s =>
             s.breaker === breaker &&
             s.date === date &&
-            (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault") &&
-            (s.streamName||"") === (recap.streamName||"")
+            (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault")
           );
-      const streamId = preciseMatch?.id || uid();
+      const streamId = matchingStream?.id || uid();
       await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, streamName:recap.streamName||"", id:streamId, breaker, date });
       // Log selected chaser cards out of inventory
       if (recap.chaserCardIds) {
