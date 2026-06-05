@@ -11329,6 +11329,926 @@ const TIER_CFG = {
 };
 
 // ── WOTF SELLER TOOLS ────────────────────────────────────────────────────────
+function WotFPrimerSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(data.primer||"");
+  const [copied,  setCopied]  = useState(false);
+  useEffect(()=>{ setDraft(data.primer||""); },[data.primer]);
+  async function savePrimer() { await save({ ...data, primer:draft }); setEditing(false); }
+  function copy() { navigator.clipboard.writeText(data.primer||"").then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:0 }}>
+        <SectionLabel t="🎙 Game Primer"/>
+        <div style={{ display:"flex", gap:8 }}>
+          {data.primer && <Btn onClick={copy}>{copied?"✅ Copied":"📋 Copy"}</Btn>}
+          {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft(data.primer||""); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+        </div>
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>What to say when someone asks "what is this game?" — script for any streamer</div>
+      {editing ? (
+        <>
+          <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={10}
+            style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, marginBottom:10 }}/>
+          <Btn onClick={savePrimer} disabled={!draft.trim()}>💾 Save Primer</Btn>
+        </>
+      ) : data.primer ? (
+        <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"#AAAAAA", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>{data.primer}</div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>
+          {isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet — ask an admin"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WotFSetsSection({ data, isAdmin, save }) {
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ name:"", description:"", notes:"" });
+  const [adding,  setAdding]  = useState(false);
+  const [copied,  setCopied]  = useState(null);
+  function startAdd() { setDraft({ name:"", description:"", notes:"" }); setAdding(true); setEditIdx(null); }
+  function startEdit(i) { setDraft({ ...data.sets[i] }); setEditIdx(i); setAdding(false); }
+  async function saveSet() {
+    const sets = [...(data.sets||[])];
+    if (editIdx !== null) sets[editIdx] = draft; else sets.push({ ...draft, id:Date.now() });
+    await save({ ...data, sets }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteSet(i) {
+    if (!window.confirm(`Delete "${data.sets[i].name}"?`)) return;
+    await save({ ...data, sets:data.sets.filter((_,idx)=>idx!==i) });
+  }
+  function copy(text, key) { navigator.clipboard.writeText(text).then(()=>{ setCopied(key); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="📦 Set Guides"/>
+        {isAdmin && <Btn variant="ghost" onClick={startAdd}>+ Add Set</Btn>}
+      </div>
+      {(adding || editIdx !== null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div><label style={S.lbl}>Set Name</label><input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} placeholder="e.g. Existence" style={S.inp}/></div>
+            <div><label style={S.lbl}>One-line description</label><input value={draft.description} onChange={e=>setDraft(p=>({...p,description:e.target.value}))} placeholder="e.g. The original WotF set" style={S.inp}/></div>
+          </div>
+          <div><label style={S.lbl}>Streamer Notes</label><textarea value={draft.notes} onChange={e=>setDraft(p=>({...p,notes:e.target.value}))} rows={5} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }}/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}>
+            <Btn onClick={saveSet} disabled={!draft.name.trim()}>💾 Save</Btn>
+            <Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+      {(data.sets||[]).length === 0 && !adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? "Click + Add Set to document your first set" : "No sets documented yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {(data.sets||[]).map((s,i) => (
+          <div key={s.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:s.notes?8:0 }}>
+              <div><div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{s.name}</div>{s.description && <div style={{ fontSize:12, color:"#555", marginTop:2 }}>{s.description}</div>}</div>
+              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                {s.notes && <button onClick={()=>copy(s.notes,i)} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.2)", color:"#4ade80", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy</button>}
+                {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
+              </div>
+            </div>
+            {s.notes && <div style={{ fontSize:12, color:"#888", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{s.notes}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WotFHypeLinesSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState((data.hypelines||[]).join("\n"));
+  const [copied,  setCopied]  = useState(null);
+  useEffect(()=>{ setDraft((data.hypelines||[]).join("\n")); },[data.hypelines]);
+  async function saveLines() { const hypelines=draft.split("\n").map(l=>l.trim()).filter(Boolean); await save({ ...data, hypelines }); setEditing(false); }
+  function copyLine(line,i) { navigator.clipboard.writeText(line).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2000); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="⚡ Hype Lines"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft((data.hypelines||[]).join("\n")); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>One-tap copy for when a big card hits — keep energy high during the pull</div>
+      {editing ? (
+        <><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={8} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, fontFamily:"inherit", marginBottom:10 }}/><Btn onClick={saveLines} disabled={!draft.trim()}>💾 Save Hype Lines</Btn></>
+      ) : (data.hypelines||[]).length > 0 ? (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+          {(data.hypelines||[]).map((line,i) => (
+            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:copied===i?"#4ade80":"#AAAAAA", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+              {copied===i ? "✅ Copied!" : `"${line}"`}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn> : "No hype lines added yet"}</div>
+      )}
+    </div>
+  );
+}
+
+function WotFFAQSection({ data, isAdmin, save }) {
+  const [openIdx, setOpenIdx] = useState(null);
+  const [adding,  setAdding]  = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ q:"", a:"" });
+  const [copied,  setCopied]  = useState(null);
+  async function saveQA() {
+    const faq=[...(data.faq||[])];
+    if (editIdx!==null) faq[editIdx]=draft; else faq.push({ ...draft, id:Date.now() });
+    await save({ ...data, faq }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteQA(i) { if (!window.confirm("Delete this Q&A?")) return; await save({ ...data, faq:(data.faq||[]).filter((_,idx)=>idx!==i) }); }
+  function copy(text,i) { navigator.clipboard.writeText(text).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="❓ Buyer FAQ"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft({q:"",a:""}); setAdding(true); setEditIdx(null); }}>+ Add Q&A</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Scripted answers for common viewer questions — tap to expand, copy the answer</div>
+      {(adding||editIdx!==null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ marginBottom:10 }}><label style={S.lbl}>Question</label><input value={draft.q} onChange={e=>setDraft(p=>({...p,q:e.target.value}))} placeholder="e.g. Is this like Pokémon?" style={S.inp}/></div>
+          <div><label style={S.lbl}>Scripted Answer</label><textarea value={draft.a} onChange={e=>setDraft(p=>({...p,a:e.target.value}))} rows={4} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }} placeholder="Write a friendly answer..."/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
+        </div>
+      )}
+      {(data.faq||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {(data.faq||[]).map((item,i) => (
+          <div key={item.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+            <div onClick={()=>setOpenIdx(openIdx===i?null:i)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", cursor:"pointer" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:10, color:"#555" }}>{openIdx===i?"▼":"▶"}</span><span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{item.q}</span></div>
+              {isAdmin && <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              </div>}
+            </div>
+            {openIdx===i && (
+              <div style={{ padding:"0 16px 14px", borderTop:"1px solid #1a1a1a" }}>
+                <div style={{ fontSize:13, color:"#AAAAAA", lineHeight:1.7, whiteSpace:"pre-wrap", marginTop:10, marginBottom:10 }}>{item.a}</div>
+                <button onClick={()=>copy(item.a,i)} style={{ background:copied===i?"rgba(74,222,128,0.1)":"rgba(123,156,255,0.08)", border:`1px solid ${copied===i?"rgba(74,222,128,0.25)":"rgba(123,156,255,0.2)"}`, color:copied===i?"#4ade80":"#7B9CFF", borderRadius:6, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {copied===i?"✅ Copied":"📋 Copy Answer"}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WotFSellerTools({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+
+  // Firestore state
+  const [data, setData] = useState({ primer:"", sets:[], hypelines:[], faq:[] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDoc(doc(db,"config","wotfTools")).then(snap => {
+      if (snap.exists() && snap.data().seeded) {
+        setData({ primer:"", sets:[], hypelines:[], faq:[], ...snap.data() });
+      } else {
+        // First load — seed with default content
+        const seed = {
+          seeded: true,
+          primer: `Welcome to Wonders of The First — one of the hottest new collectible card games on the market right now!
+
+Wonders of The First is a strategic CCG where you play as a Stoneseeker — a powerful being who battles across 7 realms called Orbitals. Instead of heroes, you summon creatures called Wonders to fight for control of powerful Stones. Control the most Stones at the end of Round 7 and you win.
+
+What makes this game so exciting to collect:
+• 401 cards in the base Existence set — huge variety
+• 1st Edition serialized cards — numbered and one-of-a-kind
+• Alternate art exclusives and one-of-ones that are truly rare
+• 6 unique Orbital Starter Decks: Petraia, Thalwind, Solfera, Umbrathene, Heliosynth, and Boundless
+• Raised $1.2 million on Kickstarter with over 2,100 backers — this community is real
+
+Whether you're a player, a collector, or just getting started — this is a ground floor opportunity on something special.`,
+
+          sets: [
+            {
+              id:1,
+              name: "Existence",
+              description: "The original WotF set — 401 cards across 6 Orbitals",
+              notes: `The foundational set. 401 cards in the base set + 6 exclusive mythics in Starter Decks.\n\nKey talking points:\n• 6 Orbitals (worlds): Petraia, Thalwind, Solfera, Umbrathene, Heliosynth, Boundless\n• Chase cards: 1st Edition serialized, alt art, one-of-ones\n• US standard sleeve size (same as Magic: The Gathering)\n• Available on TableTop Simulator for free playtesting\n\nHype moments: Any serialized pull, any alternate art reveal, any legendary Wonder`
+            },
+            {
+              id:2,
+              name: "Call of the Stones",
+              description: "The second WotF set — now available at Target",
+              notes: `The follow-up to Existence — now available at Target stores nationwide.\n\nKey talking points:\n• Continues the 7-Orbital storyline\n• New Collect & Play Bundle available\n• Bigger distribution = more mainstream awareness = better investment\n• Checklist available at wondersccg.com/checklists\n\nHype moments: Any cross-set interaction, Target exclusive pulls, new Wonder reveals`
+            }
+          ],
+
+          hypelines: [
+            "OH THAT'S A 1ST EDITION — THAT IS SERIALIZED! Someone's getting history right now!",
+            "That is a CHASE CARD. Chat, do you see what just came out of that pack?!",
+            "ONE OF ONE. There is only ONE of this card in existence — and it just landed here tonight!",
+            "That's an alternate art — you cannot pull that anywhere else. That is EXCLUSIVE.",
+            "Wonders of the First — Kickstarter funded to the tune of 1.2 MILLION dollars. This game is real and the cards are already moving.",
+            "This is ground floor collecting right here. Get in early — you will thank yourself later.",
+            "That Wonder right there is from the Boundless Orbital — one of the rarest realms in the game.",
+            "Legendaries are hit! ONE per legendary allowed in a deck — this card is always in demand.",
+          ],
+
+          faq: [
+            {
+              id:1,
+              q: "What is this game? Is it like Pokémon or Magic?",
+              a: "It's its own thing — Wonders of The First is a brand new CCG where you battle across 7 realms called Orbitals. Instead of Pokémon or Magic heroes, you summon creatures called Wonders. The collecting side is huge — serialized 1st Editions, one-of-one cards, and alternate art exclusives. It raised over $1.2 million on Kickstarter and just hit Target. Think of it as ground-floor Pokémon — get in early."
+            },
+            {
+              id:2,
+              q: "Is this game actually popular or is it a risk?",
+              a: "1,228,288 dollars raised on Kickstarter by 2,106 backers before the game even shipped. It's now in Target stores nationwide. The competitive scene is already running tournaments. The community is real and growing — this isn't a gamble, this is an opportunity."
+            },
+            {
+              id:3,
+              q: "What's a Stoneseeker?",
+              a: "That's YOU as the player. In WotF, you're a Stoneseeker — a powerful being who controls Wonders and battles across Orbitals (the 7 realms) to capture Stones. Control the most Stones at the end of Round 7, you win. On the collecting side, it just means you're part of the lore — every buyer is part of the universe."
+            },
+            {
+              id:4,
+              q: "What's the most valuable card to look for?",
+              a: "Serialized 1st Edition cards are the chase — they're numbered, limited, and already trading. One-of-ones exist too — literally one card in the world. Legendary Wonders (only 1 allowed per deck) are always in demand for play. Right now the market is early so pricing is still accessible — that won't last forever."
+            },
+            {
+              id:5,
+              q: "Can I actually play this game?",
+              a: "Yes! There are 6 Starter Decks — one per Orbital — that you can play right out of the box. Two players, 30 minutes, no extra setup needed. There's also free online play at compete.wondersccg.com and a TableTop Simulator mod on Steam if you want to try before buying."
+            },
+            {
+              id:6,
+              q: "What size sleeves does it use?",
+              a: "US standard size — same as Magic: The Gathering. If you're already a card player you have everything you need."
+            },
+            {
+              id:7,
+              q: "Where can I buy it outside of here?",
+              a: "Target carries Call of the Stones now — you can also find it at local game stores using the store locator at wondersccg.com. But honestly, breaking it here live is the most fun way to open it."
+            }
+          ]
+        };
+        setData(seed);
+        setDoc(doc(db,"config","wotfTools"), seed, { merge:true });
+      }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, []);
+
+  async function save(updated) {
+    setData(updated);
+    await setDoc(doc(db,"config","wotfTools"), updated, { merge:true });
+  }
+
+  // ── Section: Game Primer ──────────────────────────────────────────────────
+  // sections extracted to top-level components
+    if (loading) return <div style={{textAlign:"center",padding:60,color:"#555"}}>Loading calendar...</div>;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Confetti canvas */}
+      <canvas ref={confettiCanvas} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:99999,display:confettiActive?"block":"none"}}/>
+      {renderModal()}
+      {renderVacationModal()}
+
+      {/* Share Week Modal */}
+      {shareWeekModal && (() => {
+        const weekDays = Array.from({length:7},(_,i)=>{
+          const d = new Date(shareWeekStart+"T12:00:00"); d.setDate(d.getDate()+i);
+          return d.toISOString().slice(0,10);
+        });
+        const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+        const weekPlans = weekDays.map(ds=>({ds, plans:plansForDate(ds), actuals:actualForDate(ds)})).filter(d=>d.plans.length>0||d.actuals.length>0);
+
+        function openPrintWindow() {
+          const rows = weekDays.map((ds,i)=>{
+            const dayPlans = plansForDate(ds);
+            const dayActuals = actualForDate(ds);
+            if (dayPlans.length===0&&dayActuals.length===0) return "";
+            const items = [
+              ...dayActuals.map(a=>`<div style="margin:4px 0;padding:6px 10px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:4px;font-size:13px;">✅ <strong>${a.streamName||a.breaker||"Stream"}</strong>${a.breaker?` · ${a.breaker}`:""}</div>`),
+              ...dayPlans.map(p=>`<div style="margin:4px 0;padding:6px 10px;background:#e8eaf6;border-left:3px solid #5c6bc0;border-radius:4px;font-size:13px;">📋 <strong>${p.streamName||p.breaker||"Planned"}</strong>${p.breaker?` · ${p.breaker}`:""}${p.sessionType?` · ${p.sessionType}`:""}${(p.products||[]).filter(pr=>pr.type).length>0?` · ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}`:""}</div>`),
+            ].join("");
+            return `<tr><td style="padding:10px 14px;font-weight:700;color:#333;white-space:nowrap;vertical-align:top;width:110px;">${DOW_FULL[i]}<br/><span style="font-weight:400;font-size:12px;color:#888;">${ds.slice(5).replace("-","/")}</span></td><td style="padding:10px 14px;">${items}</td></tr>`;
+          }).join("");
+          const endSun = weekDays[6];
+          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
+          const w = window.open("","_blank");
+          w.document.write(html);
+          w.document.close();
+        }
+
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShareWeekModal(false)}>
+            <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:500,width:"100%",maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0"}}>📤 Share Weekly Schedule</div>
+                  <div style={{fontSize:11,color:"#555",marginTop:2}}>Week of {shareWeekStart}</div>
+                </div>
+                <button onClick={()=>setShareWeekModal(false)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:20}}>×</button>
+              </div>
+
+              {/* Week picker */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                <span style={{fontSize:11,color:"#555"}}>Week starting:</span>
+                <input type="date" value={shareWeekStart} onChange={e=>setShareWeekStart(e.target.value)}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,color:"#F0F0F0",padding:"5px 8px",fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+              </div>
+
+              {/* Preview */}
+              <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:6}}>
+                {weekDays.map((ds,i)=>{
+                  const dayPlans = plansForDate(ds);
+                  const dayActuals = actualForDate(ds);
+                  if (dayPlans.length===0&&dayActuals.length===0) return (
+                    <div key={ds} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:"#333",width:90,flexShrink:0}}>{DOW_FULL[i]} {ds.slice(5)}</span>
+                      <span style={{fontSize:11,color:"#2a2a2a"}}>—</span>
+                    </div>
+                  );
+                  return (
+                    <div key={ds} style={{padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#555",marginBottom:4}}>{DOW_FULL[i]} · {ds.slice(5).replace("-","/")}</div>
+                      {dayActuals.map(a=>(
+                        <div key={a.id} style={{fontSize:12,color:"#4ade80",marginBottom:2}}>✅ {a.streamName||a.breaker||"Stream"}</div>
+                      ))}
+                      {dayPlans.map(p=>(
+                        <div key={p.id} style={{fontSize:12,color:"#7B9CFF",marginBottom:2}}>
+                          📋 {p.streamName||p.breaker} {p.sessionType?`· ${p.sessionType}`:""} {(p.products||[]).filter(pr=>pr.type).length>0?`· ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}` :""}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={openPrintWindow}
+                  style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  🖨️ Open & Print
+                </button>
+                <button onClick={()=>{
+                  const lines = weekDays.flatMap((ds,i)=>{
+                    const dayPlans = plansForDate(ds);
+                    const dayActuals = actualForDate(ds);
+                    if (!dayPlans.length&&!dayActuals.length) return [];
+                    return [`${DOW_FULL[i]} ${ds.slice(5)}:`,...dayActuals.map(a=>`  ✅ ${a.streamName||a.breaker}`),...dayPlans.map(p=>`  📋 ${p.streamName||p.breaker}${p.sessionType?" · "+p.sessionType:""}${(p.products||[]).filter(pr=>pr.type).length>0?" · "+p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", "):""}`),""];
+                  });
+                  navigator.clipboard.writeText(`Bazooka Breaks — Week of ${shareWeekStart}\n\n${lines.join("\n")}`);
+                }}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#888",borderRadius:10,padding:"11px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                  📋 Copy Text
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {copyWeekModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setCopyWeekModal(false)}>
+          <div style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>📋 Copy Week</div>
+            <div style={{fontSize:12,color:"#555",marginBottom:16}}>Duplicate a week's streams to another week</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:6}}>Copy FROM (week starting)</div>
+              {(() => {
+                const weeks = getWeeksInMonth(curYear, curMonth);
+                return (
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {weeks.map(w=>{
+                      const wEnd = new Date(w+"T12:00:00"); wEnd.setDate(wEnd.getDate()+6);
+                      const wEndStr = wEnd.toISOString().slice(0,10);
+                      const wPlans = plans.filter(p=>p.date>=w&&p.date<=wEndStr);
+                      if (wPlans.length===0) return null;
+                      return (
+                        <button key={w} onClick={()=>setCopyWeekSrc(w)}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:copyWeekSrc===w?"rgba(232,49,122,0.12)":"rgba(0,0,0,0.3)",border:`1px solid ${copyWeekSrc===w?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,cursor:"pointer",fontFamily:"inherit",color:"#F0F0F0"}}>
+                          <span style={{fontSize:12,fontWeight:700}}>Week of {w.slice(5).replace("-","/")}</span>
+                          <span style={{fontSize:11,color:"#555"}}>{wPlans.length} stream{wPlans.length!==1?"s":""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+            {copyWeekSrc && (
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,color:"#555",marginBottom:6}}>Paste TO (week starting)</div>
+                <input type="date" value={copyWeekDst} onChange={e=>setCopyWeekDst(e.target.value)}
+                  style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                {copyWeekSrc && copyWeekDst && (() => {
+                  const srcEnd = new Date(copyWeekSrc+"T12:00:00"); srcEnd.setDate(srcEnd.getDate()+6);
+                  const wPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEnd.toISOString().slice(0,10));
+                  return <div style={{fontSize:11,color:"#7B9CFF",marginTop:6}}>Will create {wPlans.length} new stream{wPlans.length!==1?"s":""}</div>;
+                })()}
+              </div>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={copyWeek} disabled={!copyWeekSrc||!copyWeekDst||copyingWeek}
+                style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,cursor:(!copyWeekSrc||!copyWeekDst||copyingWeek)?"not-allowed":"pointer",fontFamily:"inherit",opacity:(!copyWeekSrc||!copyWeekDst)?0.5:1}}>
+                {copyingWeek?"Copying...":"📋 Copy Week"}
+              </button>
+              <button onClick={()=>setCopyWeekModal(false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"10px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View toggle */}
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        {[["month","📅 Month"],["quarter","📊 Quarter"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setViewMode(v)} style={{background:viewMode===v?"rgba(232,49,122,0.15)":"transparent",color:viewMode===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${viewMode===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
+        ))}
+        {viewMode==="month"&&(
+          <>
+            <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>‹ Prev</button>
+            <span style={{fontSize:13,fontWeight:700,color:"#F0F0F0",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
+            <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
+            <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
+            <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>
+            <button onClick={()=>{
+              const todayStr2 = dateStr(today.getFullYear(),today.getMonth(),today.getDate());
+              const dow = new Date(todayStr2+"T12:00:00").getDay();
+              const sun = new Date(todayStr2+"T12:00:00"); sun.setDate(sun.getDate()-dow);
+              setShareWeekStart(sun.toISOString().slice(0,10));
+              setShareWeekModal(true);
+            }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📤 Share Week</button>
+          </>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#4ade80"}}/><span style={{fontSize:11,color:"#555"}}>Recap logged</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#7B9CFF"}}/><span style={{fontSize:11,color:"#555"}}>Planned</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)"}}/><span style={{fontSize:11,color:"#555"}}>No recap yet</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:"#1a0a14",border:"1px solid #E8317A44"}}/><span style={{fontSize:11,color:"#555"}}>Today</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:11}}>🏖</span><span style={{fontSize:11,color:"#555"}}>Time off</span></div>
+      </div>
+
+      {viewMode==="month"&&(
+        <>
+          {renderBurnoutAlerts()}
+          {renderTomorrowAlert()}
+          {canSeeFinancials && renderPaceReport()}
+          {canSeeFinancials && renderMonthProjection()}
+          {canSeeFinancials && renderStreamScorecard()}
+          {renderCalendar(curYear,curMonth)}
+
+          {/* Weekly product summary — admin only */}
+          {canSeeFinancials && (() => {
+            // Build weeks for current month
+            const days = daysInMonth(curYear,curMonth);
+            const weeks = [];
+            let week = null;
+            for (let d=1; d<=days; d++) {
+              const ds = dateStr(curYear,curMonth,d);
+              const dow = new Date(ds+"T12:00:00").getDay(); // 0=Sun
+              if (!week || dow === 0) {
+                if (week) weeks.push(week);
+                const weekStart = ds;
+                const weekEnd = dateStr(curYear,curMonth,Math.min(d+6-dow,days));
+                week = { label:`Week of ${new Date(weekStart+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}`, start:weekStart, end:weekEnd, plans:[] };
+              }
+              plansForDate(ds).forEach(p => week.plans.push({ ...p, date:ds }));
+            }
+            if (week) weeks.push(week);
+
+            return (
+              <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, padding:"16px 18px", marginTop:12 }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"2px", marginBottom:14 }}>📦 Weekly Product Schedule — {MONTH_NAMES[curMonth]}</div>
+                <div style={{ display:"grid", gap:10 }}>
+                  {weeks.map((w,wi) => {
+                    // Aggregate boxes by product type
+                    const byProduct = {};
+                    let totalBoxes = 0;
+                    w.plans.forEach(p => {
+                      (p.products||[]).forEach(prod => {
+                        if (!prod.type) return;
+                        const qty = parseInt(prod.qty)||0;
+                        byProduct[prod.type] = (byProduct[prod.type]||0) + qty;
+                        totalBoxes += qty;
+                      });
+                    });
+                    const breakers = [...new Set(w.plans.map(p=>p.breaker).filter(Boolean))];
+                    const channels = [...new Set(w.plans.map(p=>p.channel||"Bazooka Vault"))];
+                    const streamCount = w.plans.length;
+
+                    return (
+                      <div key={wi} style={{ background:"#111", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px" }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:streamCount>0?10:0, flexWrap:"wrap", gap:6 }}>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{w.label}</div>
+                            <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                              {streamCount > 0
+                                ? `${streamCount} stream${streamCount!==1?"s":""} · ${breakers.join(", ")}`
+                                : <span style={{ color:"#333" }}>No streams scheduled</span>}
+                            </div>
+                            {streamCount > 0 && channels.length > 0 && (
+                              <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                                {channels.map(ch=>(
+                                  <span key={ch} style={{ fontSize:9, color:ch==="Bazooka Vault"?"#E8317A":ch==="Orbital Society"?"#7B9CFF":"#FBBF24", background:ch==="Bazooka Vault"?"rgba(232,49,122,0.08)":ch==="Orbital Society"?"rgba(123,156,255,0.08)":"rgba(251,191,36,0.08)", borderRadius:4, padding:"1px 6px" }}>
+                                    {ch}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {totalBoxes > 0 && (
+                            <div style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:8, padding:"5px 12px", textAlign:"center" }}>
+                              <div style={{ fontSize:16, fontWeight:900, color:"#7B9CFF" }}>{totalBoxes}</div>
+                              <div style={{ fontSize:9, color:"#555" }}>total boxes</div>
+                            </div>
+                          )}
+                        </div>
+
+                        {Object.keys(byProduct).length > 0 && (
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                            {Object.entries(byProduct).sort((a,b)=>b[1]-a[1]).map(([type,qty])=>(
+                              <div key={type} style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:6, padding:"5px 10px", display:"flex", alignItems:"center", gap:6 }}>
+                                <span style={{ fontSize:11, fontWeight:900, color:"#FBBF24" }}>{qty}×</span>
+                                <span style={{ fontSize:11, color:"#AAAAAA" }}>{type}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {streamCount === 0 && (
+                          <div style={{ fontSize:11, color:"#2a2a2a", fontStyle:"italic" }}>—</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          {canSeeFinancials && renderBestDayPredictor()}
+          {canSeeFinancials && renderRevenueTiers()}
+          {canSeeFinancials && renderGapAdvisor()}
+          {canSeeFinancials && renderProductSummary()}
+          {canSeeFinancials && renderMonthSummary()}
+          {canSeeFinancials && renderInventoryNeeds()}
+        </>
+      )}
+
+      {viewMode==="quarter"&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+          {quarterMonths.map(({y,m})=>(
+            <div key={`${y}-${m}`}>
+              {renderCalendar(y,m,true)}
+              {canSeeFinancials&&(()=>{
+                const mPlans=monthPlans(y,m),mActuals=monthActuals(y,m);
+                const projRev=projectedRevenue(mPlans),actRev=actualRevenue(mActuals);
+                if(mPlans.length===0&&mActuals.length===0) return null;
+                return(
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:6}}>
+                    {[{l:"Streams",v:mPlans.length,c:"#7B9CFF"},{l:"Projected",v:fmt2(projRev),c:"#FBBF24"},{l:"Actual",v:fmt2(actRev),c:"#4ade80"}].map(({l,v,c})=>(
+                      <div key={l} style={{background:"#1a1a1a",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:14,fontWeight:900,color:c}}>{v}</div>
+                        <div style={{fontSize:9,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── HERO BREAK DATA ──────────────────────────────────────────────────────────
+const HERO_SETS = {
+  "Tecmo Bowl": [
+    // Featured Autos
+    {hero:"BoJax",inspired:"Bo Jackson",tier:"Featured Auto",power:250},
+    {hero:"Attak",inspired:"Dak Prescott",tier:"Featured Auto",power:200},
+    {hero:"Pukadot",inspired:"Puka Nacua",tier:"Featured Auto",power:200},
+    {hero:"Brees",inspired:"Drew Brees",tier:"Featured Auto",power:200},
+    {hero:"Fear Himself",inspired:"Lawrence Taylor",tier:"Featured Auto",power:200},
+    {hero:"Mossed",inspired:"Randy Moss",tier:"Featured Auto",power:200},
+    {hero:"Nigerian Nightmare",inspired:"Christian Okoye",tier:"Featured Auto",power:200},
+    {hero:"Marino",inspired:"Dan Marino",tier:"Featured Auto",power:195},
+    {hero:"Young-Gunner",inspired:"Steve Young",tier:"Featured Auto",power:195},
+    {hero:"Gronk",inspired:"Rob Gronkowski",tier:"Featured Auto",power:195},
+    {hero:"Hitt Man",inspired:"Ronnie Lott",tier:"Featured Auto",power:195},
+    {hero:"Island Time",inspired:"Darrelle Revis",tier:"Featured Auto",power:195},
+    {hero:"Emmitt-164",inspired:"Emmitt Smith",tier:"Featured Auto",power:195},
+    {hero:"Troy of Dallas",inspired:"Troy Aikman",tier:"Featured Auto",power:190},
+    {hero:"Goggles",inspired:"Eric Dickerson",tier:"Featured Auto",power:190},
+    {hero:"Howietzer",inspired:"Howie Long",tier:"Featured Auto",power:190},
+    {hero:"Thurmanator",inspired:"Thurman Thomas",tier:"Featured Auto",power:190},
+    {hero:"Bus",inspired:"Jerome Bettis",tier:"Featured Auto",power:190},
+    {hero:"Machine Gun",inspired:"Jim Kelly",tier:"Featured Auto",power:190},
+    {hero:"Cutback",inspired:"Barry Sanders",tier:"Featured Auto",power:185},
+    {hero:"Sea-Largent",inspired:"Steve Largent",tier:"Featured Auto",power:185},
+    {hero:"Boz",inspired:"Brian Bosworth",tier:"Featured Auto",power:185},
+    {hero:"Allenwrench",inspired:"Marcus Allen",tier:"Featured Auto",power:185},
+    {hero:"Ultimate Weapon",inspired:"Randall Cunningham",tier:"Featured Auto",power:185},
+    {hero:"Shuffler",inspired:"Jim McMahon",tier:"Featured Auto",power:185},
+    {hero:"Boom",inspired:"Boomer Esiason",tier:"Featured Auto",power:180},
+    {hero:"Dentist",inspired:"Richard Dent",tier:"Featured Auto",power:180},
+    {hero:"Vinniverde",inspired:"Vinny Testaverde",tier:"Featured Auto",power:180},
+    {hero:"Afterbern",inspired:"Bernie Kosar",tier:"Featured Auto",power:180},
+    {hero:"Sack King",inspired:"Bruce Smith",tier:"Featured Auto",power:180},
+    {hero:"Incredible Faulk",inspired:"Marshall Faulk",tier:"Featured Auto",power:180},
+    {hero:"Mann-O-War",inspired:"Charles Mann",tier:"Featured Auto",power:175},
+    {hero:"Timmy",inspired:"Tim Brown",tier:"Featured Auto",power:175},
+    {hero:"Haley's Comet",inspired:"Charles Haley",tier:"Featured Auto",power:175},
+    {hero:"Ickey",inspired:"Ickey Woods",tier:"Featured Auto",power:175},
+    {hero:"Full Moon",inspired:"Warren Moon",tier:"Featured Auto",power:175},
+    {hero:"Philament",inspired:"Phil Simms",tier:"Featured Auto",power:175},
+    {hero:"Key Keeper",inspired:"Luke Kuechly",tier:"Featured Auto",power:170},
+    {hero:"T.D.",inspired:"Tony Dorsett",tier:"Featured Auto",power:170},
+    {hero:"Sterling",inspired:"Sterling Sharpe",tier:"Featured Auto",power:170},
+    {hero:"Too Tall",inspired:'Ed "Too Tall" Jones',tier:"Featured Auto",power:170},
+    {hero:"Fridge",inspired:"William Perry",tier:"Featured Auto",power:170},
+    {hero:"Samurai Mike",inspired:"Mike Singletary",tier:"Featured Auto",power:170},
+    {hero:"Monk",inspired:"Art Monk",tier:"Featured Auto",power:165},
+    {hero:"Krieghawk",inspired:"Dave Krieg",tier:"Featured Auto",power:165},
+    {hero:"Undrafted Wrecking Ball",inspired:"Gary Clark",tier:"Featured Auto",power:165},
+    {hero:"Highjump",inspired:"Alonzo Highsmith",tier:"Featured Auto",power:165},
+    {hero:"Curt Locker",inspired:"Curt Warner",tier:"Featured Auto",power:165},
+    {hero:"Calf Roper",inspired:"Eric Metcalf",tier:"Featured Auto",power:165},
+    {hero:"Novacaine",inspired:"Jay Novacek",tier:"Featured Auto",power:160},
+    {hero:"Carrier",inspired:"Mark Carrier",tier:"Featured Auto",power:160},
+    {hero:"Amigo One",inspired:"Mark Jackson",tier:"Featured Auto",power:160},
+    {hero:"Quick Draw",inspired:"Mike Quick",tier:"Featured Auto",power:160},
+    {hero:"Bank Robber",inspired:"Carl Banks",tier:"Featured Auto",power:160},
+    {hero:"Claymore",inspired:"Clay Matthews Jr.",tier:"Featured Auto",power:160},
+    {hero:"Biscuit",inspired:"Cornelius Bennett",tier:"Featured Auto",power:155},
+    {hero:"Underdoug",inspired:"Doug Williams",tier:"Featured Auto",power:155},
+    {hero:"Mountain Drew",inspired:"Drew Bledsoe",tier:"Featured Auto",power:155},
+    {hero:"Dwight Noise",inspired:"Dwight Stephenson",tier:"Featured Auto",power:155},
+    {hero:"Green Light",inspired:"Harold Green",tier:"Featured Auto",power:155},
+    {hero:"K-Mack",inspired:"Kevin Mack",tier:"Featured Auto",power:155},
+    {hero:"Pepper Spray",inspired:"Pepper Johnson",tier:"Featured Auto",power:150},
+    {hero:"The Manster",inspired:"Randy White",tier:"Featured Auto",power:150},
+    {hero:"Woodchipper",inspired:"Rod Woodson",tier:"Featured Auto",power:150},
+    {hero:"Gaultfather",inspired:"Willie Gault",tier:"Featured Auto",power:150},
+    {hero:"Jolly Roger",inspired:"Roger Craig",tier:"Featured Auto",power:150},
+    // Highlighted
+    {hero:"Severning",inspired:"Tom Brady",tier:"Highlighted",power:200},
+    {hero:"Sweetest of Sweet",inspired:"Walter Payton",tier:"Highlighted",power:200},
+    {hero:"Neon",inspired:"Deion Sanders",tier:"Highlighted",power:195},
+    {hero:"Sheriff",inspired:"Peyton Manning",tier:"Highlighted",power:195},
+    {hero:"Joe Cool",inspired:"Joe Montana",tier:"Highlighted",power:195},
+    {hero:"Hands",inspired:"Jerry Rice",tier:"Highlighted",power:190},
+    // Base
+    {hero:"Joe Cool",inspired:"Joe Montana",tier:"Base",power:190},
+    {hero:"Hands",inspired:"Jerry Rice",tier:"Base",power:185},
+    {hero:"Merlomes",inspired:"Patrick Mahomes",tier:"Base",power:185},
+    {hero:"Dart-Board",inspired:"Jaxson Dart",tier:"Base",power:185},
+    {hero:"Bison",inspired:"Josh Allen",tier:"Base",power:185},
+    {hero:"Warp",inspired:"Lamar Jackson",tier:"Base",power:185},
+    {hero:"Bayou",inspired:"Ja'Marr Chase",tier:"Base",power:185},
+    {hero:"J-Jetts",inspired:"Justin Jefferson",tier:"Base",power:185},
+    {hero:"Reindeer Hunter",inspired:"Myles Garrett",tier:"Base",power:180},
+    {hero:"Swervin'",inspired:"Michael Irvin",tier:"Base",power:180},
+    {hero:"MoD",inspired:"Reggie White",tier:"Base",power:180},
+    {hero:"Quads",inspired:"Saquon Barkley",tier:"Base",power:180},
+    {hero:"Darn Old",inspired:"Sam Darnold",tier:"Base",power:180},
+    {hero:"Phoenix",inspired:"Bo Nix",tier:"Base",power:180},
+    {hero:"Jax-In-The-Box",inspired:"Jaxon Smith-Njigba",tier:"Base",power:175},
+    {hero:"Eagle-Eye",inspired:"Jalen Hurts",tier:"Base",power:175},
+    {hero:"Shrouded",inspired:"C.J. Stroud",tier:"Base",power:175},
+    {hero:"Myracle",inspired:"Jahmyr Gibbs",tier:"Base",power:175},
+    {hero:"Skatter",inspired:"Cam Skattebo",tier:"Base",power:175},
+    {hero:"Warden",inspired:"Cam Ward",tier:"Base",power:175},
+    {hero:"Yeti",inspired:"Travis Kelce",tier:"Base",power:170},
+    {hero:"BrockNess",inspired:"Brock Bowers",tier:"Base",power:170},
+    {hero:"McArmyKnife",inspired:"Christian McCaffrey",tier:"Base",power:170},
+    {hero:"Muffin Man",inspired:"Baker Mayfield",tier:"Base",power:170},
+    {hero:"Youngblood",inspired:"Bryce Young",tier:"Base",power:170},
+    {hero:"Switchblade",inspired:"Travis Hunter",tier:"Base",power:170},
+    {hero:"McVillain",inspired:"Tetairoa McMillan",tier:"Base",power:165},
+    {hero:"Quarter Staff",inspired:"Matthew Stafford",tier:"Base",power:165},
+    {hero:"Judkernaught",inspired:"Quinshon Judkins",tier:"Base",power:165},
+    {hero:"Jeanetic",inspired:"Ashton Jeanty",tier:"Base",power:165},
+    {hero:"Coinslot",inspired:"Daniel Jones",tier:"Base",power:165},
+    {hero:"Chanesaw",inspired:"De'Von Achane",tier:"Base",power:165},
+    {hero:"Mr. Irrelevant",inspired:"Brock Purdy",tier:"Base",power:160},
+    {hero:"Shadowstrike",inspired:"Davante Adams",tier:"Base",power:160},
+    {hero:"Shepherd",inspired:"CeeDee Lamb",tier:"Base",power:160},
+    {hero:"Scary",inspired:"Terry McLaurin",tier:"Base",power:160},
+    {hero:"Lawman",inspired:"Trevor Lawrence",tier:"Base",power:160},
+    {hero:"Buttman",inspired:"Marion Butts",tier:"Base",power:160},
+    {hero:"Criscross",inspired:"Cris Carter",tier:"Base",power:155},
+    {hero:"Rockhead",inspired:"Chris Doleman",tier:"Base",power:155},
+    {hero:"Brawn",inspired:"A.J. Brown",tier:"Base",power:155},
+    {hero:"DeVaulta",inspired:"DeVonta Smith",tier:"Base",power:155},
+    {hero:"Hot Sauce",inspired:"Sauce Gardner",tier:"Base",power:155},
+    {hero:"First Leap",inspired:"LeRoy Butler",tier:"Base",power:155},
+    {hero:"Friday",inspired:"Deebo Samuel",tier:"Base",power:150},
+    {hero:"Barreler",inspired:"Cooper Kupp",tier:"Base",power:150},
+    {hero:"Watterslide",inspired:"Ricky Watters",tier:"Base",power:150},
+    {hero:"Cannon",inspired:"Rich Gannon",tier:"Base",power:150},
+    {hero:"Furnest",inspired:"Earnest Byner",tier:"Base",power:150},
+    {hero:"Hot Rod",inspired:"Rodney Hampton",tier:"Base",power:150},
+    {hero:"Golden Bullet",inspired:"Matthew Golden",tier:"Base",power:145},
+    {hero:"Billiard",inspired:"Dalton Hilliard",tier:"Base",power:145},
+    {hero:"Ryptillian",inspired:"Mark Rypien",tier:"Base",power:145},
+    {hero:"Flippa",inspired:"Flipper Anderson",tier:"Base",power:145},
+    {hero:"Slaughterhouse",inspired:"Webster Slaughter",tier:"Base",power:145},
+    {hero:"Hammer",inspired:"Omarion Hampton",tier:"Base",power:145},
+    {hero:"Majik Man",inspired:"Don Majkowski",tier:"Base",power:140},
+    {hero:"A Bear",inspired:"Bobby Hebert",tier:"Base",power:140},
+    {hero:"Moose",inspired:"Daryl Johnston",tier:"Base",power:140},
+    {hero:"Hillicopter",inspired:"Drew Hill",tier:"Base",power:140},
+  ],
+};
+
+const TIER_CFG = {
+  "Featured Auto": { color:"#FBBF24", bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)", badge:"⭐ Featured Auto" },
+  "Highlighted":   { color:"#C084FC", bg:"rgba(192,132,252,0.08)", border:"rgba(192,132,252,0.25)", badge:"💜 Highlighted" },
+  "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
+};
+
+// ── WOTF SELLER TOOLS ────────────────────────────────────────────────────────
+function WotFPrimerSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(data.primer||"");
+  const [copied,  setCopied]  = useState(false);
+  useEffect(()=>{ setDraft(data.primer||""); },[data.primer]);
+  async function savePrimer() { await save({ ...data, primer:draft }); setEditing(false); }
+  function copy() { navigator.clipboard.writeText(data.primer||"").then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:0 }}>
+        <SectionLabel t="🎙 Game Primer"/>
+        <div style={{ display:"flex", gap:8 }}>
+          {data.primer && <Btn onClick={copy}>{copied?"✅ Copied":"📋 Copy"}</Btn>}
+          {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft(data.primer||""); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+        </div>
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>What to say when someone asks "what is this game?" — script for any streamer</div>
+      {editing ? (
+        <>
+          <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={10}
+            style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, marginBottom:10 }}/>
+          <Btn onClick={savePrimer} disabled={!draft.trim()}>💾 Save Primer</Btn>
+        </>
+      ) : data.primer ? (
+        <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"#AAAAAA", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>{data.primer}</div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>
+          {isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet — ask an admin"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WotFSetsSection({ data, isAdmin, save }) {
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ name:"", description:"", notes:"" });
+  const [adding,  setAdding]  = useState(false);
+  const [copied,  setCopied]  = useState(null);
+  function startAdd() { setDraft({ name:"", description:"", notes:"" }); setAdding(true); setEditIdx(null); }
+  function startEdit(i) { setDraft({ ...data.sets[i] }); setEditIdx(i); setAdding(false); }
+  async function saveSet() {
+    const sets = [...(data.sets||[])];
+    if (editIdx !== null) sets[editIdx] = draft; else sets.push({ ...draft, id:Date.now() });
+    await save({ ...data, sets }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteSet(i) {
+    if (!window.confirm(`Delete "${data.sets[i].name}"?`)) return;
+    await save({ ...data, sets:data.sets.filter((_,idx)=>idx!==i) });
+  }
+  function copy(text, key) { navigator.clipboard.writeText(text).then(()=>{ setCopied(key); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="📦 Set Guides"/>
+        {isAdmin && <Btn variant="ghost" onClick={startAdd}>+ Add Set</Btn>}
+      </div>
+      {(adding || editIdx !== null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div><label style={S.lbl}>Set Name</label><input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} placeholder="e.g. Existence" style={S.inp}/></div>
+            <div><label style={S.lbl}>One-line description</label><input value={draft.description} onChange={e=>setDraft(p=>({...p,description:e.target.value}))} placeholder="e.g. The original WotF set" style={S.inp}/></div>
+          </div>
+          <div><label style={S.lbl}>Streamer Notes</label><textarea value={draft.notes} onChange={e=>setDraft(p=>({...p,notes:e.target.value}))} rows={5} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }}/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}>
+            <Btn onClick={saveSet} disabled={!draft.name.trim()}>💾 Save</Btn>
+            <Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+      {(data.sets||[]).length === 0 && !adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? "Click + Add Set to document your first set" : "No sets documented yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {(data.sets||[]).map((s,i) => (
+          <div key={s.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:s.notes?8:0 }}>
+              <div><div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{s.name}</div>{s.description && <div style={{ fontSize:12, color:"#555", marginTop:2 }}>{s.description}</div>}</div>
+              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                {s.notes && <button onClick={()=>copy(s.notes,i)} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.2)", color:"#4ade80", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy</button>}
+                {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
+              </div>
+            </div>
+            {s.notes && <div style={{ fontSize:12, color:"#888", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{s.notes}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WotFHypeLinesSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState((data.hypelines||[]).join("\n"));
+  const [copied,  setCopied]  = useState(null);
+  useEffect(()=>{ setDraft((data.hypelines||[]).join("\n")); },[data.hypelines]);
+  async function saveLines() { const hypelines=draft.split("\n").map(l=>l.trim()).filter(Boolean); await save({ ...data, hypelines }); setEditing(false); }
+  function copyLine(line,i) { navigator.clipboard.writeText(line).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2000); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="⚡ Hype Lines"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft((data.hypelines||[]).join("\n")); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>One-tap copy for when a big card hits — keep energy high during the pull</div>
+      {editing ? (
+        <><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={8} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, fontFamily:"inherit", marginBottom:10 }}/><Btn onClick={saveLines} disabled={!draft.trim()}>💾 Save Hype Lines</Btn></>
+      ) : (data.hypelines||[]).length > 0 ? (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+          {(data.hypelines||[]).map((line,i) => (
+            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:copied===i?"#4ade80":"#AAAAAA", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+              {copied===i ? "✅ Copied!" : `"${line}"`}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn> : "No hype lines added yet"}</div>
+      )}
+    </div>
+  );
+}
+
+function WotFFAQSection({ data, isAdmin, save }) {
+  const [openIdx, setOpenIdx] = useState(null);
+  const [adding,  setAdding]  = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ q:"", a:"" });
+  const [copied,  setCopied]  = useState(null);
+  async function saveQA() {
+    const faq=[...(data.faq||[])];
+    if (editIdx!==null) faq[editIdx]=draft; else faq.push({ ...draft, id:Date.now() });
+    await save({ ...data, faq }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteQA(i) { if (!window.confirm("Delete this Q&A?")) return; await save({ ...data, faq:(data.faq||[]).filter((_,idx)=>idx!==i) }); }
+  function copy(text,i) { navigator.clipboard.writeText(text).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="❓ Buyer FAQ"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft({q:"",a:""}); setAdding(true); setEditIdx(null); }}>+ Add Q&A</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Scripted answers for common viewer questions — tap to expand, copy the answer</div>
+      {(adding||editIdx!==null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ marginBottom:10 }}><label style={S.lbl}>Question</label><input value={draft.q} onChange={e=>setDraft(p=>({...p,q:e.target.value}))} placeholder="e.g. Is this like Pokémon?" style={S.inp}/></div>
+          <div><label style={S.lbl}>Scripted Answer</label><textarea value={draft.a} onChange={e=>setDraft(p=>({...p,a:e.target.value}))} rows={4} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }} placeholder="Write a friendly answer..."/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
+        </div>
+      )}
+      {(data.faq||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {(data.faq||[]).map((item,i) => (
+          <div key={item.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+            <div onClick={()=>setOpenIdx(openIdx===i?null:i)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", cursor:"pointer" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:10, color:"#555" }}>{openIdx===i?"▼":"▶"}</span><span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{item.q}</span></div>
+              {isAdmin && <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              </div>}
+            </div>
+            {openIdx===i && (
+              <div style={{ padding:"0 16px 14px", borderTop:"1px solid #1a1a1a" }}>
+                <div style={{ fontSize:13, color:"#AAAAAA", lineHeight:1.7, whiteSpace:"pre-wrap", marginTop:10, marginBottom:10 }}>{item.a}</div>
+                <button onClick={()=>copy(item.a,i)} style={{ background:copied===i?"rgba(74,222,128,0.1)":"rgba(123,156,255,0.08)", border:`1px solid ${copied===i?"rgba(74,222,128,0.25)":"rgba(123,156,255,0.2)"}`, color:copied===i?"#4ade80":"#7B9CFF", borderRadius:6, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {copied===i?"✅ Copied":"📋 Copy Answer"}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WotFSellerTools({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
 
@@ -11719,10 +12639,10 @@ Whether you're a player, a collector, or just getting started — this is a grou
           </div>
         </div>
       </div>
-      <PrimerSection/>
-      <SetsSection/>
-      <HypeLinesSection/>
-      <FAQSection/>
+      <WotFPrimerSection data={data} isAdmin={isAdmin} save={save}/>
+      <WotFSetsSection data={data} isAdmin={isAdmin} save={save}/>
+      <WotFHypeLinesSection data={data} isAdmin={isAdmin} save={save}/>
+      <WotFFAQSection data={data} isAdmin={isAdmin} save={save}/>
     </div>
   );
 }
