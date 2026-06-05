@@ -21812,7 +21812,7 @@ function PublicChaseTracker() {
       setLoading(false);
     });
     // Load card database for live treatment/image lookup
-    getDocs(collection(db,"cards")).then(snap => {
+    getDocs(collection(db,"boba_checklist")).then(snap => {
       setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
     }).catch(()=>{});
     return ()=>u1();
