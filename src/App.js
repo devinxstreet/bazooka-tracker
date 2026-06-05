@@ -21786,14 +21786,27 @@ function PublicChaseTracker() {
                                   const wc = getWeaponColor(card.name);
                                   return (
                                     <div key={i} className="card-row"
-                                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:"1px solid #1a1a1a", borderRadius:8, padding:"8px 12px" }}>
-                                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                        <div style={{ width:8, height:8, borderRadius:"50%", background:wc, boxShadow:`0 0 6px ${wc}88`, flexShrink:0 }}/>
-                                        <span style={{ fontSize:13, color:"#F0F0F0", fontWeight:600 }}>{card.name}</span>
+                                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:"1px solid #1a1a1a", borderRadius:10, padding:"8px 12px", gap:10 }}>
+                                      <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                                        {/* Card image */}
+                                        {card.imageUrl
+                                          ? <img src={card.imageUrl} alt={card.hero||card.name} style={{ width:36, height:50, objectFit:"cover", borderRadius:5, flexShrink:0, border:`1px solid ${wc}33` }}/>
+                                          : <div style={{ width:36, height:50, borderRadius:5, background:`${wc}18`, border:`1px solid ${wc}22`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                              <div style={{ width:16, height:16, borderRadius:"50%", background:wc, opacity:0.5 }}/>
+                                            </div>
+                                        }
+                                        <div style={{ minWidth:0 }}>
+                                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{card.hero||card.name}</div>
+                                          <div style={{ display:"flex", gap:4, marginTop:3, flexWrap:"wrap" }}>
+                                            <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"1px 6px" }}>{card.weapon}</span>
+                                            {card.treatment&&<span style={{ fontSize:10, color:"#888", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{card.treatment}</span>}
+                                            {card.cardNum&&<span style={{ fontSize:10, color:"#555" }}>#{card.cardNum}</span>}
+                                          </div>
+                                        </div>
                                       </div>
                                       <button className="have-btn"
                                         onClick={()=>setSubmitForm({ chaseId:chase.id, cardName:card.name, breaker:chase.breaker })}
-                                        style={{ background:`linear-gradient(135deg,${color}22,${color}11)`, border:`1px solid ${color}44`, color, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                        style={{ background:`linear-gradient(135deg,${color}22,${color}11)`, border:`1px solid ${color}44`, color, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
                                         I have this →
                                       </button>
                                     </div>
@@ -21976,7 +21989,17 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
       const existing = editId
         ? (chases.find(x=>x.id===editId)?.cards||[]).find(x=>x.cardId===c.id)
         : null;
-      return { cardId:c.id, name:[c.hero,c.weapon,c.treatment,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — "), weapon:c.weapon||"", hero:c.hero||"", imageUrl:c.imageUrl||null, owned:existing?.owned||false };
+      return {
+        cardId: c.id,
+        name: [c.hero,c.weapon,c.treatment,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — "),
+        hero: c.hero||"",
+        weapon: c.weapon||"",
+        treatment: c.treatment||"",
+        cardNum: c.cardNum||"",
+        notation: c.notation||"",
+        imageUrl: c.imageUrl||null,
+        owned: existing?.owned||false
+      };
     });
     const chaseType = chaseLabel() || fMode;
     const data = { breaker:fBreaker, setName:fSet, chaseType, description:fDesc.trim(), cards, active:true, updatedAt:new Date().toISOString() };
@@ -22204,14 +22227,40 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                   const wc = WEAPON_COLORS[card.weapon]||"#888";
                   return (
                     <div key={card.cardId||card.name} onClick={()=>toggleOwned(chase.id,card.cardId,card.owned)}
-                      style={{ display:"flex", alignItems:"center", gap:8, background:card.owned?"rgba(74,222,128,0.05)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":`${wc}22`}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", transition:"all 0.12s ease" }}
+                      style={{ display:"flex", alignItems:"center", gap:10, background:card.owned?"rgba(74,222,128,0.05)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":`${wc}33`}`, borderRadius:10, padding:"10px", cursor:"pointer", transition:"all 0.12s ease", position:"relative", overflow:"hidden" }}
                       className="inv-row">
-                      <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${card.owned?"#4ade80":wc}`, background:card.owned?"#4ade80":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0, color:"#000" }}>
-                        {card.owned&&"✓"}
+                      {/* Owned overlay */}
+                      {card.owned && <div style={{ position:"absolute", inset:0, background:"rgba(74,222,128,0.04)", borderRadius:10, pointerEvents:"none" }}/>}
+
+                      {/* Card image */}
+                      <div style={{ width:52, height:72, flexShrink:0, borderRadius:6, overflow:"hidden", background:"#1a1a1a", border:`1px solid ${wc}33`, position:"relative" }}>
+                        {card.imageUrl
+                          ? <img src={card.imageUrl} alt={card.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:card.owned?0.5:1, filter:card.owned?"grayscale(0.3)":"none", transition:"opacity 0.2s" }}/>
+                          : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:3 }}>
+                              <div style={{ width:20, height:20, borderRadius:"50%", background:`${wc}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:wc, fontWeight:900 }}>{(card.weapon||"?")[0]}</div>
+                            </div>}
+                        {card.owned && (
+                          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(74,222,128,0.15)" }}>
+                            <div style={{ fontSize:20, color:"#4ade80", fontWeight:900 }}>✓</div>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Card info */}
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:card.owned?"#4ade80":"#F0F0F0", textDecoration:card.owned?"line-through":"none", opacity:card.owned?0.6:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{card.hero||card.name}</div>
-                        <div style={{ fontSize:10, color:wc, fontWeight:700 }}>{card.weapon}{card.treatment?" · "+card.treatment:""}</div>
+                        <div style={{ fontSize:12, fontWeight:800, color:card.owned?"#4ade80":"#F0F0F0", textDecoration:card.owned?"line-through":"none", opacity:card.owned?0.7:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5 }}>
+                          {card.hero||card.name}
+                        </div>
+                        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                          <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"2px 7px" }}>{card.weapon}</span>
+                          {card.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"2px 7px" }}>{card.treatment}</span>}
+                        </div>
+                        {card.cardNum && <div style={{ fontSize:10, color:"#444", marginTop:3 }}>#{card.cardNum}</div>}
+                      </div>
+
+                      {/* Checkbox */}
+                      <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${card.owned?"#4ade80":wc}`, background:card.owned?"#4ade80":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0, color:"#000", fontWeight:900 }}>
+                        {card.owned&&"✓"}
                       </div>
                     </div>
                   );
