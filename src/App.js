@@ -21592,7 +21592,7 @@ function PublicChaseTracker() {
   const [chases,      setChases]      = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [activeChase, setActiveChase] = useState(null);
-  const [submitForm,  setSubmitForm]  = useState(null); // { chaseId, cardName }
+  const [submitForm,  setSubmitForm]  = useState(null);
   const [formData,    setFormData]    = useState({ discord:"", message:"", photo:null });
   const [submitting,  setSubmitting]  = useState(false);
   const [submitted,   setSubmitted]   = useState(false);
@@ -21615,179 +21615,280 @@ function PublicChaseTracker() {
         const ref2 = ref(storage, `chase-submissions/${Date.now()}-${formData.photo.name}`);
         await uploadBytes(ref2, formData.photo);
         photoUrl = await getDownloadURL(ref2);
-      } catch(e) { console.error("Photo upload failed", e); }
+      } catch(e) { console.error(e); }
     }
     await setDoc(doc(db,"chase_submissions",uid()), {
-      chaseId: submitForm.chaseId,
-      cardName: submitForm.cardName,
-      breaker: submitForm.breaker,
-      discord: formData.discord.trim(),
-      message: formData.message.trim(),
-      photoUrl,
-      submittedAt: new Date().toISOString(),
-      status: "pending",
+      chaseId:submitForm.chaseId, cardName:submitForm.cardName, breaker:submitForm.breaker,
+      discord:formData.discord.trim(), message:formData.message.trim(), photoUrl,
+      submittedAt:new Date().toISOString(), status:"pending",
     });
-    setSubmitting(false);
-    setSubmitted(true);
-    setTimeout(()=>{ setSubmitForm(null); setSubmitted(false); setFormData({discord:"",message:"",photo:null}); }, 3000);
+    setSubmitting(false); setSubmitted(true);
+    setTimeout(()=>{ setSubmitForm(null); setSubmitted(false); setFormData({discord:"",message:"",photo:null}); }, 3500);
   }
 
-  const BREAKER_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
-
+  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
   const grouped = chases.reduce((acc,c)=>{ const b=c.breaker||"Unknown"; if(!acc[b])acc[b]=[]; acc[b].push(c); return acc; },{});
+  const WEAPON_COLORS = { Fire:"#F97316", Ice:"#38BDF8", Glow:"#4ade80", Hex:"#A78BFA", Gum:"#EC4899", Super:"#FBBF24", Steel:"#94A3B8", Brawl:"#EF4444" };
+  const getWeaponColor = (name) => { for(const [w,c] of Object.entries(WEAPON_COLORS)) if(name.toLowerCase().includes(w.toLowerCase())) return c; return "#888"; };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0" }}>
-      {/* Header */}
-      <div style={{ background:"#0d0d0d", borderBottom:"1px solid #1a1a1a", padding:"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div>
-          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A", letterSpacing:"0.5px" }}>🎯 Bazooka Chase Tracker</div>
-          <div style={{ fontSize:12, color:"#555", marginTop:2 }}>See what we're hunting — if you have a card we need, let us know</div>
+    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
+
+      {/* Inject keyframes */}
+      <style>{`
+        @keyframes chaseGlow { 0%,100%{opacity:0.4} 50%{opacity:1} }
+        @keyframes chaseFadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        .chase-card { transition:transform 0.2s cubic-bezier(0.22,1,0.36,1),box-shadow 0.2s ease,border-color 0.2s ease !important; }
+        .chase-card:hover { transform:translateY(-4px) !important; box-shadow:0 20px 60px rgba(0,0,0,0.7) !important; }
+        .card-row { transition:background 0.12s ease,transform 0.12s ease !important; cursor:pointer; }
+        .card-row:hover { background:rgba(255,255,255,0.05) !important; transform:translateX(3px) !important; }
+        .have-btn { transition:all 0.15s cubic-bezier(0.34,1.56,0.64,1) !important; }
+        .have-btn:hover { transform:scale(1.05) !important; }
+        .have-btn:active { transform:scale(0.96) !important; }
+        @media(max-width:600px) { .chase-grid { grid-template-columns:1fr !important; } }
+      `}</style>
+
+      {/* Hero header */}
+      <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,#0a0a0a 0%,#0d0010 50%,#0a0a0a 100%)", borderBottom:"1px solid #1a1a1a", padding:"48px 24px 40px" }}>
+        {/* Ambient orbs */}
+        <div style={{ position:"absolute", top:-60, left:"10%", width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(232,49,122,0.08) 0%,transparent 70%)", pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", top:-40, right:"15%", width:200, height:200, borderRadius:"50%", background:"radial-gradient(circle,rgba(123,156,255,0.07) 0%,transparent 70%)", pointerEvents:"none" }}/>
+
+        <div style={{ maxWidth:900, margin:"0 auto", position:"relative" }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:16 }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:"3px", marginBottom:10, opacity:0.8 }}>Bazooka Breaks</div>
+              <h1 style={{ margin:0, fontSize:"clamp(28px,5vw,44px)", fontWeight:900, color:"#fff", letterSpacing:"-0.5px", lineHeight:1.1 }}>
+                Chase Tracker
+              </h1>
+              <p style={{ margin:"10px 0 0", fontSize:14, color:"#555", lineHeight:1.6, maxWidth:480 }}>
+                Cards we're hunting. If you have one, hit the button — we want to hear from you.
+              </p>
+            </div>
+            <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+              {Object.entries(BC).map(([name,color])=>(
+                chases.some(c=>c.breaker===name) && (
+                  <div key={name} style={{ textAlign:"center" }}>
+                    <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${color}33,${color}11)`, border:`2px solid ${color}55`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color, margin:"0 auto 4px", boxShadow:`0 0 20px ${color}22` }}>{name[0]}</div>
+                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>{name}</div>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          {!loading && chases.length > 0 && (
+            <div style={{ display:"flex", gap:24, marginTop:28, paddingTop:24, borderTop:"1px solid #1a1a1a", flexWrap:"wrap" }}>
+              {[
+                { l:"Active Chases", v:chases.length },
+                { l:"Cards Needed", v:chases.reduce((s,c)=>s+(c.cards||[]).filter(x=>!x.owned).length,0) },
+                { l:"Cards Owned",  v:chases.reduce((s,c)=>s+(c.cards||[]).filter(x=>x.owned).length,0) },
+              ].map(({l,v})=>(
+                <div key={l}>
+                  <div style={{ fontSize:22, fontWeight:900, color:"#F0F0F0" }}>{v}</div>
+                  <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div style={{ fontSize:11, color:"#444" }}>bazookadash.com/chases</div>
       </div>
 
-      <div style={{ maxWidth:900, margin:"0 auto", padding:"24px 16px" }}>
-        {loading && <div style={{ textAlign:"center", padding:60, color:"#555" }}>Loading chases...</div>}
+      {/* Main content */}
+      <div style={{ maxWidth:900, margin:"0 auto", padding:"32px 16px 60px" }}>
 
-        {!loading && chases.length === 0 && (
+        {loading && (
           <div style={{ textAlign:"center", padding:80 }}>
-            <div style={{ fontSize:40, marginBottom:16, opacity:0.3 }}>🃏</div>
-            <div style={{ fontSize:16, fontWeight:700, color:"#555", marginBottom:8 }}>No active chases right now</div>
-            <div style={{ fontSize:13, color:"#444" }}>Check back soon — we're always hunting.</div>
+            <div style={{ width:40, height:40, borderRadius:"50%", border:"3px solid #1a1a1a", borderTopColor:"#E8317A", animation:"spin 0.8s linear infinite", margin:"0 auto 16px" }}/>
+            <div style={{ color:"#555", fontSize:13 }}>Loading chases...</div>
           </div>
         )}
 
-        {/* Per-breaker sections */}
-        {Object.entries(grouped).map(([breaker, breakerChases]) => (
-          <div key={breaker} style={{ marginBottom:32 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-              <div style={{ width:10, height:10, borderRadius:"50%", background:BREAKER_COLORS[breaker]||"#E8317A", boxShadow:`0 0 8px ${BREAKER_COLORS[breaker]||"#E8317A"}` }}/>
-              <div style={{ fontSize:18, fontWeight:900, color:BREAKER_COLORS[breaker]||"#E8317A" }}>{breaker}</div>
-            </div>
-
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
-              {breakerChases.map(chase => {
-                const cards = chase.cards||[];
-                const needed = cards.filter(c=>!c.owned);
-                const owned  = cards.filter(c=>c.owned);
-                const pct    = cards.length ? (owned.length/cards.length*100) : 0;
-                const isOpen = activeChase === chase.id;
-
-                return (
-                  <div key={chase.id} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, overflow:"hidden", transition:"border-color 0.2s" }}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor="#333"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor="#1a1a1a"}>
-                    {/* Chase header */}
-                    <div onClick={()=>setActiveChase(isOpen?null:chase.id)}
-                      style={{ padding:"14px 16px", cursor:"pointer" }}>
-                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
-                        <div>
-                          <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{chase.setName}</div>
-                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{chase.chaseType}{chase.description?` — ${chase.description}`:""}</div>
-                        </div>
-                        <div style={{ fontSize:12, fontWeight:800, color: pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A" }}>
-                          {owned.length}/{cards.length}
-                        </div>
-                      </div>
-                      {/* Progress bar */}
-                      <div style={{ background:"#1a1a1a", borderRadius:6, height:6, overflow:"hidden" }}>
-                        <div style={{ width:`${pct}%`, height:"100%", background: pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A", borderRadius:6, transition:"width 0.5s ease" }}/>
-                      </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:10, color:"#555" }}>
-                        <span>{needed.length} still needed</span>
-                        <span>{pct.toFixed(0)}% complete</span>
-                      </div>
-                      <div style={{ textAlign:"right", fontSize:10, color:"#444", marginTop:4 }}>{isOpen?"▲ Hide cards":"▼ Show cards"}</div>
-                    </div>
-
-                    {/* Card list */}
-                    {isOpen && (
-                      <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 16px" }}>
-                        {needed.length > 0 && (
-                          <>
-                            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Still Needed ({needed.length})</div>
-                            <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
-                              {needed.map((card,i) => (
-                                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"8px 12px" }}>
-                                  <span style={{ fontSize:13, color:"#F0F0F0", fontWeight:600 }}>{card.name}</span>
-                                  <button onClick={()=>setSubmitForm({ chaseId:chase.id, cardName:card.name, breaker:chase.breaker })}
-                                    style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                                    I have this
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        {owned.length > 0 && (
-                          <>
-                            <div style={{ fontSize:9, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Already Got ✓ ({owned.length})</div>
-                            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                              {owned.map((card,i) => (
-                                <span key={i} style={{ background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:11, textDecoration:"line-through", opacity:0.6 }}>{card.name}</span>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+        {!loading && chases.length === 0 && (
+          <div style={{ textAlign:"center", padding:"80px 24px", animation:"chaseFadeUp 0.4s ease forwards" }}>
+            <div style={{ fontSize:56, marginBottom:20, opacity:0.15 }}>🃏</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"#333", marginBottom:8 }}>No active chases</div>
+            <div style={{ fontSize:14, color:"#333" }}>Check back soon — we're always hunting.</div>
           </div>
-        ))}
+        )}
+
+        {/* Breaker sections */}
+        {Object.entries(grouped).map(([breaker, breakerChases], bi) => {
+          const color = BC[breaker]||"#E8317A";
+          return (
+            <div key={breaker} style={{ marginBottom:48, animation:`chaseFadeUp 0.4s ease ${bi*0.08}s both` }}>
+              {/* Breaker header */}
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+                <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${color}44,${color}11)`, border:`2px solid ${color}66`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:900, color, boxShadow:`0 0 24px ${color}33`, flexShrink:0 }}>{breaker[0]}</div>
+                <div>
+                  <div style={{ fontSize:20, fontWeight:900, color }}>{breaker}</div>
+                  <div style={{ fontSize:11, color:"#444" }}>{breakerChases.length} active chase{breakerChases.length!==1?"s":""} · {breakerChases.reduce((s,c)=>s+(c.cards||[]).filter(x=>!x.owned).length,0)} cards needed</div>
+                </div>
+                <div style={{ flex:1, height:1, background:`linear-gradient(90deg,${color}33,transparent)`, marginLeft:8 }}/>
+              </div>
+
+              {/* Chase cards grid */}
+              <div className="chase-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 }}>
+                {breakerChases.map((chase,ci) => {
+                  const cards  = chase.cards||[];
+                  const needed = cards.filter(c=>!c.owned);
+                  const owned  = cards.filter(c=>c.owned);
+                  const pct    = cards.length ? (owned.length/cards.length*100) : 0;
+                  const isOpen = activeChase===chase.id;
+
+                  return (
+                    <div key={chase.id} className="chase-card"
+                      style={{ background:"linear-gradient(160deg,#111 0%,#0d0d0d 100%)", border:`1px solid ${isOpen?color+"44":"#1a1a1a"}`, borderRadius:16, overflow:"hidden", boxShadow:isOpen?`0 0 40px ${color}11`:"none" }}>
+
+                      {/* Accent line */}
+                      <div style={{ height:3, background:`linear-gradient(90deg,${color},${color}44,transparent)` }}/>
+
+                      {/* Card header — always clickable */}
+                      <div onClick={()=>setActiveChase(isOpen?null:chase.id)} style={{ padding:"16px 18px", cursor:"pointer" }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12 }}>
+                          <div>
+                            <div style={{ fontSize:15, fontWeight:800, color:"#F0F0F0", marginBottom:3 }}>{chase.setName}</div>
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                              <span style={{ fontSize:10, color, background:`${color}18`, borderRadius:5, padding:"2px 8px", fontWeight:700 }}>{chase.chaseType}</span>
+                              {chase.description&&<span style={{ fontSize:10, color:"#555" }}>{chase.description}</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:"right", flexShrink:0, marginLeft:8 }}>
+                            <div style={{ fontSize:18, fontWeight:900, color:pct===100?"#FBBF24":pct>=85?"#EC4899":pct>=71?"#A78BFA":pct>=57?"#4ade80":pct>=42?"#38BDF8":pct>=28?"#F97316":pct>=14?"#EF4444":"#94A3B8" }}>{pct.toFixed(0)}%</div>
+                            <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:1 }}>{owned.length}/{cards.length}</div>
+                          </div>
+                        </div>
+
+                        {/* Rainbow progress bar */}
+                        <div style={{ background:"#1a1a1a", borderRadius:99, height:8, overflow:"hidden", position:"relative" }}>
+                          {/* Full rainbow track (always rendered, clipped by width) */}
+                          <div style={{ position:"absolute", inset:0, borderRadius:99, background:"linear-gradient(90deg,#94A3B8 0%,#EF4444 14%,#F97316 28%,#38BDF8 42%,#4ade80 57%,#A78BFA 71%,#EC4899 85%,#FBBF24 100%)", opacity:0.15 }}/>
+                          {/* Filled portion */}
+                          <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#94A3B8 0%,#EF4444 14%,#F97316 28%,#38BDF8 42%,#4ade80 57%,#A78BFA 71%,#EC4899 85%,#FBBF24 100%)", borderRadius:99, transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)", boxShadow: pct>0?`0 0 12px ${pct===100?"#FBBF24":pct>=70?"#A78BFA":pct>=50?"#4ade80":pct>=30?"#F97316":"#94A3B8"}66`:"none" }}/>
+                        </div>
+
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8 }}>
+                          <span style={{ fontSize:11, color:"#555" }}>{needed.length} still needed</span>
+                          <span style={{ fontSize:11, color:color, fontWeight:700 }}>{isOpen?"▲ Hide":"▼ Show cards"}</span>
+                        </div>
+                      </div>
+
+                      {/* Expanded card list */}
+                      {isOpen && (
+                        <div style={{ borderTop:`1px solid ${color}22`, padding:"14px 18px 18px" }}>
+                          {needed.length > 0 && (
+                            <div style={{ marginBottom:14 }}>
+                              <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Needed — {needed.length}</div>
+                              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                                {needed.map((card,i)=>{
+                                  const wc = getWeaponColor(card.name);
+                                  return (
+                                    <div key={i} className="card-row"
+                                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:"1px solid #1a1a1a", borderRadius:8, padding:"8px 12px" }}>
+                                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                        <div style={{ width:8, height:8, borderRadius:"50%", background:wc, boxShadow:`0 0 6px ${wc}88`, flexShrink:0 }}/>
+                                        <span style={{ fontSize:13, color:"#F0F0F0", fontWeight:600 }}>{card.name}</span>
+                                      </div>
+                                      <button className="have-btn"
+                                        onClick={()=>setSubmitForm({ chaseId:chase.id, cardName:card.name, breaker:chase.breaker })}
+                                        style={{ background:`linear-gradient(135deg,${color}22,${color}11)`, border:`1px solid ${color}44`, color, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                        I have this →
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {owned.length > 0 && (
+                            <>
+                              <div style={{ fontSize:9, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Got it ✓ — {owned.length}</div>
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                                {owned.map((card,i)=>(
+                                  <span key={i} style={{ background:"rgba(74,222,128,0.05)", border:"1px solid rgba(74,222,128,0.1)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:11, textDecoration:"line-through", opacity:0.45 }}>{card.name}</span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* "I have this" modal */}
+      {/* Footer */}
+      <div style={{ borderTop:"1px solid #111", padding:"24px", textAlign:"center" }}>
+        <div style={{ fontSize:13, fontWeight:700, color:"#E8317A" }}>Bazooka Breaks</div>
+        <div style={{ fontSize:11, color:"#333", marginTop:4 }}>Live card breaking on Whatnot · Discord community · bazookabreaks.com</div>
+      </div>
+
+      {/* Submit modal */}
       {submitForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:16, padding:"24px", width:"100%", maxWidth:420 }}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(8px)" }}>
+          <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:20, padding:"28px 24px", width:"100%", maxWidth:420, boxShadow:"0 40px 80px rgba(0,0,0,0.8)", animation:"chaseFadeUp 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards" }}>
+
             {submitted ? (
               <div style={{ textAlign:"center", padding:"20px 0" }}>
-                <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
-                <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>Got it — thanks!</div>
-                <div style={{ fontSize:12, color:"#555", marginTop:6 }}>We'll reach out on Discord if we're interested.</div>
+                <div style={{ fontSize:52, marginBottom:16 }}>✅</div>
+                <div style={{ fontSize:20, fontWeight:900, color:"#4ade80", marginBottom:8 }}>Sent!</div>
+                <div style={{ fontSize:13, color:"#555" }}>We'll reach out on Discord if we're interested. Thank you!</div>
               </div>
             ) : (
               <>
-                <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>I have this card</div>
-                <div style={{ fontSize:12, color:"#555", marginBottom:20 }}>
-                  <span style={{ color:"#E8317A", fontWeight:700 }}>{submitForm.cardName}</span> — letting {submitForm.breaker} know
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:11, color:"#555", textTransform:"uppercase", letterSpacing:"2px", marginBottom:6 }}>You have</div>
+                  <div style={{ fontSize:20, fontWeight:900, color:"#F0F0F0" }}>{submitForm.cardName}</div>
+                  <div style={{ fontSize:12, color:"#555", marginTop:4 }}>Letting <span style={{ color:BC[submitForm.breaker]||"#E8317A", fontWeight:700 }}>{submitForm.breaker}</span> know</div>
                 </div>
 
-                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
                   <div>
-                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Discord Username</label>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:6 }}>Discord Username *</label>
                     <input value={formData.discord} onChange={e=>setFormData(p=>({...p,discord:e.target.value}))}
                       placeholder="@yourusername"
-                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:10, padding:"11px 14px", color:"#F0F0F0", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s" }}
+                      onFocus={e=>e.target.style.borderColor="#E8317A"}
+                      onBlur={e=>e.target.style.borderColor="#2a2a2a"}/>
                   </div>
                   <div>
-                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Message (optional)</label>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:6 }}>Message <span style={{ color:"#333" }}>(optional)</span></label>
                     <textarea value={formData.message} onChange={e=>setFormData(p=>({...p,message:e.target.value}))}
                       placeholder="Condition, asking price, open to trade, etc."
                       rows={3}
-                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", resize:"vertical" }}/>
+                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:10, padding:"11px 14px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", resize:"none", lineHeight:1.6, transition:"border-color 0.15s" }}
+                      onFocus={e=>e.target.style.borderColor="#E8317A"}
+                      onBlur={e=>e.target.style.borderColor="#2a2a2a"}/>
                   </div>
                   <div>
-                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Photo (optional)</label>
-                    <input type="file" accept="image/*" onChange={e=>setFormData(p=>({...p,photo:e.target.files[0]||null}))}
-                      style={{ fontSize:12, color:"#888", width:"100%" }}/>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:6 }}>Photo <span style={{ color:"#333" }}>(optional)</span></label>
+                    <label style={{ display:"flex", alignItems:"center", gap:10, background:"#0d0d0d", border:"1px dashed #2a2a2a", borderRadius:10, padding:"12px 14px", cursor:"pointer" }}>
+                      <span style={{ fontSize:18 }}>📷</span>
+                      <span style={{ fontSize:12, color:formData.photo?"#4ade80":"#555" }}>{formData.photo?formData.photo.name:"Tap to add a photo"}</span>
+                      <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>setFormData(p=>({...p,photo:e.target.files[0]||null}))}/>
+                    </label>
                   </div>
                 </div>
 
-                <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                <div style={{ display:"flex", gap:10, marginTop:22 }}>
                   <button onClick={submitHaveCard} disabled={!formData.discord.trim()||submitting}
-                    style={{ flex:1, background:"#E8317A", border:"none", color:"#fff", borderRadius:8, padding:"11px", fontSize:13, fontWeight:700, cursor:(!formData.discord.trim()||submitting)?"not-allowed":"pointer", opacity:(!formData.discord.trim()||submitting)?0.5:1, fontFamily:"inherit" }}>
-                    {submitting?"Sending...":"Send"}
+                    style={{ flex:1, background:(!formData.discord.trim()||submitting)?"#1a1a1a":"linear-gradient(135deg,#E8317A,#c41e5a)", border:"none", color:(!formData.discord.trim()||submitting)?"#444":"#fff", borderRadius:10, padding:"13px", fontSize:14, fontWeight:800, cursor:(!formData.discord.trim()||submitting)?"not-allowed":"pointer", fontFamily:"inherit", transition:"all 0.15s", boxShadow:(!formData.discord.trim()||submitting)?"none":"0 8px 24px rgba(232,49,122,0.35)" }}>
+                    {submitting ? "Sending..." : "Send →"}
                   </button>
                   <button onClick={()=>{ setSubmitForm(null); setFormData({discord:"",message:"",photo:null}); }}
-                    style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"11px 18px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-                    Cancel
+                    style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#666", borderRadius:10, padding:"13px 18px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                    ✕
                   </button>
                 </div>
+
+                <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:"#333" }}>Discord handle required so we can reach out</div>
               </>
             )}
           </div>
