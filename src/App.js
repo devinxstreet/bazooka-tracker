@@ -11328,6 +11328,405 @@ const TIER_CFG = {
   "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
 };
 
+// ── WOTF SELLER TOOLS ────────────────────────────────────────────────────────
+function WotFSellerTools({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+
+  // Firestore state
+  const [data, setData] = useState({ primer:"", sets:[], hypelines:[], faq:[] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDoc(doc(db,"config","wotfTools")).then(snap => {
+      if (snap.exists() && snap.data().seeded) {
+        setData({ primer:"", sets:[], hypelines:[], faq:[], ...snap.data() });
+      } else {
+        // First load — seed with default content
+        const seed = {
+          seeded: true,
+          primer: `Welcome to Wonders of The First — one of the hottest new collectible card games on the market right now!
+
+Wonders of The First is a strategic CCG where you play as a Stoneseeker — a powerful being who battles across 7 realms called Orbitals. Instead of heroes, you summon creatures called Wonders to fight for control of powerful Stones. Control the most Stones at the end of Round 7 and you win.
+
+What makes this game so exciting to collect:
+• 401 cards in the base Existence set — huge variety
+• 1st Edition serialized cards — numbered and one-of-a-kind
+• Alternate art exclusives and one-of-ones that are truly rare
+• 6 unique Orbital Starter Decks: Petraia, Thalwind, Solfera, Umbrathene, Heliosynth, and Boundless
+• Raised $1.2 million on Kickstarter with over 2,100 backers — this community is real
+
+Whether you're a player, a collector, or just getting started — this is a ground floor opportunity on something special.`,
+
+          sets: [
+            {
+              id:1,
+              name: "Existence",
+              description: "The original WotF set — 401 cards across 6 Orbitals",
+              notes: `The foundational set. 401 cards in the base set + 6 exclusive mythics in Starter Decks.\n\nKey talking points:\n• 6 Orbitals (worlds): Petraia, Thalwind, Solfera, Umbrathene, Heliosynth, Boundless\n• Chase cards: 1st Edition serialized, alt art, one-of-ones\n• US standard sleeve size (same as Magic: The Gathering)\n• Available on TableTop Simulator for free playtesting\n\nHype moments: Any serialized pull, any alternate art reveal, any legendary Wonder`
+            },
+            {
+              id:2,
+              name: "Call of the Stones",
+              description: "The second WotF set — now available at Target",
+              notes: `The follow-up to Existence — now available at Target stores nationwide.\n\nKey talking points:\n• Continues the 7-Orbital storyline\n• New Collect & Play Bundle available\n• Bigger distribution = more mainstream awareness = better investment\n• Checklist available at wondersccg.com/checklists\n\nHype moments: Any cross-set interaction, Target exclusive pulls, new Wonder reveals`
+            }
+          ],
+
+          hypelines: [
+            "OH THAT'S A 1ST EDITION — THAT IS SERIALIZED! Someone's getting history right now!",
+            "That is a CHASE CARD. Chat, do you see what just came out of that pack?!",
+            "ONE OF ONE. There is only ONE of this card in existence — and it just landed here tonight!",
+            "That's an alternate art — you cannot pull that anywhere else. That is EXCLUSIVE.",
+            "Wonders of the First — Kickstarter funded to the tune of 1.2 MILLION dollars. This game is real and the cards are already moving.",
+            "This is ground floor collecting right here. Get in early — you will thank yourself later.",
+            "That Wonder right there is from the Boundless Orbital — one of the rarest realms in the game.",
+            "Legendaries are hit! ONE per legendary allowed in a deck — this card is always in demand.",
+          ],
+
+          faq: [
+            {
+              id:1,
+              q: "What is this game? Is it like Pokémon or Magic?",
+              a: "It's its own thing — Wonders of The First is a brand new CCG where you battle across 7 realms called Orbitals. Instead of Pokémon or Magic heroes, you summon creatures called Wonders. The collecting side is huge — serialized 1st Editions, one-of-one cards, and alternate art exclusives. It raised over $1.2 million on Kickstarter and just hit Target. Think of it as ground-floor Pokémon — get in early."
+            },
+            {
+              id:2,
+              q: "Is this game actually popular or is it a risk?",
+              a: "1,228,288 dollars raised on Kickstarter by 2,106 backers before the game even shipped. It's now in Target stores nationwide. The competitive scene is already running tournaments. The community is real and growing — this isn't a gamble, this is an opportunity."
+            },
+            {
+              id:3,
+              q: "What's a Stoneseeker?",
+              a: "That's YOU as the player. In WotF, you're a Stoneseeker — a powerful being who controls Wonders and battles across Orbitals (the 7 realms) to capture Stones. Control the most Stones at the end of Round 7, you win. On the collecting side, it just means you're part of the lore — every buyer is part of the universe."
+            },
+            {
+              id:4,
+              q: "What's the most valuable card to look for?",
+              a: "Serialized 1st Edition cards are the chase — they're numbered, limited, and already trading. One-of-ones exist too — literally one card in the world. Legendary Wonders (only 1 allowed per deck) are always in demand for play. Right now the market is early so pricing is still accessible — that won't last forever."
+            },
+            {
+              id:5,
+              q: "Can I actually play this game?",
+              a: "Yes! There are 6 Starter Decks — one per Orbital — that you can play right out of the box. Two players, 30 minutes, no extra setup needed. There's also free online play at compete.wondersccg.com and a TableTop Simulator mod on Steam if you want to try before buying."
+            },
+            {
+              id:6,
+              q: "What size sleeves does it use?",
+              a: "US standard size — same as Magic: The Gathering. If you're already a card player you have everything you need."
+            },
+            {
+              id:7,
+              q: "Where can I buy it outside of here?",
+              a: "Target carries Call of the Stones now — you can also find it at local game stores using the store locator at wondersccg.com. But honestly, breaking it here live is the most fun way to open it."
+            }
+          ]
+        };
+        setData(seed);
+        setDoc(doc(db,"config","wotfTools"), seed, { merge:true });
+      }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, []);
+
+  async function save(updated) {
+    setData(updated);
+    await setDoc(doc(db,"config","wotfTools"), updated, { merge:true });
+  }
+
+  // ── Section: Game Primer ──────────────────────────────────────────────────
+  function PrimerSection() {
+    const [editing, setEditing] = useState(false);
+    const [draft,   setDraft]   = useState(data.primer||"");
+    const [copied,  setCopied]  = useState(false);
+
+    async function savePrimer() {
+      await save({ ...data, primer:draft });
+      setEditing(false);
+    }
+
+    function copy() {
+      navigator.clipboard.writeText(data.primer||"").then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),2500); });
+    }
+
+    return (
+      <div style={{ ...S.card }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:0 }}>
+          <SectionLabel t="🎙 Game Primer"/>
+          <div style={{ display:"flex", gap:8 }}>
+            {data.primer && <Btn onClick={copy}>{copied?"✅ Copied":"📋 Copy"}</Btn>}
+            {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft(data.primer||""); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>What to say when someone asks "what is this game?" — script for any streamer</div>
+        {editing ? (
+          <>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={10}
+              placeholder={"Write a script for explaining WotF to new viewers...\n\nExample:\n'Wonders of the First is a brand new collectible card game where you battle across 7 realms called Orbitals. Instead of heroes, you summon Wonders — unique beings — to fight for control of powerful Stones. The player who controls the most Stones at the end of Round 7 wins. What makes it exciting for collectors is the 1st Edition serialized cards, rare alternate art, and even one-of-ones...'\n"}
+              style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, marginBottom:10 }}/>
+            <Btn onClick={savePrimer} disabled={!draft.trim()}>💾 Save Primer</Btn>
+          </>
+        ) : data.primer ? (
+          <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"#AAAAAA", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>
+            {data.primer}
+          </div>
+        ) : (
+          <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>
+            {isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet — ask an admin"}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Section: Sets ─────────────────────────────────────────────────────────
+  function SetsSection() {
+    const [editIdx, setEditIdx] = useState(null);
+    const [draft,   setDraft]   = useState({ name:"", description:"", notes:"" });
+    const [adding,  setAdding]  = useState(false);
+    const [copied,  setCopied]  = useState(null);
+
+    function startAdd() { setDraft({ name:"", description:"", notes:"" }); setAdding(true); setEditIdx(null); }
+    function startEdit(i) { setDraft({ ...data.sets[i] }); setEditIdx(i); setAdding(false); }
+
+    async function saveSet() {
+      const sets = [...(data.sets||[])];
+      if (editIdx !== null) sets[editIdx] = draft;
+      else sets.push({ ...draft, id:Date.now() });
+      await save({ ...data, sets });
+      setAdding(false); setEditIdx(null);
+    }
+
+    async function deleteSet(i) {
+      if (!window.confirm(`Delete "${data.sets[i].name}"?`)) return;
+      const sets = data.sets.filter((_,idx)=>idx!==i);
+      await save({ ...data, sets });
+    }
+
+    function copy(text, key) {
+      navigator.clipboard.writeText(text).then(()=>{ setCopied(key); setTimeout(()=>setCopied(null),2500); });
+    }
+
+    return (
+      <div style={{ ...S.card }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <SectionLabel t="📦 Set Guides"/>
+          {isAdmin && <Btn variant="ghost" onClick={startAdd}>+ Add Set</Btn>}
+        </div>
+
+        {(adding || editIdx !== null) && (
+          <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+              <div>
+                <label style={S.lbl}>Set Name</label>
+                <input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} placeholder="e.g. Existence, Call of the Stones" style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.lbl}>One-line description</label>
+                <input value={draft.description} onChange={e=>setDraft(p=>({...p,description:e.target.value}))} placeholder="e.g. The original WotF set" style={S.inp}/>
+              </div>
+            </div>
+            <div>
+              <label style={S.lbl}>Streamer Notes (what to highlight, key cards, hype moments)</label>
+              <textarea value={draft.notes} onChange={e=>setDraft(p=>({...p,notes:e.target.value}))} rows={5}
+                style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }}/>
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <Btn onClick={saveSet} disabled={!draft.name.trim()}>💾 Save</Btn>
+              <Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+
+        {(data.sets||[]).length === 0 && !adding && (
+          <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>
+            {isAdmin ? "Click + Add Set to document your first set" : "No sets documented yet"}
+          </div>
+        )}
+
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {(data.sets||[]).map((s,i) => (
+            <div key={s.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom: s.notes?8:0 }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{s.name}</div>
+                  {s.description && <div style={{ fontSize:12, color:"#555", marginTop:2 }}>{s.description}</div>}
+                </div>
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  {s.notes && <button onClick={()=>copy(s.notes,i)} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.2)", color:"#4ade80", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy Notes</button>}
+                  {isAdmin && <>
+                    <button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                    <button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  </>}
+                </div>
+              </div>
+              {s.notes && <div style={{ fontSize:12, color:"#888", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{s.notes}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Section: Hype Lines ───────────────────────────────────────────────────
+  function HypeLinesSection() {
+    const [editing, setEditing] = useState(false);
+    const [draft,   setDraft]   = useState((data.hypelines||[]).join("\n"));
+    const [copied,  setCopied]  = useState(null);
+
+    async function saveLines() {
+      const hypelines = draft.split("\n").map(l=>l.trim()).filter(Boolean);
+      await save({ ...data, hypelines });
+      setEditing(false);
+    }
+
+    function copyLine(line, i) {
+      navigator.clipboard.writeText(line).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2000); });
+    }
+
+    return (
+      <div style={{ ...S.card }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <SectionLabel t="⚡ Hype Lines"/>
+          {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft((data.hypelines||[]).join("\n")); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+        </div>
+        <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>One-tap copy for when a big card hits — keep energy high during the pull</div>
+
+        {editing ? (
+          <>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={8}
+              placeholder={"One hype line per line...\n\nExample:\nOH THAT'S A FIRST EDITION — THAT'S MONEY!\nSERIALIZED! Someone's getting a one-of-one tonight!\nThat's a chase card right there — the chat is going to lose it!\n"}
+              style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, fontFamily:"inherit", marginBottom:10 }}/>
+            <Btn onClick={saveLines} disabled={!draft.trim()}>💾 Save Hype Lines</Btn>
+          </>
+        ) : (data.hypelines||[]).length > 0 ? (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+            {(data.hypelines||[]).map((line,i) => (
+              <button key={i} onClick={()=>copyLine(line,i)}
+                style={{ background: copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color: copied===i?"#4ade80":"#AAAAAA", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left", transition:"all 0.15s" }}>
+                {copied===i ? "✅ Copied!" : `"${line}"`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>
+            {isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn> : "No hype lines added yet"}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Section: FAQ ──────────────────────────────────────────────────────────
+  function FAQSection() {
+    const [openIdx, setOpenIdx]  = useState(null);
+    const [adding,  setAdding]   = useState(false);
+    const [editIdx, setEditIdx]  = useState(null);
+    const [draft,   setDraft]    = useState({ q:"", a:"" });
+    const [copied,  setCopied]   = useState(null);
+
+    async function saveQA() {
+      const faq = [...(data.faq||[])];
+      if (editIdx !== null) faq[editIdx] = draft;
+      else faq.push({ ...draft, id:Date.now() });
+      await save({ ...data, faq });
+      setAdding(false); setEditIdx(null);
+    }
+
+    async function deleteQA(i) {
+      if (!window.confirm("Delete this Q&A?")) return;
+      await save({ ...data, faq:(data.faq||[]).filter((_,idx)=>idx!==i) });
+    }
+
+    function copy(text, i) {
+      navigator.clipboard.writeText(text).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2500); });
+    }
+
+    return (
+      <div style={{ ...S.card }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <SectionLabel t="❓ Buyer FAQ"/>
+          {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft({q:"",a:""}); setAdding(true); setEditIdx(null); }}>+ Add Q&A</Btn>}
+        </div>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Scripted answers for common viewer questions — tap to expand, copy the answer</div>
+
+        {(adding || editIdx !== null) && (
+          <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+            <div style={{ marginBottom:10 }}>
+              <label style={S.lbl}>Question</label>
+              <input value={draft.q} onChange={e=>setDraft(p=>({...p,q:e.target.value}))} placeholder="e.g. Is this like Pokémon?" style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Scripted Answer</label>
+              <textarea value={draft.a} onChange={e=>setDraft(p=>({...p,a:e.target.value}))} rows={4}
+                style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }}
+                placeholder="Write a friendly, hype answer that sells the game while being honest..."/>
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn>
+              <Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+
+        {(data.faq||[]).length === 0 && !adding && (
+          <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>
+            {isAdmin ? "Add common viewer questions and scripted answers" : "No FAQ entries yet"}
+          </div>
+        )}
+
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {(data.faq||[]).map((item,i) => (
+            <div key={item.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+              <div onClick={()=>setOpenIdx(openIdx===i?null:i)}
+                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", cursor:"pointer" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:10, color:"#555" }}>{openIdx===i?"▼":"▶"}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{item.q}</span>
+                </div>
+                {isAdmin && (
+                  <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                    <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  </div>
+                )}
+              </div>
+              {openIdx===i && (
+                <div style={{ padding:"0 16px 14px", borderTop:"1px solid #1a1a1a" }}>
+                  <div style={{ fontSize:13, color:"#AAAAAA", lineHeight:1.7, whiteSpace:"pre-wrap", marginTop:10, marginBottom:10 }}>{item.a}</div>
+                  <button onClick={()=>copy(item.a,i)}
+                    style={{ background: copied===i?"rgba(74,222,128,0.1)":"rgba(123,156,255,0.08)", border:`1px solid ${copied===i?"rgba(74,222,128,0.25)":"rgba(123,156,255,0.2)"}`, color:copied===i?"#4ade80":"#7B9CFF", borderRadius:6, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {copied===i?"✅ Copied":"📋 Copy Answer"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) return <div style={{ padding:40, textAlign:"center", color:"#555" }}>Loading...</div>;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:"0 0 20px" }}>
+      <div style={{ ...S.card, background:"#0d0d0d", padding:"14px 18px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20 }}>🌟</span>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>WotF Seller Tools</div>
+            <div style={{ fontSize:11, color:"#555" }}>Reference guide for breaking Wonders of The First — editable by admins, used by all streamers</div>
+          </div>
+        </div>
+      </div>
+      <PrimerSection/>
+      <SetsSection/>
+      <HypeLinesSection/>
+      <FAQSection/>
+    </div>
+  );
+}
+
 // ── SHOW NOTES ───────────────────────────────────────────────────────────────
 function ShowNotes({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -12251,6 +12650,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"commission",  label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
     { id:"breakspots",  label:"🎯 Break Spots",                roles:["Admin","Streamer","StreamerLite"] },
     { id:"shownotes",   label:"📝 Show Notes",                 roles:["Admin","Streamer","StreamerLite"] },
+    { id:"wotftools",   label:"🌟 WotF Seller Tools",          roles:["Admin","Streamer","StreamerLite"] },
     { id:"planner",     label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
     { id:"calendar",    label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",   label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
@@ -12279,6 +12679,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
       {streamTab === "breakspots" && <BreakSpots bobaCards={bobaCards}/>}
       {streamTab === "shownotes"  && <ShowNotes userRole={userRole}/>}
+      {streamTab === "wotftools"  && <WotFSellerTools userRole={userRole}/>}
     </div>
   );
 }
@@ -21186,6 +21587,437 @@ function parseLocalDate(dateStr) {
 
 
 // --- PUBLIC QUOTE PAGE --------------------------------------
+// ── PUBLIC CHASE TRACKER (/chases) ───────────────────────────────────────────
+function PublicChaseTracker() {
+  const [chases,      setChases]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [activeChase, setActiveChase] = useState(null);
+  const [submitForm,  setSubmitForm]  = useState(null); // { chaseId, cardName }
+  const [formData,    setFormData]    = useState({ discord:"", message:"", photo:null });
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitted,   setSubmitted]   = useState(false);
+
+  useEffect(() => {
+    onSnapshot(collection(db,"chases"), snap => {
+      const all = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(c=>c.active!==false && (c.cards||[]).some(x=>!x.owned));
+      setChases(all.sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")));
+      setLoading(false);
+    });
+  }, []);
+
+  async function submitHaveCard() {
+    if (!submitForm) return;
+    setSubmitting(true);
+    let photoUrl = null;
+    if (formData.photo) {
+      try {
+        const ref2 = ref(storage, `chase-submissions/${Date.now()}-${formData.photo.name}`);
+        await uploadBytes(ref2, formData.photo);
+        photoUrl = await getDownloadURL(ref2);
+      } catch(e) { console.error("Photo upload failed", e); }
+    }
+    await setDoc(doc(db,"chase_submissions",uid()), {
+      chaseId: submitForm.chaseId,
+      cardName: submitForm.cardName,
+      breaker: submitForm.breaker,
+      discord: formData.discord.trim(),
+      message: formData.message.trim(),
+      photoUrl,
+      submittedAt: new Date().toISOString(),
+      status: "pending",
+    });
+    setSubmitting(false);
+    setSubmitted(true);
+    setTimeout(()=>{ setSubmitForm(null); setSubmitted(false); setFormData({discord:"",message:"",photo:null}); }, 3000);
+  }
+
+  const BREAKER_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
+
+  const grouped = chases.reduce((acc,c)=>{ const b=c.breaker||"Unknown"; if(!acc[b])acc[b]=[]; acc[b].push(c); return acc; },{});
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS',sans-serif", color:"#F0F0F0" }}>
+      {/* Header */}
+      <div style={{ background:"#0d0d0d", borderBottom:"1px solid #1a1a1a", padding:"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div>
+          <div style={{ fontSize:22, fontWeight:900, color:"#E8317A", letterSpacing:"0.5px" }}>🎯 Bazooka Chase Tracker</div>
+          <div style={{ fontSize:12, color:"#555", marginTop:2 }}>See what we're hunting — if you have a card we need, let us know</div>
+        </div>
+        <div style={{ fontSize:11, color:"#444" }}>bazookadash.com/chases</div>
+      </div>
+
+      <div style={{ maxWidth:900, margin:"0 auto", padding:"24px 16px" }}>
+        {loading && <div style={{ textAlign:"center", padding:60, color:"#555" }}>Loading chases...</div>}
+
+        {!loading && chases.length === 0 && (
+          <div style={{ textAlign:"center", padding:80 }}>
+            <div style={{ fontSize:40, marginBottom:16, opacity:0.3 }}>🃏</div>
+            <div style={{ fontSize:16, fontWeight:700, color:"#555", marginBottom:8 }}>No active chases right now</div>
+            <div style={{ fontSize:13, color:"#444" }}>Check back soon — we're always hunting.</div>
+          </div>
+        )}
+
+        {/* Per-breaker sections */}
+        {Object.entries(grouped).map(([breaker, breakerChases]) => (
+          <div key={breaker} style={{ marginBottom:32 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+              <div style={{ width:10, height:10, borderRadius:"50%", background:BREAKER_COLORS[breaker]||"#E8317A", boxShadow:`0 0 8px ${BREAKER_COLORS[breaker]||"#E8317A"}` }}/>
+              <div style={{ fontSize:18, fontWeight:900, color:BREAKER_COLORS[breaker]||"#E8317A" }}>{breaker}</div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+              {breakerChases.map(chase => {
+                const cards = chase.cards||[];
+                const needed = cards.filter(c=>!c.owned);
+                const owned  = cards.filter(c=>c.owned);
+                const pct    = cards.length ? (owned.length/cards.length*100) : 0;
+                const isOpen = activeChase === chase.id;
+
+                return (
+                  <div key={chase.id} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:14, overflow:"hidden", transition:"border-color 0.2s" }}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="#333"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="#1a1a1a"}>
+                    {/* Chase header */}
+                    <div onClick={()=>setActiveChase(isOpen?null:chase.id)}
+                      style={{ padding:"14px 16px", cursor:"pointer" }}>
+                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
+                        <div>
+                          <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{chase.setName}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{chase.chaseType}{chase.description?` — ${chase.description}`:""}</div>
+                        </div>
+                        <div style={{ fontSize:12, fontWeight:800, color: pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A" }}>
+                          {owned.length}/{cards.length}
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ background:"#1a1a1a", borderRadius:6, height:6, overflow:"hidden" }}>
+                        <div style={{ width:`${pct}%`, height:"100%", background: pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A", borderRadius:6, transition:"width 0.5s ease" }}/>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:10, color:"#555" }}>
+                        <span>{needed.length} still needed</span>
+                        <span>{pct.toFixed(0)}% complete</span>
+                      </div>
+                      <div style={{ textAlign:"right", fontSize:10, color:"#444", marginTop:4 }}>{isOpen?"▲ Hide cards":"▼ Show cards"}</div>
+                    </div>
+
+                    {/* Card list */}
+                    {isOpen && (
+                      <div style={{ borderTop:"1px solid #1a1a1a", padding:"12px 16px" }}>
+                        {needed.length > 0 && (
+                          <>
+                            <div style={{ fontSize:9, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Still Needed ({needed.length})</div>
+                            <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
+                              {needed.map((card,i) => (
+                                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#111", border:"1px solid #1a1a1a", borderRadius:8, padding:"8px 12px" }}>
+                                  <span style={{ fontSize:13, color:"#F0F0F0", fontWeight:600 }}>{card.name}</span>
+                                  <button onClick={()=>setSubmitForm({ chaseId:chase.id, cardName:card.name, breaker:chase.breaker })}
+                                    style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                    I have this
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        {owned.length > 0 && (
+                          <>
+                            <div style={{ fontSize:9, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Already Got ✓ ({owned.length})</div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                              {owned.map((card,i) => (
+                                <span key={i} style={{ background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:11, textDecoration:"line-through", opacity:0.6 }}>{card.name}</span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* "I have this" modal */}
+      {submitForm && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:16, padding:"24px", width:"100%", maxWidth:420 }}>
+            {submitted ? (
+              <div style={{ textAlign:"center", padding:"20px 0" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+                <div style={{ fontSize:16, fontWeight:800, color:"#4ade80" }}>Got it — thanks!</div>
+                <div style={{ fontSize:12, color:"#555", marginTop:6 }}>We'll reach out on Discord if we're interested.</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize:16, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>I have this card</div>
+                <div style={{ fontSize:12, color:"#555", marginBottom:20 }}>
+                  <span style={{ color:"#E8317A", fontWeight:700 }}>{submitForm.cardName}</span> — letting {submitForm.breaker} know
+                </div>
+
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <div>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Discord Username</label>
+                    <input value={formData.discord} onChange={e=>setFormData(p=>({...p,discord:e.target.value}))}
+                      placeholder="@yourusername"
+                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Message (optional)</label>
+                    <textarea value={formData.message} onChange={e=>setFormData(p=>({...p,message:e.target.value}))}
+                      placeholder="Condition, asking price, open to trade, etc."
+                      rows={3}
+                      style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px", color:"#F0F0F0", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", resize:"vertical" }}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 }}>Photo (optional)</label>
+                    <input type="file" accept="image/*" onChange={e=>setFormData(p=>({...p,photo:e.target.files[0]||null}))}
+                      style={{ fontSize:12, color:"#888", width:"100%" }}/>
+                  </div>
+                </div>
+
+                <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                  <button onClick={submitHaveCard} disabled={!formData.discord.trim()||submitting}
+                    style={{ flex:1, background:"#E8317A", border:"none", color:"#fff", borderRadius:8, padding:"11px", fontSize:13, fontWeight:700, cursor:(!formData.discord.trim()||submitting)?"not-allowed":"pointer", opacity:(!formData.discord.trim()||submitting)?0.5:1, fontFamily:"inherit" }}>
+                    {submitting?"Sending...":"Send"}
+                  </button>
+                  <button onClick={()=>{ setSubmitForm(null); setFormData({discord:"",message:"",photo:null}); }}
+                    style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"11px 18px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── INTERNAL CHASE MANAGER ────────────────────────────────────────────────────
+function ChaseManager({ user, userRole }) {
+  const isAdmin   = ["Admin"].includes(userRole?.role);
+  const myBreaker = BREAKERS.find(b => b.toLowerCase() === (user?.displayName||"").toLowerCase()) || (isAdmin ? null : null);
+
+  const [chases,      setChases]      = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editId,      setEditId]      = useState(null);
+  const [form,        setForm]        = useState({ breaker:"", setName:"", chaseType:"Rainbow", description:"", cardList:"" });
+  const [saving,      setSaving]      = useState(false);
+  const [activeChase, setActiveChase] = useState(null);
+
+  useEffect(() => {
+    const unsub1 = onSnapshot(collection(db,"chases"), snap =>
+      setChases(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")))
+    );
+    const unsub2 = onSnapshot(collection(db,"chase_submissions"), snap =>
+      setSubmissions(snap.docs.map(d=>({id:d.id,...d.data()})))
+    );
+    return ()=>{ unsub1(); unsub2(); };
+  }, []);
+
+  const myChases = isAdmin ? chases : chases.filter(c => c.breaker === myBreaker || c.breaker === user?.displayName);
+
+  async function saveChase() {
+    if (!form.setName.trim()) return;
+    setSaving(true);
+    const cards = form.cardList.split("\n").map(l=>l.trim()).filter(Boolean).map(name => {
+      const existing = editId ? (chases.find(c=>c.id===editId)?.cards||[]).find(c=>c.name===name) : null;
+      return { name, owned: existing?.owned||false };
+    });
+    const data = { breaker:form.breaker, setName:form.setName.trim(), chaseType:form.chaseType, description:form.description.trim(), cards, active:true, updatedAt:new Date().toISOString() };
+    if (editId) await setDoc(doc(db,"chases",editId), data, { merge:true });
+    else        await setDoc(doc(db,"chases",uid()), { ...data, createdAt:new Date().toISOString() });
+    setSaving(false); setShowForm(false); setEditId(null); setForm({ breaker:"", setName:"", chaseType:"Rainbow", description:"", cardList:"" });
+  }
+
+  async function toggleOwned(chaseId, cardName, owned) {
+    const chase = chases.find(c=>c.id===chaseId);
+    if (!chase) return;
+    const cards = (chase.cards||[]).map(c => c.name===cardName ? {...c,owned:!owned} : c);
+    await setDoc(doc(db,"chases",chaseId), { cards }, { merge:true });
+  }
+
+  async function deleteChase(id) {
+    if (!window.confirm("Delete this chase?")) return;
+    await deleteDoc(doc(db,"chases",id));
+  }
+
+  async function updateSubmissionStatus(id, status) {
+    await setDoc(doc(db,"chase_submissions",id), { status }, { merge:true });
+  }
+
+  function startEdit(chase) {
+    setForm({ breaker:chase.breaker||"", setName:chase.setName||"", chaseType:chase.chaseType||"Rainbow", description:chase.description||"", cardList:(chase.cards||[]).map(c=>c.name).join("\n") });
+    setEditId(chase.id); setShowForm(true);
+  }
+
+  const CHASE_TYPES = ["Rainbow","Fire/Ice Only","Glow Only","Hex Only","Gum Only","Super (1/1)","Custom Insert","Full Set"];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+        <div>
+          <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>🎯 Chase Tracker</div>
+          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Public at <span style={{ color:"#7B9CFF" }}>bazookadash.com/chases</span></div>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <a href="/chases" target="_blank" rel="noreferrer"
+            style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>
+            🔗 View Public Page
+          </a>
+          <Btn onClick={()=>{ setShowForm(true); setEditId(null); setForm({breaker:myBreaker||BREAKERS[0],setName:"",chaseType:"Rainbow",description:"",cardList:""}); }}>
+            + New Chase
+          </Btn>
+        </div>
+      </div>
+
+      {/* New/Edit form */}
+      {showForm && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t={editId?"✏️ Edit Chase":"+ New Chase"}/>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10, marginBottom:12 }}>
+            <div>
+              <label style={S.lbl}>Breaker</label>
+              <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.lbl}>Set Name</label>
+              <input value={form.setName} onChange={e=>setForm(p=>({...p,setName:e.target.value}))} placeholder="e.g. Griffey 2026" style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.lbl}>Chase Type</label>
+              <select value={form.chaseType} onChange={e=>setForm(p=>({...p,chaseType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+                {CHASE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.lbl}>Description (optional)</label>
+              <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="e.g. All /50 autos" style={S.inp}/>
+            </div>
+          </div>
+          <div>
+            <label style={S.lbl}>Card List (one per line)</label>
+            <textarea value={form.cardList} onChange={e=>setForm(p=>({...p,cardList:e.target.value}))}
+              rows={10} placeholder={"Bo Jackson Fire\nBo Jackson Ice\nBo Jackson Glow\n..."}
+              style={{ ...S.inp, width:"100%", resize:"vertical", fontFamily:"monospace", fontSize:12, lineHeight:1.7 }}/>
+          </div>
+          <div style={{ display:"flex", gap:8, marginTop:12 }}>
+            <Btn onClick={saveChase} disabled={!form.setName.trim()||saving}>{saving?"Saving...":"💾 Save Chase"}</Btn>
+            <Btn variant="ghost" onClick={()=>{ setShowForm(false); setEditId(null); }}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Chase cards */}
+      {myChases.map(chase => {
+        const cards    = chase.cards||[];
+        const needed   = cards.filter(c=>!c.owned);
+        const owned    = cards.filter(c=>c.owned);
+        const pct      = cards.length ? (owned.length/cards.length*100) : 0;
+        const subs     = submissions.filter(s=>s.chaseId===chase.id&&s.status==="pending");
+        const isOpen   = activeChase===chase.id;
+        const BREAKER_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
+        const bc       = BREAKER_COLORS[chase.breaker]||"#E8317A";
+
+        return (
+          <div key={chase.id} style={{ ...S.card, borderLeft:`3px solid ${bc}` }}>
+            {/* Chase header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:12 }}>
+              <div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:"#F0F0F0" }}>{chase.setName}</span>
+                  <span style={{ fontSize:11, color:bc, background:`${bc}18`, borderRadius:5, padding:"2px 8px", fontWeight:700 }}>{chase.breaker}</span>
+                  <span style={{ fontSize:11, color:"#555" }}>{chase.chaseType}</span>
+                  {subs.length>0&&<span style={{ background:"rgba(232,49,122,0.15)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:10, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🔔 {subs.length} new</span>}
+                </div>
+                {chase.description&&<div style={{ fontSize:11, color:"#555", marginTop:2 }}>{chase.description}</div>}
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <span style={{ fontSize:13, fontWeight:800, color:pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A" }}>{owned.length}/{cards.length}</span>
+                <Btn variant="ghost" onClick={()=>startEdit(chase)}>✏️ Edit</Btn>
+                <Btn variant="red" onClick={()=>deleteChase(chase.id)}>Delete</Btn>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ background:"#1a1a1a", borderRadius:6, height:8, overflow:"hidden", marginBottom:12 }}>
+              <div style={{ width:`${pct}%`, height:"100%", background:pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A", borderRadius:6, transition:"width 0.5s" }}/>
+            </div>
+
+            {/* Expand toggle */}
+            <button onClick={()=>setActiveChase(isOpen?null:chase.id)}
+              style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:12, fontFamily:"inherit", padding:0, marginBottom: isOpen?12:0 }}>
+              {isOpen?"▲ Hide cards":"▼ Show cards"} ({needed.length} needed)
+            </button>
+
+            {isOpen && (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6, marginTop:8 }}>
+                {cards.map((card,i)=>(
+                  <div key={i} onClick={()=>toggleOwned(chase.id,card.name,card.owned)}
+                    style={{ display:"flex", alignItems:"center", gap:8, background:card.owned?"rgba(74,222,128,0.06)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer" }}
+                    className="inv-row">
+                    <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${card.owned?"#4ade80":"#333"}`, background:card.owned?"#4ade80":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0 }}>
+                      {card.owned&&"✓"}
+                    </div>
+                    <span style={{ fontSize:12, color:card.owned?"#4ade80":"#F0F0F0", fontWeight:600, textDecoration:card.owned?"line-through":"none", opacity:card.owned?0.6:1 }}>{card.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Submissions */}
+            {submissions.filter(s=>s.chaseId===chase.id).length > 0 && (
+              <div style={{ marginTop:14, borderTop:"1px solid #1a1a1a", paddingTop:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>
+                  Submissions ({submissions.filter(s=>s.chaseId===chase.id).length})
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {submissions.filter(s=>s.chaseId===chase.id).sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)).map(sub=>(
+                    <div key={sub.id} style={{ background:"#0d0d0d", border:`1px solid ${sub.status==="pending"?"rgba(232,49,122,0.2)":sub.status==="acquired"?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"10px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{sub.cardName}</div>
+                          <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>Discord: {sub.discord||"—"}</div>
+                          {sub.message&&<div style={{ fontSize:11, color:"#888", marginTop:2 }}>{sub.message}</div>}
+                          {sub.photoUrl&&<a href={sub.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"#E8317A", marginTop:4, display:"block" }}>📷 View photo</a>}
+                          <div style={{ fontSize:10, color:"#444", marginTop:4 }}>{new Date(sub.submittedAt).toLocaleDateString()}</div>
+                        </div>
+                        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                          {sub.status==="pending"&&<>
+                            <button onClick={()=>updateSubmissionStatus(sub.id,"contacted")} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Contacted</button>
+                            <button onClick={()=>updateSubmissionStatus(sub.id,"acquired")} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Acquired ✓</button>
+                          </>}
+                          {sub.status!=="pending"&&<span style={{ fontSize:10, color:sub.status==="acquired"?"#4ade80":"#7B9CFF", fontWeight:700 }}>{sub.status}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {myChases.length === 0 && !showForm && (
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:10 }}>No active chases yet</div>
+          <Btn onClick={()=>{ setShowForm(true); setForm({breaker:myBreaker||BREAKERS[0],setName:"",chaseType:"Rainbow",description:"",cardList:""}); }}>+ Create First Chase</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PublicSellPage() {
   const [seller, setSeller]   = useState({ name:"", contact:"", source:"Discord", payment:"", paymentHandle:"" });
   const [rows, setRows]       = useState([{ id:uid(), name:"", qty:"1", askingPrice:"" }]);
@@ -23016,6 +23848,7 @@ export default function App() {
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
+    { id:"chases",     label:"Chases",       icon:"🃏",           roles:["Admin","Streamer"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
@@ -23037,6 +23870,7 @@ export default function App() {
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
+  if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
   // Auth gate -- only for the main app
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
@@ -23206,6 +24040,7 @@ export default function App() {
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"🎯 Break Spots",sub:"Build & copy hero lists",action:()=>{setTab("streams");setStreamTabDefault("breakspots");setHoverTab(null);}},
                   {label:"📝 Show Notes",sub:"Templates for Whatnot",action:()=>{setTab("streams");setStreamTabDefault("shownotes");setHoverTab(null);}},
+                  {label:"🌟 WotF Seller Tools",sub:"Game primer, hype lines, FAQ",action:()=>{setTab("streams");setStreamTabDefault("wotftools");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
@@ -23292,6 +24127,7 @@ export default function App() {
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="campaigns"  && <CampaignTracker buyers={buyers} streams={streams}/>}
+        {tab==="chases"     && <ChaseManager user={user} userRole={effectiveRole}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers} historicalData={historicalData}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
