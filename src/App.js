@@ -4169,7 +4169,17 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (!breaker || !date || !recap.grossRevenue) return;
     setRecapSaving(true);
     try {
-      const streamId = existingStream?.id || uid();
+      // Find a precise match — breaker + date + channel + streamName all must match
+      // This prevents same-day same-breaker streams from overwriting each other
+      const preciseMatch = editingStreamId
+        ? streams.find(s => s.id === editingStreamId)
+        : streams.find(s =>
+            s.breaker === breaker &&
+            s.date === date &&
+            (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault") &&
+            (s.streamName||"") === (recap.streamName||"")
+          );
+      const streamId = preciseMatch?.id || uid();
       await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, streamName:recap.streamName||"", id:streamId, breaker, date });
       // Log selected chaser cards out of inventory
       if (recap.chaserCardIds) {
