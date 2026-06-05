@@ -21899,47 +21899,82 @@ function PublicChaseTracker() {
 }
 
 // ── INTERNAL CHASE MANAGER ────────────────────────────────────────────────────
-function ChaseManager({ user, userRole }) {
+function ChaseManager({ user, userRole, bobaCards=[] }) {
   const isAdmin   = ["Admin"].includes(userRole?.role);
-  const myBreaker = BREAKERS.find(b => b.toLowerCase() === (user?.displayName||"").toLowerCase()) || (isAdmin ? null : null);
+  const myBreaker = user?.displayName || "";
 
   const [chases,      setChases]      = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [showForm,    setShowForm]    = useState(false);
   const [editId,      setEditId]      = useState(null);
-  const [form,        setForm]        = useState({ breaker:"", setName:"", chaseType:"Rainbow", description:"", cardList:"" });
-  const [saving,      setSaving]      = useState(false);
   const [activeChase, setActiveChase] = useState(null);
+  const [saving,      setSaving]      = useState(false);
+
+  // Form state — DB-driven
+  const [fBreaker,    setFBreaker]    = useState(BREAKERS[0]);
+  const [fSet,        setFSet]        = useState("");
+  const [fMode,       setFMode]       = useState("hero");    // "hero" | "insert"
+  const [fHero,       setFHero]       = useState("");
+  const [fInsert,     setFInsert]     = useState("");        // weapon type for insert chase
+  const [fDesc,       setFDesc]       = useState("");
 
   useEffect(() => {
-    const unsub1 = onSnapshot(collection(db,"chases"), snap =>
+    const u1 = onSnapshot(collection(db,"chases"), snap =>
       setChases(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")))
     );
-    const unsub2 = onSnapshot(collection(db,"chase_submissions"), snap =>
+    const u2 = onSnapshot(collection(db,"chase_submissions"), snap =>
       setSubmissions(snap.docs.map(d=>({id:d.id,...d.data()})))
     );
-    return ()=>{ unsub1(); unsub2(); };
+    return ()=>{ u1(); u2(); };
   }, []);
 
-  const myChases = isAdmin ? chases : chases.filter(c => c.breaker === myBreaker || c.breaker === user?.displayName);
+  const myChases = isAdmin ? chases : chases.filter(c => c.breaker === myBreaker);
+
+  // Derived options from bobaCards
+  const allSets    = [...new Set(bobaCards.map(c=>c.setName).filter(Boolean))].sort();
+  const setHeroes  = fSet ? [...new Set(bobaCards.filter(c=>c.setName===fSet).map(c=>c.hero).filter(Boolean))].sort() : [];
+  const setWeapons = fSet ? [...new Set(bobaCards.filter(c=>c.setName===fSet).map(c=>c.weapon).filter(Boolean))].sort() : [];
+
+  // Cards that would be in this chase
+  const previewCards = useMemo(() => {
+    if (!fSet) return [];
+    if (fMode === "hero" && fHero) {
+      return bobaCards
+        .filter(c => c.setName===fSet && c.hero===fHero)
+        .sort((a,b) => {
+          const order = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+          return (order.indexOf(a.weapon)||99) - (order.indexOf(b.weapon)||99);
+        });
+    }
+    if (fMode === "insert" && fInsert) {
+      return bobaCards
+        .filter(c => c.setName===fSet && c.weapon===fInsert)
+        .sort((a,b) => (a.hero||"").localeCompare(b.hero||""));
+    }
+    return [];
+  }, [fSet, fMode, fHero, fInsert, bobaCards]);
 
   async function saveChase() {
-    if (!form.setName.trim()) return;
+    if (!previewCards.length) return;
     setSaving(true);
-    const cards = form.cardList.split("\n").map(l=>l.trim()).filter(Boolean).map(name => {
-      const existing = editId ? (chases.find(c=>c.id===editId)?.cards||[]).find(c=>c.name===name) : null;
-      return { name, owned: existing?.owned||false };
+    const cards = previewCards.map(c => {
+      const existing = editId
+        ? (chases.find(x=>x.id===editId)?.cards||[]).find(x=>x.cardId===c.id)
+        : null;
+      return { cardId:c.id, name:[c.hero,c.weapon,c.treatment,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — "), weapon:c.weapon||"", hero:c.hero||"", imageUrl:c.imageUrl||null, owned:existing?.owned||false };
     });
-    const data = { breaker:form.breaker, setName:form.setName.trim(), chaseType:form.chaseType, description:form.description.trim(), cards, active:true, updatedAt:new Date().toISOString() };
+    const chaseType = fMode==="hero" ? `${fHero} Rainbow` : `${fInsert} Insert Chase`;
+    const data = { breaker:fBreaker, setName:fSet, chaseType, description:fDesc.trim(), cards, active:true, updatedAt:new Date().toISOString() };
     if (editId) await setDoc(doc(db,"chases",editId), data, { merge:true });
     else        await setDoc(doc(db,"chases",uid()), { ...data, createdAt:new Date().toISOString() });
-    setSaving(false); setShowForm(false); setEditId(null); setForm({ breaker:"", setName:"", chaseType:"Rainbow", description:"", cardList:"" });
+    setSaving(false); setShowForm(false); setEditId(null);
+    setFHero(""); setFInsert(""); setFSet(""); setFDesc("");
   }
 
-  async function toggleOwned(chaseId, cardName, owned) {
+  async function toggleOwned(chaseId, cardId, owned) {
     const chase = chases.find(c=>c.id===chaseId);
     if (!chase) return;
-    const cards = (chase.cards||[]).map(c => c.name===cardName ? {...c,owned:!owned} : c);
+    const cards = (chase.cards||[]).map(c => c.cardId===cardId ? {...c,owned:!owned} : c);
     await setDoc(doc(db,"chases",chaseId), { cards }, { merge:true });
   }
 
@@ -21948,140 +21983,204 @@ function ChaseManager({ user, userRole }) {
     await deleteDoc(doc(db,"chases",id));
   }
 
-  async function updateSubmissionStatus(id, status) {
+  async function updateSub(id, status) {
     await setDoc(doc(db,"chase_submissions",id), { status }, { merge:true });
   }
 
   function startEdit(chase) {
-    setForm({ breaker:chase.breaker||"", setName:chase.setName||"", chaseType:chase.chaseType||"Rainbow", description:chase.description||"", cardList:(chase.cards||[]).map(c=>c.name).join("\n") });
+    setFBreaker(chase.breaker||BREAKERS[0]);
+    setFSet(chase.setName||"");
+    setFDesc(chase.description||"");
+    // detect mode from chaseType
+    if ((chase.chaseType||"").includes("Rainbow")) {
+      setFMode("hero");
+      setFHero(chase.chaseType.replace(" Rainbow",""));
+    } else {
+      setFMode("insert");
+      setFInsert(chase.chaseType.replace(" Insert Chase",""));
+    }
     setEditId(chase.id); setShowForm(true);
   }
 
-  const CHASE_TYPES = ["Rainbow","Fire/Ice Only","Glow Only","Hex Only","Gum Only","Super (1/1)","Custom Insert","Full Set"];
+  const WEAPON_COLORS = { Fire:"#F97316",Ice:"#38BDF8",Glow:"#4ade80",Hex:"#A78BFA",Gum:"#EC4899",Super:"#FBBF24",Steel:"#94A3B8",Brawl:"#EF4444" };
+  const BC2 = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
-      {/* Header */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
         <div>
           <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>🎯 Chase Tracker</div>
-          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Public at <span style={{ color:"#7B9CFF" }}>bazookadash.com/chases</span></div>
+          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Public at <a href="/chases" target="_blank" style={{ color:"#7B9CFF" }}>bazookadash.com/chases</a></div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <a href="/chases" target="_blank" rel="noreferrer"
-            style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>
-            🔗 View Public Page
-          </a>
-          <Btn onClick={()=>{ setShowForm(true); setEditId(null); setForm({breaker:myBreaker||BREAKERS[0],setName:"",chaseType:"Rainbow",description:"",cardList:""}); }}>
-            + New Chase
-          </Btn>
+          <a href="/chases" target="_blank" rel="noreferrer" style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>🔗 Public Page</a>
+          <Btn onClick={()=>{ setShowForm(true); setEditId(null); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); setFSet(""); setFHero(""); setFInsert(""); setFDesc(""); setFMode("hero"); }}>+ New Chase</Btn>
         </div>
       </div>
 
-      {/* New/Edit form */}
+      {/* Form */}
       {showForm && (
         <div style={{ ...S.card }}>
           <SectionLabel t={editId?"✏️ Edit Chase":"+ New Chase"}/>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10, marginBottom:12 }}>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10, marginBottom:14 }}>
             <div>
               <label style={S.lbl}>Breaker</label>
-              <select value={form.breaker} onChange={e=>setForm(p=>({...p,breaker:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
+              <select value={fBreaker} onChange={e=>setFBreaker(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
                 {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
-              <label style={S.lbl}>Set Name</label>
-              <input value={form.setName} onChange={e=>setForm(p=>({...p,setName:e.target.value}))} placeholder="e.g. Griffey 2026" style={S.inp}/>
-            </div>
-            <div>
-              <label style={S.lbl}>Chase Type</label>
-              <select value={form.chaseType} onChange={e=>setForm(p=>({...p,chaseType:e.target.value}))} style={{ ...S.inp, cursor:"pointer" }}>
-                {CHASE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+              <label style={S.lbl}>Set</label>
+              <select value={fSet} onChange={e=>{ setFSet(e.target.value); setFHero(""); setFInsert(""); }} style={{ ...S.inp, cursor:"pointer", color:fSet?"#F0F0F0":"#555" }}>
+                <option value="">— Choose set —</option>
+                {allSets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
+              <label style={S.lbl}>Chase Type</label>
+              <div style={{ display:"flex", gap:4 }}>
+                {["hero","insert"].map(m=>(
+                  <button key={m} onClick={()=>{ setFMode(m); setFHero(""); setFInsert(""); }}
+                    style={{ flex:1, background:fMode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${fMode===m?"#E8317A":"#2a2a2a"}`, color:fMode===m?"#E8317A":"#888", borderRadius:7, padding:"8px 4px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textTransform:"capitalize" }}>
+                    {m==="hero"?"🦸 Hero":"🎴 Insert"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {fSet && fMode==="hero" && (
+              <div>
+                <label style={S.lbl}>Hero</label>
+                <select value={fHero} onChange={e=>setFHero(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fHero?"#F0F0F0":"#555" }}>
+                  <option value="">— Choose hero —</option>
+                  {setHeroes.map(h=><option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            )}
+            {fSet && fMode==="insert" && (
+              <div>
+                <label style={S.lbl}>Weapon / Insert Type</label>
+                <select value={fInsert} onChange={e=>setFInsert(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fInsert?"#F0F0F0":"#555" }}>
+                  <option value="">— Choose weapon —</option>
+                  {setWeapons.map(w=><option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
               <label style={S.lbl}>Description (optional)</label>
-              <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="e.g. All /50 autos" style={S.inp}/>
+              <input value={fDesc} onChange={e=>setFDesc(e.target.value)} placeholder="e.g. Need the /10 and /25" style={S.inp}/>
             </div>
           </div>
-          <div>
-            <label style={S.lbl}>Card List (one per line)</label>
-            <textarea value={form.cardList} onChange={e=>setForm(p=>({...p,cardList:e.target.value}))}
-              rows={10} placeholder={"Bo Jackson Fire\nBo Jackson Ice\nBo Jackson Glow\n..."}
-              style={{ ...S.inp, width:"100%", resize:"vertical", fontFamily:"monospace", fontSize:12, lineHeight:1.7 }}/>
-          </div>
-          <div style={{ display:"flex", gap:8, marginTop:12 }}>
-            <Btn onClick={saveChase} disabled={!form.setName.trim()||saving}>{saving?"Saving...":"💾 Save Chase"}</Btn>
+
+          {/* Preview */}
+          {previewCards.length > 0 && (
+            <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"12px 14px", marginBottom:14 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginBottom:10 }}>
+                ✓ {previewCards.length} cards found from {fSet} database
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {previewCards.map(c=>{
+                  const wc = WEAPON_COLORS[c.weapon]||"#888";
+                  const label = [c.hero, c.weapon, c.treatment, c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
+                  return (
+                    <div key={c.id} style={{ display:"flex", alignItems:"center", gap:5, background:"#111", border:`1px solid ${wc}22`, borderRadius:6, padding:"4px 10px" }}>
+                      <div style={{ width:6, height:6, borderRadius:"50%", background:wc, flexShrink:0 }}/>
+                      <span style={{ fontSize:11, color:"#AAAAAA" }}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {fSet && ((fMode==="hero"&&!fHero)||(fMode==="insert"&&!fInsert)) && (
+            <div style={{ fontSize:12, color:"#555", marginBottom:14 }}>← Choose a {fMode==="hero"?"hero":"weapon type"} to see the cards</div>
+          )}
+
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn onClick={saveChase} disabled={!previewCards.length||saving}>{saving?"Saving...":"💾 Save Chase"}</Btn>
             <Btn variant="ghost" onClick={()=>{ setShowForm(false); setEditId(null); }}>Cancel</Btn>
           </div>
         </div>
       )}
 
-      {/* Chase cards */}
+      {/* Chase list */}
+      {myChases.length===0 && !showForm && (
+        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
+          <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:10 }}>No chases yet</div>
+          <Btn onClick={()=>{ setShowForm(true); setFBreaker(isAdmin?BREAKERS[0]:myBreaker); }}>+ Create First Chase</Btn>
+        </div>
+      )}
+
       {myChases.map(chase => {
-        const cards    = chase.cards||[];
-        const needed   = cards.filter(c=>!c.owned);
-        const owned    = cards.filter(c=>c.owned);
-        const pct      = cards.length ? (owned.length/cards.length*100) : 0;
-        const subs     = submissions.filter(s=>s.chaseId===chase.id&&s.status==="pending");
-        const isOpen   = activeChase===chase.id;
-        const BREAKER_COLORS = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
-        const bc       = BREAKER_COLORS[chase.breaker]||"#E8317A";
+        const cards   = chase.cards||[];
+        const needed  = cards.filter(c=>!c.owned);
+        const owned2  = cards.filter(c=>c.owned);
+        const pct     = cards.length ? (owned2.length/cards.length*100) : 0;
+        const subs    = submissions.filter(s=>s.chaseId===chase.id);
+        const pending = subs.filter(s=>s.status==="pending");
+        const isOpen  = activeChase===chase.id;
+        const bc      = BC2[chase.breaker]||"#E8317A";
 
         return (
           <div key={chase.id} style={{ ...S.card, borderLeft:`3px solid ${bc}` }}>
-            {/* Chase header */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:12 }}>
               <div>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:15, fontWeight:900, color:"#F0F0F0" }}>{chase.setName}</span>
                   <span style={{ fontSize:11, color:bc, background:`${bc}18`, borderRadius:5, padding:"2px 8px", fontWeight:700 }}>{chase.breaker}</span>
-                  <span style={{ fontSize:11, color:"#555" }}>{chase.chaseType}</span>
-                  {subs.length>0&&<span style={{ background:"rgba(232,49,122,0.15)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:10, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🔔 {subs.length} new</span>}
+                  <span style={{ fontSize:11, color:"#888", background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>{chase.chaseType}</span>
+                  {pending.length>0&&<span style={{ background:"rgba(232,49,122,0.15)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:10, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🔔 {pending.length} new</span>}
                 </div>
-                {chase.description&&<div style={{ fontSize:11, color:"#555", marginTop:2 }}>{chase.description}</div>}
+                {chase.description&&<div style={{ fontSize:11, color:"#555", marginTop:3 }}>{chase.description}</div>}
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <span style={{ fontSize:13, fontWeight:800, color:pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A" }}>{owned.length}/{cards.length}</span>
-                <Btn variant="ghost" onClick={()=>startEdit(chase)}>✏️ Edit</Btn>
+                <span style={{ fontSize:13, fontWeight:800, color:pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A" }}>{owned2.length}/{cards.length}</span>
+                <Btn variant="ghost" onClick={()=>startEdit(chase)}>✏️</Btn>
                 <Btn variant="red" onClick={()=>deleteChase(chase.id)}>Delete</Btn>
               </div>
             </div>
 
-            {/* Progress bar */}
-            <div style={{ background:"#1a1a1a", borderRadius:6, height:8, overflow:"hidden", marginBottom:12 }}>
-              <div style={{ width:`${pct}%`, height:"100%", background:pct===100?"#4ade80":pct>=50?"#FBBF24":"#E8317A", borderRadius:6, transition:"width 0.5s" }}/>
+            {/* Rainbow progress */}
+            <div style={{ background:"#1a1a1a", borderRadius:99, height:8, overflow:"hidden", position:"relative", marginBottom:8 }}>
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,#94A3B8,#EF4444,#F97316,#38BDF8,#4ade80,#A78BFA,#EC4899,#FBBF24)", opacity:0.12, borderRadius:99 }}/>
+              <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#94A3B8,#EF4444,#F97316,#38BDF8,#4ade80,#A78BFA,#EC4899,#FBBF24)", borderRadius:99, transition:"width 0.6s cubic-bezier(0.22,1,0.36,1)" }}/>
             </div>
 
-            {/* Expand toggle */}
             <button onClick={()=>setActiveChase(isOpen?null:chase.id)}
-              style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:12, fontFamily:"inherit", padding:0, marginBottom: isOpen?12:0 }}>
-              {isOpen?"▲ Hide cards":"▼ Show cards"} ({needed.length} needed)
+              style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:"0 0 10px" }}>
+              {isOpen?"▲ Hide":"▼ Show"} {needed.length} needed · {owned2.length} owned
             </button>
 
+            {/* Card grid — checklist style */}
             {isOpen && (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:6, marginTop:8 }}>
-                {cards.map((card,i)=>(
-                  <div key={i} onClick={()=>toggleOwned(chase.id,card.name,card.owned)}
-                    style={{ display:"flex", alignItems:"center", gap:8, background:card.owned?"rgba(74,222,128,0.06)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":"#1a1a1a"}`, borderRadius:8, padding:"8px 12px", cursor:"pointer" }}
-                    className="inv-row">
-                    <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${card.owned?"#4ade80":"#333"}`, background:card.owned?"#4ade80":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0 }}>
-                      {card.owned&&"✓"}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
+                {cards.map(card=>{
+                  const wc = WEAPON_COLORS[card.weapon]||"#888";
+                  return (
+                    <div key={card.cardId||card.name} onClick={()=>toggleOwned(chase.id,card.cardId,card.owned)}
+                      style={{ display:"flex", alignItems:"center", gap:8, background:card.owned?"rgba(74,222,128,0.05)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":`${wc}22`}`, borderRadius:8, padding:"8px 12px", cursor:"pointer", transition:"all 0.12s ease" }}
+                      className="inv-row">
+                      <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${card.owned?"#4ade80":wc}`, background:card.owned?"#4ade80":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0, color:"#000" }}>
+                        {card.owned&&"✓"}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:card.owned?"#4ade80":"#F0F0F0", textDecoration:card.owned?"line-through":"none", opacity:card.owned?0.6:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{card.hero||card.name}</div>
+                        <div style={{ fontSize:10, color:wc, fontWeight:700 }}>{card.weapon}{card.treatment?" · "+card.treatment:""}</div>
+                      </div>
                     </div>
-                    <span style={{ fontSize:12, color:card.owned?"#4ade80":"#F0F0F0", fontWeight:600, textDecoration:card.owned?"line-through":"none", opacity:card.owned?0.6:1 }}>{card.name}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {/* Submissions */}
-            {submissions.filter(s=>s.chaseId===chase.id).length > 0 && (
+            {subs.length>0 && (
               <div style={{ marginTop:14, borderTop:"1px solid #1a1a1a", paddingTop:12 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>
-                  Submissions ({submissions.filter(s=>s.chaseId===chase.id).length})
-                </div>
+                <div style={{ fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Submissions ({subs.length})</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {submissions.filter(s=>s.chaseId===chase.id).sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)).map(sub=>(
+                  {subs.sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)).map(sub=>(
                     <div key={sub.id} style={{ background:"#0d0d0d", border:`1px solid ${sub.status==="pending"?"rgba(232,49,122,0.2)":sub.status==="acquired"?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"10px 14px" }}>
                       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
                         <div>
@@ -22089,12 +22188,11 @@ function ChaseManager({ user, userRole }) {
                           <div style={{ fontSize:11, color:"#7B9CFF", marginTop:2 }}>Discord: {sub.discord||"—"}</div>
                           {sub.message&&<div style={{ fontSize:11, color:"#888", marginTop:2 }}>{sub.message}</div>}
                           {sub.photoUrl&&<a href={sub.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"#E8317A", marginTop:4, display:"block" }}>📷 View photo</a>}
-                          <div style={{ fontSize:10, color:"#444", marginTop:4 }}>{new Date(sub.submittedAt).toLocaleDateString()}</div>
                         </div>
                         <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                           {sub.status==="pending"&&<>
-                            <button onClick={()=>updateSubmissionStatus(sub.id,"contacted")} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Contacted</button>
-                            <button onClick={()=>updateSubmissionStatus(sub.id,"acquired")} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Acquired ✓</button>
+                            <button onClick={()=>updateSub(sub.id,"contacted")} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Contacted</button>
+                            <button onClick={()=>updateSub(sub.id,"acquired")} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Acquired ✓</button>
                           </>}
                           {sub.status!=="pending"&&<span style={{ fontSize:10, color:sub.status==="acquired"?"#4ade80":"#7B9CFF", fontWeight:700 }}>{sub.status}</span>}
                         </div>
@@ -22107,14 +22205,6 @@ function ChaseManager({ user, userRole }) {
           </div>
         );
       })}
-
-      {myChases.length === 0 && !showForm && (
-        <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
-          <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#555", marginBottom:10 }}>No active chases yet</div>
-          <Btn onClick={()=>{ setShowForm(true); setForm({breaker:myBreaker||BREAKERS[0],setName:"",chaseType:"Rainbow",description:"",cardList:""}); }}>+ Create First Chase</Btn>
-        </div>
-      )}
     </div>
   );
 }
@@ -24228,7 +24318,7 @@ export default function App() {
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="campaigns"  && <CampaignTracker buyers={buyers} streams={streams}/>}
-        {tab==="chases"     && <ChaseManager user={user} userRole={effectiveRole}/>}
+        {tab==="chases"     && <ChaseManager user={user} userRole={effectiveRole} bobaCards={bobaCards}/>}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers} historicalData={historicalData}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
