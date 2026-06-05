@@ -4107,7 +4107,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Find existing stream: prefer by ID when editing, fall back to breaker+date for new entries
   const existingStream = editingStreamId
     ? streams.find(s => s.id === editingStreamId)
-    : streams.find(s => s.breaker === breaker && s.date === date);
+    : streams.find(s => s.breaker === breaker && s.date === date && (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault"));
 
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
