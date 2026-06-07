@@ -11403,6 +11403,265 @@ const TIER_CFG = {
   "Base":          { color:"#60A5FA", bg:"rgba(96,165,250,0.06)",  border:"rgba(96,165,250,0.2)",  badge:"🔵 Base" },
 };
 
+// ── BOBA SELLER TOOLS ────────────────────────────────────────────────────────
+function BobaPrimerSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(data.primer||"");
+  const [copied,  setCopied]  = useState(false);
+  useEffect(()=>{ setDraft(data.primer||""); },[data.primer]);
+  async function savePrimer() { await save({ ...data, primer:draft }); setEditing(false); }
+  function copy() { navigator.clipboard.writeText(data.primer||"").then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:0 }}>
+        <SectionLabel t="🎙 Game Primer"/>
+        <div style={{ display:"flex", gap:8 }}>
+          {data.primer && <Btn onClick={copy}>{copied?"✅ Copied":"📋 Copy"}</Btn>}
+          {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft(data.primer||""); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+        </div>
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>What to say when a new viewer asks what BoBA is</div>
+      {editing ? (
+        <><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={10} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, marginBottom:10 }}/><Btn onClick={savePrimer} disabled={!draft.trim()}>💾 Save</Btn></>
+      ) : data.primer ? (
+        <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"#AAAAAA", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>{data.primer}</div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet"}</div>
+      )}
+    </div>
+  );
+}
+
+function BobaWeaponsSection({ data, isAdmin, save }) {
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ name:"", rarity:"", description:"", tip:"" });
+  const [adding,  setAdding]  = useState(false);
+  const [copied,  setCopied]  = useState(null);
+  const WEAPON_COLORS = { Steel:"#94A3B8", Brawl:"#EF4444", Fire:"#F97316", Ice:"#38BDF8", Glow:"#4ade80", Hex:"#A78BFA", Gum:"#EC4899", Super:"#FBBF24" };
+  function startAdd() { setDraft({ name:"", rarity:"", description:"", tip:"" }); setAdding(true); setEditIdx(null); }
+  function startEdit(i) { setDraft({ ...data.weapons[i] }); setEditIdx(i); setAdding(false); }
+  async function saveWeapon() {
+    const weapons = [...(data.weapons||[])];
+    if (editIdx!==null) weapons[editIdx]=draft; else weapons.push({ ...draft, id:Date.now() });
+    await save({ ...data, weapons }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteWeapon(i) { if (!window.confirm(`Delete ${data.weapons[i].name}?`)) return; await save({ ...data, weapons:(data.weapons||[]).filter((_,idx)=>idx!==i) }); }
+  function copy(text, key) { navigator.clipboard.writeText(text).then(()=>{ setCopied(key); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="⚔️ Weapon Guide"/>
+        {isAdmin && <Btn variant="ghost" onClick={startAdd}>+ Add Weapon</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Rarity ladder from common to 1/1 — know what every hit means</div>
+      {(adding||editIdx!==null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div><label style={S.lbl}>Weapon Name</label><input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} placeholder="e.g. Hex" style={S.inp}/></div>
+            <div><label style={S.lbl}>Rarity / Print Run</label><input value={draft.rarity} onChange={e=>setDraft(p=>({...p,rarity:e.target.value}))} placeholder="e.g. Inspired Ink /10" style={S.inp}/></div>
+          </div>
+          <div style={{ marginBottom:10 }}><label style={S.lbl}>Description</label><textarea value={draft.description} onChange={e=>setDraft(p=>({...p,description:e.target.value}))} rows={3} style={{ ...S.inp, width:"100%", resize:"vertical", fontSize:13 }}/></div>
+          <div><label style={S.lbl}>On-Stream Tip</label><input value={draft.tip} onChange={e=>setDraft(p=>({...p,tip:e.target.value}))} placeholder="What to say when this hits..." style={S.inp}/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveWeapon} disabled={!draft.name.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
+        </div>
+      )}
+      {(data.weapons||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add the weapon types":"No weapons documented yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {(data.weapons||[]).map((w,i)=>{
+          const wc = WEAPON_COLORS[w.name]||"#888";
+          return (
+            <div key={w.id||i} style={{ background:"#0d0d0d", border:`1px solid ${wc}22`, borderLeft:`3px solid ${wc}`, borderRadius:10, padding:"12px 16px" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:14, fontWeight:900, color:wc }}>{w.name}</span>
+                  {w.rarity && <span style={{ fontSize:10, color:"#555", background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>{w.rarity}</span>}
+                </div>
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  {w.tip && <button onClick={()=>copy(w.tip,i)} style={{ background:`${wc}18`, border:`1px solid ${wc}33`, color:wc, borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy Tip</button>}
+                  {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteWeapon(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
+                </div>
+              </div>
+              {w.description && <div style={{ fontSize:12, color:"#888", lineHeight:1.6, marginBottom:w.tip?6:0 }}>{w.description}</div>}
+              {w.tip && <div style={{ fontSize:11, color:wc, fontStyle:"italic", opacity:0.8 }}>💬 "{w.tip}"</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BobaHypeLinesSection({ data, isAdmin, save }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState((data.hypelines||[]).join("\n"));
+  const [copied,  setCopied]  = useState(null);
+  useEffect(()=>{ setDraft((data.hypelines||[]).join("\n")); },[data.hypelines]);
+  async function saveLines() { await save({ ...data, hypelines:draft.split("\n").map(l=>l.trim()).filter(Boolean) }); setEditing(false); }
+  function copyLine(line,i) { navigator.clipboard.writeText(line).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2000); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="⚡ Hype Lines"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft((data.hypelines||[]).join("\n")); setEditing(!editing); }}>{editing?"Cancel":"✏️ Edit"}</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Tap to copy instantly during a pull — one per line</div>
+      {editing ? (
+        <><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={8} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13, fontFamily:"inherit", marginBottom:10 }}/><Btn onClick={saveLines} disabled={!draft.trim()}>💾 Save</Btn></>
+      ) : (data.hypelines||[]).length>0 ? (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+          {(data.hypelines||[]).map((line,i)=>(
+            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:copied===i?"#4ade80":"#AAAAAA", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+              {copied===i?"✅ Copied!":'"'+line+'"'}
+            </button>
+          ))}
+        </div>
+      ) : <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?<Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn>:"No hype lines yet"}</div>}
+    </div>
+  );
+}
+
+function BobaFAQSection({ data, isAdmin, save }) {
+  const [openIdx, setOpenIdx] = useState(null);
+  const [adding,  setAdding]  = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ q:"", a:"" });
+  const [copied,  setCopied]  = useState(null);
+  async function saveQA() { const faq=[...(data.faq||[])]; if(editIdx!==null)faq[editIdx]=draft;else faq.push({...draft,id:Date.now()}); await save({...data,faq}); setAdding(false); setEditIdx(null); }
+  async function deleteQA(i) { if(!window.confirm("Delete?"))return; await save({...data,faq:(data.faq||[]).filter((_,idx)=>idx!==i)}); }
+  function copy(text,i) { navigator.clipboard.writeText(text).then(()=>{ setCopied(i); setTimeout(()=>setCopied(null),2500); }); }
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="❓ Buyer FAQ"/>
+        {isAdmin && <Btn variant="ghost" onClick={()=>{ setDraft({q:"",a:""}); setAdding(true); setEditIdx(null); }}>+ Add Q&A</Btn>}
+      </div>
+      <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Scripted answers for common viewer questions</div>
+      {(adding||editIdx!==null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ marginBottom:10 }}><label style={S.lbl}>Question</label><input value={draft.q} onChange={e=>setDraft(p=>({...p,q:e.target.value}))} placeholder="e.g. Are the autographs real?" style={S.inp}/></div>
+          <div><label style={S.lbl}>Answer</label><textarea value={draft.a} onChange={e=>setDraft(p=>({...p,a:e.target.value}))} rows={4} style={{ ...S.inp, width:"100%", resize:"vertical", lineHeight:1.7, fontSize:13 }}/></div>
+          <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
+        </div>
+      )}
+      {(data.faq||[]).length===0&&!adding&&<div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {(data.faq||[]).map((item,i)=>(
+          <div key={item.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+            <div onClick={()=>setOpenIdx(openIdx===i?null:i)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", cursor:"pointer" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:10, color:"#555" }}>{openIdx===i?"▼":"▶"}</span><span style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{item.q}</span></div>
+              {isAdmin && <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              </div>}
+            </div>
+            {openIdx===i && <div style={{ padding:"0 16px 14px", borderTop:"1px solid #1a1a1a" }}>
+              <div style={{ fontSize:13, color:"#AAAAAA", lineHeight:1.7, whiteSpace:"pre-wrap", marginTop:10, marginBottom:10 }}>{item.a}</div>
+              <button onClick={()=>copy(item.a,i)} style={{ background:copied===i?"rgba(74,222,128,0.1)":"rgba(123,156,255,0.08)", border:`1px solid ${copied===i?"rgba(74,222,128,0.25)":"rgba(123,156,255,0.2)"}`, color:copied===i?"#4ade80":"#7B9CFF", borderRadius:6, padding:"5px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                {copied===i?"✅ Copied":"📋 Copy Answer"}
+              </button>
+            </div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BoBASellerTools({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [data, setData] = useState({ primer:"", weapons:[], hypelines:[], faq:[] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDoc(doc(db,"config","bobaTools")).then(snap => {
+      if (snap.exists() && snap.data().seeded) {
+        setData({ primer:"", weapons:[], hypelines:[], faq:[], ...snap.data() });
+      } else {
+        const seed = {
+          seeded: true,
+          primer: `Welcome to Bo Jackson Battle Arena — one of the most exciting collectible card games in live breaking right now!
+
+BoBA is a comic book-style trading card game where legendary athletes are reimagined as powerful warriors called Heroes. Every hero comes in multiple weapon versions — and those weapons determine rarity and value.
+
+Here's the rarity ladder from most common to rarest:
+• Steel & Brawl — your base cards, great for gameplay
+• Fire & Ice — Inspired Ink ON-CARD autographs, serialized to just /50 copies each
+• Glow — Inspired Ink auto, only /25 in the world
+• Hex — Inspired Ink auto, only /10 in the world
+• Gum — Secret Rare, ultra-limited
+• Super — Superfoil 1/1. ONE copy exists. Period.
+
+The key thing to know: ALL autographs in BoBA are ON-CARD ONLY. No sticker autos, no separate sheets — the athlete signs directly on the card. That's a premium product and serious collectors know the difference.
+
+Named after Bo Jackson — the only athlete in history to be an All-Star in both the NFL and MLB — this game is built around athletic greatness.`,
+
+          weapons: [
+            { id:1, name:"Steel", rarity:"Common — base card", description:"The foundation of every deck. Every hero has a Steel version. Great for gameplay and building.", tip:"Steel is where we start — every hero has one and they're great for new players." },
+            { id:2, name:"Brawl", rarity:"Common — newer weapon", description:"Raw combat power. Brawl cards bring close-quarters energy to the Arena. Strong gameplay piece.", tip:"Brawl is new to the lineup — these hit different in the deck." },
+            { id:3, name:"Fire", rarity:"Inspired Ink /50 — on-card auto", description:"Serialized autograph, only 50 in existence. ON-CARD signature only — no sticker autos in BoBA.", tip:"FIRE — Inspired Ink, serialized to 50. That's an ON-CARD auto. Real signature, real value!" },
+            { id:4, name:"Ice", rarity:"Inspired Ink /50 — on-card auto", description:"Same rarity as Fire — serialized to 50 copies. Different energy, same elite status.", tip:"ICE — same print run as Fire, just 50 in the world. That auto is going straight on someone's shelf." },
+            { id:5, name:"Glow", rarity:"Inspired Ink /25 — on-card auto", description:"Ultra Rare. Only 25 copies exist. The radioactive hit — harder to pull than Fire or Ice.", tip:"GLOW — only 25 of these. You just pulled one of 25. Let that sink in." },
+            { id:6, name:"Hex", rarity:"Inspired Ink /10 — on-card auto", description:"Elite rarity. Only 10 copies in the world. Dark magic energy — and serious collector value.", tip:"HEX — there are TEN of these. Ten. In the entire world. That is an elite card." },
+            { id:7, name:"Gum", rarity:"Secret Rare — ultra limited", description:"Hidden in the set, no published print run. The secret hit — when it drops, the room goes crazy.", tip:"GUM! The secret rare — this one wasn't even supposed to be here tonight!" },
+            { id:8, name:"Super", rarity:"Superfoil 1/1 — one of one", description:"The absolute pinnacle. One copy exists in the world. Named in honor of the hero who wields it.", tip:"SUPERFOIL. ONE OF ONE. There is ONLY ONE of this card IN EXISTENCE. This is the holy grail!" },
+          ],
+
+          hypelines: [
+            "INSPIRED INK — that is an ON-CARD AUTOGRAPH. Not a sticker. The athlete signed directly on this card!",
+            "FIRE! Serialized to 50 — only 50 of these exist anywhere in the world!",
+            "ICE! /50 — same level as Fire, different weapon. Just as rare, just as real!",
+            "GLOW — Ultra Rare, only 25 copies. You just pulled one of TWENTY-FIVE!",
+            "HEX — only TEN in existence. Ten cards. This is an elite, elite pull!",
+            "GUM! The secret rare dropped! Nobody saw this coming!",
+            "SUPERFOIL 1/1 — ONE OF ONE! THE ONLY COPY! There is nothing rarer than this!",
+            "This is Bo Jackson Battle Arena — named after the greatest two-sport athlete who ever lived. And we just pulled FIRE!",
+            "All autos in BoBA are ON-CARD ONLY. No stickers, no shortcuts. Real signatures on real cards.",
+            "Rainbow time — we're chasing every weapon for this hero. Every version, one collection.",
+          ],
+
+          faq: [
+            { id:1, q:"Are the autographs real?", a:"100% real — and that's what makes BoBA special. Every autograph in Bo Jackson Battle Arena is an on-card signature only. No sticker autos, no separate sheets. The athlete signed directly on the card. That's the standard and it's a big deal in the hobby." },
+            { id:2, q:"Who is Bo Jackson?", a:"Bo Jackson is arguably the greatest two-sport athlete in history — a Pro Bowl NFL running back AND an MLB All-Star outfielder at the same time. Nike built the original Air Trainer around him. He's a legend, and this entire game is built in his honor." },
+            { id:3, q:"What's the rarest card I can pull?", a:"The Super — a Superfoil 1/1. One copy exists in the entire world. After that: Hex (/10), Gum (secret rare), Glow (/25), then Fire and Ice (both /50). Every level is an on-card autograph except Gum and Super." },
+            { id:4, q:"What are Battlefoils?", a:"Battlefoils are foil treatment parallels — alternate versions of base cards with premium foil finishes. They come in Red, Silver, Blue, Orange, Green, and Pink. They add serious visual pop to any collection and are a great addition to a rainbow chase." },
+            { id:5, q:"What's a rainbow?", a:"A rainbow is collecting every weapon version of one hero — Steel, Brawl, Fire, Ice, Glow, Hex, Gum, and Super. It's the ultimate collector goal for a single hero. Some people only chase one hero their whole collection life." },
+            { id:6, q:"Can you actually play this as a game?", a:"Yes! BoBA is a fully playable deck-building card game. You build a deck around your favorite heroes and battle opponents in the Arena. The game adds real gameplay value on top of the collecting — cards you love to pull are also cards you want to play." },
+            { id:7, q:"Where can I buy more BoBA?", a:"Bazooka Breaks is one of your best sources — you're watching it live right now. You can also find BoBA at local card shops using the store locator at bobattlearena.com, and on the secondary market on eBay and similar platforms." },
+          ]
+        };
+        setData(seed);
+        setDoc(doc(db,"config","bobaTools"), seed, { merge:true });
+      }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, []);
+
+  async function save(updated) {
+    setData(updated);
+    await setDoc(doc(db,"config","bobaTools"), updated, { merge:true });
+  }
+
+  if (loading) return <div style={{ padding:40, textAlign:"center", color:"#555" }}>Loading...</div>;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:"0 0 20px" }}>
+      <div style={{ ...S.card, background:"#0d0d0d", padding:"14px 18px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20 }}>⚔️</span>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>BoBA Seller Tools</div>
+            <div style={{ fontSize:11, color:"#555" }}>Reference guide for breaking Bo Jackson Battle Arena — editable by admins, used by all streamers</div>
+          </div>
+        </div>
+      </div>
+      <BobaPrimerSection data={data} isAdmin={isAdmin} save={save}/>
+      <BobaWeaponsSection data={data} isAdmin={isAdmin} save={save}/>
+      <BobaHypeLinesSection data={data} isAdmin={isAdmin} save={save}/>
+      <BobaFAQSection data={data} isAdmin={isAdmin} save={save}/>
+    </div>
+  );
+}
+
 // ── WOTF SELLER TOOLS ────────────────────────────────────────────────────────
 function WotFPrimerSection({ data, isAdmin, save }) {
   const [editing, setEditing] = useState(false);
@@ -12627,6 +12886,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"breakspots",  label:"🎯 Break Spots",                roles:["Admin","Streamer","StreamerLite"] },
     { id:"shownotes",   label:"📝 Show Notes",                 roles:["Admin","Streamer","StreamerLite"] },
     { id:"wotftools",   label:"🌟 WotF Seller Tools",          roles:["Admin","Streamer","StreamerLite"] },
+    { id:"bobatools",   label:"⚔️ BoBA Seller Tools",          roles:["Admin","Streamer","StreamerLite"] },
     { id:"planner",     label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
     { id:"calendar",    label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",   label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
@@ -12656,6 +12916,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "breakspots" && <BreakSpots bobaCards={bobaCards}/>}
       {streamTab === "shownotes"  && <ShowNotes userRole={userRole}/>}
       {streamTab === "wotftools"  && <WotFSellerTools userRole={userRole}/>}
+      {streamTab === "bobatools"  && <BoBASellerTools userRole={userRole}/>}
     </div>
   );
 }
@@ -24498,6 +24759,7 @@ export default function App() {
                   {label:"🎯 Break Spots",sub:"Build & copy hero lists",action:()=>{setTab("streams");setStreamTabDefault("breakspots");setHoverTab(null);}},
                   {label:"📝 Show Notes",sub:"Templates for Whatnot",action:()=>{setTab("streams");setStreamTabDefault("shownotes");setHoverTab(null);}},
                   {label:"🌟 WotF Seller Tools",sub:"Game primer, hype lines, FAQ",action:()=>{setTab("streams");setStreamTabDefault("wotftools");setHoverTab(null);}},
+                  {label:"⚔️ BoBA Seller Tools",sub:"Weapons, hype lines, FAQ",action:()=>{setTab("streams");setStreamTabDefault("bobatools");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
