@@ -11728,7 +11728,8 @@ Helmet Icons *
 BoJax (Bo Jackson), Attak (Dak Prescott), Brees (Drew Brees), Mossed (Randy Moss), Marino (Dan Marino), Cutback (Barry Sanders), Machine Gun (Jim Kelly), Troy of Dallas (Troy Aikman), Gronk (Rob Gronkowski), Fear Himself (Lawrence Taylor)`
             }
           ],
-          weapons: [ rarity:"Common — base card", description:"The foundation of every deck. Every hero has a Steel version. Great for gameplay and building.", tip:"Steel is where we start — every hero has one and they're great for new players." },
+          weapons: [
+            { id:1, name:"Steel", rarity:"Common — base card", description:"The foundation of every deck. Every hero has a Steel version. Great for gameplay and building.", tip:"Steel is where we start — every hero has one and they're great for new players." },
             { id:2, name:"Brawl", rarity:"Common — newer weapon", description:"Raw combat power. Brawl cards bring close-quarters energy to the Arena. Strong gameplay piece.", tip:"Brawl is new to the lineup — these hit different in the deck." },
             { id:3, name:"Fire", rarity:"Inspired Ink /50 — on-card auto", description:"Serialized autograph, only 50 in existence. ON-CARD signature only — no sticker autos in BoBA.", tip:"FIRE — Inspired Ink, serialized to 50. That's an ON-CARD auto. Real signature, real value!" },
             { id:4, name:"Ice", rarity:"Inspired Ink /50 — on-card auto", description:"Same rarity as Fire — serialized to 50 copies. Different energy, same elite status.", tip:"ICE — same print run as Fire, just 50 in the world. That auto is going straight on someone's shelf." },
