@@ -4,7 +4,6 @@ import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
@@ -24260,166 +24259,6 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   );
 }
 
-// ── COMPLIANCE OFFICER ────────────────────────────────────────────────────────
-function ComplianceOfficer({ userRole, user }) {
-  const allowed = ["Admin", "Streamer"].includes(userRole?.role);
-  const [idea, setIdea]       = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null);
-  const [error, setError]     = useState("");
-  const [history, setHistory] = useState([]);
-
-  // Recent checks for this session / collection (admins see all, streamers see all too — it's a shared log)
-  useEffect(() => {
-    if (!allowed) return;
-    const unsub = onSnapshot(
-      query(collection(db, "compliance_checks"), orderBy("checkedAt", "desc"), limit(15)),
-      snap => setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      () => {}
-    );
-    return () => unsub && unsub();
-  }, [allowed]);
-
-  if (!allowed) {
-    return <AccessDenied msg="The Compliance Officer is for Admin and Streamers only." />;
-  }
-
-  async function runCheck() {
-    const text = idea.trim();
-    if (!text) return;
-    setLoading(true); setError(""); setResult(null);
-    try {
-      const fns = getFunctions();
-      const call = httpsCallable(fns, "complianceCheck");
-      const resp = await call({ idea: text });
-      setResult(resp.data);
-    } catch (e) {
-      setError(e?.message || "Something went wrong. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const VERDICT = {
-    COMPLIANT: { bg:"#0a1a0f", border:"#2E7D52", text:"#4ade80", icon:"✅", label:"COMPLIANT" },
-    RISKY:     { bg:"#1a1500", border:"#9a7a12", text:"#FBBF24", icon:"⚠️", label:"RISKY" },
-    VIOLATION: { bg:"#1a0810", border:"#E8317A", text:"#E8317A", icon:"⛔", label:"VIOLATION" },
-  };
-  const v = result ? (VERDICT[result.verdict] || VERDICT.RISKY) : null;
-
-  const EXAMPLES = [
-    "We want to add 5 external chaser cards into a 130-spot break, randomly distributed to buyers.",
-    "Follower-only giveaway — anyone who follows the channel is entered to win a free card, no purchase needed.",
-    "Best card pulled across the whole Saturday night stream wins a bonus box.",
-    "Every break buyer gets a guaranteed numbered base card disclosed up front, plus their spot's cards.",
-  ];
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:760, margin:"0 auto" }}>
-      <div>
-        <div style={{ fontSize:20, fontWeight:800, color:"#F0F0F0", display:"flex", alignItems:"center", gap:8 }}>
-          🛡️ Compliance Officer
-        </div>
-        <div style={{ fontSize:13, color:"#888", marginTop:4, lineHeight:1.5 }}>
-          Run a break, giveaway, or promo idea through Whatnot's policy stack before you run it live. You'll get a verdict, the rules it triggers, and a compliant fix. This is guidance, not legal advice.
-        </div>
-      </div>
-
-      <div style={{ ...S.card }}>
-        <label style={S.lbl}>Describe the idea</label>
-        <textarea
-          value={idea}
-          onChange={e => setIdea(e.target.value)}
-          placeholder="Be specific: who pays, what's random, and what a buyer can win. e.g. '130-spot break, plus 5 chasers added on top, randomly given to spot holders.'"
-          rows={4}
-          maxLength={4000}
-          style={{ ...S.inp, width:"100%", boxSizing:"border-box", resize:"vertical", lineHeight:1.5, marginTop:6 }}
-          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") runCheck(); }}
-        />
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-          {EXAMPLES.map((ex,i) => (
-            <button key={i} onClick={()=>setIdea(ex)}
-              style={{ background:"rgba(255,255,255,0.05)", color:"#888", border:"1px solid #2a2a2a", borderRadius:20, padding:"4px 11px", fontSize:10.5, cursor:"pointer", fontFamily:"inherit", textAlign:"left", maxWidth:340, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-              {ex}
-            </button>
-          ))}
-        </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
-          <span style={{ fontSize:10, color:"#555" }}>{idea.length}/4000 · ⌘/Ctrl+Enter to run</span>
-          <Btn onClick={runCheck} disabled={loading || !idea.trim()}>
-            {loading ? "Checking…" : "Run Compliance Check"}
-          </Btn>
-        </div>
-      </div>
-
-      {error && (
-        <div style={{ ...S.card, border:"1px solid #E8317A", color:"#E8317A", fontSize:13 }}>{error}</div>
-      )}
-
-      {result && v && (
-        <div style={{ ...S.card, background:v.bg, border:`1.5px solid ${v.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:22 }}>{v.icon}</span>
-            <span style={{ fontSize:18, fontWeight:800, color:v.text, letterSpacing:0.5 }}>{v.label}</span>
-            {result.confidence && (
-              <span style={{ marginLeft:"auto", fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:1 }}>
-                {result.confidence} confidence
-              </span>
-            )}
-          </div>
-          {result.headline && (
-            <div style={{ fontSize:14, color:"#F0F0F0", marginTop:10, fontWeight:600, lineHeight:1.5 }}>{result.headline}</div>
-          )}
-          {result.reasoning && (
-            <div style={{ fontSize:13, color:"#bbb", marginTop:8, lineHeight:1.6 }}>{result.reasoning}</div>
-          )}
-
-          {Array.isArray(result.policies_triggered) && result.policies_triggered.length > 0 && (
-            <div style={{ marginTop:14 }}>
-              <div style={S.lbl}>Policies triggered</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:6 }}>
-                {result.policies_triggered.map((p,i) => (
-                  <div key={i} style={{ background:"rgba(0,0,0,0.35)", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px" }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:v.text }}>{p.policy}</div>
-                    {p.rule && <div style={{ fontSize:12, color:"#ccc", marginTop:3, lineHeight:1.5 }}>{p.rule}</div>}
-                    {p.why && <div style={{ fontSize:11.5, color:"#999", marginTop:4, lineHeight:1.5, fontStyle:"italic" }}>{p.why}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {result.fix && (
-            <div style={{ marginTop:14, background:"rgba(74,222,128,0.08)", border:"1px solid #2E7D52", borderRadius:8, padding:"10px 12px" }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", textTransform:"uppercase", letterSpacing:1 }}>✔ Compliant alternative</div>
-              <div style={{ fontSize:13, color:"#e0e0e0", marginTop:6, lineHeight:1.6 }}>{result.fix}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {history.length > 0 && (
-        <div style={{ ...S.card }}>
-          <div style={S.lbl}>Recent checks (shared log)</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
-            {history.map(h => {
-              const hv = VERDICT[h.verdict] || VERDICT.RISKY;
-              return (
-                <div key={h.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderBottom:"1px solid #161616" }}>
-                  <span style={{ fontSize:14 }}>{hv.icon}</span>
-                  <span style={{ fontSize:11, fontWeight:700, color:hv.text, width:78, flexShrink:0 }}>{hv.label}</span>
-                  <span style={{ fontSize:12, color:"#aaa", flex:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{h.idea}</span>
-                  <span style={{ fontSize:10, color:"#555", flexShrink:0 }}>{(h.checkedBy||"").split(" ")[0]}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function App() {
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
@@ -24860,7 +24699,6 @@ export default function App() {
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
     { id:"chases",     label:"Chases",       icon:"🃏",           roles:["Admin","Streamer"] },
-    { id:"compliance", label:"Compliance",   icon:"🛡️",          roles:["Admin","Streamer"] },
     { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
@@ -25142,7 +24980,6 @@ export default function App() {
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
         {tab==="campaigns"  && <CampaignTracker buyers={buyers} streams={streams}/>}
         {tab==="chases"     && <ChaseManager user={user} userRole={effectiveRole} bobaCards={bobaCards}/>}
-        {tab==="compliance" && (["Admin","Streamer"].includes(effectiveRole?.role) ? <ComplianceOfficer userRole={effectiveRole} user={effectiveUser}/> : <AccessDenied msg="The Compliance Officer is for Admin and Streamers only." />)}
         {tab==="performance"&& <Performance defaultPeriod={periodDefault} defaultPerfTab={perfTabDefault} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} buyers={buyers} historicalData={historicalData}/>}
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
