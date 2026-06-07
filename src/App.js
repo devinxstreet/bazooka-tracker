@@ -11567,6 +11567,95 @@ function BobaFAQSection({ data, isAdmin, save }) {
   );
 }
 
+function BobaSetGuidesSection({ data, isAdmin, save }) {
+  const [editIdx, setEditIdx] = useState(null);
+  const [draft,   setDraft]   = useState({ name:"", overview:"", allSkus:"", hobbyOnly:"", doubleMegaOnly:"", notes:"" });
+  const [adding,  setAdding]  = useState(false);
+  const [openIdx, setOpenIdx] = useState(0); // first set open by default
+  const [copied,  setCopied]  = useState(null);
+
+  function startAdd() { setDraft({ name:"", overview:"", allSkus:"", hobbyOnly:"", doubleMegaOnly:"", notes:"" }); setAdding(true); setEditIdx(null); }
+  function startEdit(i) { setDraft({ ...data.sets[i] }); setEditIdx(i); setAdding(false); }
+  async function saveSet() {
+    const sets = [...(data.sets||[])];
+    if (editIdx!==null) sets[editIdx]=draft; else sets.push({ ...draft, id:Date.now() });
+    await save({ ...data, sets }); setAdding(false); setEditIdx(null);
+  }
+  async function deleteSet(i) { if(!window.confirm(`Delete "${data.sets[i].name}"?`))return; await save({ ...data, sets:(data.sets||[]).filter((_,idx)=>idx!==i) }); }
+  function copy(text,key) { navigator.clipboard.writeText(text).then(()=>{ setCopied(key); setTimeout(()=>setCopied(null),2500); }); }
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <SectionLabel t="📦 Set Guides"/>
+        {isAdmin && <Btn variant="ghost" onClick={startAdd}>+ Add Set</Btn>}
+      </div>
+
+      {(adding||editIdx!==null) && (
+        <div style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.2)", borderRadius:10, padding:"16px", marginBottom:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div><label style={S.lbl}>Set Name</label><input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} placeholder="e.g. Tecmo Bowl Edition" style={S.inp}/></div>
+            <div><label style={S.lbl}>Overview</label><input value={draft.overview} onChange={e=>setDraft(p=>({...p,overview:e.target.value}))} placeholder="e.g. 130 heroes, football legends" style={S.inp}/></div>
+          </div>
+          {[["allSkus","Found in All SKUs"],["hobbyOnly","Hobby Only"],["doubleMegaOnly","Double Mega Only"],["notes","Streamer Notes"]].map(([k,l])=>(
+            <div key={k} style={{ marginBottom:10 }}>
+              <label style={S.lbl}>{l}</label>
+              <textarea value={draft[k]} onChange={e=>setDraft(p=>({...p,[k]:e.target.value}))} rows={3} style={{ ...S.inp, width:"100%", resize:"vertical", fontSize:12, lineHeight:1.6 }}/>
+            </div>
+          ))}
+          <div style={{ display:"flex", gap:8 }}><Btn onClick={saveSet} disabled={!draft.name.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
+        </div>
+      )}
+
+      {(data.sets||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add set guides":"No set guides yet"}</div>}
+
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {(data.sets||[]).map((s,i)=>{
+          const isOpen = openIdx===i;
+          return (
+            <div key={s.id||i} style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden" }}>
+              <div onClick={()=>setOpenIdx(isOpen?null:i)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", cursor:"pointer" }}>
+                <div>
+                  <span style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>{s.name}</span>
+                  {s.overview && <span style={{ fontSize:11, color:"#555", marginLeft:10 }}>{s.overview}</span>}
+                </div>
+                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                  {isAdmin && <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:6 }}>
+                    <button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#555", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
+                    <button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid #2a2a2a", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  </div>}
+                  <span style={{ color:"#555", fontSize:12 }}>{isOpen?"▲":"▼"}</span>
+                </div>
+              </div>
+
+              {isOpen && (
+                <div style={{ padding:"0 16px 16px", borderTop:"1px solid #1a1a1a" }}>
+                  {[
+                    { key:"allSkus", label:"🎴 Found in All SKUs", color:"#7B9CFF" },
+                    { key:"hobbyOnly", label:"📦 Hobby Only", color:"#E8317A" },
+                    { key:"doubleMegaOnly", label:"💎 Double Mega Only", color:"#FBBF24" },
+                    { key:"notes", label:"💬 Streamer Notes", color:"#4ade80" },
+                  ].filter(({key})=>s[key]).map(({key,label,color})=>(
+                    <div key={key} style={{ marginTop:12 }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color, textTransform:"uppercase", letterSpacing:1 }}>{label}</div>
+                        <button onClick={()=>copy(s[key],`${i}-${key}`)} style={{ background:`${color}18`, border:`1px solid ${color}33`, color, borderRadius:5, padding:"2px 8px", fontSize:9, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          {copied===`${i}-${key}`?"✅":"📋"} Copy
+                        </button>
+                      </div>
+                      <div style={{ fontSize:12, color:"#AAAAAA", lineHeight:1.7, whiteSpace:"pre-wrap", background:"#111", borderRadius:7, padding:"8px 12px" }}>{s[key]}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BoBASellerTools({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const [data, setData] = useState({ primer:"", weapons:[], hypelines:[], faq:[] });
@@ -11595,7 +11684,50 @@ The key thing to know: ALL autographs in BoBA are ON-CARD ONLY. No sticker autos
 
 Named after Bo Jackson — the only athlete in history to be an All-Star in both the NFL and MLB — this game is built around athletic greatness.`,
 
-          weapons: [
+          sets: [
+            {
+              id: 1,
+              name: "Tecmo Bowl Edition",
+              overview: "130 heroes · 64 autos · football legends",
+              allSkus: `On-Card Inspired Ink Autographs
+Alpha
+Helmets *
+News *
+80's Rad
+Scoreboard *
+Logofoils
+Sore Thumb *
+Rage Quit *
+
+* New with Tecmo Bowl Edition`,
+              hobbyOnly: `Gum
+Blow On It *
+Gold Coinflip *
+Skyline Ice/Fire *
+8-Bit *
+Color Battlefoils
+Halftime Show *
+Metallic Inspired Ink Autograph
+
+* New with Tecmo Bowl Edition`,
+              doubleMegaOnly: `Endzone *
+Skyline Glow *
+Big Pixel *
+Silver Coinflip *
+Helmet Icons *
+
+* New with Tecmo Bowl Edition`,
+              notes: `Weapon notes specific to Tecmo Bowl:
+• Steel & Brawl — Battlefoil AND Non-Foil versions (Common)
+• Fire & Ice — Battlefoil AND Non-Foil versions (Rare, on-card Inspired Ink autos)
+• Glow — Battlefoil ONLY (Ultra Rare, on-card Inspired Ink auto)
+• Hex & Gum — Battlefoil ONLY (Secret Rare)
+• Super — Superfoil ONLY (1/1)
+
+64 heroes have on-card Inspired Ink autographs in this set. Key autos to hype:
+BoJax (Bo Jackson), Attak (Dak Prescott), Brees (Drew Brees), Mossed (Randy Moss), Marino (Dan Marino), Cutback (Barry Sanders), Machine Gun (Jim Kelly), Troy of Dallas (Troy Aikman), Gronk (Rob Gronkowski), Fear Himself (Lawrence Taylor)`
+            }
+          ],
             { id:1, name:"Steel", rarity:"Common — base card", description:"The foundation of every deck. Every hero has a Steel version. Great for gameplay and building.", tip:"Steel is where we start — every hero has one and they're great for new players." },
             { id:2, name:"Brawl", rarity:"Common — newer weapon", description:"Raw combat power. Brawl cards bring close-quarters energy to the Arena. Strong gameplay piece.", tip:"Brawl is new to the lineup — these hit different in the deck." },
             { id:3, name:"Fire", rarity:"Inspired Ink /50 — on-card auto", description:"Serialized autograph, only 50 in existence. ON-CARD signature only — no sticker autos in BoBA.", tip:"FIRE — Inspired Ink, serialized to 50. That's an ON-CARD auto. Real signature, real value!" },
@@ -11655,6 +11787,7 @@ Named after Bo Jackson — the only athlete in history to be an All-Star in both
         </div>
       </div>
       <BobaPrimerSection data={data} isAdmin={isAdmin} save={save}/>
+      <BobaSetGuidesSection data={data} isAdmin={isAdmin} save={save}/>
       <BobaWeaponsSection data={data} isAdmin={isAdmin} save={save}/>
       <BobaHypeLinesSection data={data} isAdmin={isAdmin} save={save}/>
       <BobaFAQSection data={data} isAdmin={isAdmin} save={save}/>
