@@ -102,6 +102,7 @@ const ROLES = {
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
   "bigu":    { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
+  "alison":  { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
   "jake":    { role:"Shipping",      label:"Shipping/Logistics", color:"#AAAAAA", bg:"#FFF0CC" },
@@ -3741,6 +3742,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                                       {c.location && <span style={{ fontSize:10, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 7px", whiteSpace:"nowrap" }}>📍 {c.location}</span>}
                                       {canSeeFinancials && c.costPerCard>0 && <span style={{ fontSize:11, color:"#555" }}>${parseFloat(c.costPerCard).toFixed(2)}</span>}
                                       <span style={{ fontSize:11, fontWeight:700, color:statusColor }}>{statusLabel}</span>
+                                      {isUsed && (() => { const b = breaks.find(x=>x.inventoryId===c.id); return b ? <span style={{ fontSize:10, color:"#555" }}>by {b.loggedBy||b.breaker||"?"}{b.location?` · 📍 ${b.location}`:""}</span> : null; })()}
                                     </div>
                                   </div>
                                 );
@@ -3943,7 +3945,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               const entries = [...selected].map(id=>{
                 const card = inventory.find(c=>c.id===id);
                 const resolvedType = USAGE_TO_CT_INV[bulkLogForm.usage] || card?.cardType || "";
-                return { id:uid(), date:bulkLogForm.date, breaker:bulkLogForm.breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage:bulkLogForm.usage, notes:"Bulk logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+                return { id:uid(), date:bulkLogForm.date, breaker:bulkLogForm.breaker, inventoryId:id, cardName:card?.cardName||"", cardType:resolvedType, usage:bulkLogForm.usage, notes:"Bulk logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", location:card?.location||"" };
               });
               onBulkAdd(entries);
               setSelected(new Set());
@@ -4073,7 +4075,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               <Btn onClick={async()=>{
                 const USAGE_TO_CT_MAP = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
                 const resolvedType = USAGE_TO_CT_MAP[logOutForm.usage] || logOutCard.cardType;
-                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:resolvedType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown" };
+                const entry = { id:uid(), date:logOutForm.date, breaker:logOutForm.breaker, inventoryId:logOutCard.id, cardName:logOutCard.cardName, cardType:resolvedType, usage:logOutForm.usage, notes:"Logged from Inventory", dateAdded:new Date().toISOString(), loggedBy:user?.displayName||"Unknown", location:logOutCard.location||"" };
                 if (onAdd) await onAdd(entry);
                 setLogOutCard(null);
               }} variant="green">{"\u2705 Log Out"}</Btn>
