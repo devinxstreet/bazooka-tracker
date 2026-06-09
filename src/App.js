@@ -9,6 +9,7 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU"];
+const LOCATIONS = ["BZKA HQ","BIGU HQ"];
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
@@ -1686,6 +1687,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
   const [finalOffer,   setFOffer]       = useState("");
   const [custView,     setCustView]     = useState(false);
   const [custNote,     setCustNote]     = useState("");
+  const [lotLocation,  setLotLocation]  = useState(LOCATIONS[0]);
   const [quoteLink,    setQuoteLink]    = useState(null);
   const [savedQuoteRef, setSavedQuoteRef] = useState(null);
   const [quoteCopied,  setQuoteCopied]  = useState(false);
@@ -1877,7 +1879,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
       const cardName = (r.name === "__new__" || r.name === "__manual__") ? (r._newName||"").trim() || r.cardType : r.name || r.cardType;
       const costPerCard = getCostPerCard(r);
       for (let i=0; i<qty; i++) {
-        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:lotDate, source:seller.source||"", seller:lotSeller, payment:seller.payment||"", paymentHandle:seller.paymentHandle||"", dateAdded:new Date().toISOString() });
+        cards.push({ id:uid(), cardName, cardType:r.cardType, marketValue:mv, lotTotalPaid:dispOffer, cardsInLot:totalCards, costPerCard, buyPct:mv>0?costPerCard/mv:null, date:lotDate, source:seller.source||"", seller:lotSeller, payment:seller.payment||"", paymentHandle:seller.paymentHandle||"", dateAdded:new Date().toISOString(), location:lotLocation });
       }
     });
     onAccept(cards, { ...seller, name:lotSeller, date:lotDate }, user, custNote);
@@ -2942,6 +2944,15 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <Btn onClick={()=>saveComp("passed")} variant="ghost">{"\u274C Pass on Lot"}</Btn>
             <Btn onClick={()=>{saveComp("accepted");doAccept();}} disabled={included.length===0} variant="green">{"\u2705 Accept & Import"}{totalCards} card{totalCards!==1?"s":""}</Btn>
           </div>
+          <div style={{ marginBottom:14, display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:180 }}>
+              <label style={S.lbl}>Cards Going To <span style={{ color:"#E8317A" }}>*</span></label>
+              <select value={lotLocation} onChange={e=>setLotLocation(e.target.value)}
+                style={{ ...S.inp, fontWeight:700, color:"#F0F0F0", cursor:"pointer" }}>
+                {LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+          </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ ...S.lbl, color:"#E8317A" }}>Notes for Seller (shown on Customer View)</label>
             <textarea
@@ -3370,7 +3381,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [search,   setSearch]   = useState("");
   const debouncedSearch = useDebounce(search, 250);
   const [typeF,    setTypeF]    = useState("");
-  const [statusF,  setStatusF]  = useState("all");
+  const [statusF,   setStatusF]   = useState("all");
+  const [locationF, setLocationF] = useState("all");
 
   const transitCards = inventory.filter(c => c.cardStatus === "in_transit");
   const transitCount = transitCards.length;
@@ -3395,7 +3407,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                   : statusF==="in_transit"  ? transit
                   : statusF==="used"        ? used
                   : true;
-    return mn && mt && ms;
+    const ml      = locationF==="all" || (c.location||"BZKA HQ") === locationF;
+    return mn && mt && ms && ml;
   }).sort((a,b) => {
     if (sortInv==="name")    return (a.cardName||"").localeCompare(b.cardName||"");
     if (sortInv==="mv_desc") return (b.marketValue||0)-(a.marketValue||0);
@@ -3404,7 +3417,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
     if (sortInv==="cost_asc")  return (a.costPerCard||0)-(b.costPerCard||0);
     if (sortInv==="type")    return (a.cardType||"").localeCompare(b.cardType||"");
     return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
-  }), [inventory, debouncedSearch, typeF, statusF, sortInv, breaks]);
+  }), [inventory, debouncedSearch, typeF, statusF, locationF, sortInv, breaks]);
   function toggleSelect(id) { setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function toggleAll() { setSelected(selected.size===filtered.length ? new Set() : new Set(filtered.map(c=>c.id))); }
   function handleBulkDelete() {
@@ -3597,6 +3610,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                             {transitInLot > 0 && <span style={{ fontSize:12, color:"#AAAAAA" }}>In Transit: <strong style={{color:"#F0F0F0"}}>{"\uD83D\uDE9A"}{transitInLot}</strong></span>}
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Used: <strong style={{color:"#E8317A"}}>{usedInLot}</strong></span>
                             <span style={{ fontSize:12, color:"#AAAAAA" }}>Added by: <strong style={{color:"#F0F0F0"}}>{lot.addedBy}</strong></span>
+                            {lot.location && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"2px 8px" }}>📍 {lot.location}</span>}
                           </div>
                           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                             {CARD_TYPES.map(ct => { const count=lot.cards.filter(c=>c.cardType===ct).length; if(!count) return null; const cc=CC[ct]; return <span key={ct} style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{ct}: {count}</span>; })}
@@ -3724,6 +3738,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                                       <span style={{ background:cc.bg, color:cc.text, border:`1px solid ${cc.border}44`, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap", flexShrink:0 }}>{(c.cardType||"").replace(" Cards","")}</span>
                                     </div>
                                     <div style={{ display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
+                                      {c.location && <span style={{ fontSize:10, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 7px", whiteSpace:"nowrap" }}>📍 {c.location}</span>}
                                       {canSeeFinancials && c.costPerCard>0 && <span style={{ fontSize:11, color:"#555" }}>${parseFloat(c.costPerCard).toFixed(2)}</span>}
                                       <span style={{ fontSize:11, fontWeight:700, color:statusColor }}>{statusLabel}</span>
                                     </div>
@@ -3889,6 +3904,14 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               {[["available","✅ Available"],["in_transit","🚚 In Transit"],["used","🔴 Used"],["all","All"]].map(([val,label]) => (
                 <button key={val} onClick={()=>setStatusF(val)} style={{ background:statusF===val?"#1A1A2E":"transparent", color:statusF===val?"#E8317A":"#9CA3AF", border:`1.5px solid ${statusF===val?"#E8317A":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   {label}{val==="in_transit"&&transitCount>0?<span style={{ marginLeft:5, background:"#FBBF24", color:"#000", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{transitCount}</span>:""}
+                </button>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:4 }}>
+              {[["all","📍 All Locations"],...LOCATIONS.map(l=>[l,l])].map(([val,label])=>(
+                <button key={val} onClick={()=>setLocationF(val)}
+                  style={{ background:locationF===val?"rgba(123,156,255,0.12)":"transparent", color:locationF===val?"#7B9CFF":"#9CA3AF", border:`1.5px solid ${locationF===val?"#7B9CFF":"#E5E7EB"}`, borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  {label}
                 </button>
               ))}
             </div>
@@ -23302,31 +23325,37 @@ function PublicQuote({ quoteId }) {
           <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
 
-            {/* Payment method — skip if already provided at submission */}
+            {/* Payment method — required before accepting */}
             {quote.seller?.payment ? (
               <div style={{ background:"#0a1a0a", border:"1px solid #4ade8022", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:12, color:"#4ade80" }}>
                 💳 Payment via <strong>{quote.seller.payment}</strong>{quote.seller.paymentHandle ? ` — ${quote.seller.paymentHandle}` : ""} <span style={{ color:"#555", fontWeight:400 }}>(provided when you submitted)</span>
               </div>
             ) : (
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>How should Bazooka pay you?</div>
+              <div style={{ marginBottom:16, background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontSize:12, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>How should we pay you? <span style={{ color:"#E8317A" }}>*</span></div>
+                <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>Required before accepting — we'll send payment here as soon as possible.</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <select value={payment} onChange={e=>setPayment(e.target.value)}
-                    style={{ background:"#0a0a0a", border:`1px solid ${payment?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:payment?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+                    style={{ background:"#0a0a0a", border:`1.5px solid ${payment?"#4ade80":"#E8317A"}`, borderRadius:8, color:payment?"#F0F0F0":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
                     <option value="">Select method...</option>
                     {PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
                   </select>
                   <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
-                    placeholder={payment==="PayPal"?"email or username":payment==="Zelle"?"email or phone":"handle / account"}
-                    style={{ background:"#0a0a0a", border:`1px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+                    placeholder={payment==="PayPal"?"PayPal email or @username":payment==="Zelle"?"Zelle email or phone":"your handle / account"}
+                    style={{ background:"#0a0a0a", border:`1.5px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
                 </div>
+                {payment && !paymentHandle && <div style={{ fontSize:11, color:"#FBBF24", marginTop:6 }}>⚠ Please enter your {payment} email or handle</div>}
               </div>
             )}
 
-            {/* Big Accept button */}
-            <button onClick={()=>submitResponse("accepted")}
-              style={{ width:"100%", background:"#4ade80", color:"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
-              {"\u2705 Accept Offer -- $"}{offer.toFixed(2)}
+            {/* Big Accept button — disabled until payment is filled */}
+            <button
+              onClick={()=>{ if(!quote.seller?.payment && (!payment||!paymentHandle)) return; submitResponse("accepted"); }}
+              disabled={!quote.seller?.payment && (!payment||!paymentHandle)}
+              style={{ width:"100%", background:(!quote.seller?.payment && (!payment||!paymentHandle))?"#1a1a1a":"#4ade80", color:(!quote.seller?.payment && (!payment||!paymentHandle))?"#444":"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:(!quote.seller?.payment && (!payment||!paymentHandle))?"not-allowed":"pointer", fontFamily:"inherit", marginBottom:10, transition:"all 0.15s" }}>
+              {(!quote.seller?.payment && (!payment||!paymentHandle))
+                ? "Enter payment method above to accept"
+                : `✅ Accept Offer — $${offer.toFixed(2)}`}
             </button>
             {submitError && (
               <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:13, color:"#E8317A" }}>
