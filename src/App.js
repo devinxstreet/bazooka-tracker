@@ -15451,6 +15451,8 @@ function TreatmentChecker() {
   const [loading,    setLoading]    = useState(false);
   const [treatments, setTreatments] = useState(null);
   const [expanded,   setExpanded]   = useState(null);
+  const [lookup,     setLookup]     = useState("");
+  const [lookupResult, setLookupResult] = useState(null);
 
   async function check() {
     setLoading(true);
@@ -15467,13 +15469,49 @@ function TreatmentChecker() {
     setLoading(false);
   }
 
+  async function doLookup() {
+    if (!lookup.trim()) return;
+    const q1 = lookup.trim();
+    const q2 = q1.toLowerCase().replace(/-/g,"");
+    const q3 = q2.replace(/^[a-z]+/,"");
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const found = snap.docs.map(d=>d.data()).filter(c => {
+      const cn = String(c.cardNum||"").toLowerCase().replace(/-/g,"");
+      return cn === q2 || cn === q3 || String(c.cardNum||"").toLowerCase() === q1.toLowerCase();
+    });
+    setLookupResult({ query:q1, found });
+  }
+
   return (
-    <div>
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {/* Direct card lookup */}
+      <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"12px 14px" }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#F0F0F0", marginBottom:8 }}>🔎 Look up a card number in Firestore</div>
+        <div style={{ display:"flex", gap:8 }}>
+          <input value={lookup} onChange={e=>setLookup(e.target.value)} placeholder="e.g. RD528 or 528"
+            style={{ ...S.inp, flex:1, fontSize:12 }}
+            onKeyDown={e=>e.key==="Enter"&&doLookup()}/>
+          <Btn variant="ghost" onClick={doLookup}>Search</Btn>
+        </div>
+        {lookupResult && (
+          <div style={{ marginTop:10 }}>
+            {lookupResult.found.length === 0
+              ? <div style={{ fontSize:11, color:"#EF4444" }}>❌ No cards found for "{lookupResult.query}" — this cardNum doesn't exist in Firestore</div>
+              : lookupResult.found.map((c,i) => (
+                <div key={i} style={{ fontSize:11, color:"#4ade80", marginTop:4 }}>
+                  ✅ cardNum: <strong>{c.cardNum}</strong> | treatment: <strong>{c.treatment}</strong> | hero: {c.hero}
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+
       <Btn variant="ghost" onClick={check} disabled={loading}>
-        {loading ? "Loading..." : "🔍 Show treatments + sample card numbers"}
+        {loading ? "Loading..." : "🔍 Show all treatments + sample card numbers"}
       </Btn>
       {treatments && (
-        <div style={{ marginTop:10, background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", maxHeight:300, overflowY:"auto" }}>
+        <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", maxHeight:300, overflowY:"auto" }}>
           {treatments.map(([t,{count,samples}]) => (
             <div key={t} onClick={()=>setExpanded(expanded===t?null:t)}
               style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, padding:"5px 0", borderBottom:"1px solid #111", cursor:"pointer" }}>
