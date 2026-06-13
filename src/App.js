@@ -15359,15 +15359,240 @@ function CompanyDirectory({ userRole }) {
 // ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
+  const [mode,      setMode]      = useState("data");   // "data" | "images"
   const [files,     setFiles]     = useState([]);
+  const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
   const [importing, setImporting] = useState(false);
-  const [progress,  setProgress]  = useState(null); // { done, total, label }
+  const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
   const [errors,    setErrors]    = useState([]);
 
-  if (!isAdmin) return (
-    <div style={{ padding:40, textAlign:"center", color:"#555" }}>Admin access required.</div>
+  if (!isAdmin) return <div style={{ padding:40, textAlign:"center", color:"#555" }}>Admin only.</div>;
+
+  // ── Data import ──────────────────────────────────────────────────────────
+  function onJsonDrop(e) {
+    e.preventDefault();
+    const dropped = [...(e.dataTransfer?.files || e.target.files)].filter(f=>f.name.endsWith(".json"));
+    setFiles(dropped); setResults(null); setErrors([]);
+  }
+
+  async function runDataImport() {
+    if (!files.length) return;
+    setImporting(true); setResults(null); setErrors([]);
+    let totalWritten = 0, totalSkipped = 0;
+    const errs = [];
+    for (const file of files) {
+      setProgress({ done:0, total:0, label:`Reading ${file.name}...` });
+      let cards;
+      try {
+        const text = await file.text();
+        cards = JSON.parse(text);
+        if (!Array.isArray(cards)) throw new Error("Expected a JSON array");
+      } catch(e) { errs.push(`${file.name}: ${e.message}`); continue; }
+      const CHUNK = 400;
+      setProgress({ done:0, total:cards.length, label:`Importing ${file.name}...` });
+      for (let i=0; i<cards.length; i+=CHUNK) {
+        const chunk = cards.slice(i, i+CHUNK);
+        try {
+          const batch = writeBatch(db);
+          chunk.forEach(card => {
+            if (!card.id) {
+              const key = `${card.setName||""}${card.cardNum||""}${card.hero||""}${card.treatment||""}`;
+              card.id = key.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20)+"_"+Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+            }
+            batch.set(doc(db,"boba_checklist",card.id), {...card}, {merge:true});
+          });
+          await batch.commit();
+          totalWritten += chunk.length;
+        } catch(e) { errs.push(`${file.name} chunk ${Math.floor(i/CHUNK)+1}: ${e.message}`); totalSkipped+=chunk.length; }
+        setProgress({ done:Math.min(i+CHUNK,cards.length), total:cards.length, label:`Importing ${file.name}...` });
+        await new Promise(r=>setTimeout(r,80));
+      }
+    }
+    setImporting(false); setProgress(null); setErrors(errs);
+    setResults({ written:totalWritten, skipped:totalSkipped, files:files.length });
+    try { localStorage.removeItem("boba_checklist_cache"); } catch {}
+  }
+
+  // ── Image import ─────────────────────────────────────────────────────────
+  function onFolderDrop(e) {
+    e.preventDefault();
+    const raw = [...(e.dataTransfer?.files || e.target.files)];
+    const pngs = raw.filter(f=>f.name.toLowerCase().endsWith(".png")||f.name.toLowerCase().endsWith(".jpg")||f.name.toLowerCase().endsWith(".jpeg")||f.name.toLowerCase().endsWith(".webp"));
+    // Extract folder from webkitRelativePath: "FolderName/file.png"
+    const parsed = pngs.map(f => {
+      const parts = (f.webkitRelativePath||f.name).split("/");
+      const folder  = parts.length>1 ? parts[parts.length-2] : "Unknown";
+      const cardNum = parts[parts.length-1].replace(/\.[^.]+$/,""); // strip extension
+      return { file:f, folder, cardNum };
+    });
+    setImgFiles(parsed); setResults(null); setErrors([]);
+  }
+
+  async function runImageImport() {
+    if (!imgFiles.length) return;
+    setImporting(true); setResults(null); setErrors([]);
+    const errs = [];
+    let written = 0, skipped = 0;
+
+    // Build a lookup: cardNum → array of Firestore docs
+    setProgress({ done:0, total:imgFiles.length, label:"Loading card index from Firestore..." });
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const allCards = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+
+    // Group by folder name — normalize folder to match treatment
+    const folderGroups = {};
+    imgFiles.forEach(item => {
+      if (!folderGroups[item.folder]) folderGroups[item.folder] = [];
+      folderGroups[item.folder].push(item);
+    });
+
+    let done = 0;
+    for (const [folder, items] of Object.entries(folderGroups)) {
+      setProgress({ done, total:imgFiles.length, label:`Uploading ${folder} (${items.length} images)...` });
+
+      for (const item of items) {
+        // Match card: cardNum must match AND treatment/folder should loosely match
+        const matches = allCards.filter(c =>
+          String(c.cardNum).toLowerCase() === String(item.cardNum).toLowerCase()
+        );
+
+        let card = matches.length === 1 ? matches[0]
+          : matches.find(c => {
+              const t = (c.treatment||"").toLowerCase();
+              const fn = folder.toLowerCase().replace(/[^a-z0-9]/g,"");
+              return t.replace(/[^a-z0-9]/g,"").includes(fn) || fn.includes(t.replace(/[^a-z0-9]/g,""));
+            }) || matches[0];
+
+        if (!card) { errs.push(`No match: ${folder}/${item.cardNum}`); skipped++; done++; continue; }
+
+        try {
+          const storagePath = `boba_cards/tecmo/${folder}/${item.cardNum}.png`;
+          const storageRef2 = ref(storage, storagePath);
+          await uploadBytes(storageRef2, item.file);
+          const url = await getDownloadURL(storageRef2);
+          await setDoc(doc(db,"boba_checklist",card.fsId), { imageUrl:url }, {merge:true});
+          written++;
+        } catch(e) { errs.push(`${folder}/${item.cardNum}: ${e.message}`); skipped++; }
+
+        done++;
+        if (done % 20 === 0) setProgress({ done, total:imgFiles.length, label:`Uploading ${folder}...` });
+        await new Promise(r=>setTimeout(r,30));
+      }
+    }
+
+    setImporting(false); setProgress(null); setErrors(errs);
+    setResults({ written, skipped, files: Object.keys(folderGroups).length });
+    try { localStorage.removeItem("boba_checklist_cache"); } catch {}
+  }
+
+  const pct = progress?.total > 0 ? Math.round(progress.done/progress.total*100) : 0;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
+      <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>⬆️ Card Set Importer</div>
+
+      {/* Mode toggle */}
+      <div style={{ display:"flex", gap:8 }}>
+        {[["data","📄 Import Data (JSON)"],["images","🖼 Import Images (folders)"]].map(([m,l])=>(
+          <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
+            style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* ── JSON import ── */}
+      {mode==="data" && (
+        <>
+          <div style={{ fontSize:12, color:"#555" }}>Drop the <code style={{ color:"#7B9CFF" }}>tecmo_cards_final.json</code> file to import all card data into Firestore.</div>
+          <div onDragOver={e=>e.preventDefault()} onDrop={onJsonDrop}
+            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d", cursor:"pointer" }}>
+            <div style={{ fontSize:28, marginBottom:10 }}>📂</div>
+            <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
+              {files.length>0 ? `${files.length} file${files.length!==1?"s":""} ready` : "Drop JSON files here"}
+            </div>
+            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>or click to browse</div>
+            <input type="file" accept=".json" multiple onChange={onJsonDrop} style={{ display:"none" }} id="json-input"/>
+            <label htmlFor="json-input" style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Browse</label>
+          </div>
+          {files.length>0 && (
+            <div style={{ ...S.card }}>
+              {[...files].map((f,i)=><div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:"1px solid #1a1a1a", fontSize:13 }}><span style={{ color:"#F0F0F0" }}>📄 {f.name}</span><span style={{ color:"#555" }}>{(f.size/1024).toFixed(0)} KB</span></div>)}
+              <div style={{ marginTop:12 }}><Btn onClick={runDataImport} disabled={importing} variant="green">{importing?"⏳ Importing...":"⬆️ Import"}</Btn></div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Image import ── */}
+      {mode==="images" && (
+        <>
+          <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>
+            Select your <strong style={{ color:"#F0F0F0" }}>image folders</strong> — each folder name should match the insert type (e.g. <code style={{ color:"#7B9CFF" }}>Base</code>, <code style={{ color:"#7B9CFF" }}>Battlefoils</code>, <code style={{ color:"#7B9CFF" }}>Pink Battlefoil</code>). Filenames should be the card number (<code style={{ color:"#7B9CFF" }}>1.png</code>, <code style={{ color:"#7B9CFF" }}>BF1.png</code>).
+          </div>
+          <div onDragOver={e=>e.preventDefault()} onDrop={onFolderDrop}
+            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d" }}>
+            <div style={{ fontSize:28, marginBottom:10 }}>🖼</div>
+            <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
+              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folders` : "Select image folders"}
+            </div>
+            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Use the button below to select multiple folders</div>
+            <input type="file" accept="image/*" multiple onChange={onFolderDrop}
+              style={{ display:"none" }} id="img-input" webkitdirectory="" mozdirectory="" directory=""/>
+            <label htmlFor="img-input" style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+              Select Folders
+            </label>
+          </div>
+
+          {imgFiles.length>0 && (() => {
+            const folders = [...new Set(imgFiles.map(f=>f.folder))].sort();
+            return (
+              <div style={{ ...S.card }}>
+                <SectionLabel t={`${imgFiles.length} images across ${folders.length} folders`}/>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+                  {folders.map(f=>{
+                    const count = imgFiles.filter(x=>x.folder===f).length;
+                    return <span key={f} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", color:"#7B9CFF", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{f} ({count})</span>;
+                  })}
+                </div>
+                <Btn onClick={runImageImport} disabled={importing} variant="green">
+                  {importing ? "⏳ Uploading..." : `🖼 Upload ${imgFiles.length} Images`}
+                </Btn>
+              </div>
+            );
+          })()}
+        </>
+      )}
+
+      {/* Progress bar */}
+      {importing && progress && (
+        <div style={{ ...S.card }}>
+          <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:8 }}>{progress.label}</div>
+          <div style={{ background:"#1a1a1a", borderRadius:99, height:10, overflow:"hidden", marginBottom:6 }}>
+            <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B9CFF)", borderRadius:99, transition:"width 0.3s ease" }}/>
+          </div>
+          <div style={{ fontSize:12, color:"#555" }}>{progress.done.toLocaleString()} / {progress.total.toLocaleString()} ({pct}%)</div>
+        </div>
+      )}
+
+      {/* Results */}
+      {results && (
+        <div style={{ ...S.card, borderLeft:`3px solid ${errors.length?"#FBBF24":"#4ade80"}` }}>
+          <SectionLabel t={errors.length?"⚠️ Done with warnings":"✅ Done"}/>
+          <div style={{ display:"flex", gap:24, marginBottom:10 }}>
+            <div><div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>{results.written.toLocaleString()}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Written</div></div>
+            {results.skipped>0&&<div><div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>{results.skipped.toLocaleString()}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Skipped</div></div>}
+          </div>
+          {errors.slice(0,10).map((e,i)=><div key={i} style={{ fontSize:11, color:"#EF4444", marginTop:3 }}>⚠ {e}</div>)}
+          {errors.length>10&&<div style={{ fontSize:11, color:"#555" }}>...and {errors.length-10} more</div>}
+        </div>
+      )}
+    </div>
   );
+}
+
+function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
 
   function onFileDrop(e) {
     e.preventDefault();
