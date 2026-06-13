@@ -16703,6 +16703,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [filterWeapon, setFilterWeapon] = useState("");
   const [filterNote,   setFilterNote]   = useState("");
   const [filterSet,    setFilterSet]    = useState("");
+  const [filterPower,  setFilterPower]  = useState("");
   const [filterOwned,    setFilterOwned]    = useState("all");
   const [renamingId,   setRenamingId]   = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
@@ -17820,6 +17821,10 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if(filterNote && c.notation !== filterNote) return false;
     if(filterOwned==="owned" && !owned[c.id]) return false;
     if(filterOwned==="missing" && owned[c.id]) return false;
+    if(filterPower){
+      const [min,max]=filterPower.includes("-")?filterPower.split("-").map(Number):[Number(filterPower),Number(filterPower)];
+      const p=Number(c.power||0); if(p<min||p>max) return false;
+    }
     return true;
   }).sort((a,b) => {
     if(sortBy==="cardNum") {
@@ -18360,6 +18365,25 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
           <option value="">All Weapons</option>
           {weapons.map(w=><option key={w} value={w}>{w}</option>)}
+        </select>
+        <select value={filterPower} onChange={e=>{setFilterPower(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
+          <option value="">All Powers</option>
+          <option value="200">200</option>
+          <option value="195-199">195–199</option>
+          <option value="190-194">190–194</option>
+          <option value="185-189">185–189</option>
+          <option value="180-184">180–184</option>
+          <option value="175-179">175–179</option>
+          <option value="170-174">170–174</option>
+          <option value="165-169">165–169</option>
+          <option value="160-164">160–164</option>
+          <option value="155-159">155–159</option>
+          <option value="150-154">150–154</option>
+          <option value="145-149">145–149</option>
+          <option value="140-144">140–144</option>
+          <option value="135-139">135–139</option>
+          <option value="130-134">130–134</option>
+          <option value="1-129">Below 130</option>
         </select>
         <select value={filterNote} onChange={e=>{setFilterNote(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
           <option value="">All Notations</option>
@@ -21996,6 +22020,7 @@ function PublicCardDatabase() {
   const [filterSet,     setFilterSet]     = useState("");
   const [filterWeapon,  setFilterWeapon]  = useState("");
   const [filterTreat,   setFilterTreat]   = useState("");
+  const [filterPower,   setFilterPower]   = useState("");
   const [filterOwned,   setFilterOwned]   = useState("all");
   const [sortBy,        setSortBy]        = useState("cardNum");
   const [page,          setPage]          = useState(1);
@@ -22828,6 +22853,7 @@ function PublicCardDatabase() {
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+  const powers     = [...new Set(cards.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
   const filtered = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
@@ -22835,7 +22861,12 @@ function PublicCardDatabase() {
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     if(filterOwned==="missing" &&  owned[c.id])  return false;
+    if(filterPower){
+      const [min,max]=filterPower.includes("-")?filterPower.split("-").map(Number):[Number(filterPower),Number(filterPower)];
+      const p=Number(c.power||0); if(p<min||p>max) return false;
+    }
     if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
+    return true;
     return true;
   }).sort((a,b)=>{
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
@@ -23625,6 +23656,25 @@ function PublicCardDatabase() {
               </select>
               <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
+              </select>
+              <select value={filterPower} onChange={e=>{setFilterPower(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+                <option value="">All Powers</option>
+                <option value="200">200</option>
+                <option value="195-199">195–199</option>
+                <option value="190-194">190–194</option>
+                <option value="185-189">185–189</option>
+                <option value="180-184">180–184</option>
+                <option value="175-179">175–179</option>
+                <option value="170-174">170–174</option>
+                <option value="165-169">165–169</option>
+                <option value="160-164">160–164</option>
+                <option value="155-159">155–159</option>
+                <option value="150-154">150–154</option>
+                <option value="145-149">145–149</option>
+                <option value="140-144">140–144</option>
+                <option value="135-139">135–139</option>
+                <option value="130-134">130–134</option>
+                <option value="1-129">Below 130</option>
               </select>
               <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
