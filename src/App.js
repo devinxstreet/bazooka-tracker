@@ -14085,19 +14085,19 @@ function PublicDeckBuilder() {
               <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, card #, treatment..." style={{ ...S.inp, flex:1, minWidth:140 }}/>
               <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                 <option value="">All Weapons</option>
-                {[...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}>{w}</option>)}
+                {[...new Set((deckFilterSet ? cards.filter(c=>c.setName===deckFilterSet) : cards).map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}>{w}</option>)}
               </select>
-              <select value={deckFilterSet} onChange={e=>setDeckFilterSet(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterSet?"#7B9CFF":"#888" }}>
+              <select value={deckFilterSet} onChange={e=>{ setDeckFilterSet(e.target.value); setDeckFilterWeap(""); setDeckFilterTreat(""); setDeckFilterHero(""); }} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterSet?"#7B9CFF":"#888" }}>
                 <option value="">All Sets</option>
                 {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}>{s}</option>)}
               </select>
               <select value={deckFilterTreat} onChange={e=>setDeckFilterTreat(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterTreat?"#FBBF24":"#888" }}>
                 <option value="">All Treatments</option>
-                {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}>{t}</option>)}
+                {[...new Set((deckFilterSet ? cards.filter(c=>c.setName===deckFilterSet) : cards).map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}>{t}</option>)}
               </select>
               <select value={deckFilterHero} onChange={e=>setDeckFilterHero(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                 <option value="">All Heroes</option>
-                {[...new Set(cards.map(c=>c.hero).filter(Boolean))].sort().map(h=><option key={h} value={h}>{h}</option>)}
+                {[...new Set((deckFilterSet ? cards.filter(c=>c.setName===deckFilterSet) : cards).map(c=>c.hero).filter(Boolean))].sort().map(h=><option key={h} value={h}>{h}</option>)}
               </select>
               <span style={{ fontSize:11, color:"#555", alignSelf:"center" }}>{available.length} cards</span>
             </div>
@@ -14737,7 +14737,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -14753,9 +14753,40 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // No shine for paper (non-foil base) cards and Plays (but Bonus Plays still shine)
   const treatment = (c.treatment||"").toLowerCase();
   const cardType  = (c.cardType||c.variation||"").toLowerCase();
-  const noShine   = treatment === "base" ||
-                    treatment === "paper" ||
-                    (treatment.includes("play") && !treatment.includes("bonus"));
+  const noShine = treatment === "base" ||
+                  treatment === "paper" ||
+                  treatment === "paper plays" ||
+                  treatment === "play" ||
+                  treatment === "plays" ||
+                  (treatment.includes("play") && !treatment.includes("bonus")) ||
+                  (String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL"));
+
+  // Pixel/cyber sparkle foil for Helmet Icon cards
+  const isPixelFoil = treatment.includes("helmet icon");
+  const pixelRef = useRef(null);
+  const pixelAnim = useRef(null);
+  const mousePos = useRef({ x:0.5, y:0.5 });
+
+  function drawPixelFoil(x, y) {
+    if (!pixelRef.current || !isPixelFoil) return;
+    const el = pixelRef.current;
+    // Shift rainbow pixel pattern based on mouse position
+    const hue = (x * 120 + y * 60) % 360;
+    const hue2 = (hue + 60) % 360;
+    const hue3 = (hue + 120) % 360;
+    el.style.background = `
+      radial-gradient(ellipse at ${x*100}% ${y*100}%, hsla(${hue},100%,70%,0.35) 0%, transparent 55%),
+      radial-gradient(ellipse at ${(1-x)*100}% ${(1-y)*100}%, hsla(${hue2},100%,65%,0.25) 0%, transparent 50%),
+      radial-gradient(ellipse at ${y*100}% ${x*100}%, hsla(${hue3},100%,60%,0.20) 0%, transparent 45%),
+      repeating-conic-gradient(from ${x*360}deg at ${x*100}% ${y*100}%, 
+        hsla(${hue},100%,70%,0.08) 0deg, 
+        hsla(${hue2},100%,60%,0.04) 10deg, 
+        hsla(${hue3},100%,70%,0.08) 20deg, 
+        transparent 30deg, transparent 90deg)
+    `;
+    el.style.backgroundSize = "100% 100%, 100% 100%, 100% 100%, 8px 8px";
+    el.style.opacity = "1";
+  }
 
 
   function startAnimation() { if (animRef.current) return; animRef.current = requestAnimationFrame(animate); }
@@ -14767,8 +14798,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const y = (e.clientY - rect.top)  / rect.height;
     targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
     if (!noShine) {
-      if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
-      if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+      if (isPixelFoil) {
+        drawPixelFoil(x, y);
+      } else {
+        if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
+        if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+      }
     }
     startAnimation();
   }
@@ -14776,6 +14811,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     isHovering.current = false; targetTilt.current = { x:0, y:0 };
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
+    if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
   }
   function onMouseEnter() { isHovering.current = true; startAnimation(); }
@@ -14812,6 +14848,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            {isPixelFoil && <div ref={pixelRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.15s ease", pointerEvents:"none", imageRendering:"pixelated" }}/>}
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
@@ -14834,6 +14871,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
+                {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
                 {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
                 <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
               </div>
@@ -15371,8 +15409,145 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── MANUAL CARD IMAGE UPLOADER ────────────────────────────────────────────────
+function ManualCardImage() {
+  const [query,    setQuery]    = useState("");
+  const [results,  setResults]  = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [img,      setImg]      = useState(null);
+  const [uploading,setUploading]= useState(false);
+  const [done,     setDone]     = useState(false);
+
+  async function search() {
+    if (!query.trim()) return;
+    const q = query.trim().toLowerCase();
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const hits = snap.docs.map(d=>({fsId:d.id,...d.data()})).filter(c =>
+      [c.hero||"",c.cardNum||"",c.treatment||"",c.setName||""].join(" ").toLowerCase().includes(q)
+    ).slice(0,20);
+    setResults(hits);
+  }
+
+  async function upload() {
+    if (!selected || !img) return;
+    setUploading(true);
+    try {
+      const safe = `${selected.setName||"set"}_${selected.cardNum||"x"}_${selected.treatment||"t"}`.replace(/[^a-zA-Z0-9_]/g,"_");
+      const storageRef2 = ref(storage, `boba_cards/manual/${safe}.png`);
+      await uploadBytes(storageRef2, img);
+      const url = await getDownloadURL(storageRef2);
+      await setDoc(doc(db,"boba_checklist",selected.fsId), { imageUrl:url }, {merge:true});
+      setDone(true); setImg(null); setSelected(null); setResults([]); setQuery("");
+      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+    } catch(e) { alert("Upload failed: "+e.message); }
+    setUploading(false);
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {done && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Image saved — refresh checklist to see it</div>}
+
+      {/* Search */}
+      <div style={{ display:"flex", gap:8 }}>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search hero, card #, treatment..."
+          onKeyDown={e=>e.key==="Enter"&&search()}
+          style={{ ...S.inp, flex:1, fontSize:12 }}/>
+        <Btn onClick={search}>Search</Btn>
+      </div>
+
+      {/* Results */}
+      {results.length > 0 && !selected && (
+        <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:200, overflowY:"auto" }}>
+          {results.map(c=>(
+            <div key={c.fsId} onClick={()=>{ setSelected(c); setResults([]); setDone(false); }}
+              style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"8px 12px", cursor:"pointer", fontSize:12 }}>
+              <span style={{ color:"#F0F0F0", fontWeight:700 }}>{c.hero}</span>
+              <span style={{ color:"#555", marginLeft:8 }}>#{c.cardNum}</span>
+              <span style={{ color:"#AAAAAA", marginLeft:8 }}>{c.treatment}</span>
+              {c.imageUrl && <span style={{ color:"#4ade80", marginLeft:8, fontSize:10 }}>has image</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Selected card + image drop */}
+      {selected && (
+        <div style={{ ...S.card }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>{selected.hero}</div>
+              <div style={{ fontSize:11, color:"#555" }}>#{selected.cardNum} · {selected.treatment}</div>
+            </div>
+            <button onClick={()=>{ setSelected(null); setImg(null); }} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>✕</button>
+          </div>
+
+          {img ? (
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+              <img src={URL.createObjectURL(img)} alt="" style={{ width:60, height:80, objectFit:"cover", borderRadius:6, border:"1px solid #2a2a2a" }}/>
+              <div>
+                <div style={{ fontSize:12, color:"#F0F0F0" }}>{img.name}</div>
+                <button onClick={()=>setImg(null)} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:11 }}>remove</button>
+              </div>
+            </div>
+          ) : (
+            <div onDragOver={e=>e.preventDefault()} onDrop={e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f)setImg(f); }}
+              style={{ border:"2px dashed #2a2a2a", borderRadius:10, padding:"24px", textAlign:"center", marginBottom:12, cursor:"pointer" }}>
+              <div style={{ fontSize:11, color:"#555" }}>Drop image here or</div>
+              <input type="file" accept="image/*" onChange={e=>setImg(e.target.files[0])} style={{ display:"none" }} id="manual-img"/>
+              <label htmlFor="manual-img" style={{ color:"#7B9CFF", fontSize:11, cursor:"pointer", textDecoration:"underline" }}>browse</label>
+            </div>
+          )}
+
+          <Btn onClick={upload} disabled={!img||uploading} variant="green">
+            {uploading ? "Uploading..." : "⬆️ Upload Image"}
+          </Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── DATA CLEANUP ──────────────────────────────────────────────────────────────
 const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+
+function PlaysFixButton() {
+  const [running, setRunning] = useState(false);
+  const [result,  setResult]  = useState(null);
+
+  async function run() {
+    if (!window.confirm("This will update treatment fields for all PL and BPL cards in Firestore. Continue?")) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const toFix = snap.docs.map(d=>({fsId:d.id,...d.data()})).filter(c => {
+      const cn = String(c.cardNum||"").toUpperCase();
+      return cn.startsWith("BPL") || (cn.startsWith("PL") && !cn.startsWith("BPL"));
+    });
+
+    let bonus=0, paper=0;
+    const CHUNK=400;
+    for (let i=0; i<toFix.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toFix.slice(i,i+CHUNK).forEach(c => {
+        const cn = String(c.cardNum||"").toUpperCase();
+        const treatment = cn.startsWith("BPL") ? "Bonus Plays" : "Paper Plays";
+        if (cn.startsWith("BPL")) bonus++;
+        else paper++;
+        batch.set(doc(db,"boba_checklist",c.fsId), { treatment }, {merge:true});
+      });
+      await batch.commit();
+    }
+    setRunning(false);
+    setResult({ bonus, paper });
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div>
+      <Btn onClick={run} disabled={running} variant="green">{running?"Fixing...":"⚡ Fix Plays Treatments"}</Btn>
+      {result && <div style={{ fontSize:12, color:"#4ade80", marginTop:8 }}>✅ Fixed {result.bonus} Bonus Plays (BPL) + {result.paper} Paper Plays (PL)</div>}
+    </div>
+  );
+}
 
 function BulkDeleter() {
   const [field,    setField]    = useState("treatment");
@@ -15490,6 +15665,14 @@ function DataCleanup() {
       </div>
 
       {mergeResult && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {mergeResult.fixed} cards — reload checklist to see changes</div>}
+
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🃏 Fix Plays Treatments"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+          Sets treatment to <strong style={{color:"#C084FC"}}>Bonus Plays</strong> for BPL cards, and <strong style={{color:"#AAAAAA"}}>Paper Plays</strong> for PL cards.
+        </div>
+        <PlaysFixButton/>
+      </div>
 
       {/* Bulk delete */}
       <div style={{ ...S.card }}>
@@ -16030,7 +16213,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data (JSON)"],["images","🖼 Import Images (folders)"],["cleanup","🧹 Cleanup Data"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import Images"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -16183,6 +16366,15 @@ function CardSetImporter({ userRole }) {
       {/* Cleanup mode */}
       {mode==="cleanup" && <DataCleanup/>}
 
+      {/* Manual image mode */}
+      {mode==="manual" && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="🎯 Manual Card Image"/>
+          <div style={{ fontSize:11, color:"#555", marginBottom:14 }}>Search for a specific card, drop an image, upload. Use this for one-offs that didn't match during bulk import.</div>
+          <ManualCardImage/>
+        </div>
+      )}
+
       {/* Results */}
       {results && (
         <div style={{ ...S.card, borderLeft:`3px solid ${errors.length?"#FBBF24":"#4ade80"}` }}>
@@ -16286,10 +16478,18 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const isAdmin = ["Admin"].includes(userRole?.role);
   // Super Foil Tracker
   const [superClaims,     setSuperClaims]     = useState([]);
-  const [claimModal,      setClaimModal]      = useState(null); // card being claimed
-  const [claimPhoto,      setClaimPhoto]      = useState(null); // base64
+  const [claimModal,      setClaimModal]      = useState(null);
+  const [claimPhoto,      setClaimPhoto]      = useState(null);
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [claimSent,       setClaimSent]       = useState(false);
+  const [oneOfOneClaims,  setOneOfOneClaims]  = useState([]);
+  const [oneModal,        setOneModal]        = useState(null);
+  const [onePhoto,        setOnePhoto]        = useState(null);
+  const [oneStory,        setOneStory]        = useState("");
+  const [oneDate,         setOneDate]         = useState("");
+  const [oneName,         setOneName]         = useState("");
+  const [oneSubmitting,   setOneSubmitting]   = useState(false);
+  const [oneSent,         setOneSent]         = useState(false);
 
   useEffect(() => {
     // Cards are static after import -- use localStorage cache for instant load
@@ -16334,7 +16534,10 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const uSuper = onSnapshot(collection(db,"super_claims"), snap => {
       setSuperClaims(snap.docs.map(d=>({id:d.id,...d.data()})));
     });
-    return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); };
+    const uOne = onSnapshot(collection(db,"oneof1_claims"), snap => {
+      setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)));
+    });
+    return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); uOne(); };
   }, []);
 
   // Infinite scroll -- load more when user scrolls near bottom
@@ -17366,7 +17569,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           <div style={{ flex:1 }}/>
           {/* View toggles */}
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }} className="view-mode-row">
-            {[["cards","🃏 Cards"],["setlist","📋 Set List"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["supers","⭐ Supers"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
+            {[["cards","🃏 Cards"],["setlist","📋 Set List"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["supers","⭐ Supers"],["1of1","💎 1/1s"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
               <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"#9CA3AF", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
@@ -18372,6 +18575,422 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 <div style={{ fontSize: 12, marginTop: 8, color: "#333" }}>Import a set CSV with weapon="Super" to get started.</div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {viewMode === "1of1" && (() => {
+        const secret1of1Cards = cards.filter(c => c.notation === "Secret 1/1");
+        const sets1of1 = [...new Set(secret1of1Cards.map(c=>c.setName).filter(Boolean))].sort();
+
+        const claimMap1 = {};
+        oneOfOneClaims.forEach(cl => { claimMap1[cl.cardId] = cl; });
+
+        async function submitOneClaim(card, photoBase64, story, date, name) {
+          setOneSubmitting(true);
+          try {
+            const storageRef2 = ref(storage, `oneof1_claims/${card.id}_${Date.now()}.jpg`);
+            const byteStr = atob(photoBase64.split(",")[1]);
+            const ab = new ArrayBuffer(byteStr.length);
+            const ia = new Uint8Array(ab);
+            for (let i=0; i<byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+            await uploadBytes(storageRef2, new Blob([ab],{type:"image/jpeg"}));
+            const photoUrl = await getDownloadURL(storageRef2);
+            await setDoc(doc(db,"oneof1_claims",card.id), {
+              cardId:card.id, cardName:card.hero, cardNum:card.cardNum,
+              setName:card.setName||"", treatment:card.treatment||"",
+              cardImage:card.imageUrl||null, photoUrl,
+              story:story||"", dateHit:date||"",
+              submitterName:name||"Anonymous",
+              userId:user?.uid||"anon",
+              status:"pending", createdAt:new Date().toISOString(),
+            });
+            setOneSent(true);
+          } catch(e) { alert("Upload failed: "+e.message); }
+          setOneSubmitting(false);
+        }
+
+        async function adminVerifyOne(claimId, approve) {
+          await setDoc(doc(db,"oneof1_claims",claimId), {
+            status:approve?"verified":"denied",
+            reviewedAt:new Date().toISOString(),
+            reviewedBy:user?.displayName||"Admin",
+          }, {merge:true});
+        }
+
+        const totalCount   = secret1of1Cards.length;
+        const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified").length;
+        const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+            {/* Claim modal */}
+            {oneModal && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}}>
+                <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+                  {oneSent ? (
+                    <div style={{ textAlign:"center", padding:"20px 0" }}>
+                      <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
+                      <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
+                      <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Your Secret 1/1 claim is pending verification. Congrats on the hit!</div>
+                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}
+                        style={{ background:"#9333EA", color:"#000", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>💎 Claim Secret 1/1</div>
+                      <div style={{ fontSize:13, color:"#888", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
+
+                      {/* Photo */}
+                      <label style={{ display:"block", marginBottom:14 }}>
+                        <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
+                          {onePhoto
+                            ? <img src={onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/>
+                            : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div>
+                               <div style={{ fontSize:13, fontWeight:700, color:"#9333EA" }}>Tap to upload photo</div>
+                               <div style={{ fontSize:11, color:"#555", marginTop:4 }}>Clear photo of your card</div></>
+                          }
+                        </div>
+                        <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                          onChange={e=>{ const f=e.target.files?.[0]; if(!f)return; const r2=new FileReader(); r2.onload=ev=>setOnePhoto(ev.target.result); r2.readAsDataURL(f); e.target.value=""; }}/>
+                      </label>
+
+                      {/* Date */}
+                      <div style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>Date You Hit It</label>
+                        <input type="date" value={oneDate} onChange={e=>setOneDate(e.target.value)}
+                          style={{ ...S.inp, fontSize:13, width:"100%", boxSizing:"border-box" }}/>
+                      </div>
+
+                      {/* Story */}
+                      <div style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>
+                          The Story <span style={{ color:"#555", fontWeight:400 }}>(optional)</span>
+                        </label>
+                        <textarea value={oneStory} onChange={e=>setOneStory(e.target.value)} rows={4}
+                          placeholder="Cards are about creating moments of joy… tell us the story about this hit ✨"
+                          style={{ ...S.inp, fontSize:12, width:"100%", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                      </div>
+
+                      {/* Name */}
+                      <div style={{ marginBottom:20 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>
+                          Your Name <span style={{ color:"#555", fontWeight:400 }}>(leave blank to stay anonymous)</span>
+                        </label>
+                        <input value={oneName} onChange={e=>setOneName(e.target.value)} placeholder="Anonymous"
+                          style={{ ...S.inp, fontSize:13, width:"100%", boxSizing:"border-box" }}/>
+                      </div>
+
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>{ if(onePhoto) submitOneClaim(oneModal, onePhoto, oneStory, oneDate, oneName); }}
+                          disabled={!onePhoto||oneSubmitting}
+                          style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#000":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                          {oneSubmitting?"Submitting...":"Submit Claim"}
+                        </button>
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); }}
+                          style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Global header */}
+            <div style={{ background:"linear-gradient(135deg,#1a0a2e,#0d0d0d)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:16, padding:"20px 24px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>💎 Community Secret 1/1 Hunt</div>
+                  <div style={{ fontSize:13, color:"#555" }}>{totalCount} Secret 1/1s across all sets</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:28, fontWeight:900, color:"#9333EA" }}>{verifiedCount1}<span style={{ fontSize:14, color:"#555", fontWeight:400 }}>/{totalCount}</span></div>
+                  <div style={{ fontSize:11, color:"#555" }}>found & verified</div>
+                </div>
+              </div>
+              <div style={{ height:10, background:"#1a1a1a", borderRadius:5, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${totalCount>0?(verifiedCount1/totalCount*100):0}%`, background:"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)", backgroundSize:"200% 100%", animation:"gradientShift 3s ease infinite", borderRadius:5, transition:"width 0.5s ease" }}/>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
+                <span style={{ fontSize:11, color:"#555" }}>0</span>
+                <span style={{ fontSize:11, color:"#9333EA", fontWeight:700 }}>{totalCount>0?(verifiedCount1/totalCount*100).toFixed(1):0}% found</span>
+                <span style={{ fontSize:11, color:"#555" }}>{totalCount}</span>
+              </div>
+            </div>
+
+            {/* Admin pending review */}
+            {isAdmin && pendingClaims1.length>0 && (
+              <div style={{ ...S.card }}>
+                <SectionLabel t="⏳ Pending Review"/>
+                {pendingClaims1.map(cl=>(
+                  <div key={cl.id} style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"12px 0", borderBottom:"1px solid #1a1a1a" }}>
+                    {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:60, height:80, objectFit:"cover", borderRadius:8, flexShrink:0 }}/>}
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cl.cardName} #{cl.cardNum}</div>
+                      <div style={{ fontSize:11, color:"#555" }}>{cl.treatment} · {cl.setName}</div>
+                      <div style={{ fontSize:11, color:"#AAAAAA", marginTop:4 }}>by {cl.submitterName||"Anonymous"}{cl.dateHit?` · ${cl.dateHit}`:""}</div>
+                      {cl.story && <div style={{ fontSize:11, color:"#888", marginTop:6, fontStyle:"italic" }}>"{cl.story}"</div>}
+                      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                        <button onClick={()=>adminVerifyOne(cl.id,true)} style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Verify</button>
+                        <button onClick={()=>adminVerifyOne(cl.id,false)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#EF4444", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Deny</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Per-set grids */}
+            {sets1of1.map(setName => {
+              const setCards = secret1of1Cards.filter(c=>c.setName===setName);
+              const setVerified = setCards.filter(c=>claimMap1[c.id]?.status==="verified");
+              const setPending  = setCards.filter(c=>claimMap1[c.id]?.status==="pending");
+              const setUnclaimed = setCards.filter(c=>!claimMap1[c.id]);
+              const verPct = setCards.length>0?(setVerified.length/setCards.length*100):0;
+              const isFull = setVerified.length===setCards.length && setCards.length>0;
+
+              return (
+                <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
+                  <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"#F0F0F0" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
+                        <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed</div>
+                      </div>
+                      <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"#555", fontWeight:400 }}>/{setCards.length}</span></div>
+                    </div>
+                    <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${verPct}%`, background:isFull?"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)":"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", backgroundSize:"200% 100%", animation:isFull?"gradientShift 2s ease infinite":"none", borderRadius:4, transition:"width 0.5s ease" }}/>
+                    </div>
+                  </div>
+
+                  <div style={{ padding:"12px 20px 16px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10 }}>
+                    {setCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
+                      const claim = claimMap1[c.id];
+                      const isVerified = claim?.status==="verified";
+                      const isPending  = claim?.status==="pending";
+                      const myOwned    = owned?.[c.id];
+
+                      return (
+                        <div key={c.id} style={{ background:isVerified?"#1a0a2e":"#0a0a0a", border:`1.5px solid ${isVerified?"#9333EA":isPending?"#9333EA44":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", position:"relative" }}>
+                          {c.imageUrl && (
+                            <div style={{ position:"relative" }}>
+                              <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block", opacity:isVerified?1:0.5, filter:isVerified?"none":"grayscale(40%)" }}/>
+                              {isVerified && <div style={{ position:"absolute", top:6, right:6, background:"#9333EA", color:"#000", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>✅ FOUND</div>}
+                              {isPending  && <div style={{ position:"absolute", top:6, right:6, background:"#1a0a2e", border:"1px solid #9333EA", color:"#9333EA", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>⏳ PENDING</div>}
+                              {!isVerified&&!isPending && <div style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,0.7)", color:"#555", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>UNCLAIMED</div>}
+                            </div>
+                          )}
+                          <div style={{ padding:"10px 12px" }}>
+                            <div style={{ fontSize:13, fontWeight:800, color:isVerified?"#9333EA":"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
+                            <div style={{ fontSize:10, color:"#555", marginBottom:4 }}>#{c.cardNum} · {c.treatment}</div>
+                            {isVerified && (
+                              <>
+                                <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:4 }}>🏆 {claim.submitterName||"Anonymous"}</div>
+                                {claim.story && <div style={{ fontSize:10, color:"#888", fontStyle:"italic", lineHeight:1.5, marginBottom:4 }}>"{claim.story}"</div>}
+                                {claim.dateHit && <div style={{ fontSize:10, color:"#444" }}>{claim.dateHit}</div>}
+                              </>
+                            )}
+                            {isPending && <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>⏳ {claim.submitterName||"Anonymous"} — awaiting review</div>}
+                            {user && myOwned && !isVerified && !isPending && (
+                              <button onClick={()=>{ setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
+                                style={{ width:"100%", background:"linear-gradient(135deg,#9333EA,#C084FC)", color:"#000", border:"none", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                💎 Claim This 1/1
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {secret1of1Cards.length===0 && (
+              <div style={{ textAlign:"center", padding:"60px 0", color:"#555" }}>
+                <div style={{ fontSize:32, marginBottom:12 }}>💎</div>
+                <div style={{ fontSize:14 }}>No Secret 1/1 cards found in the checklist.</div>
+                <div style={{ fontSize:12, marginTop:8, color:"#333" }}>Cards with notation "Secret 1/1" will appear here.</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+          try {
+            const storageRef2 = ref(storage, `oneof1_claims/${card.id||uid()}_${Date.now()}.jpg`);
+            const byteStr = atob(photoBase64.split(",")[1]);
+            const ab = new ArrayBuffer(byteStr.length);
+            const ia = new Uint8Array(ab);
+            for (let i=0; i<byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+            await uploadBytes(storageRef2, new Blob([ab],{type:"image/jpeg"}));
+            const photoUrl = await getDownloadURL(storageRef2);
+            await setDoc(doc(db,"oneof1_claims",uid()), {
+              cardId: card.id||"", cardName: card.hero||"", cardNum: card.cardNum||"",
+              setName: card.setName||"", treatment: card.treatment||"",
+              cardImage: card.imageUrl||null, photoUrl,
+              story: story||"", dateHit: date||"",
+              submitterName: name||"Anonymous",
+              userId: user?.uid||"anon",
+              status:"pending", createdAt: new Date().toISOString(),
+            });
+            setOneSent(true);
+          } catch(e) { alert("Upload failed: "+e.message); }
+          setOneSubmitting(false);
+        }
+
+        async function adminVerifyOne(claimId, approve) {
+          await setDoc(doc(db,"oneof1_claims",claimId), {
+            status: approve?"verified":"denied",
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: user?.displayName||"Admin",
+          }, {merge:true});
+        }
+
+        const verified = oneOfOneClaims.filter(c=>c.status==="verified");
+        const pending  = oneOfOneClaims.filter(c=>c.status==="pending");
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+            {/* Submit modal */}
+            {oneModal && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}}>
+                <div style={{ background:"#111", border:"2px solid #E8317A", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+                  {oneSent ? (
+                    <div style={{ textAlign:"center", padding:"20px 0" }}>
+                      <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
+                      <div style={{ fontSize:20, fontWeight:900, color:"#E8317A", marginBottom:8 }}>Submitted!</div>
+                      <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Your 1/1 hit is pending admin verification. This is a big moment — congrats!</div>
+                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}
+                        style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#E8317A", marginBottom:4 }}>💎 Register Your 1/1</div>
+                      <div style={{ fontSize:13, color:"#888", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
+
+                      {/* Photo */}
+                      <label style={{ display:"block", marginBottom:14 }}>
+                        <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#E8317A":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
+                          {onePhoto ? <img src={onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/> : (
+                            <><div style={{ fontSize:32, marginBottom:8 }}>📸</div>
+                            <div style={{ fontSize:13, fontWeight:700, color:"#E8317A" }}>Tap to upload photo</div>
+                            <div style={{ fontSize:11, color:"#555", marginTop:4 }}>Clear photo of your card</div></>
+                          )}
+                        </div>
+                        <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                          onChange={e=>{ const f=e.target.files?.[0]; if(!f)return; const r2=new FileReader(); r2.onload=ev=>setOnePhoto(ev.target.result); r2.readAsDataURL(f); e.target.value=""; }}/>
+                      </label>
+
+                      {/* Date */}
+                      <div style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>Date You Hit It</label>
+                        <input type="date" value={oneDate} onChange={e=>setOneDate(e.target.value)}
+                          style={{ ...S.inp, fontSize:13, width:"100%", boxSizing:"border-box" }}/>
+                      </div>
+
+                      {/* Story */}
+                      <div style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>
+                          The Story Behind This Hit <span style={{ color:"#555", fontWeight:400 }}>(optional)</span>
+                        </label>
+                        <textarea value={oneStory} onChange={e=>setOneStory(e.target.value)} rows={4}
+                          placeholder="Cards are about creating moments of joy… tell us the story about this hit ✨"
+                          style={{ ...S.inp, fontSize:12, width:"100%", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                      </div>
+
+                      {/* Name */}
+                      <div style={{ marginBottom:20 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>
+                          Your Name <span style={{ color:"#555", fontWeight:400 }}>(leave blank to stay anonymous)</span>
+                        </label>
+                        <input value={oneName} onChange={e=>setOneName(e.target.value)} placeholder="Anonymous"
+                          style={{ ...S.inp, fontSize:13, width:"100%", boxSizing:"border-box" }}/>
+                      </div>
+
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>{ if(onePhoto) submitOneClaim(oneModal, onePhoto, oneStory, oneDate, oneName); }}
+                          disabled={!onePhoto||oneSubmitting}
+                          style={{ flex:1, background:onePhoto?"#E8317A":"#1a1a1a", color:onePhoto?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                          {oneSubmitting?"Submitting...":"Submit"}
+                        </button>
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); }}
+                          style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Header */}
+            <div style={{ background:"linear-gradient(135deg,#1a0010,#0d0d0d)", border:"1px solid rgba(232,49,122,0.2)", borderRadius:16, padding:"20px 24px" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:"#E8317A", marginBottom:4 }}>💎 Secret 1/1 Tracker</div>
+              <div style={{ fontSize:13, color:"#555" }}>One of one cards pulled from Bazooka Breaks packs. Every hit is a moment in history.</div>
+              <div style={{ display:"flex", gap:20, marginTop:12 }}>
+                <div><div style={{ fontSize:28, fontWeight:900, color:"#E8317A" }}>{verified.length}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Verified Hits</div></div>
+                {isAdmin && pending.length>0 && <div><div style={{ fontSize:28, fontWeight:900, color:"#C084FC" }}>{pending.length}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Pending Review</div></div>}
+              </div>
+            </div>
+
+            {/* Admin pending review */}
+            {isAdmin && pending.length>0 && (
+              <div style={{ ...S.card }}>
+                <SectionLabel t="⏳ Pending Review"/>
+                {pending.map(cl=>(
+                  <div key={cl.id} style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"12px 0", borderBottom:"1px solid #1a1a1a" }}>
+                    {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:60, height:80, objectFit:"cover", borderRadius:8, flexShrink:0 }}/>}
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cl.cardName} #{cl.cardNum}</div>
+                      <div style={{ fontSize:11, color:"#555" }}>{cl.treatment} · {cl.setName}</div>
+                      <div style={{ fontSize:11, color:"#AAAAAA", marginTop:4 }}>by {cl.submitterName||"Anonymous"}{cl.dateHit?` · ${cl.dateHit}`:""}</div>
+                      {cl.story && <div style={{ fontSize:11, color:"#888", marginTop:6, fontStyle:"italic" }}>"{cl.story}"</div>}
+                      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                        <button onClick={()=>adminVerifyOne(cl.id,true)} style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Verify</button>
+                        <button onClick={()=>adminVerifyOne(cl.id,false)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#EF4444", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Deny</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Verified hits wall */}
+            {verified.length>0 ? (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+                {verified.map(cl=>(
+                  <div key={cl.id} style={{ background:"#0d0d0d", border:"1px solid rgba(232,49,122,0.15)", borderRadius:14, overflow:"hidden" }}>
+                    {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block" }}/>}
+                    <div style={{ padding:"12px 14px" }}>
+                      <div style={{ fontSize:14, fontWeight:900, color:"#F0F0F0" }}>{cl.cardName}</div>
+                      <div style={{ fontSize:11, color:"#E8317A", fontWeight:700 }}>{cl.treatment}</div>
+                      <div style={{ fontSize:10, color:"#555", marginTop:2 }}>#{cl.cardNum} · {cl.setName}</div>
+                      {cl.story && <div style={{ fontSize:12, color:"#AAAAAA", marginTop:8, lineHeight:1.6, fontStyle:"italic" }}>"{cl.story}"</div>}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:10 }}>
+                        <span style={{ fontSize:11, color:"#555" }}>— {cl.submitterName||"Anonymous"}</span>
+                        {cl.dateHit && <span style={{ fontSize:10, color:"#444" }}>{cl.dateHit}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign:"center", padding:"60px 20px", color:"#333" }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>💎</div>
+                <div style={{ fontSize:16, fontWeight:700, color:"#555" }}>No verified 1/1 hits yet</div>
+                <div style={{ fontSize:12, color:"#444", marginTop:8 }}>Be the first to register yours</div>
+              </div>
+            )}
+
+            {/* Register button */}
+            <button onClick={()=>{ setOneModal({ hero:"Custom 1/1", cardNum:"", treatment:"", setName:"", id:uid() }); setOneSent(false); }}
+              style={{ background:"rgba(232,49,122,0.12)", border:"1.5px solid rgba(232,49,122,0.4)", color:"#E8317A", borderRadius:12, padding:"14px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+              💎 Register My 1/1 Hit
+            </button>
           </div>
         );
       })()}
@@ -22686,11 +23305,9 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
-                  {/* Comp button -- bottom left of every card */}
-                  <button onClick={e=>{e.stopPropagation();setCompCard(c);}} title="View price comps"
-                    style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.75)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:6,padding:"3px 7px",fontSize:10,cursor:"pointer",backdropFilter:"blur(6px)",color:"#7B9CFF",fontWeight:700,zIndex:10}}>
-                    {"\uD83D\uDCCA Comp"}</button>
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                    onComp={c=>setCompCard(c)}/>
+                  {/* Comp button moved to card back (inside BobaCard flip) */}
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -22871,7 +23488,8 @@ function PublicCardDatabase() {
                                 flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                                onComp={c=>setCompCard(c)}/>
                             ))}
                           </div>
                           {user && (
@@ -22911,7 +23529,8 @@ function PublicCardDatabase() {
                   <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                    onComp={c=>setCompCard(c)}/>
                 ))}
               </div>
             )}
