@@ -14925,7 +14925,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                 {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                 {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
               </div>
-              {c.athlete && <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
+              {(c.inspiredBy||c.athlete) && <div style={{ fontSize:11, color:"#888", marginTop:4 }}>🏅 Inspired by <strong style={{ color:"#AAAAAA" }}>{c.inspiredBy||c.athlete}</strong></div>}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
@@ -15577,6 +15577,110 @@ function ManualCardImage() {
 // ── DATA CLEANUP ──────────────────────────────────────────────────────────────
 const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
 
+function GenerateMissing8s() {
+  const [scanning,  setScanning]  = useState(false);
+  const [preview,   setPreview]   = useState(null);  // { toCreate: [] }
+  const [creating,  setCreating]  = useState(false);
+  const [result,    setResult]    = useState(null);
+
+  async function scan() {
+    setScanning(true); setPreview(null); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const all = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+
+    // Find all cards whose cardNum ends with a digit 1-7 (auto variants)
+    // Group by prefix (e.g. "DBA" from "DBA3")
+    const prefixMap = {}; // prefix → { cards[], existingNums: Set }
+    all.forEach(c => {
+      const cn = String(c.cardNum||"");
+      const m = cn.match(/^([A-Za-z]+)(\d+)$/);
+      if (!m) return;
+      const prefix = m[1];
+      const num    = parseInt(m[2]);
+      if (num < 1 || num > 8) return;
+      if (!prefixMap[prefix]) prefixMap[prefix] = { sample:c, nums:new Set() };
+      prefixMap[prefix].nums.add(num);
+    });
+
+    // Find prefixes that have 1-7 variants but NOT an 8
+    const toCreate = [];
+    Object.entries(prefixMap).forEach(([prefix, {sample, nums}]) => {
+      if (!nums.has(8) && (nums.has(1)||nums.has(2)||nums.has(3))) {
+        // Find a reference card (prefer the highest num as template)
+        const refNum = Math.max(...[...nums]);
+        const refCard = all.find(c => c.cardNum === `${prefix}${refNum}`);
+        if (refCard) {
+          toCreate.push({
+            cardNum: `${prefix}8`,
+            hero: refCard.hero,
+            setName: refCard.setName,
+            weapon: refCard.weapon,
+            power: refCard.power||0,
+            inspiredBy: refCard.inspiredBy||"",
+            treatment: "Inspired Ink Metallic Battlefoil",
+            notation: "",
+            imageUrl: "",
+            mktValue: 0,
+          });
+        }
+      }
+    });
+
+    setPreview({ toCreate });
+    setScanning(false);
+  }
+
+  async function create() {
+    if (!preview?.toCreate?.length) return;
+    setCreating(true);
+    const CHUNK = 400;
+    let created = 0;
+    for (let i=0; i<preview.toCreate.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      preview.toCreate.slice(i,i+CHUNK).forEach(card => {
+        const key = `${card.setName||""}${card.cardNum}${card.hero}${card.treatment}`.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20);
+        const id = key + "_" + Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+        batch.set(doc(db,"boba_checklist",id), {...card, id}, {merge:true});
+      });
+      await batch.commit();
+      created += Math.min(CHUNK, preview.toCreate.length-i);
+    }
+    setCreating(false);
+    setResult({ created });
+    setPreview(null);
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <Btn onClick={scan} disabled={scanning}>{scanning?"Scanning...":"🔍 Find Missing 8s"}</Btn>
+
+      {preview && (
+        <div>
+          {preview.toCreate.length===0
+            ? <div style={{ fontSize:12, color:"#4ade80" }}>✅ No missing 8s found — all metallic variants exist</div>
+            : <>
+                <div style={{ fontSize:12, color:"#FBBF24", marginBottom:8 }}>Found {preview.toCreate.length} missing Metallic cards:</div>
+                <div style={{ maxHeight:160, overflowY:"auto", marginBottom:10, display:"flex", flexWrap:"wrap", gap:4 }}>
+                  {preview.toCreate.map(c=>(
+                    <span key={c.cardNum} style={{ fontSize:10, background:"rgba(192,192,192,0.1)", border:"1px solid rgba(192,192,192,0.2)", borderRadius:5, padding:"2px 8px", color:"#C0C0C0" }}>
+                      {c.cardNum} {c.hero}
+                    </span>
+                  ))}
+                </div>
+                <Btn onClick={create} disabled={creating} variant="green">
+                  {creating?"Creating...":"⚡ Create All Missing 8s"}
+                </Btn>
+              </>
+          }
+        </div>
+      )}
+
+      {result && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Created {result.created} Inspired Ink Metallic Battlefoil cards</div>}
+    </div>
+  );
+}
+
 function PlaysFixButton() {
   const [running, setRunning] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -15734,7 +15838,14 @@ function DataCleanup() {
       {mergeResult && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {mergeResult.fixed} cards — reload checklist to see changes</div>}
 
       <div style={{ ...S.card }}>
-        <SectionLabel t="🃏 Fix Plays Treatments"/>
+        <SectionLabel t="8️⃣ Generate Missing Metallic Cards"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+          Finds all auto cards (e.g. DBA1–DBA7) that are missing their Metallic "8" variant and creates them with treatment <strong style={{color:"#C0C0C0"}}>Inspired Ink Metallic Battlefoil</strong>.
+        </div>
+        <GenerateMissing8s/>
+      </div>
+
+      <div style={{ ...S.card }}>
         <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
           Sets treatment to <strong style={{color:"#C084FC"}}>Bonus Plays</strong> for BPL cards, and <strong style={{color:"#AAAAAA"}}>Paper Plays</strong> for PL cards.
         </div>
