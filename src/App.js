@@ -16703,7 +16703,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [filterWeapon, setFilterWeapon] = useState("");
   const [filterNote,   setFilterNote]   = useState("");
   const [filterSet,    setFilterSet]    = useState("");
-  const [filterPower,  setFilterPower]  = useState("");
+  const [filterPower,  setFilterPower]  = useState(new Set());
   const [filterOwned,    setFilterOwned]    = useState("all");
   const [renamingId,   setRenamingId]   = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
@@ -17821,10 +17821,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if(filterNote && c.notation !== filterNote) return false;
     if(filterOwned==="owned" && !owned[c.id]) return false;
     if(filterOwned==="missing" && owned[c.id]) return false;
-    if(filterPower){
-      const [min,max]=filterPower.includes("-")?filterPower.split("-").map(Number):[Number(filterPower),Number(filterPower)];
-      const p=Number(c.power||0); if(p<min||p>max) return false;
-    }
+    if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     return true;
   }).sort((a,b) => {
     if(sortBy==="cardNum") {
@@ -18366,25 +18363,16 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           <option value="">All Weapons</option>
           {weapons.map(w=><option key={w} value={w}>{w}</option>)}
         </select>
-        <select value={filterPower} onChange={e=>{setFilterPower(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
-          <option value="">All Powers</option>
-          <option value="200">200</option>
-          <option value="195-199">195–199</option>
-          <option value="190-194">190–194</option>
-          <option value="185-189">185–189</option>
-          <option value="180-184">180–184</option>
-          <option value="175-179">175–179</option>
-          <option value="170-174">170–174</option>
-          <option value="165-169">165–169</option>
-          <option value="160-164">160–164</option>
-          <option value="155-159">155–159</option>
-          <option value="150-154">150–154</option>
-          <option value="145-149">145–149</option>
-          <option value="140-144">140–144</option>
-          <option value="135-139">135–139</option>
-          <option value="130-134">130–134</option>
-          <option value="1-129">Below 130</option>
-        </select>
+        <div style={{ display:"flex", gap:3, flexWrap:"wrap", alignItems:"center" }}>
+          <span style={{ fontSize:10, color:"#555", marginRight:2 }}>Power:</span>
+          {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>(
+            <button key={p} onClick={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}}
+              style={{ background:filterPower.has(p)?"rgba(232,49,122,0.15)":"transparent", color:filterPower.has(p)?"#E8317A":"#555", border:`1px solid ${filterPower.has(p)?"#E8317A":"#2a2a2a"}`, borderRadius:5, padding:"2px 7px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {p}
+            </button>
+          ))}
+          {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{ background:"none", border:"none", color:"#555", fontSize:10, cursor:"pointer" }}>✕</button>}
+        </div>
         <select value={filterNote} onChange={e=>{setFilterNote(e.target.value);setPage(1);}} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
           <option value="">All Notations</option>
           {notations.map(n=><option key={n} value={n}>{n}</option>)}
@@ -22020,7 +22008,7 @@ function PublicCardDatabase() {
   const [filterSet,     setFilterSet]     = useState("");
   const [filterWeapon,  setFilterWeapon]  = useState("");
   const [filterTreat,   setFilterTreat]   = useState("");
-  const [filterPower,   setFilterPower]   = useState("");
+  const [filterPower,   setFilterPower]   = useState(new Set());
   const [filterOwned,   setFilterOwned]   = useState("all");
   const [sortBy,        setSortBy]        = useState("cardNum");
   const [page,          setPage]          = useState(1);
@@ -22861,10 +22849,7 @@ function PublicCardDatabase() {
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     if(filterOwned==="missing" &&  owned[c.id])  return false;
-    if(filterPower){
-      const [min,max]=filterPower.includes("-")?filterPower.split("-").map(Number):[Number(filterPower),Number(filterPower)];
-      const p=Number(c.power||0); if(p<min||p>max) return false;
-    }
+    if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
     return true;
     return true;
@@ -23657,25 +23642,17 @@ function PublicCardDatabase() {
               <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
               </select>
-              <select value={filterPower} onChange={e=>{setFilterPower(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
-                <option value="">All Powers</option>
-                <option value="200">200</option>
-                <option value="195-199">195–199</option>
-                <option value="190-194">190–194</option>
-                <option value="185-189">185–189</option>
-                <option value="180-184">180–184</option>
-                <option value="175-179">175–179</option>
-                <option value="170-174">170–174</option>
-                <option value="165-169">165–169</option>
-                <option value="160-164">160–164</option>
-                <option value="155-159">155–159</option>
-                <option value="150-154">150–154</option>
-                <option value="145-149">145–149</option>
-                <option value="140-144">140–144</option>
-                <option value="135-139">135–139</option>
-                <option value="130-134">130–134</option>
-                <option value="1-129">Below 130</option>
-              </select>
+              {/* Power multi-select toggle buttons */}
+              <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginRight:2}}>Power:</span>
+                {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>(
+                  <button key={p} onClick={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}}
+                    style={{background:filterPower.has(p)?"rgba(232,49,122,0.2)":"transparent",color:filterPower.has(p)?"#E8317A":"rgba(255,255,255,0.3)",border:`1px solid ${filterPower.has(p)?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                    {p}
+                  </button>
+                ))}
+                {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:10,cursor:"pointer",padding:"3px 6px"}}>✕ clear</button>}
+              </div>
               <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
