@@ -21973,7 +21973,7 @@ function PackRipSimulator({ cards, user }) {
 // ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
 function PublicCardDatabase() {
   // -- Core state --
-  const [cards,         setCards]         = useState([]);
+  const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
@@ -22091,6 +22091,16 @@ function PublicCardDatabase() {
   const [claimSent,       setClaimSent]       = useState(false);
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
 
+  // -- 1/1 Tracker --
+  const [oneOfOneClaims,  setOneOfOneClaims]  = useState([]);
+  const [oneModal,        setOneModal]        = useState(null);
+  const [onePhoto,        setOnePhoto]        = useState(null);
+  const [oneStory,        setOneStory]        = useState("");
+  const [oneDate,         setOneDate]         = useState("");
+  const [oneName,         setOneName]         = useState("");
+  const [oneSubmitting,   setOneSubmitting]   = useState(false);
+  const [oneSent,         setOneSent]         = useState(false);
+
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
   const DECK_SIZE = 60;
@@ -22141,6 +22151,14 @@ function PublicCardDatabase() {
     return ()=>unsub();
   }, []);
 
+  // -- 1/1 claims (public) --
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"oneof1_claims"), snap => {
+      setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")));
+    });
+    return ()=>unsub();
+  }, []);
+
   // -- Public marketplace (loads without login) --
   useEffect(() => {
     const unsub = onSnapshot(
@@ -22154,18 +22172,18 @@ function PublicCardDatabase() {
   }, []);
 
   // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
-  // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
+  // -- Load cards (instant from localStorage init, background refresh if stale) --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v3";
     const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
-        const { cards:cc, ts } = JSON.parse(raw);
-        if (cc?.length > 0) {
-          setCards(cc); setLoading(false);
-          if (Date.now() - ts < CACHE_TTL) return;
-        }
+        const { ts } = JSON.parse(raw);
+        // Cards already in state from useState init — just check if still fresh
+        if (Date.now() - ts < CACHE_TTL) { setLoading(false); return; }
+        // Stale — show cached cards immediately (already in state), refresh in background
+        setLoading(false);
       }
     } catch(e) {}
     (async () => {
