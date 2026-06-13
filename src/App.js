@@ -15370,6 +15370,50 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── MANUAL OVERRIDE EDITOR ───────────────────────────────────────────────────
+function ManualOverrideEditor({ overrides, setOverrides }) {
+  const [newFile,    setNewFile]    = useState("");
+  const [newCardNum, setNewCardNum] = useState("");
+
+  function add() {
+    if (!newFile.trim() || !newCardNum.trim()) return;
+    setOverrides(p => ({ ...p, [newFile.trim()]: newCardNum.trim() }));
+    setNewFile(""); setNewCardNum("");
+  }
+
+  function remove(key) {
+    const next = { ...overrides };
+    delete next[key];
+    setOverrides(next);
+  }
+
+  return (
+    <div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:8, marginBottom:10 }}>
+        <input value={newFile} onChange={e=>setNewFile(e.target.value)}
+          placeholder="Folder/Filename (e.g. (BJA) - Bo Jackson (12)/TB1)"
+          style={{ ...S.inp, fontSize:11 }}/>
+        <input value={newCardNum} onChange={e=>setNewCardNum(e.target.value)}
+          placeholder="Firestore cardNum (e.g. TBJ-G)"
+          style={{ ...S.inp, fontSize:11 }}
+          onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <Btn onClick={add} disabled={!newFile.trim()||!newCardNum.trim()}>Add</Btn>
+      </div>
+      {Object.entries(overrides).length > 0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          {Object.entries(overrides).map(([file,cardNum])=>(
+            <div key={file} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0d0d0d", borderRadius:6, padding:"5px 10px", fontSize:11 }}>
+              <span><span style={{ color:"#888" }}>{file}</span> → <span style={{ color:"#7B9CFF", fontWeight:700 }}>{cardNum}</span></span>
+              <button onClick={()=>remove(file)} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:12 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {Object.entries(overrides).length === 0 && <div style={{ fontSize:11, color:"#444" }}>No overrides yet</div>}
+    </div>
+  );
+}
+
 // ── IMAGE COPIER ──────────────────────────────────────────────────────────────
 function ImageCopier() {
   const [from,     setFrom]     = useState("");
@@ -15534,8 +15578,9 @@ function CardSetImporter({ userRole }) {
   const [mode,      setMode]      = useState("data");   // "data" | "images"
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
-  const [folderMappings, setFolderMappings] = useState({}); // { folderName: treatmentValue }
-  const [folderHeroes,   setFolderHeroes]   = useState({}); // { folderName: heroName }
+  const [folderMappings,  setFolderMappings]  = useState({});
+  const [folderHeroes,    setFolderHeroes]    = useState({});
+  const [manualOverrides, setManualOverrides] = useState({}); // { "folder/cardNum": "firestoreCardNum" }
   const [importing, setImporting] = useState(false);
   const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
@@ -15700,6 +15745,27 @@ function CardSetImporter({ userRole }) {
       const numAltPrefix = numStripped ? "r" + numStripped : "";
       const manualTreatment = folderMappings[item.folder];
 
+
+
+      // Check manual override first (folder/cardNum → firestoreCardNum)
+      const overrideKey = `${item.folder}/${item.cardNum}`;
+      const overrideCardNum = manualOverrides[overrideKey];
+      if (overrideCardNum) {
+        const oc = String(overrideCardNum).toLowerCase().replace(/-/g,"");
+        const found = allCards.find(c => String(c.cardNum||"").toLowerCase().replace(/-/g,"") === oc);
+        if (found) { 
+          try {
+            const safeFolderName2 = item.folder.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+            const storagePath2 = `boba_cards/tecmo/${safeFolderName2}/${item.cardNum}.png`;
+            const storageRef3 = ref(storage, storagePath2);
+            await uploadBytes(storageRef3, item.file);
+            const url2 = await getDownloadURL(storageRef3);
+            await setDoc(doc(db,"boba_checklist",found.fsId), { imageUrl:url2 }, {merge:true});
+            written++;
+          } catch(e) { errs.push(`Override ${overrideKey}: ${e.message}`); skipped++; }
+          return;
+        }
+      }
 
       let card;
       if (manualTreatment) {
@@ -15870,17 +15936,29 @@ function CardSetImporter({ userRole }) {
                   {folders.map(folder => {
                     const count = imgFiles.filter(f=>f.folder===folder).length;
                     return (
-                      <div key={folder} style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:8, alignItems:"center", background:"#0d0d0d", borderRadius:8, padding:"8px 12px" }}>
-                        <div>
-                          <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{folder}</div>
-                          <div style={{ fontSize:10, color:"#555" }}>{count} images</div>
+                      <div key={folder} style={{ background:"#0d0d0d", borderRadius:8, padding:"8px 12px", border:"1px solid #1a1a1a" }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:8, alignItems:"center" }}>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{folder}</div>
+                            <div style={{ fontSize:10, color:"#555" }}>{count} images</div>
+                          </div>
+                          <select value={folderMappings[folder]||""} onChange={e=>setFolderMappings(p=>({...p,[folder]:e.target.value}))}
+                            style={{ ...S.inp, fontSize:11, cursor:"pointer", color:folderMappings[folder]?"#F0F0F0":"#555" }}>
+                            <option value="">— Auto-detect —</option>
+                            {COMMON_TREATMENTS.map(t=><option key={t} value={t}>{t}</option>)}
+                          </select>
+                          <div style={{ fontSize:10, color:"#555", textAlign:"right" }}>{folderMappings[folder] ? "✅" : "⚡"}</div>
                         </div>
-                        <select value={folderMappings[folder]||""} onChange={e=>setFolderMappings(p=>({...p,[folder]:e.target.value}))}
-                          style={{ ...S.inp, fontSize:11, cursor:"pointer", color:folderMappings[folder]?"#F0F0F0":"#555" }}>
-                          <option value="">— Auto-detect —</option>
-                          {COMMON_TREATMENTS.map(t=><option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <div style={{ fontSize:10, color:"#555", textAlign:"right" }}>{folderMappings[folder] ? "✅ mapped" : "⚡ auto"}</div>
+                        {/* Per-file overrides for problem files */}
+                        {imgFiles.filter(f=>f.folder===folder).some(f=>manualOverrides[`${folder}/${f.cardNum}`]) && (
+                          <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #1a1a1a" }}>
+                            {imgFiles.filter(f=>f.folder===folder && manualOverrides[`${folder}/${f.cardNum}`]).map(f=>(
+                              <div key={f.cardNum} style={{ fontSize:10, color:"#7B9CFF" }}>
+                                {f.cardNum} → {manualOverrides[`${folder}/${f.cardNum}`]}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -15892,6 +15970,15 @@ function CardSetImporter({ userRole }) {
             );
           })()}
         </>
+      )}
+
+      {/* Manual overrides for problem files */}
+      {mode==="images" && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="🔧 Manual Overrides"/>
+          <div style={{ fontSize:11, color:"#555", marginBottom:10 }}>When a file name doesn't match the Firestore cardNum (e.g. TB1 → TBJ-G), add an override here.</div>
+          <ManualOverrideEditor overrides={manualOverrides} setOverrides={setManualOverrides}/>
+        </div>
       )}
 
       {/* Copy images between treatments */}
