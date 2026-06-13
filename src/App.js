@@ -20801,46 +20801,44 @@ function PublicCardDatabase() {
   }, []);
 
   // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
+  // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v2";
-    const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-    // 1. Serve from localStorage immediately
+    const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
         const { cards:cc, ts } = JSON.parse(raw);
         if (cc?.length > 0) {
           setCards(cc); setLoading(false);
-          if (Date.now() - ts < CACHE_TTL) return; // still fresh, done
+          if (Date.now() - ts < CACHE_TTL) return;
         }
       }
     } catch(e) {}
-    // 2. Static file from Vercel CDN (fastest)
-    try {
-      const r = await fetch("/cards-data.json");
-      if (r.ok) {
-        const all = await r.json();
+    (async () => {
+      try {
+        const r = await fetch("/cards-data.json");
+        if (r.ok) {
+          const all = await r.json();
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      try {
+        const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
+        const r2 = await fetch(url);
+        const all = await r2.json();
         setCards(all); setLoading(false);
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
         return;
-      }
-    } catch(e) {}
-    // 3. Firebase Storage CDN
-    getDownloadURL(ref(storage, "card_data/boba_checklist.json"))
-      .then(url => fetch(url))
-      .then(r => r.json())
-      .then(all => {
+      } catch(e) {}
+      getDocs(collection(db,"boba_checklist")).then(snap => {
+        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
         setCards(all); setLoading(false);
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-      })
-      .catch(() => {
-        // 3. Fallback: read from Firestore directly
-        getDocs(collection(db,"boba_checklist")).then(snap => {
-          const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-          setCards(all); setLoading(false);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-        });
       });
+    })();
   }, []);
   // -- Auth + owned + wants + private --
   useEffect(() => {
