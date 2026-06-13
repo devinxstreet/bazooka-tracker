@@ -13987,7 +13987,7 @@ function PublicDeckBuilder() {
 
   useEffect(() => {
     async function load() {
-      const CACHE_KEY = "boba_checklist_cache_v2";
+      const CACHE_KEY = "boba_checklist_cache_v3";
       try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
@@ -14204,7 +14204,7 @@ function PublicPlaybookBuilder() {
 
   useEffect(() => {
     async function load() {
-      const CACHE_KEY = "boba_checklist_cache_v2";
+      const CACHE_KEY = "boba_checklist_cache_v3";
       try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
@@ -15427,7 +15427,7 @@ function CardSetImporter({ userRole }) {
         setProgress(null);
       } catch(e) { console.warn("CDN snapshot write failed:", e); setProgress(null); }
     }
-    try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v2"); } catch {}
+    try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
   }
 
   // ── Image import ─────────────────────────────────────────────────────────
@@ -15702,7 +15702,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
   useEffect(() => {
     // Cards are static after import -- use localStorage cache for instant load
-    const CACHE_KEY = "boba_checklist_cache_v2";
+    const CACHE_KEY = "boba_checklist_cache_v3";
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -16135,7 +16135,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`\u2705 Done! Matched ${matched}, skipped ${skipped}` });
     setTimeout(() => _setImgScanProgress(null), 5000);
     } catch(err) { _setImgScanProgress({ current:0, total:0, status:"Error: " + err.message }); console.error("Import error:", err); }
-    try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e) {}
   }  // - closes scanImagesForCards
 
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
@@ -16609,11 +16609,11 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       }
 
       // Bust cache and reload
-      try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e2) {}
+      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e2) {}
       const freshSnap = await getDocs(collection(db, "boba_checklist"));
       const freshCards = freshSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
       setCards(freshCards);
-      try { localStorage.setItem("boba_checklist_cache_v2", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
+      try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
       setDbsStatus({ msg:`\u2705 Done! Updated ${updated} cards, skipped ${skipped}.`, ok:true });
       setTimeout(() => setDbsStatus(null), 5000);
     } catch(e) {
@@ -16820,11 +16820,11 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   ));
                   setDbsStatus({ msg:`Wiping... ${Math.min(i+400,playcards.length)}/${playcards.length}`, ok:null });
                 }
-                try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e){}
+                try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e){}
                 const snap = await getDocs(collection(db,"boba_checklist"));
                 const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
                 setCards(fresh);
-                try { localStorage.setItem("boba_checklist_cache_v2", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
+                try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
                 setDbsStatus({ msg:`\u2705 Wiped ${playcards.length} play cards -- re-import DBS CSV now`, ok:true });
                 setTimeout(()=>setDbsStatus(null),8000);
               }} style={{ background:"#1a0a0a", border:"1px solid #E8317A44", color:"#E8317A", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -18784,7 +18784,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   }
                   await setDoc(doc(db,"boba_owned",ownedDocId), {});
                   setOwned({});
-                  try { localStorage.removeItem("boba_checklist_cache_v2"); } catch(e) {}
+                  try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e) {}
                 }} style={{ background:"#1a0a0a", border:"1.5px solid #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   {"\uD83D\uDDD1 Clear All Cards"}</button>
               )}
@@ -20621,7 +20621,7 @@ function PackRipSimulator({ cards, user }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
-  const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v2"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
+  const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
   const [privateCards,  setPrivateCards]  = useState({});
@@ -20803,7 +20803,7 @@ function PublicCardDatabase() {
   // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
   // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
   useEffect(() => {
-    const CACHE_KEY = "boba_checklist_cache_v2";
+    const CACHE_KEY = "boba_checklist_cache_v3";
     const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
@@ -24637,7 +24637,7 @@ export default function App() {
   const [streamTabDefault,setStreamTabDefault] = useState("recap");
   const [compMode,      setCompMode]      = useState("builder");
 
-  const BOBA_CACHE_KEY = "boba_checklist_cache_v2";
+  const BOBA_CACHE_KEY = "boba_checklist_cache_v3";
   const BOBA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
   // Load bobaCards at startup — localStorage → CDN → Firestore
