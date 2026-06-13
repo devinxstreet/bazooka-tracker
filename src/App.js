@@ -15370,6 +15370,82 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── IMAGE COPIER ──────────────────────────────────────────────────────────────
+function ImageCopier() {
+  const [from,     setFrom]     = useState("");
+  const [to,       setTo]       = useState("");
+  const [running,  setRunning]  = useState(false);
+  const [result,   setResult]   = useState(null);
+  const [treatments, setTreatments] = useState([]);
+
+  useEffect(() => {
+    getDocs(collection(db,"boba_checklist")).then(snap => {
+      const ts = [...new Set(snap.docs.map(d=>d.data().treatment).filter(Boolean))].sort();
+      setTreatments(ts);
+    });
+  }, []);
+
+  async function run() {
+    if (!from || !to || from===to) return;
+    if (!window.confirm(`Copy all imageUrls from "${from}" → "${to}"?\n\nThis overwrites existing images on ${to} cards.`)) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const all = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    const fromCards = all.filter(c=>c.treatment===from && c.imageUrl);
+    const toCards   = all.filter(c=>c.treatment===to);
+
+    // Build lookup by cardNum for from cards
+    const fromByNum = {};
+    fromCards.forEach(c=>{ fromByNum[String(c.cardNum||"").toLowerCase()] = c.imageUrl; });
+
+    let copied = 0, skipped = 0;
+    const CHUNK = 400;
+    const updates = [];
+    toCards.forEach(c => {
+      const numKey = String(c.cardNum||"").toLowerCase();
+      const url = fromByNum[numKey];
+      if (url) updates.push({ fsId:c.fsId, url });
+      else skipped++;
+    });
+
+    for (let i=0; i<updates.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      updates.slice(i,i+CHUNK).forEach(({fsId,url}) => {
+        batch.set(doc(db,"boba_checklist",fsId), { imageUrl:url }, {merge:true});
+      });
+      await batch.commit();
+      copied += Math.min(CHUNK, updates.length-i);
+    }
+    setRunning(false);
+    setResult({ copied, skipped });
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr auto", gap:8, alignItems:"center" }}>
+        <select value={from} onChange={e=>setFrom(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:from?"#F0F0F0":"#555", fontSize:12 }}>
+          <option value="">— Copy FROM —</option>
+          {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        <span style={{ color:"#555", fontSize:18 }}>→</span>
+        <select value={to} onChange={e=>setTo(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:to?"#F0F0F0":"#555", fontSize:12 }}>
+          <option value="">— Copy TO —</option>
+          {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        <Btn onClick={run} disabled={!from||!to||from===to||running} variant="green">
+          {running?"Copying...":"Copy"}
+        </Btn>
+      </div>
+      {result && (
+        <div style={{ fontSize:12, color:"#4ade80" }}>
+          ✅ Copied {result.copied} imageUrls · {result.skipped} had no match
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── TREATMENT CHECKER ─────────────────────────────────────────────────────────
 function TreatmentChecker() {
   const [loading,    setLoading]    = useState(false);
@@ -15717,6 +15793,7 @@ function CardSetImporter({ userRole }) {
                   <div style={{ fontSize:11, color:"#555", marginBottom:8 }}>Not sure what treatment name to pick? Check what's actually in Firestore:</div>
                   <TreatmentChecker/>
                 </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
                   {folders.map(folder => {
                     const count = imgFiles.filter(f=>f.folder===folder).length;
                     return (
@@ -15742,6 +15819,15 @@ function CardSetImporter({ userRole }) {
             );
           })()}
         </>
+      )}
+
+      {/* Copy images between treatments */}
+      {mode==="images" && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="📋 Copy Images Between Treatments"/>
+          <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Same card art across treatments? Copy imageUrls from one to another without re-uploading.</div>
+          <ImageCopier/>
+        </div>
       )}
 
       {/* Progress bar */}
