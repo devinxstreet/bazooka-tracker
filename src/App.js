@@ -22838,11 +22838,11 @@ function PublicCardDatabase() {
   }
 
   // -- Computed --
-  const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-  const setCards   = filterSet ? cards.filter(c=>c.setName===filterSet) : cards;
-  const weapons    = [...new Set(setCards.map(c=>c.weapon).filter(Boolean))].sort();
-  const treatments = [...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
-  const powers     = [...new Set(setCards.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
+  const sets          = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+  const filteredBySet = filterSet ? cards.filter(c=>c.setName===filterSet) : cards;
+  const weapons       = [...new Set(filteredBySet.map(c=>c.weapon).filter(Boolean))].sort();
+  const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
+  const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
   const filtered = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
