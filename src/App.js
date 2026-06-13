@@ -14737,7 +14737,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -14750,6 +14750,14 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const targetTilt  = useRef({ x:0, y:0 });
   const isHovering  = useRef(false);
 
+  // No shine for paper (non-foil base) cards and Plays (but Bonus Plays still shine)
+  const treatment = (c.treatment||"").toLowerCase();
+  const cardType  = (c.cardType||c.variation||"").toLowerCase();
+  const noShine   = treatment === "base" ||
+                    treatment === "paper" ||
+                    (treatment.includes("play") && !treatment.includes("bonus"));
+
+
   function startAnimation() { if (animRef.current) return; animRef.current = requestAnimationFrame(animate); }
   function onMouseMove(e) {
     if (isFlipped) return;
@@ -14758,8 +14766,10 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top)  / rect.height;
     targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
-    if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
-    if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+    if (!noShine) {
+      if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
+      if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
+    }
     startAnimation();
   }
   function onMouseLeave() {
@@ -14846,6 +14856,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
           {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
+          {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
           <QtyControls/>
         </div>
       </div>
@@ -15503,12 +15514,25 @@ function CardSetImporter({ userRole }) {
     async function uploadOne(item) {
       const numKey = String(item.cardNum).toLowerCase();
       const matches = byCardNum[numKey] || [];
+
+      // Fuzzy folder→treatment matching using keyword overlap
+      function fuzzyScore(treatment, folderName) {
+        const STOP = new Set(["battlefoil","inspired","ink","the","and","or","of","a","an","alt","art","only","new","first","edition"]);
+        function keywords(s) {
+          return s.toLowerCase().replace(/['']/g,"").replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>1&&!STOP.has(w));
+        }
+        const tk = keywords(treatment);
+        const fk = keywords(folderName);
+        if (!tk.length || !fk.length) return 0;
+        const overlap = fk.filter(w => tk.some(t => t.includes(w) || w.includes(t)));
+        return overlap.length / Math.max(fk.length, 1);
+      }
+
       let card = matches.length === 1 ? matches[0]
-        : matches.find(c => {
-            const t = (c.treatment||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-            const fn = item.folder.toLowerCase().replace(/[^a-z0-9]/g,"");
-            return t.includes(fn) || fn.includes(t);
-          }) || matches[0];
+        : matches.reduce((best, c2) => {
+            const score = fuzzyScore(c2.treatment||"", item.folder);
+            return (!best || score > best.score) ? { card:c2, score } : best;
+          }, null)?.card || matches[0];
 
       if (!card) { errs.push(`No match: ${item.folder}/${item.cardNum}`); skipped++; return; }
 
@@ -17477,7 +17501,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                           {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => {
                             const isOwned = !!owned[c.id];
-                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
                           })}
                         </div>
                         {/* Toggle all for hero */}
@@ -17557,7 +17581,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                         {visibleTcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
-                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
@@ -18777,7 +18801,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
               {visibleCards.map(c => {
                 const isOwned = !!owned[c.id];
-                return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}/>;
+                return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
               })}
             </div>
             {hasMore && (
