@@ -15370,6 +15370,136 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── DATA CLEANUP ──────────────────────────────────────────────────────────────
+const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+
+function DataCleanup() {
+  const [loading,    setLoading]    = useState(false);
+  const [fieldData,  setFieldData]  = useState(null); // { weapon: {...}, treatment: {...} }
+  const [merging,    setMerging]    = useState(false);
+  const [mergeResult, setMergeResult] = useState(null);
+  const [overrides,  setOverrides]  = useState({}); // { "GLOW": "Glow", "glow": "Glow" }
+
+  async function scan() {
+    setLoading(true);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const weapons = {}, treatments = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      const w = data.weapon||"(none)";
+      if (!weapons[w]) weapons[w] = 0;
+      weapons[w]++;
+      const t = data.treatment||"(none)";
+      if (!treatments[t]) treatments[t] = 0;
+      treatments[t]++;
+    });
+    setFieldData({ weapon: weapons, treatment: treatments });
+    // Auto-detect obvious mismatches (same value different case)
+    const autoOverrides = {};
+    const wKeys = Object.keys(weapons);
+    CANONICAL_WEAPONS.forEach(canonical => {
+      wKeys.forEach(key => {
+        if (key !== canonical && key.toLowerCase() === canonical.toLowerCase()) {
+          autoOverrides[key] = canonical;
+        }
+      });
+    });
+    setOverrides(autoOverrides);
+    setLoading(false);
+  }
+
+  async function applyMerge() {
+    if (!Object.keys(overrides).length) return;
+    setMerging(true);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const toUpdate = snap.docs.filter(d => overrides[d.data().weapon]);
+    let fixed = 0;
+    const CHUNK = 400;
+    for (let i=0; i<toUpdate.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toUpdate.slice(i,i+CHUNK).forEach(d => {
+        const newWeapon = overrides[d.data().weapon];
+        batch.set(doc(db,"boba_checklist",d.id), { weapon: newWeapon }, { merge:true });
+      });
+      await batch.commit();
+      fixed += Math.min(CHUNK, toUpdate.length-i);
+    }
+    setMerging(false);
+    setMergeResult({ fixed });
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  const weaponGroups = fieldData ? Object.entries(fieldData.weapon).reduce((acc,[k,v]) => {
+    const canonical = CANONICAL_WEAPONS.find(c => c.toLowerCase()===k.toLowerCase()) || "Other";
+    if (!acc[canonical]) acc[canonical] = [];
+    acc[canonical].push({ key:k, count:v });
+    return acc;
+  }, {}) : {};
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+        <Btn onClick={scan} disabled={loading}>{loading?"Scanning...":"🔍 Scan for duplicates"}</Btn>
+        {fieldData && Object.keys(overrides).length>0 && (
+          <Btn onClick={applyMerge} disabled={merging} variant="green">
+            {merging?"Merging...":"✅ Apply fixes"}
+          </Btn>
+        )}
+      </div>
+
+      {mergeResult && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {mergeResult.fixed} cards — reload checklist to see changes</div>}
+
+      {fieldData && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="⚔️ Weapon Variants"/>
+          <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Groups showing variants that will be merged. Add manual overrides for anything not auto-detected.</div>
+          {Object.entries(weaponGroups).map(([canonical, variants]) => {
+            const hasDup = variants.length > 1 || (variants.length===1 && variants[0].key!==canonical);
+            return (
+              <div key={canonical} style={{ marginBottom:12 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0", marginBottom:4 }}>{canonical}</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {variants.map(({key,count}) => (
+                    <div key={key} style={{ display:"flex", alignItems:"center", gap:6, background: key===canonical?"rgba(74,222,128,0.08)":"rgba(251,191,36,0.08)", border:`1px solid ${key===canonical?"rgba(74,222,128,0.2)":"rgba(251,191,36,0.3)"}`, borderRadius:7, padding:"4px 10px" }}>
+                      <span style={{ fontSize:12, color:key===canonical?"#4ade80":"#FBBF24", fontWeight:700 }}>{key}</span>
+                      <span style={{ fontSize:10, color:"#555" }}>{count}</span>
+                      {key!==canonical && !overrides[key] && (
+                        <button onClick={()=>setOverrides(p=>({...p,[key]:canonical}))}
+                          style={{ fontSize:9, color:"#7B9CFF", background:"none", border:"none", cursor:"pointer" }}>merge→{canonical}</button>
+                      )}
+                      {overrides[key] && <span style={{ fontSize:9, color:"#4ade80" }}>→{overrides[key]}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Manual weapon override */}
+          <div style={{ marginTop:14, paddingTop:12, borderTop:"1px solid #1a1a1a" }}>
+            <div style={{ fontSize:11, color:"#555", marginBottom:8 }}>Add custom merge (e.g. "FIRE" → "Fire"):</div>
+            <WeaponMergeInput overrides={overrides} setOverrides={setOverrides}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeaponMergeInput({ overrides, setOverrides }) {
+  const [from, setFrom] = useState("");
+  const [to,   setTo]   = useState("");
+  function add() { if(from.trim()&&to.trim()) { setOverrides(p=>({...p,[from.trim()]:to.trim()})); setFrom(""); setTo(""); }}
+  return (
+    <div style={{ display:"flex", gap:8 }}>
+      <input value={from} onChange={e=>setFrom(e.target.value)} placeholder="From (e.g. GLOW)" style={{ ...S.inp, flex:1, fontSize:11 }}/>
+      <span style={{ color:"#555", alignSelf:"center" }}>→</span>
+      <input value={to} onChange={e=>setTo(e.target.value)} placeholder="To (e.g. Glow)" style={{ ...S.inp, flex:1, fontSize:11 }} onKeyDown={e=>e.key==="Enter"&&add()}/>
+      <Btn onClick={add} disabled={!from.trim()||!to.trim()}>Add</Btn>
+    </div>
+  );
+}
+
 // ── MANUAL OVERRIDE EDITOR ───────────────────────────────────────────────────
 function ManualOverrideEditor({ overrides, setOverrides }) {
   const [newFile,    setNewFile]    = useState("");
@@ -15575,7 +15705,7 @@ function TreatmentChecker() {
 // ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
-  const [mode,      setMode]      = useState("data");   // "data" | "images"
+  const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup"
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
   const [folderMappings,  setFolderMappings]  = useState({});
@@ -15851,7 +15981,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data (JSON)"],["images","🖼 Import Images (folders)"]].map(([m,l])=>(
+        {[["data","📄 Import Data (JSON)"],["images","🖼 Import Images (folders)"],["cleanup","🧹 Cleanup Data"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -16000,6 +16130,9 @@ function CardSetImporter({ userRole }) {
           <div style={{ fontSize:12, color:"#555" }}>{progress.done.toLocaleString()} / {progress.total.toLocaleString()} ({pct}%)</div>
         </div>
       )}
+
+      {/* Cleanup mode */}
+      {mode==="cleanup" && <DataCleanup/>}
 
       {/* Results */}
       {results && (
