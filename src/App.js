@@ -15681,6 +15681,62 @@ function GenerateMissing8s() {
   );
 }
 
+function PrefixTreatmentFixer() {
+  const [prefix,    setPrefix]    = useState("BG");
+  const [treatment, setTreatment] = useState("Bubble Gum Battlefoil");
+  const [running,   setRunning]   = useState(false);
+  const [result,    setResult]    = useState(null);
+
+  const COMMON_TREATMENTS = [
+    "Base","Battlefoil","Bubble Gum Battlefoil","Pink Battlefoil","Green Battlefoil",
+    "Orange Battlefoil","Blue Battlefoil","Red Battlefoil","Silver Battlefoil",
+    "Alpha Battlefoil","Scoreboard Battlefoil","Helmets Battlefoil",
+    "80's 8-Bit Rad Battlefoil","Sore Thumb Battlefoil","Tecmo News Battlefoil",
+    "Gold Coin Flip Battlefoil","Silver Coin Flip Battlefoil","Blow on it Battlefoil",
+    "Skyline Battlefoil","Endzone Battlefoil","Big Pixel Battlefoil","Rage Quit Battlefoil",
+    "Helmet Icon Battlefoil","Logofoil","Superfoil","Inspired Ink Battlefoil",
+    "Inspired Ink Metallic Battlefoil","Inspired Ink Superfoil","Bonus Plays","Paper Plays",
+    "Halftime Alt Art","8-Bit Alt Art","Pixel Helmet Alt","Hot Dog",
+  ];
+
+  async function run() {
+    if (!prefix.trim()||!treatment.trim()) return;
+    const p = prefix.trim().toUpperCase();
+    if (!window.confirm(`Set treatment = "${treatment}" for all cards where cardNum starts with "${p}"?`)) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const toFix = snap.docs.filter(d => String(d.data().cardNum||"").toUpperCase().startsWith(p));
+    const CHUNK = 400;
+    let fixed = 0;
+    for (let i=0; i<toFix.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toFix.slice(i,i+CHUNK).forEach(d => batch.set(doc(db,"boba_checklist",d.id), { treatment }, {merge:true}));
+      await batch.commit();
+      fixed += Math.min(CHUNK, toFix.length-i);
+    }
+    setRunning(false); setResult({ fixed, prefix:p, treatment });
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"120px 1fr auto", gap:8, alignItems:"center" }}>
+        <input value={prefix} onChange={e=>setPrefix(e.target.value)} placeholder="Prefix (e.g. BG)"
+          style={{ ...S.inp, fontSize:13, fontWeight:700, textTransform:"uppercase" }}/>
+        <select value={treatment} onChange={e=>setTreatment(e.target.value)}
+          style={{ ...S.inp, cursor:"pointer", color:treatment?"#F0F0F0":"#555" }}>
+          <option value="">— Select treatment —</option>
+          {COMMON_TREATMENTS.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        <Btn onClick={run} disabled={!prefix.trim()||!treatment.trim()||running} variant="green">
+          {running?"Fixing...":"Fix"}
+        </Btn>
+      </div>
+      {result && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {result.fixed} cards starting with "{result.prefix}" → "{result.treatment}"</div>}
+    </div>
+  );
+}
+
 function PlaysFixButton() {
   const [running, setRunning] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -15850,6 +15906,13 @@ function DataCleanup() {
           Sets treatment to <strong style={{color:"#C084FC"}}>Bonus Plays</strong> for BPL cards, and <strong style={{color:"#AAAAAA"}}>Paper Plays</strong> for PL cards.
         </div>
         <PlaysFixButton/>
+      </div>
+
+      {/* Prefix → Treatment fixer */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🔧 Fix cardNum Prefix → Treatment"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Bulk-update treatment for cards whose cardNum starts with a specific prefix.</div>
+        <PrefixTreatmentFixer/>
       </div>
 
       {/* Bulk delete */}
@@ -17708,9 +17771,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     return true;
   }).sort((a,b) => {
     if(sortBy==="cardNum") {
-      const na = parseFloat(a.cardNum), nb = parseFloat(b.cardNum);
-      if(!isNaN(na)&&!isNaN(nb)) return na-nb;
-      return String(a.cardNum).localeCompare(String(b.cardNum));
+      return String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true, sensitivity:"base" });
     }
     if(sortBy==="power_desc") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
     if(sortBy==="power_asc")  return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
