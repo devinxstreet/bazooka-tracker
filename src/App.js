@@ -15535,6 +15535,7 @@ function CardSetImporter({ userRole }) {
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
   const [folderMappings, setFolderMappings] = useState({}); // { folderName: treatmentValue }
+  const [folderHeroes,   setFolderHeroes]   = useState({}); // { folderName: heroName }
   const [importing, setImporting] = useState(false);
   const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
@@ -15699,11 +15700,34 @@ function CardSetImporter({ userRole }) {
       const numAltPrefix = numStripped ? "r" + numStripped : "";
       const manualTreatment = folderMappings[item.folder];
 
+
       let card;
       if (manualTreatment) {
-        // Only search within the specified treatment — never bleed into other treatments
         const treatLookup = byTreatment[manualTreatment.toLowerCase()] || {};
-        const matches = treatLookup[numKey] || treatLookup[numStripped] || treatLookup[numAltPrefix] || [];
+        let matches = treatLookup[numKey] || treatLookup[numStripped] || treatLookup[numAltPrefix] || [];
+
+        // Fallback: match by trailing number + hero name from folder name
+        // e.g. "(BJA) - Bo Jackson (12)/BJA2" → hero "Bo Jackson", number "2" → find boja2
+        if (!matches.length && numStripped) {
+          const heroMatch = item.folder.match(/[-–]\s*([A-Za-z .\']+?)\s*\(/);
+          const heroName = heroMatch ? heroMatch[1].trim().toLowerCase() : "";
+          const allTreatCards = Object.values(treatLookup).flat();
+          if (heroName) {
+            matches = allTreatCards.filter(c => {
+              const cn = String(c.cardNum||"").toLowerCase().replace(/-/g,"");
+              const nameOk = (c.hero||"").toLowerCase().includes(heroName.split(" ")[0]) ||
+                             (c.inspiredBy||"").toLowerCase().includes(heroName.split(" ").pop());
+              return cn.endsWith(numStripped) && nameOk;
+            });
+          }
+          // Last resort: just match by trailing number within treatment
+          if (!matches.length) {
+            matches = allTreatCards.filter(c => {
+              const cn = String(c.cardNum||"").toLowerCase().replace(/-/g,"");
+              return cn.endsWith(numStripped) && cn.length <= numStripped.length + 4;
+            });
+          }
+        }
         card = matches[0];
       } else {
         const matches = byCardNum[numKey] || byCardNum[numStripped] || byCardNum[numAltPrefix] || [];
