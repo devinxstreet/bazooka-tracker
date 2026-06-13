@@ -15619,12 +15619,22 @@ function CardSetImporter({ userRole }) {
     const snap = await getDocs(collection(db,"boba_checklist"));
     const allCards = snap.docs.map(d=>({fsId:d.id,...d.data()}));
 
-    // Build a fast lookup: cardNum → cards
+    // Build a fast lookup: cardNum → cards (all cards)
     const byCardNum = {};
     allCards.forEach(c => {
-      const key = String(c.cardNum||"").toLowerCase();
+      const key = String(c.cardNum||"").toLowerCase().replace(/-/g,"");
       if (!byCardNum[key]) byCardNum[key] = [];
       byCardNum[key].push(c);
+    });
+
+    // Also build per-treatment lookup for when treatment is manually assigned
+    const byTreatment = {};
+    allCards.forEach(c => {
+      const t = (c.treatment||"").toLowerCase();
+      if (!byTreatment[t]) byTreatment[t] = {};
+      const key = String(c.cardNum||"").toLowerCase().replace(/-/g,"");
+      if (!byTreatment[t][key]) byTreatment[t][key] = [];
+      byTreatment[t][key].push(c);
     });
 
     setProgress({ done:0, total:imgFiles.length, label:`Uploading ${imgFiles.length} images (20 at a time)...` });
@@ -15645,29 +15655,18 @@ function CardSetImporter({ userRole }) {
     }
 
     async function uploadOne(item) {
-      const numKey = String(item.cardNum).toLowerCase();
+      const numKey = String(item.cardNum).toLowerCase().replace(/-/g,"");
+      const numStripped = numKey.replace(/^[a-z]+/,"");
       const manualTreatment = folderMappings[item.folder];
 
-      // When treatment is manually assigned, ONLY match by exact cardNum — never strip prefix
-      // This prevents Rad images matching Base cards
-      let matches;
-      if (manualTreatment) {
-        matches = byCardNum[numKey] || [];
-        // If no exact match, try stripped prefix only if matches is empty
-        if (!matches.length) {
-          const numStripped = numKey.replace(/^[a-z]+/,"");
-          const stripped = byCardNum[numStripped] || [];
-          // Only use stripped matches if they have the right treatment
-          matches = stripped.filter(c => (c.treatment||"").toLowerCase() === manualTreatment.toLowerCase());
-        }
-      } else {
-        const numStripped = numKey.replace(/^[a-z]+/,"");
-        matches = byCardNum[numKey] || byCardNum[numStripped] || [];
-      }
       let card;
       if (manualTreatment) {
-        card = matches.find(c => (c.treatment||"").toLowerCase() === manualTreatment.toLowerCase()) || matches[0];
+        // Only search within the specified treatment — never bleed into other treatments
+        const treatLookup = byTreatment[manualTreatment.toLowerCase()] || {};
+        const matches = treatLookup[numKey] || treatLookup[numStripped] || [];
+        card = matches[0];
       } else {
+        const matches = byCardNum[numKey] || byCardNum[numStripped] || [];
         card = matches.length === 1 ? matches[0]
           : matches.reduce((best, c2) => {
               const score = fuzzyScore(c2.treatment||"", item.folder);
