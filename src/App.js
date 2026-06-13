@@ -15552,7 +15552,7 @@ function CardSetImporter({ userRole }) {
       {mode==="images" && (
         <>
           <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>
-            <strong style={{ color:"#F0F0F0" }}>Drag all your image folders at once</strong> onto the zone below — or click to select files from multiple folders. Uploads 20 images at a time in parallel.
+            Select a folder — uploads 20 images at a time in parallel. Each folder should take under a minute.
           </div>
           <div onDragOver={e=>e.preventDefault()} onDrop={onFolderDrop}
             style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d",
@@ -15561,13 +15561,13 @@ function CardSetImporter({ userRole }) {
             onDragLeave={e=>e.currentTarget.style.borderColor="#2a2a2a"}>
             <div style={{ fontSize:28, marginBottom:10 }}>🖼</div>
             <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
-              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folders ready` : "Drag all folders here at once"}
+              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folder(s) ready` : "Click to select a folder"}
             </div>
-            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Hold Shift/Cmd to select multiple folders, or drag them all at the same time</div>
-            <input type="file" accept="image/*" multiple onChange={onFolderDrop}
+            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Filenames should match card numbers (1.png, BF1.png, etc.)</div>
+            <input type="file" accept="image/*" multiple webkitdirectory="" onChange={onFolderDrop}
               style={{ display:"none" }} id="img-input"/>
             <label htmlFor="img-input" style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-              Select Images
+              Select Folder
             </label>
           </div>
 
