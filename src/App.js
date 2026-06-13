@@ -15370,6 +15370,50 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── TREATMENT CHECKER ─────────────────────────────────────────────────────────
+function TreatmentChecker() {
+  const [loading,    setLoading]    = useState(false);
+  const [treatments, setTreatments] = useState(null);
+  const [expanded,   setExpanded]   = useState(null);
+
+  async function check() {
+    setLoading(true);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const map = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      const t = data.treatment || "(no treatment)";
+      if (!map[t]) map[t] = { count:0, samples:[] };
+      map[t].count++;
+      if (map[t].samples.length < 5) map[t].samples.push(data.cardNum || "?");
+    });
+    setTreatments(Object.entries(map).sort((a,b)=>b[1].count-a[1].count));
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <Btn variant="ghost" onClick={check} disabled={loading}>
+        {loading ? "Loading..." : "🔍 Show treatments + sample card numbers"}
+      </Btn>
+      {treatments && (
+        <div style={{ marginTop:10, background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:8, padding:"10px 14px", maxHeight:300, overflowY:"auto" }}>
+          {treatments.map(([t,{count,samples}]) => (
+            <div key={t} onClick={()=>setExpanded(expanded===t?null:t)}
+              style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, padding:"5px 0", borderBottom:"1px solid #111", cursor:"pointer" }}>
+              <div>
+                <span style={{ color:"#AAAAAA" }}>{t}</span>
+                {expanded===t && <div style={{ color:"#7B9CFF", marginTop:3, fontSize:10 }}>Sample cardNums: {samples.join(", ")}</div>}
+              </div>
+              <span style={{ color:"#555", flexShrink:0, marginLeft:10 }}>{count} cards</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -15526,11 +15570,24 @@ function CardSetImporter({ userRole }) {
 
     async function uploadOne(item) {
       const numKey = String(item.cardNum).toLowerCase();
-      const numStripped = numKey.replace(/^[a-z]+/,"");
-      const matches = byCardNum[numKey] || byCardNum[numStripped] || [];
-
-      // Use manual mapping if set, otherwise fuzzy match
       const manualTreatment = folderMappings[item.folder];
+
+      // When treatment is manually assigned, ONLY match by exact cardNum — never strip prefix
+      // This prevents Rad images matching Base cards
+      let matches;
+      if (manualTreatment) {
+        matches = byCardNum[numKey] || [];
+        // If no exact match, try stripped prefix only if matches is empty
+        if (!matches.length) {
+          const numStripped = numKey.replace(/^[a-z]+/,"");
+          const stripped = byCardNum[numStripped] || [];
+          // Only use stripped matches if they have the right treatment
+          matches = stripped.filter(c => (c.treatment||"").toLowerCase() === manualTreatment.toLowerCase());
+        }
+      } else {
+        const numStripped = numKey.replace(/^[a-z]+/,"");
+        matches = byCardNum[numKey] || byCardNum[numStripped] || [];
+      }
       let card;
       if (manualTreatment) {
         card = matches.find(c => (c.treatment||"").toLowerCase() === manualTreatment.toLowerCase()) || matches[0];
@@ -15656,7 +15713,10 @@ function CardSetImporter({ userRole }) {
                 <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
                   Map each folder to the correct treatment. Auto-detect leaves it to fuzzy matching.
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:8 }}>Not sure what treatment name to pick? Check what's actually in Firestore:</div>
+                  <TreatmentChecker/>
+                </div>
                   {folders.map(folder => {
                     const count = imgFiles.filter(f=>f.folder===folder).length;
                     return (
@@ -15670,7 +15730,7 @@ function CardSetImporter({ userRole }) {
                           <option value="">— Auto-detect —</option>
                           {COMMON_TREATMENTS.map(t=><option key={t} value={t}>{t}</option>)}
                         </select>
-                        <div style={{ fontSize:16 }}>{folderMappings[folder] ? "✅" : "⚡"}</div>
+                        <div style={{ fontSize:10, color:"#555", textAlign:"right" }}>{folderMappings[folder] ? "✅ mapped" : "⚡ auto"}</div>
                       </div>
                     );
                   })}
