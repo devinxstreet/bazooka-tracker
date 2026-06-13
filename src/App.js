@@ -18692,7 +18692,42 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       {viewMode === "setlist" && !loading && <SetListView cards={cards} owned={owned} toggleOwned={toggleOwned} activeSet={activeSet} setActiveSet={setActiveSet} expandedHero={expandedHeroNotes} setExpandedHero={setExpandedHeroNotes} />}
 
             {viewMode === "cards" && (loading ? (
-        <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>Loading checklist...</div>
+        <div>
+          <style>{`
+            @keyframes skeletonShimmer {
+              0% { background-position: -400px 0; }
+              100% { background-position: 400px 0; }
+            }
+            .skeleton-card {
+              background: linear-gradient(90deg, #111 25%, #1a1a1a 50%, #111 75%);
+              background-size: 800px 100%;
+              animation: skeletonShimmer 1.4s infinite linear;
+              border-radius: 12px;
+            }
+          `}</style>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
+            {Array.from({length:24}).map((_,i) => (
+              <div key={i} className="skeleton-card" style={{ border:"1px solid #1a1a1a", borderRadius:12, overflow:"hidden", opacity: 1 - (i * 0.025) }}>
+                {/* Card image placeholder */}
+                <div style={{ width:"100%", paddingTop:"140%", background:"#0d0d0d", position:"relative" }}>
+                  <div className="skeleton-card" style={{ position:"absolute", inset:0 }}/>
+                </div>
+                {/* Card info placeholders */}
+                <div style={{ padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+                  <div className="skeleton-card" style={{ height:12, borderRadius:6, width:"70%" }}/>
+                  <div className="skeleton-card" style={{ height:10, borderRadius:6, width:"45%" }}/>
+                  <div style={{ display:"flex", gap:4, marginTop:2 }}>
+                    <div className="skeleton-card" style={{ height:18, borderRadius:10, width:42 }}/>
+                    <div className="skeleton-card" style={{ height:18, borderRadius:10, width:36 }}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ textAlign:"center", padding:"24px 0", fontSize:12, color:"#444" }}>
+            Loading cards...
+          </div>
+        </div>
       ) : cards.length === 0 ? (
         <div style={{ ...S.card, textAlign:"center", color:"#555", padding:40 }}>No cards loaded yet. Import a CSV to get started.</div>
       ) : (() => {
@@ -20780,7 +20815,17 @@ function PublicCardDatabase() {
         }
       }
     } catch(e) {}
-    // 2. Fetch single CDN JSON from Firebase Storage (fast global edge)
+    // 2. Static file from Vercel CDN (fastest)
+    try {
+      const r = await fetch("/cards-data.json");
+      if (r.ok) {
+        const all = await r.json();
+        setCards(all); setLoading(false);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+        return;
+      }
+    } catch(e) {}
+    // 3. Firebase Storage CDN
     getDownloadURL(ref(storage, "card_data/boba_checklist.json"))
       .then(url => fetch(url))
       .then(r => r.json())
@@ -24611,7 +24656,17 @@ export default function App() {
           if (cc?.length > 0) setBobaCards(cc); // stale but show something
         }
       } catch(e) {}
-      // 2. CDN JSON from Firebase Storage (fast global edge)
+      // 2. Static file from Vercel CDN (fastest — no auth, pure edge)
+      try {
+        const r = await fetch("/cards-data.json");
+        if (r.ok) {
+          const cards = await r.json();
+          setBobaCards(cards);
+          try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({ cards, ts: Date.now() })); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      // 3. CDN JSON from Firebase Storage
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
         const r = await fetch(url);
