@@ -15435,16 +15435,45 @@ function CardSetImporter({ userRole }) {
   // ── Image import ─────────────────────────────────────────────────────────
   function onFolderDrop(e) {
     e.preventDefault();
-    const raw = [...(e.dataTransfer?.files || e.target.files)];
-    const pngs = raw.filter(f=>f.name.toLowerCase().endsWith(".png")||f.name.toLowerCase().endsWith(".jpg")||f.name.toLowerCase().endsWith(".jpeg")||f.name.toLowerCase().endsWith(".webp"));
-    // Extract folder from webkitRelativePath: "FolderName/file.png"
-    const parsed = pngs.map(f => {
-      const parts = (f.webkitRelativePath||f.name).split("/");
-      const folder  = parts.length>1 ? parts[parts.length-2] : "Unknown";
-      const cardNum = parts[parts.length-1].replace(/\.[^.]+$/,""); // strip extension
-      return { file:f, folder, cardNum };
+    e.currentTarget && (e.currentTarget.style.borderColor = "#2a2a2a");
+    const items = [...(e.dataTransfer?.items || [])];
+    if (!items.length) return;
+    setResults(null); setErrors([]);
+
+    const allFiles = [];
+    let pending = 0;
+
+    function readEntry(entry, folderName) {
+      if (entry.isFile) {
+        pending++;
+        entry.file(file => {
+          const name = file.name.toLowerCase();
+          if (name.endsWith(".png")||name.endsWith(".jpg")||name.endsWith(".jpeg")||name.endsWith(".webp")) {
+            const cardNum = file.name.replace(/\.[^.]+$/,"");
+            allFiles.push({ file, folder: folderName, cardNum });
+          }
+          pending--;
+          if (pending === 0) setImgFiles([...allFiles]);
+        });
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        function readBatch() {
+          pending++;
+          reader.readEntries(entries => {
+            pending--;
+            if (entries.length === 0) { if (pending===0) setImgFiles([...allFiles]); return; }
+            entries.forEach(child => readEntry(child, entry.name));
+            readBatch(); // keep reading until exhausted
+          });
+        }
+        readBatch();
+      }
+    }
+
+    items.forEach(item => {
+      const entry = item.webkitGetAsEntry?.();
+      if (entry) readEntry(entry, entry.name);
     });
-    setImgFiles(parsed); setResults(null); setErrors([]);
   }
 
   async function runImageImport() {
@@ -15551,24 +15580,24 @@ function CardSetImporter({ userRole }) {
       {/* ── Image import ── */}
       {mode==="images" && (
         <>
-          <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>
-            Select a folder — uploads 20 images at a time in parallel. Each folder should take under a minute.
+          <div style={{ fontSize:12, color:"#555", lineHeight:1.8 }}>
+            In Finder, <strong style={{ color:"#F0F0F0" }}>select all your image folders</strong> at once (Cmd+A or Cmd+click each one), then <strong style={{ color:"#E8317A" }}>drag them all onto the box below</strong>. All folders load in one go. Uploads 20 at a time.
           </div>
-          <div onDragOver={e=>e.preventDefault()} onDrop={onFolderDrop}
-            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d",
-              transition:"border-color 0.2s" }}
-            onDragEnter={e=>e.currentTarget.style.borderColor="#E8317A"}
-            onDragLeave={e=>e.currentTarget.style.borderColor="#2a2a2a"}>
-            <div style={{ fontSize:28, marginBottom:10 }}>🖼</div>
-            <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
-              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folder(s) ready` : "Click to select a folder"}
+          <div onDragOver={e=>{ e.preventDefault(); e.currentTarget.style.borderColor="#E8317A"; e.currentTarget.style.background="rgba(232,49,122,0.05)"; }}
+               onDragLeave={e=>{ e.currentTarget.style.borderColor="#2a2a2a"; e.currentTarget.style.background="#0d0d0d"; }}
+               onDrop={e=>{ e.currentTarget.style.borderColor="#2a2a2a"; e.currentTarget.style.background="#0d0d0d"; onFolderDrop(e); }}
+            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"60px 24px", textAlign:"center", background:"#0d0d0d", transition:"all 0.2s", cursor:"default" }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>📂</div>
+            <div style={{ fontSize:15, fontWeight:800, color:"#F0F0F0", marginBottom:6 }}>
+              {imgFiles.length>0
+                ? <span style={{ color:"#4ade80" }}>✓ {imgFiles.length} images from {[...new Set(imgFiles.map(f=>f.folder))].length} folders ready</span>
+                : "Drag your folders here"}
             </div>
-            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Filenames should match card numbers (1.png, BF1.png, etc.)</div>
-            <input type="file" accept="image/*" multiple webkitdirectory="" onChange={onFolderDrop}
-              style={{ display:"none" }} id="img-input"/>
-            <label htmlFor="img-input" style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-              Select Folder
-            </label>
+            <div style={{ fontSize:12, color:"#555" }}>
+              {imgFiles.length>0
+                ? `Folders: ${[...new Set(imgFiles.map(f=>f.folder))].slice(0,5).join(", ")}${[...new Set(imgFiles.map(f=>f.folder))].length>5?" ...":""}`
+                : "Select all folders in Finder → drag onto this box"}
+            </div>
           </div>
 
           {imgFiles.length>0 && (() => {
