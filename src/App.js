@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
@@ -15356,6 +15356,152 @@ function CompanyDirectory({ userRole }) {
   );
 }
 
+// ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
+function CardSetImporter({ userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [files,     setFiles]     = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [progress,  setProgress]  = useState(null); // { done, total, label }
+  const [results,   setResults]   = useState(null);
+  const [errors,    setErrors]    = useState([]);
+
+  if (!isAdmin) return (
+    <div style={{ padding:40, textAlign:"center", color:"#555" }}>Admin access required.</div>
+  );
+
+  function onFileDrop(e) {
+    e.preventDefault();
+    const dropped = [...(e.dataTransfer?.files || e.target.files)].filter(f=>f.name.endsWith(".json"));
+    setFiles(dropped); setResults(null); setErrors([]);
+  }
+
+  async function runImport() {
+    if (!files.length) return;
+    setImporting(true); setResults(null); setErrors([]);
+    let totalWritten = 0, totalSkipped = 0;
+    const errs = [];
+
+    for (const file of files) {
+      setProgress({ done:0, total:0, label:`Reading ${file.name}...` });
+      let cards;
+      try {
+        const text = await file.text();
+        cards = JSON.parse(text);
+        if (!Array.isArray(cards)) throw new Error("Expected a JSON array");
+      } catch(e) {
+        errs.push(`${file.name}: ${e.message}`);
+        continue;
+      }
+
+      const CHUNK = 400; // Firestore batch limit is 500
+      setProgress({ done:0, total:cards.length, label:`Importing ${file.name} (${cards.length} cards)...` });
+
+      for (let i = 0; i < cards.length; i += CHUNK) {
+        const chunk = cards.slice(i, i + CHUNK);
+        try {
+          const batch = writeBatch(db);
+          chunk.forEach(card => {
+            if (!card.id) {
+              // Generate ID from setName+cardNum+hero+treatment
+              const key = `${card.setName||""}${card.cardNum||""}${card.hero||""}${card.treatment||""}`;
+              card.id = key.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20) + "_" + Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+            }
+            const ref = doc(db, "boba_checklist", card.id);
+            batch.set(ref, { ...card }, { merge:true });
+          });
+          await batch.commit();
+          totalWritten += chunk.length;
+        } catch(e) {
+          errs.push(`${file.name} chunk ${Math.floor(i/CHUNK)+1}: ${e.message}`);
+          totalSkipped += chunk.length;
+        }
+        setProgress({ done: Math.min(i + CHUNK, cards.length), total:cards.length, label:`Importing ${file.name}...` });
+        // Small delay to avoid hammering Firestore
+        await new Promise(r=>setTimeout(r,80));
+      }
+    }
+
+    setImporting(false);
+    setProgress(null);
+    setErrors(errs);
+    setResults({ written:totalWritten, skipped:totalSkipped, files:files.length });
+    // Clear cache so dashboard reloads fresh cards
+    try { localStorage.removeItem("boba_checklist_cache"); } catch {}
+  }
+
+  const pct = progress && progress.total > 0 ? Math.round(progress.done/progress.total*100) : 0;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, padding:20 }}>
+      <div style={{ fontSize:18, fontWeight:900, color:"#F0F0F0" }}>⬆️ Import Card Set</div>
+      <div style={{ fontSize:12, color:"#555" }}>Upload one or more JSON files exported from the card parser. Each file imports into the <code style={{ color:"#7B9CFF" }}>boba_checklist</code> collection.</div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e=>e.preventDefault()}
+        onDrop={onFileDrop}
+        style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"48px 24px", textAlign:"center", background:"#0d0d0d", cursor:"pointer", transition:"border-color 0.2s" }}
+        onDragEnter={e=>e.currentTarget.style.borderColor="#E8317A"}
+        onDragLeave={e=>e.currentTarget.style.borderColor="#2a2a2a"}>
+        <div style={{ fontSize:32, marginBottom:12 }}>📂</div>
+        <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
+          {files.length > 0 ? `${files.length} file${files.length!==1?"s":""} ready` : "Drop JSON files here"}
+        </div>
+        <div style={{ fontSize:12, color:"#555", marginBottom:14 }}>or click to browse</div>
+        <input type="file" accept=".json" multiple onChange={onFileDrop}
+          style={{ display:"none" }} id="import-file-input"/>
+        <label htmlFor="import-file-input"
+          style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"8px 20px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+          Browse Files
+        </label>
+      </div>
+
+      {/* File list */}
+      {files.length > 0 && (
+        <div style={{ ...S.card }}>
+          <SectionLabel t="Files queued"/>
+          {[...files].map((f,i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #1a1a1a" }}>
+              <span style={{ fontSize:13, color:"#F0F0F0" }}>📄 {f.name}</span>
+              <span style={{ fontSize:11, color:"#555" }}>{(f.size/1024).toFixed(0)} KB</span>
+            </div>
+          ))}
+          <div style={{ marginTop:14 }}>
+            <Btn onClick={runImport} disabled={importing} variant="green">
+              {importing ? "⏳ Importing..." : `⬆️ Import ${files.length} file${files.length!==1?"s":""}`}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Progress */}
+      {importing && progress && (
+        <div style={{ ...S.card }}>
+          <div style={{ fontSize:12, color:"#AAAAAA", marginBottom:10 }}>{progress.label}</div>
+          <div style={{ background:"#1a1a1a", borderRadius:99, height:10, overflow:"hidden", marginBottom:8 }}>
+            <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B9CFF)", borderRadius:99, transition:"width 0.3s ease" }}/>
+          </div>
+          <div style={{ fontSize:12, color:"#555" }}>{progress.done.toLocaleString()} / {progress.total.toLocaleString()} cards ({pct}%)</div>
+        </div>
+      )}
+
+      {/* Results */}
+      {results && (
+        <div style={{ ...S.card, borderLeft:`3px solid ${errors.length?"#FBBF24":"#4ade80"}` }}>
+          <SectionLabel t={errors.length?"⚠️ Import Complete with Warnings":"✅ Import Complete"}/>
+          <div style={{ display:"flex", gap:20, marginBottom:12 }}>
+            <div><div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>{results.written.toLocaleString()}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Cards Written</div></div>
+            {results.skipped>0 && <div><div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>{results.skipped.toLocaleString()}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Skipped</div></div>}
+            <div><div style={{ fontSize:22, fontWeight:900, color:"#7B9CFF" }}>{results.files}</div><div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:1 }}>Files</div></div>
+          </div>
+          <div style={{ fontSize:12, color:"#555" }}>Refresh the BoBA Checklist tab to see the new cards.</div>
+          {errors.map((e,i)=><div key={i} style={{ fontSize:11, color:"#EF4444", marginTop:4 }}>⚠ {e}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onChecklistUpdated }) {
   const ownedDocId = user?.uid || "owned";
   const wantsDocId = user?.uid ? `wants_${user.uid}` : "wants";
@@ -24737,6 +24883,7 @@ export default function App() {
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","Streamer","StreamerLite"] },
     { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Streamer","Viewer"] },
     { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin","Streamer"] },
+    { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
@@ -25018,6 +25165,7 @@ export default function App() {
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
         {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
         {tab==="directory"  && <CompanyDirectory userRole={effectiveRole}/>}
+        {tab==="importer"   && <CardSetImporter userRole={effectiveRole}/>}
       </div>
     </div>
   );
