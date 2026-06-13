@@ -15537,7 +15537,8 @@ function CardSetImporter({ userRole }) {
       if (!card) { errs.push(`No match: ${item.folder}/${item.cardNum}`); skipped++; return; }
 
       try {
-        const storagePath = `boba_cards/tecmo/${item.folder}/${item.cardNum}.png`;
+        const safeFolderName = item.folder.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+        const storagePath = `boba_cards/tecmo/${safeFolderName}/${item.cardNum}.png`;
         const storageRef2 = ref(storage, storagePath);
         await uploadBytes(storageRef2, item.file);
         const url = await getDownloadURL(storageRef2);
