@@ -15695,16 +15695,18 @@ function CardSetImporter({ userRole }) {
     async function uploadOne(item) {
       const numKey = String(item.cardNum).toLowerCase().replace(/-/g,"");
       const numStripped = numKey.replace(/^[a-z]+/,"");
+      // Handle RD→R mismatch: RD528 strips to 528, but Firestore may have R528
+      const numAltPrefix = numStripped ? "r" + numStripped : "";
       const manualTreatment = folderMappings[item.folder];
 
       let card;
       if (manualTreatment) {
         // Only search within the specified treatment — never bleed into other treatments
         const treatLookup = byTreatment[manualTreatment.toLowerCase()] || {};
-        const matches = treatLookup[numKey] || treatLookup[numStripped] || [];
+        const matches = treatLookup[numKey] || treatLookup[numStripped] || treatLookup[numAltPrefix] || [];
         card = matches[0];
       } else {
-        const matches = byCardNum[numKey] || byCardNum[numStripped] || [];
+        const matches = byCardNum[numKey] || byCardNum[numStripped] || byCardNum[numAltPrefix] || [];
         card = matches.length === 1 ? matches[0]
           : matches.reduce((best, c2) => {
               const score = fuzzyScore(c2.treatment||"", item.folder);
