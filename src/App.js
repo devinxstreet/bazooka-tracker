@@ -15403,7 +15403,9 @@ function CardSetImporter({ userRole }) {
               const key = `${card.setName||""}${card.cardNum||""}${card.hero||""}${card.treatment||""}`;
               card.id = key.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20)+"_"+Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
             }
-            batch.set(doc(db,"boba_checklist",card.id), {...card}, {merge:true});
+            // Never overwrite imageUrl or mktValue — preserve existing data
+            const { imageUrl, mktValue, ...cardData } = card;
+            batch.set(doc(db,"boba_checklist",card.id), cardData, {merge:true});
           });
           await batch.commit();
           totalWritten += chunk.length;
@@ -15451,55 +15453,60 @@ function CardSetImporter({ userRole }) {
     const errs = [];
     let written = 0, skipped = 0;
 
-    // Build a lookup: cardNum → array of Firestore docs
     setProgress({ done:0, total:imgFiles.length, label:"Loading card index from Firestore..." });
     const snap = await getDocs(collection(db,"boba_checklist"));
     const allCards = snap.docs.map(d=>({fsId:d.id,...d.data()}));
 
-    // Group by folder name — normalize folder to match treatment
-    const folderGroups = {};
-    imgFiles.forEach(item => {
-      if (!folderGroups[item.folder]) folderGroups[item.folder] = [];
-      folderGroups[item.folder].push(item);
+    // Build a fast lookup: cardNum → cards
+    const byCardNum = {};
+    allCards.forEach(c => {
+      const key = String(c.cardNum||"").toLowerCase();
+      if (!byCardNum[key]) byCardNum[key] = [];
+      byCardNum[key].push(c);
     });
 
+    setProgress({ done:0, total:imgFiles.length, label:`Uploading ${imgFiles.length} images (20 at a time)...` });
+
+    // Process in parallel batches of 20
+    const PARALLEL = 20;
     let done = 0;
-    for (const [folder, items] of Object.entries(folderGroups)) {
-      setProgress({ done, total:imgFiles.length, label:`Uploading ${folder} (${items.length} images)...` });
 
-      for (const item of items) {
-        // Match card: cardNum must match AND treatment/folder should loosely match
-        const matches = allCards.filter(c =>
-          String(c.cardNum).toLowerCase() === String(item.cardNum).toLowerCase()
-        );
+    async function uploadOne(item) {
+      const numKey = String(item.cardNum).toLowerCase();
+      const matches = byCardNum[numKey] || [];
+      let card = matches.length === 1 ? matches[0]
+        : matches.find(c => {
+            const t = (c.treatment||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+            const fn = item.folder.toLowerCase().replace(/[^a-z0-9]/g,"");
+            return t.includes(fn) || fn.includes(t);
+          }) || matches[0];
 
-        let card = matches.length === 1 ? matches[0]
-          : matches.find(c => {
-              const t = (c.treatment||"").toLowerCase();
-              const fn = folder.toLowerCase().replace(/[^a-z0-9]/g,"");
-              return t.replace(/[^a-z0-9]/g,"").includes(fn) || fn.includes(t.replace(/[^a-z0-9]/g,""));
-            }) || matches[0];
+      if (!card) { errs.push(`No match: ${item.folder}/${item.cardNum}`); skipped++; return; }
 
-        if (!card) { errs.push(`No match: ${folder}/${item.cardNum}`); skipped++; done++; continue; }
-
-        try {
-          const storagePath = `boba_cards/tecmo/${folder}/${item.cardNum}.png`;
-          const storageRef2 = ref(storage, storagePath);
-          await uploadBytes(storageRef2, item.file);
-          const url = await getDownloadURL(storageRef2);
-          await setDoc(doc(db,"boba_checklist",card.fsId), { imageUrl:url }, {merge:true});
-          written++;
-        } catch(e) { errs.push(`${folder}/${item.cardNum}: ${e.message}`); skipped++; }
-
-        done++;
-        if (done % 20 === 0) setProgress({ done, total:imgFiles.length, label:`Uploading ${folder}...` });
-        await new Promise(r=>setTimeout(r,30));
+      try {
+        const storagePath = `boba_cards/tecmo/${item.folder}/${item.cardNum}.png`;
+        const storageRef2 = ref(storage, storagePath);
+        await uploadBytes(storageRef2, item.file);
+        const url = await getDownloadURL(storageRef2);
+        await setDoc(doc(db,"boba_checklist",card.fsId), { imageUrl:url }, {merge:true});
+        written++;
+      } catch(e) {
+        errs.push(`${item.folder}/${item.cardNum}: ${e.message}`);
+        skipped++;
       }
     }
 
+    for (let i = 0; i < imgFiles.length; i += PARALLEL) {
+      const batch2 = imgFiles.slice(i, i + PARALLEL);
+      await Promise.all(batch2.map(uploadOne));
+      done = Math.min(i + PARALLEL, imgFiles.length);
+      const folder = batch2[0]?.folder || "";
+      setProgress({ done, total:imgFiles.length, label:`Uploading... ${folder} (${done}/${imgFiles.length})` });
+    }
+
     setImporting(false); setProgress(null); setErrors(errs);
-    setResults({ written, skipped, files: Object.keys(folderGroups).length });
-    try { localStorage.removeItem("boba_checklist_cache"); } catch {}
+    setResults({ written, skipped, files: [...new Set(imgFiles.map(f=>f.folder))].length });
+    try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
   }
 
   const pct = progress?.total > 0 ? Math.round(progress.done/progress.total*100) : 0;
@@ -15545,19 +15552,22 @@ function CardSetImporter({ userRole }) {
       {mode==="images" && (
         <>
           <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>
-            Select your <strong style={{ color:"#F0F0F0" }}>image folders</strong> — each folder name should match the insert type (e.g. <code style={{ color:"#7B9CFF" }}>Base</code>, <code style={{ color:"#7B9CFF" }}>Battlefoils</code>, <code style={{ color:"#7B9CFF" }}>Pink Battlefoil</code>). Filenames should be the card number (<code style={{ color:"#7B9CFF" }}>1.png</code>, <code style={{ color:"#7B9CFF" }}>BF1.png</code>).
+            <strong style={{ color:"#F0F0F0" }}>Drag all your image folders at once</strong> onto the zone below — or click to select files from multiple folders. Uploads 20 images at a time in parallel.
           </div>
           <div onDragOver={e=>e.preventDefault()} onDrop={onFolderDrop}
-            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d" }}>
+            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"#0d0d0d",
+              transition:"border-color 0.2s" }}
+            onDragEnter={e=>e.currentTarget.style.borderColor="#E8317A"}
+            onDragLeave={e=>e.currentTarget.style.borderColor="#2a2a2a"}>
             <div style={{ fontSize:28, marginBottom:10 }}>🖼</div>
             <div style={{ fontSize:14, fontWeight:700, color:"#F0F0F0", marginBottom:6 }}>
-              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folders` : "Select image folders"}
+              {imgFiles.length>0 ? `${imgFiles.length} images from ${[...new Set(imgFiles.map(f=>f.folder))].length} folders ready` : "Drag all folders here at once"}
             </div>
-            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Use the button below to select multiple folders</div>
+            <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Hold Shift/Cmd to select multiple folders, or drag them all at the same time</div>
             <input type="file" accept="image/*" multiple onChange={onFolderDrop}
-              style={{ display:"none" }} id="img-input" webkitdirectory="" mozdirectory="" directory=""/>
+              style={{ display:"none" }} id="img-input"/>
             <label htmlFor="img-input" style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#888", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-              Select Folders
+              Select Images
             </label>
           </div>
 
