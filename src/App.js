@@ -13983,6 +13983,7 @@ function PublicDeckBuilder() {
   const [deckFilterPowers, setDeckFilterPowers] = useState(new Set());
   const [deckFilterSet,    setDeckFilterSet]    = useState("");
   const [deckFilterTreat,  setDeckFilterTreat]  = useState("");
+  const [deckFilterSku,    setDeckFilterSku]    = useState("");
   const [deckSlotSort, setDeckSlotSort] = useState("added");
 
   useEffect(() => {
@@ -21969,6 +21970,7 @@ function PackRipSimulator({ cards, user }) {
   );
 }
 
+// ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState([]);
@@ -23116,6 +23118,7 @@ function PublicCardDatabase() {
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
             {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
+            {tabBtn("1of1","💎 1/1s",0)}
             {tabBtn("simulator","\uD83C\uDFAF Pack Rip",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
@@ -23178,6 +23181,187 @@ function PublicCardDatabase() {
 
         {/* PACK RIP SIMULATOR TAB */}
         {activeTab==="simulator" && <PackRipSimulator cards={cards} user={user} />}
+
+        {/* PACK RIP SIMULATOR TAB */}
+        {activeTab==="simulator" && <PackRipSimulator cards={cards} user={user} />}
+
+        {/* 1/1 TAB — reuse same logic as internal checklist */}
+        {activeTab==="1of1" && (() => {
+          const secret1of1Cards = cards.filter(c => c.notation === "Secret 1/1");
+          const sets1of1 = [...new Set(secret1of1Cards.map(c=>c.setName).filter(Boolean))].sort();
+          const claimMap1 = {};
+          oneOfOneClaims.forEach(cl => { claimMap1[cl.cardId] = cl; });
+          const totalCount    = secret1of1Cards.length;
+          const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified").length;
+          const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
+          const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
+
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:16, paddingBottom:40 }}>
+              {/* Claim modal */}
+              {oneModal && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+                  onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}}>
+                  <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+                    {oneSent ? (
+                      <div style={{ textAlign:"center", padding:"20px 0" }}>
+                        <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
+                        <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
+                        <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Pending admin verification. Congrats on the hit!</div>
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}
+                          style={{ background:"#9333EA", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>💎 Claim Secret 1/1</div>
+                        <div style={{ fontSize:13, color:"#888", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
+                        <label style={{ display:"block", marginBottom:14 }}>
+                          <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
+                            {onePhoto ? <img src={onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/> : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div><div style={{ fontSize:13, fontWeight:700, color:"#9333EA" }}>Tap to upload photo</div></>}
+                          </div>
+                          <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                            onChange={e=>{ const f=e.target.files?.[0]; if(!f)return; const r2=new FileReader(); r2.onload=ev=>setOnePhoto(ev.target.result); r2.readAsDataURL(f); e.target.value=""; }}/>
+                        </label>
+                        <div style={{ marginBottom:14 }}>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>Date You Hit It</label>
+                          <input type="date" value={oneDate} onChange={e=>setOneDate(e.target.value)} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                        </div>
+                        <div style={{ marginBottom:14 }}>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>The Story <span style={{ color:"#555", fontWeight:400 }}>(optional)</span></label>
+                          <textarea value={oneStory} onChange={e=>setOneStory(e.target.value)} rows={4}
+                            placeholder="Cards are about creating moments of joy… tell us the story about this hit ✨"
+                            style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", resize:"vertical", lineHeight:1.6 }}/>
+                        </div>
+                        <div style={{ marginBottom:20 }}>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>Your Name <span style={{ color:"#555", fontWeight:400 }}>(leave blank to stay anonymous)</span></label>
+                          <input value={oneName} onChange={e=>setOneName(e.target.value)} placeholder="Anonymous"
+                            style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                        </div>
+                        <div style={{ display:"flex", gap:10 }}>
+                          <button onClick={async()=>{
+                            if(!onePhoto||oneSubmitting) return;
+                            setOneSubmitting(true);
+                            try {
+                              const sr=ref(storage,`oneof1_claims/${oneModal.id}_${Date.now()}.jpg`);
+                              const bs=atob(onePhoto.split(",")[1]); const ab=new ArrayBuffer(bs.length); const ia=new Uint8Array(ab); for(let i=0;i<bs.length;i++)ia[i]=bs.charCodeAt(i);
+                              await uploadBytes(sr,new Blob([ab],{type:"image/jpeg"}));
+                              const pu=await getDownloadURL(sr);
+                              await setDoc(doc(db,"oneof1_claims",oneModal.id),{ cardId:oneModal.id, cardName:oneModal.hero, cardNum:oneModal.cardNum, setName:oneModal.setName||"", treatment:oneModal.treatment||"", photoUrl:pu, story:oneStory||"", dateHit:oneDate||"", submitterName:oneName||"Anonymous", userId:user?.uid||"anon", status:"pending", createdAt:new Date().toISOString() });
+                              setOneSent(true);
+                            } catch(e){ alert("Upload failed: "+e.message); }
+                            setOneSubmitting(false);
+                          }} disabled={!onePhoto||oneSubmitting}
+                            style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                            {oneSubmitting?"Submitting...":"Submit Claim"}
+                          </button>
+                          <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); }}
+                            style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Header */}
+              <div style={{ background:"linear-gradient(135deg,#1a0a2e,#0d0d0d)", border:"1px solid rgba(147,51,234,0.2)", borderRadius:16, padding:"20px 24px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>💎 Community Secret 1/1 Hunt</div>
+                    <div style={{ fontSize:13, color:"#555" }}>{totalCount} Secret 1/1s across all sets</div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:28, fontWeight:900, color:"#9333EA" }}>{verifiedCount1}<span style={{ fontSize:14, color:"#555", fontWeight:400 }}>/{totalCount}</span></div>
+                    <div style={{ fontSize:11, color:"#555" }}>found & verified</div>
+                  </div>
+                </div>
+                <div style={{ height:10, background:"#1a1a1a", borderRadius:5, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${totalCount>0?(verifiedCount1/totalCount*100):0}%`, background:"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)", backgroundSize:"200% 100%", animation:"gradientShift 3s ease infinite", borderRadius:5, transition:"width 0.5s ease" }}/>
+                </div>
+              </div>
+
+              {/* Admin pending review */}
+              {isAdminUser && pendingClaims1.length>0 && (
+                <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"16px 20px" }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:12 }}>⏳ Pending Review ({pendingClaims1.length})</div>
+                  {pendingClaims1.map(cl=>(
+                    <div key={cl.id} style={{ display:"flex", gap:12, padding:"10px 0", borderBottom:"1px solid #1a1a1a" }}>
+                      {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:50, height:66, objectFit:"cover", borderRadius:6, flexShrink:0 }}/>}
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{cl.cardName} #{cl.cardNum}</div>
+                        <div style={{ fontSize:11, color:"#555" }}>by {cl.submitterName||"Anonymous"}</div>
+                        {cl.story && <div style={{ fontSize:11, color:"#888", fontStyle:"italic", marginTop:4 }}>"{cl.story}"</div>}
+                        <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                          <button onClick={async()=>{ await setDoc(doc(db,"oneof1_claims",cl.id),{status:"verified",reviewedAt:new Date().toISOString()},{merge:true}); }}
+                            style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Verify</button>
+                          <button onClick={async()=>{ await setDoc(doc(db,"oneof1_claims",cl.id),{status:"denied",reviewedAt:new Date().toISOString()},{merge:true}); }}
+                            style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#EF4444", borderRadius:7, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕ Deny</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Per-set grids */}
+              {sets1of1.map(setName=>{
+                const setCards=secret1of1Cards.filter(c=>c.setName===setName);
+                const setVerified=setCards.filter(c=>claimMap1[c.id]?.status==="verified");
+                const setUnclaimed=setCards.filter(c=>!claimMap1[c.id]);
+                const setPending=setCards.filter(c=>claimMap1[c.id]?.status==="pending");
+                const verPct=setCards.length>0?(setVerified.length/setCards.length*100):0;
+                const isFull=setVerified.length===setCards.length&&setCards.length>0;
+                return (
+                  <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
+                    <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                        <div>
+                          <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"#F0F0F0" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed</div>
+                        </div>
+                        <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"#555", fontWeight:400 }}>/{setCards.length}</span></div>
+                      </div>
+                      <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${verPct}%`, background:"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", borderRadius:4, transition:"width 0.5s ease" }}/>
+                      </div>
+                    </div>
+                    <div style={{ padding:"12px 20px 16px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
+                      {setCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
+                        const claim=claimMap1[c.id]; const isV=claim?.status==="verified"; const isP=claim?.status==="pending";
+                        return (
+                          <div key={c.id} style={{ background:isV?"#1a0a2e":"#0a0a0a", border:`1.5px solid ${isV?"#9333EA":isP?"#9333EA44":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                            {c.imageUrl && <div style={{ position:"relative" }}>
+                              <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block", opacity:isV?1:0.5, filter:isV?"none":"grayscale(40%)", pointerEvents:"none" }}/>
+                              {isV && <div style={{ position:"absolute", top:6, right:6, background:"#9333EA", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>✅ FOUND</div>}
+                              {isP && <div style={{ position:"absolute", top:6, right:6, background:"#1a0a2e", border:"1px solid #9333EA", color:"#9333EA", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>⏳</div>}
+                              {!isV&&!isP && <div style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,0.7)", color:"#555", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>UNCLAIMED</div>}
+                            </div>}
+                            <div style={{ padding:"10px 12px" }}>
+                              <div style={{ fontSize:13, fontWeight:800, color:isV?"#9333EA":"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
+                              <div style={{ fontSize:10, color:"#555", marginBottom:4 }}>#{c.cardNum} · {c.treatment}</div>
+                              {isV && <>
+                                <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:4 }}>🏆 {claim.submitterName||"Anonymous"}</div>
+                                {claim.story && <div style={{ fontSize:10, color:"#888", fontStyle:"italic", lineHeight:1.5, marginBottom:4 }}>"{claim.story}"</div>}
+                                {claim.dateHit && <div style={{ fontSize:10, color:"#444" }}>{claim.dateHit}</div>}
+                              </>}
+                              {isP && <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>⏳ {claim.submitterName||"Anonymous"}</div>}
+                              {user && owned?.[c.id] && !isV && !isP && (
+                                <button onClick={()=>{ setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
+                                  style={{ width:"100%", background:"linear-gradient(135deg,#7C3AED,#A855F7)", color:"#fff", border:"none", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                  💎 Claim This 1/1
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* SUPERS TAB */}
         {activeTab==="supers"&&(()=>{
@@ -23446,7 +23630,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
                     onComp={c=>setCompCard(c)}/>
                   {/* Comp button moved to card back (inside BobaCard flip) */}
                   {/* Lock animation overlay */}
@@ -23629,7 +23813,7 @@ function PublicCardDatabase() {
                                 flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                                toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
                                 onComp={c=>setCompCard(c)}/>
                             ))}
                           </div>
@@ -23670,7 +23854,7 @@ function PublicCardDatabase() {
                   <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
-                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS}
+                    toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
                     onComp={c=>setCompCard(c)}/>
                 ))}
               </div>
