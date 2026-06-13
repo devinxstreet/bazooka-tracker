@@ -14927,6 +14927,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               </div>
               {(c.inspiredBy||c.athlete) && <div style={{ fontSize:11, color:"#888", marginTop:4 }}>🏅 Inspired by <strong style={{ color:"#AAAAAA" }}>{c.inspiredBy||c.athlete}</strong></div>}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
+              {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:6, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
               {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
@@ -14957,7 +14958,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
         {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
       </div>
-      {c.athlete && <div style={{ fontSize:10, color:"#555" }}>{"\uD83C\uDFC5 Inspired by"}{c.athlete}{athleteSport(c.athlete) ? <span style={{ color:"#444", marginLeft:4 }}>· {athleteSport(c.athlete)}</span> : null}</div>}
+      {(c.inspiredBy||c.athlete) && <div style={{ fontSize:11, color:"#888", marginTop:2 }}>🏅 Inspired by <strong style={{ color:"#AAAAAA" }}>{c.inspiredBy||c.athlete}</strong></div>}
+      {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:4, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -15582,6 +15584,49 @@ function ManualCardImage() {
 
 // ── DATA CLEANUP ──────────────────────────────────────────────────────────────
 const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
+
+// SKU availability by treatment
+const SKU_MAP = {
+  // All SKUs
+  "Inspired Ink Battlefoil":         "all",
+  "Inspired Ink Metallic Battlefoil": "all",
+  "Alpha Battlefoil":                 "all",
+  "Helmet Icon Battlefoil":           "all",
+  "Tecmo News Battlefoil":            "all",
+  "80's 8-Bit Rad Battlefoil":        "all",
+  "Scoreboard Battlefoil":            "all",
+  "Logofoil":                         "all",
+  "Sore Thumb Battlefoil":            "all",
+  "Rage Quit Battlefoil":             "all",
+  "Bonus Plays":                      "double",
+  "Base":                             "all",
+  "Superfoil":                        "all",
+  "Bubble Gum Battlefoil":            "hobby",
+  "Blow on it Battlefoil":            "hobby",
+  "Gold Coin Flip Battlefoil":        "hobby",
+  "Skyline Fire Battlefoil":          "hobby",
+  "Skyline Ice Battlefoil":           "hobby",
+  "8-Bit Alt Art":                    "hobby",
+  "Red Battlefoil":                   "hobby",
+  "Silver Battlefoil":                "hobby",
+  "Blue Battlefoil":                  "hobby",
+  "Orange Battlefoil":                "hobby",
+  "Green Battlefoil":                 "hobby",
+  "Pink Battlefoil":                  "hobby",
+  "Halftime Alt Art":                 "hobby",
+  // Double Mega Only
+  "Endzone Battlefoil":               "double",
+  "Skyline Glow Battlefoil":          "double",
+  "Big Pixel Battlefoil":             "double",
+  "Silver Coin Flip Battlefoil":      "double",
+  "Helmets Battlefoil":               "double",
+};
+
+const SKU_LABEL = {
+  all:    { label:"Hobby & Double Mega", color:"#4ade80", bg:"rgba(74,222,128,0.1)",   border:"rgba(74,222,128,0.25)"  },
+  hobby:  { label:"Hobby",              color:"#7B9CFF", bg:"rgba(123,156,255,0.1)",  border:"rgba(123,156,255,0.25)" },
+  double: { label:"Double Mega",        color:"#E8317A", bg:"rgba(232,49,122,0.1)",   border:"rgba(232,49,122,0.25)"  },
+};
 
 function GenerateMissing8s() {
   const [scanning,  setScanning]  = useState(false);
