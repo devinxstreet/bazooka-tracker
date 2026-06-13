@@ -15376,6 +15376,7 @@ function CardSetImporter({ userRole }) {
   const [mode,      setMode]      = useState("data");   // "data" | "images"
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
+  const [folderMappings, setFolderMappings] = useState({}); // { folderName: treatmentValue }
   const [importing, setImporting] = useState(false);
   const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
@@ -15450,6 +15451,7 @@ function CardSetImporter({ userRole }) {
     const items = [...(e.dataTransfer?.items || [])];
     if (!items.length) return;
     setResults(null); setErrors([]);
+    setFolderMappings({});
 
     const allFiles = [];
     let pending = 0;
@@ -15511,28 +15513,34 @@ function CardSetImporter({ userRole }) {
     const PARALLEL = 20;
     let done = 0;
 
+    function fuzzyScore(treatment, folderName) {
+      const STOP = new Set(["battlefoil","inspired","ink","the","and","or","of","a","an","alt","art","only","new","first","edition"]);
+      function keywords(s) {
+        return s.toLowerCase().replace(/['']/g,"").replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>1&&!STOP.has(w));
+      }
+      const tk = keywords(treatment); const fk = keywords(folderName);
+      if (!tk.length || !fk.length) return 0;
+      const overlap = fk.filter(w => tk.some(t => t.includes(w) || w.includes(t)));
+      return overlap.length / Math.max(fk.length, 1);
+    }
+
     async function uploadOne(item) {
       const numKey = String(item.cardNum).toLowerCase();
-      const matches = byCardNum[numKey] || [];
+      const numStripped = numKey.replace(/^[a-z]+/,"");
+      const matches = byCardNum[numKey] || byCardNum[numStripped] || [];
 
-      // Fuzzy folder→treatment matching using keyword overlap
-      function fuzzyScore(treatment, folderName) {
-        const STOP = new Set(["battlefoil","inspired","ink","the","and","or","of","a","an","alt","art","only","new","first","edition"]);
-        function keywords(s) {
-          return s.toLowerCase().replace(/['']/g,"").replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>1&&!STOP.has(w));
-        }
-        const tk = keywords(treatment);
-        const fk = keywords(folderName);
-        if (!tk.length || !fk.length) return 0;
-        const overlap = fk.filter(w => tk.some(t => t.includes(w) || w.includes(t)));
-        return overlap.length / Math.max(fk.length, 1);
+      // Use manual mapping if set, otherwise fuzzy match
+      const manualTreatment = folderMappings[item.folder];
+      let card;
+      if (manualTreatment) {
+        card = matches.find(c => (c.treatment||"").toLowerCase() === manualTreatment.toLowerCase()) || matches[0];
+      } else {
+        card = matches.length === 1 ? matches[0]
+          : matches.reduce((best, c2) => {
+              const score = fuzzyScore(c2.treatment||"", item.folder);
+              return (!best || score > best.score) ? { card:c2, score } : best;
+            }, null)?.card || matches[0];
       }
-
-      let card = matches.length === 1 ? matches[0]
-        : matches.reduce((best, c2) => {
-            const score = fuzzyScore(c2.treatment||"", item.folder);
-            return (!best || score > best.score) ? { card:c2, score } : best;
-          }, null)?.card || matches[0];
 
       if (!card) { errs.push(`No match: ${item.folder}/${item.cardNum}`); skipped++; return; }
 
@@ -15627,13 +15635,44 @@ function CardSetImporter({ userRole }) {
 
           {imgFiles.length>0 && (() => {
             const folders = [...new Set(imgFiles.map(f=>f.folder))].sort();
+            // Get all unique treatments from Firestore (derive from bobaCards if loaded, else common list)
+            const COMMON_TREATMENTS = [
+              "Base","Battlefoil","Alpha Battlefoil","Scoreboard Battlefoil","Helmets Battlefoil",
+              "80's 8-Bit Rad Battlefoil","Sore Thumb Battlefoil","Tecmo News Battlefoil",
+              "Logofoil","Gold Coin Flip Battlefoil","Silver Coin Flip Battlefoil",
+              "Blow on it Battlefoil","Skyline Battlefoil","Endzone Battlefoil",
+              "Big Pixel Battlefoil","Rage Quit Battlefoil","Helmet Icon Battlefoil",
+              "Red Battlefoil","Orange Battlefoil","Blue Battlefoil","Green Battlefoil",
+              "Pink Battlefoil","Bubble Gum Battlefoil","Color Battlefoil",
+              "Inspired Ink Battlefoil","Inspired Ink Metallic Battlefoil",
+              "Inspired Ink Bubble Gum Battlefoil","Inspired Ink Superfoil",
+              "Superfoil","Halftime Alt Art","8-Bit Alt Art","Pixel Helmet Alt",
+              "Logofoil","Bonus Play","Hot Dog",
+            ];
+            const allMapped = folders.every(f => folderMappings[f]);
             return (
               <div style={{ ...S.card }}>
-                <SectionLabel t={`${imgFiles.length} images across ${folders.length} folders`}/>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
-                  {folders.map(f=>{
-                    const count = imgFiles.filter(x=>x.folder===f).length;
-                    return <span key={f} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", color:"#7B9CFF", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{f} ({count})</span>;
+                <SectionLabel t={`📁 Assign Treatments — ${folders.length} folders`}/>
+                <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+                  Map each folder to the correct treatment. Auto-detect leaves it to fuzzy matching.
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
+                  {folders.map(folder => {
+                    const count = imgFiles.filter(f=>f.folder===folder).length;
+                    return (
+                      <div key={folder} style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:8, alignItems:"center", background:"#0d0d0d", borderRadius:8, padding:"8px 12px" }}>
+                        <div>
+                          <div style={{ fontSize:12, fontWeight:700, color:"#F0F0F0" }}>{folder}</div>
+                          <div style={{ fontSize:10, color:"#555" }}>{count} images</div>
+                        </div>
+                        <select value={folderMappings[folder]||""} onChange={e=>setFolderMappings(p=>({...p,[folder]:e.target.value}))}
+                          style={{ ...S.inp, fontSize:11, cursor:"pointer", color:folderMappings[folder]?"#F0F0F0":"#555" }}>
+                          <option value="">— Auto-detect —</option>
+                          {COMMON_TREATMENTS.map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <div style={{ fontSize:16 }}>{folderMappings[folder] ? "✅" : "⚡"}</div>
+                      </div>
+                    );
                   })}
                 </div>
                 <Btn onClick={runImageImport} disabled={importing} variant="green">
