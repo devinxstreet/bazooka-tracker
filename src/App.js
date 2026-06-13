@@ -14737,7 +14737,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -14762,13 +14762,48 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                   (String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL"));
 
   // Pixel/cyber sparkle foil for Helmet Icon cards
-  const isPixelFoil = treatment.includes("helmet icon");
+  const isPixelFoil    = treatment.includes("helmet icon");
+  const isMetallicFoil = treatment.includes("metallic") || treatment.includes("inspired ink metallic");
   const pixelRef = useRef(null);
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
 
   const pixelCanvasRef = useRef(null);
   const pixelAnimRef = useRef(null);
+  const metallicRef = useRef(null);
+
+  function drawMetallicFoil(x, y) {
+    if (!metallicRef.current) return;
+    const el = metallicRef.current;
+    // Horizontal bands of light that shift with mouse Y
+    // Rainbow color shift based on mouse X
+    const hue  = (x * 240) % 360;
+    const hue2 = (hue + 40) % 360;
+    const band = y * 100; // band position as %
+    el.style.background = [
+      // Main bright horizontal sweep band
+      `linear-gradient(to bottom,
+        transparent ${Math.max(0,band-30)}%,
+        hsla(${hue},60%,95%,0.15) ${Math.max(0,band-15)}%,
+        hsla(${hue2},80%,98%,0.55) ${band}%,
+        hsla(${hue},60%,95%,0.15) ${Math.min(100,band+15)}%,
+        transparent ${Math.min(100,band+30)}%)`,
+      // Subtle horizontal stripe texture
+      `repeating-linear-gradient(to bottom,
+        transparent 0px,
+        rgba(255,255,255,0.04) 1px,
+        transparent 2px,
+        rgba(255,255,255,0.02) 3px,
+        transparent 4px)`,
+      // Color wash based on X
+      `linear-gradient(to right,
+        hsla(${(hue+180)%360},70%,60%,0.12),
+        hsla(${hue},80%,80%,0.18) ${x*100}%,
+        hsla(${hue2},70%,60%,0.12))`,
+    ].join(", ");
+    el.style.opacity = "1";
+    el.style.mixBlendMode = "screen";
+  }
 
   function drawPixelFoil(x, y) {
     if (!pixelRef.current || !isPixelFoil) return;
@@ -14821,6 +14856,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (!noShine) {
       if (isPixelFoil) {
         startPixelAnim(x, y);
+      } else if (isMetallicFoil) {
+        drawMetallicFoil(x, y);
       } else {
         if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
         if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
@@ -14833,6 +14870,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
+    else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
   }
@@ -14870,7 +14908,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
-            {isPixelFoil && <div ref={pixelRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
@@ -14894,6 +14933,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
                 {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
+                {isAdmin && onImageUpload && (
+                  <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    🖼 {c.imageUrl?"Replace":"Add"} Image
+                    <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
+                  </label>
+                )}
                 {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
                 <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
               </div>
@@ -18254,7 +18299,16 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                           {heroCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => {
                             const isOwned = !!owned[c.id];
-                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
+                            return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null} onImageUpload={isAdmin?async(card,file)=>{ 
+  try { 
+    const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
+    const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
+    await uploadBytes(r2, file);
+    const url = await getDownloadURL(r2);
+    await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  } catch(e) { alert("Upload failed: "+e.message); }
+}:null}/>;
                           })}
                         </div>
                         {/* Toggle all for hero */}
@@ -18334,7 +18388,16 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                         {visibleTcards.sort((a,b)=>String(a.cardNum).localeCompare(String(b.cardNum),undefined,{numeric:true})).map(c => {
                           const isOwned = !!owned[c.id];
-                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
+                          return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null} onImageUpload={isAdmin?async(card,file)=>{ 
+  try { 
+    const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
+    const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
+    await uploadBytes(r2, file);
+    const url = await getDownloadURL(r2);
+    await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  } catch(e) { alert("Upload failed: "+e.message); }
+}:null}/>;
                         })}
                       </div>
                       <div style={{ marginTop:10, display:"flex", gap:8 }}>
@@ -19794,7 +19857,16 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
               {visibleCards.map(c => {
                 const isOwned = !!owned[c.id];
-                return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null}/>;
+                return <BobaCard key={c.id} c={c} isOwned={isOwned} ownedQty={owned[c.id]||0} flippedCard={flippedCard} setFlippedCard={setFlippedCard} toggleOwned={toggleOwned} setOwnedQty={setOwnedQty} toggleWant={toggleWant} wantList={wantList} WEAPON_COLORS={WEAPON_COLORS} isAdmin={isAdmin} onDelete={isAdmin?async()=>{ if(window.confirm("Delete "+c.hero+" "+c.treatment+" from checklist?")) await deleteDoc(doc(db,"boba_checklist",c.id)); }:null} onImageUpload={isAdmin?async(card,file)=>{ 
+  try { 
+    const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
+    const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
+    await uploadBytes(r2, file);
+    const url = await getDownloadURL(r2);
+    await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  } catch(e) { alert("Upload failed: "+e.message); }
+}:null}/>;
               })}
             </div>
             {hasMore && (
