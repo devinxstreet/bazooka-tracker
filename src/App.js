@@ -15674,7 +15674,17 @@ function CardSetImporter({ userRole }) {
             }, null)?.card || matches[0];
       }
 
-      if (!card) { errs.push(`No match: ${item.folder}/${item.cardNum}`); skipped++; return; }
+      if (!card) {
+        const treatLookupKeys = manualTreatment ? Object.keys(byTreatment[manualTreatment.toLowerCase()]||{}) : [];
+        const treatCount = treatLookupKeys.length;
+        const sample = treatLookupKeys.slice(0,3).join(", ");
+        if (errs.length < 3) {
+          errs.push(`No match: ${item.cardNum} → tried "${numKey}", "${numStripped}" | treatment "${manualTreatment||"auto"}" has ${treatCount} cards, sample cardNums: ${sample||"none"}`);
+        } else {
+          errs.push(`No match: ${item.folder}/${item.cardNum}`);
+        }
+        skipped++; return;
+      }
 
       try {
         const safeFolderName = item.folder.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
