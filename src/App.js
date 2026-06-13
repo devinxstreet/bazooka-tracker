@@ -14834,6 +14834,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
+                {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
                 <div style={{ fontSize:9, color:"#333" }}>click to flip back</div>
               </div>
             </div>
@@ -15373,6 +15374,47 @@ function CompanyDirectory({ userRole }) {
 // ── DATA CLEANUP ──────────────────────────────────────────────────────────────
 const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"];
 
+function BulkDeleter() {
+  const [field,    setField]    = useState("treatment");
+  const [value,    setValue]    = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [result,   setResult]   = useState(null);
+
+  async function run() {
+    if (!value.trim()) return;
+    if (!window.confirm(`Delete ALL cards where ${field} = "${value}"?\n\nThis cannot be undone.`)) return;
+    setDeleting(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const toDelete = snap.docs.filter(d => (d.data()[field]||"") === value.trim());
+    const CHUNK = 400;
+    let deleted = 0;
+    for (let i=0; i<toDelete.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toDelete.slice(i,i+CHUNK).forEach(d => batch.delete(doc(db,"boba_checklist",d.id)));
+      await batch.commit();
+      deleted += Math.min(CHUNK, toDelete.length-i);
+    }
+    setDeleting(false); setResult({ deleted });
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+    setValue("");
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"auto 1fr auto", gap:8, alignItems:"center" }}>
+        <select value={field} onChange={e=>setField(e.target.value)} style={{ ...S.inp, cursor:"pointer", fontSize:12 }}>
+          <option value="treatment">treatment</option>
+          <option value="weapon">weapon</option>
+          <option value="setName">setName</option>
+        </select>
+        <input value={value} onChange={e=>setValue(e.target.value)} placeholder={`Value to delete (exact match)`} style={{ ...S.inp, fontSize:12 }}/>
+        <Btn variant="red" onClick={run} disabled={!value.trim()||deleting}>{deleting?"Deleting...":"Delete All"}</Btn>
+      </div>
+      {result && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Deleted {result.deleted} cards</div>}
+    </div>
+  );
+}
+
 function DataCleanup() {
   const [loading,    setLoading]    = useState(false);
   const [fieldData,  setFieldData]  = useState(null); // { weapon: {...}, treatment: {...} }
@@ -15448,6 +15490,13 @@ function DataCleanup() {
       </div>
 
       {mergeResult && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {mergeResult.fixed} cards — reload checklist to see changes</div>}
+
+      {/* Bulk delete */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🗑 Bulk Delete"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>Delete all cards matching a treatment or weapon from the database. Cannot be undone.</div>
+        <BulkDeleter/>
+      </div>
 
       {fieldData && (
         <div style={{ ...S.card }}>
