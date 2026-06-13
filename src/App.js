@@ -14767,25 +14767,46 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
 
+  const pixelCanvasRef = useRef(null);
+  const pixelAnimRef = useRef(null);
+
   function drawPixelFoil(x, y) {
     if (!pixelRef.current || !isPixelFoil) return;
     const el = pixelRef.current;
-    // Shift rainbow pixel pattern based on mouse position
-    const hue = (x * 120 + y * 60) % 360;
-    const hue2 = (hue + 60) % 360;
-    const hue3 = (hue + 120) % 360;
-    el.style.background = `
-      radial-gradient(ellipse at ${x*100}% ${y*100}%, hsla(${hue},100%,70%,0.35) 0%, transparent 55%),
-      radial-gradient(ellipse at ${(1-x)*100}% ${(1-y)*100}%, hsla(${hue2},100%,65%,0.25) 0%, transparent 50%),
-      radial-gradient(ellipse at ${y*100}% ${x*100}%, hsla(${hue3},100%,60%,0.20) 0%, transparent 45%),
-      repeating-conic-gradient(from ${x*360}deg at ${x*100}% ${y*100}%, 
-        hsla(${hue},100%,70%,0.08) 0deg, 
-        hsla(${hue2},100%,60%,0.04) 10deg, 
-        hsla(${hue3},100%,70%,0.08) 20deg, 
-        transparent 30deg, transparent 90deg)
-    `;
-    el.style.backgroundSize = "100% 100%, 100% 100%, 100% 100%, 8px 8px";
+    const hue  = (x * 180 + y * 90 + Date.now() * 0.05) % 360;
+    const hue2 = (hue + 80) % 360;
+    const hue3 = (hue + 160) % 360;
+    el.style.background = [
+      `radial-gradient(ellipse 60% 40% at ${x*100}% ${y*100}%, hsla(${hue},100%,75%,0.5) 0%, transparent 70%)`,
+      `radial-gradient(ellipse 50% 60% at ${(1-x)*100}% ${y*100}%, hsla(${hue2},100%,70%,0.4) 0%, transparent 65%)`,
+      `radial-gradient(ellipse 40% 50% at ${x*100}% ${(1-y)*100}%, hsla(${hue3},100%,75%,0.35) 0%, transparent 60%)`,
+      `repeating-linear-gradient(${x*180}deg, hsla(${hue},100%,70%,0.12) 0px, transparent 4px, hsla(${hue2},100%,65%,0.08) 8px, transparent 12px)`,
+      `repeating-linear-gradient(${x*180+90}deg, hsla(${hue3},100%,70%,0.10) 0px, transparent 4px, hsla(${hue},100%,65%,0.06) 8px, transparent 12px)`,
+    ].join(", ");
     el.style.opacity = "1";
+    el.style.mixBlendMode = "screen";
+  }
+
+  // Animate pixel foil continuously when hovered
+  useEffect(() => {
+    if (!isPixelFoil) return;
+    return () => { if (pixelAnimRef.current) cancelAnimationFrame(pixelAnimRef.current); };
+  }, [isPixelFoil]);
+
+  function startPixelAnim(x, y) {
+    if (!isPixelFoil) return;
+    if (pixelAnimRef.current) cancelAnimationFrame(pixelAnimRef.current);
+    function tick() {
+      drawPixelFoil(x, y);
+      pixelAnimRef.current = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopPixelAnim() {
+    if (pixelAnimRef.current) cancelAnimationFrame(pixelAnimRef.current);
+    pixelAnimRef.current = null;
+    if (pixelRef.current) pixelRef.current.style.opacity = "0";
   }
 
 
@@ -14799,7 +14820,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     targetTilt.current = { x: (y - 0.5) * 28, y: (x - 0.5) * -28 };
     if (!noShine) {
       if (isPixelFoil) {
-        drawPixelFoil(x, y);
+        startPixelAnim(x, y);
       } else {
         if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
         if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
@@ -14811,7 +14832,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     isHovering.current = false; targetTilt.current = { x:0, y:0 };
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
-    if (pixelRef.current) pixelRef.current.style.opacity = "0";
+    if (isPixelFoil) stopPixelAnim();
+    else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
   }
   function onMouseEnter() { isHovering.current = true; startAnimation(); }
@@ -14848,7 +14870,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
-            {isPixelFoil && <div ref={pixelRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.15s ease", pointerEvents:"none", imageRendering:"pixelated" }}/>}
+            {isPixelFoil && <div ref={pixelRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div style={{ position:"absolute", bottom:6, right:8, fontSize:10, color:"#ffffff88", fontWeight:700 }}>click to flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
