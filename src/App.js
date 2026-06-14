@@ -13423,6 +13423,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               { l:`\u2212 Bazooka Expense Share (${((1-c.rate)*0.30*100).toFixed(1)}%)`,   v:"\u2212 "+fmt(c.bazExpShare||0),                    c:"#991b1b", indent:true  },
               ...(c.eventStaffAmt>0?[{ l:`🎪 Event Staff (${(s.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(c.eventStaffAmt), c:"#A78BFA", indent:true }]:[]),
               { l:`+ Rep Reimburses ${(c.rate*0.30*100 * (c.splitPct||1)).toFixed(1)}% of expenses`, v:"+ "+fmt((c.repExpShare||0)*(c.splitPct||1)), c:"#4ade80", indent:true  },
+              ...(c.imcReimb>0 ? [{ l:`💙 IMC Reimburses 70% of expenses`, v:"+ "+fmt(c.imcReimb), c:"#60A5FA", indent:true }] : []),
               ...(c.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${s.imcReimbNote?" — "+s.imcReimbNote:""}`, v:"+ "+fmt(c.imcDirectReimb), c:"#60A5FA", indent:true }] : []),
             ] : [
               { l:"Gross Revenue (true)",                                             v:fmt(c.gross),                                      c:"#F0F0F0", indent:false },
