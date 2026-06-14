@@ -4581,6 +4581,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <input type="number" min="0" step="1" value={recap.newBuyers||""} onChange={e=>rf("newBuyers")(e.target.value)} placeholder="0" style={{ ...S.inp, color:"#E8317A" }}/>
           </div>
         </div>
+        )}
 
         {/* Financials — Admin only */}
         {userRole?.role === "Admin" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
@@ -22199,6 +22200,16 @@ function PublicCardDatabase() {
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
 
+  // -- Custom Rainbows --
+  const [customRainbows,      setCustomRainbows]      = useState([]);
+  const [showRainbowBuilder,  setShowRainbowBuilder]  = useState(false);
+  const [rbName,              setRbName]              = useState("");
+  const [rbTreatment,         setRbTreatment]         = useState("");
+  const [rbWeapon,            setRbWeapon]            = useState("");
+  const [rbSet,               setRbSet]               = useState("");
+  const [rbHero,              setRbHero]              = useState("");
+  const [rbSaving,            setRbSaving]            = useState(false);
+
   // -- Wants --
   const [wantList,      setWantList]      = useState({});
 
@@ -22348,6 +22359,15 @@ function PublicCardDatabase() {
     });
     return ()=>unsub();
   }, []);
+
+  // -- Custom Rainbows (per-user) --
+  useEffect(() => {
+    if (!user) { setCustomRainbows([]); return; }
+    const unsub = onSnapshot(query(collection(db,"custom_rainbows"), where("userId","==",user.uid)), snap => {
+      setCustomRainbows(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>unsub();
+  }, [user]);
 
   // -- Public marketplace (loads without login) --
   useEffect(() => {
@@ -24110,6 +24130,129 @@ function PublicCardDatabase() {
                 ))}
               </div>
             )}
+
+            {/* ── CUSTOM RAINBOWS ── */}
+            <div style={{ marginTop:24 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0" }}>🎯 My Custom Rainbows</div>
+                {user && <button onClick={()=>setShowRainbowBuilder(true)} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:20, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Build Rainbow</button>}
+                {!user && <span style={{ fontSize:12, color:"#555" }}>Sign in to create custom rainbows</span>}
+              </div>
+
+              {/* Builder modal */}
+              {showRainbowBuilder && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={()=>setShowRainbowBuilder(false)}>
+                  <div style={{ background:"#111", border:"2px solid #E8317A", borderRadius:20, padding:28, maxWidth:460, width:"100%" }} onClick={e=>e.stopPropagation()}>
+                    <div style={{ fontSize:16, fontWeight:900, color:"#E8317A", marginBottom:16 }}>🌈 Build a Custom Rainbow</div>
+                    <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>Define any combination of filters — all matching cards become your rainbow to collect.</div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:5 }}>Rainbow Name *</label>
+                        <input value={rbName} onChange={e=>setRbName(e.target.value)} placeholder='e.g. "Ice Silver Coin Flips"'
+                          style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                        <div>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:5 }}>Treatment</label>
+                          <select value={rbTreatment} onChange={e=>setRbTreatment(e.target.value)} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:rbTreatment?"#F0F0F0":"#555", padding:"10px 12px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", cursor:"pointer" }}>
+                            <option value="">Any Treatment</option>
+                            {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:5 }}>Weapon</label>
+                          <select value={rbWeapon} onChange={e=>setRbWeapon(e.target.value)} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:rbWeapon?"#F0F0F0":"#555", padding:"10px 12px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", cursor:"pointer" }}>
+                            <option value="">Any Weapon</option>
+                            {["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Super"].map(w=><option key={w} value={w}>{w}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:5 }}>Set</label>
+                          <select value={rbSet} onChange={e=>setRbSet(e.target.value)} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:rbSet?"#F0F0F0":"#555", padding:"10px 12px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", cursor:"pointer" }}>
+                            <option value="">Any Set</option>
+                            {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:5 }}>Hero</label>
+                          <input value={rbHero} onChange={e=>setRbHero(e.target.value)} placeholder="Any hero"
+                            style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                        </div>
+                      </div>
+                      {/* Preview count */}
+                      {(() => {
+                        const preview = cards.filter(c=>
+                          (!rbTreatment || c.treatment===rbTreatment) &&
+                          (!rbWeapon || c.weapon===rbWeapon) &&
+                          (!rbSet || c.setName===rbSet) &&
+                          (!rbHero || (c.hero||"").toLowerCase().includes(rbHero.toLowerCase()))
+                        );
+                        return <div style={{ fontSize:12, color: preview.length>0?"#4ade80":"#E8317A", fontWeight:700 }}>
+                          {preview.length} card{preview.length!==1?"s":""} match{preview.length===1?"es":""} your filters
+                        </div>;
+                      })()}
+                    </div>
+                    <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                      <button onClick={async()=>{
+                        if(!rbName.trim()||rbSaving) return;
+                        if(!rbTreatment&&!rbWeapon&&!rbSet&&!rbHero) { alert("Add at least one filter"); return; }
+                        setRbSaving(true);
+                        await setDoc(doc(collection(db,"custom_rainbows")), { name:rbName.trim(), treatment:rbTreatment||null, weapon:rbWeapon||null, setName:rbSet||null, hero:rbHero||null, userId:user.uid, createdAt:new Date().toISOString() });
+                        setRbName(""); setRbTreatment(""); setRbWeapon(""); setRbSet(""); setRbHero("");
+                        setRbSaving(false); setShowRainbowBuilder(false);
+                      }} disabled={!rbName.trim()||rbSaving}
+                        style={{ flex:1, background:rbName.trim()?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#1a1a1a", color:rbName.trim()?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:rbName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                        {rbSaving?"Saving...":"Save Rainbow"}
+                      </button>
+                      <button onClick={()=>setShowRainbowBuilder(false)} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom rainbow cards */}
+              {customRainbows.length === 0 && user && <div style={{ fontSize:13, color:"#333", textAlign:"center", padding:"20px 0" }}>No custom rainbows yet — build one above!</div>}
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {customRainbows.map(rb => {
+                  const matchCards = cards.filter(c=>
+                    (!rb.treatment || c.treatment===rb.treatment) &&
+                    (!rb.weapon || c.weapon===rb.weapon) &&
+                    (!rb.setName || c.setName===rb.setName) &&
+                    (!rb.hero || (c.hero||"").toLowerCase().includes((rb.hero||"").toLowerCase()))
+                  );
+                  const total = matchCards.length;
+                  const ownedCount = matchCards.filter(c=>owned[c.id]).length;
+                  const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
+                  const complete = ownedCount === total && total > 0;
+                  const wc = rb.weapon ? (PUBLIC_WEAPON_COLORS[rb.weapon]||"#E8317A") : "#E8317A";
+                  return (
+                    <div key={rb.id} style={{ background:"#111", border:`1.5px solid ${complete?"#4ade80":"#2a2a2a"}`, borderRadius:14, padding:"16px 20px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                        <div>
+                          <div style={{ fontSize:14, fontWeight:800, color:complete?"#4ade80":"#F0F0F0" }}>{complete?"🏆 ":"🌈 "}{rb.name}</div>
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+                            {rb.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 7px" }}>{rb.treatment}</span>}
+                            {rb.weapon    && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 7px", fontWeight:700 }}>{rb.weapon}</span>}
+                            {rb.setName   && <span style={{ fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 7px" }}>{rb.setName}</span>}
+                            {rb.hero      && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", borderRadius:4, padding:"1px 7px" }}>{rb.hero}</span>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign:"right", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+                          <div style={{ fontSize:22, fontWeight:900, color:wc }}>{ownedCount}<span style={{ fontSize:13, color:"#555", fontWeight:400 }}>/{total}</span></div>
+                          <button onClick={async()=>{ if(window.confirm("Delete this rainbow?")) await deleteDoc(doc(db,"custom_rainbows",rb.id)); }}
+                            style={{ background:"none", border:"none", color:"#333", fontSize:11, cursor:"pointer", padding:0 }}>🗑 delete</button>
+                        </div>
+                      </div>
+                      <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${wc},${wc}88)`, borderRadius:4, transition:"width 0.5s ease" }}/>
+                      </div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:4 }}>{pct}% complete</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
         )}
 
