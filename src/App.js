@@ -23958,6 +23958,8 @@ function PublicCardDatabase() {
               if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
               return "Plays";
             }
+            // Hotdogs collapse into one rainbow
+            if(t.includes("hotdog") || t.includes("hot dog")) return "Hotdogs";
             return c.treatment;
           };
           const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
@@ -23967,8 +23969,8 @@ function PublicCardDatabase() {
 
           // -- Build group stats (shared logic for hero / treatment / treatment+weapon) --
           const groupKeyOf = c => {
-            // Plays & Bonus Plays always collapse into a single rainbow each, in every mode
-            if(c.treatment === "Plays" || c.treatment === "Bonus Plays") return c.treatment;
+            // Plays, Bonus Plays & Hotdogs always collapse into a single rainbow each, in every mode
+            if(c.treatment === "Plays" || c.treatment === "Bonus Plays" || c.treatment === "Hotdogs") return c.treatment;
             if(rainbowGroupBy === "hero") return c.hero;
             if(rainbowGroupBy === "treatmentWeapon") {
               const tr = c.treatment || "", wp = c.weapon || "";
