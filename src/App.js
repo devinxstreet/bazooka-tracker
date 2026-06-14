@@ -21063,7 +21063,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, addFriend, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -21883,297 +21883,6 @@ function rarityScore(card) {
 
 const WEAPON_GLOW = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
   Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
-
-function PackRipSimulator({ cards, user }) {
-  const [product,    setProduct]    = useState("Alpha Edition - Hobby");
-  const [phase,      setPhase]      = useState("select"); // select | ripping | cards | done
-  const [pack,       setPack]       = useState(null);
-  const [cardIndex,  setCardIndex]  = useState(0);
-  const [flipped,    setFlipped]    = useState(false);
-  const [swipeDir,   setSwipeDir]   = useState(null); // null | left | right
-  const [history,    setHistory]    = useState([]);
-  const [community,  setCommunity]  = useState([]);
-  const [activeView, setActiveView] = useState("rip");
-  const touchStart = useRef(null);
-
-  useEffect(() => {
-    getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
-      .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
-      .catch(()=>{});
-  }, []);
-
-  async function startRip() {
-    setPhase("ripping");
-    await new Promise(r => setTimeout(r, 1800));
-    const pulled = ripPack(product, cards);
-    setPack(pulled);
-    setCardIndex(0);
-    setFlipped(false);
-    setPhase("cards");
-  }
-
-  async function nextCard() {
-    if (!pack) return;
-    setSwipeDir("left");
-    await new Promise(r => setTimeout(r, 300));
-    if (cardIndex < pack.length - 1) {
-      setCardIndex(i => i + 1);
-      setFlipped(false);
-      setSwipeDir(null);
-    } else {
-      // Save best hit to community
-      const hit = pack.find(c=>c.isHit) || pack.reduce((b,c)=>rarityScore(c)>rarityScore(b)?c:b, pack[0]);
-      if (hit && rarityScore(hit) >= 45) {
-        try {
-          await setDoc(doc(db,"sim_pulls",uid()), {
-            userName: user?.displayName || "Anonymous",
-            product, cardName: hit.hero||hit.cardName||"Unknown",
-            treatment: hit.treatment||"", weapon: hit.weapon||"",
-            imageUrl: hit.imageUrl||"", rarity: rarityScore(hit),
-            pulledAt: new Date().toISOString(),
-          });
-          getDocs(query(collection(db,"sim_pulls"), orderBy("rarity","desc"), limit(50)))
-            .then(snap => setCommunity(snap.docs.map(d=>({id:d.id,...d.data()}))))
-            .catch(()=>{});
-        } catch(e) {}
-      }
-      setHistory(prev => [{product, cards:pack, pulledAt:new Date().toISOString()}, ...prev].slice(0,50));
-      setPhase("done");
-    }
-  }
-
-  function prevCard() {
-    if (cardIndex > 0) { setCardIndex(i=>i-1); setFlipped(false); setSwipeDir(null); }
-  }
-
-  function onTouchStart(e) { touchStart.current = e.touches[0].clientX; }
-  function onTouchEnd(e) {
-    if (!touchStart.current) return;
-    const dx = touchStart.current - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 50) { dx > 0 ? nextCard() : prevCard(); }
-    touchStart.current = null;
-  }
-
-  const card = pack?.[cardIndex];
-  const glow = card ? (WEAPON_GLOW[card.weapon] || "#888") : "#888";
-  const isHit = card?.isHit;
-  const isHotdog = card?.slotType === "hotdog";
-
-  return (
-    <div style={{maxWidth:500,margin:"0 auto",padding:"20px 0"}}>
-      <style>{`
-        @keyframes packShake { 0%{transform:rotate(0deg)} 20%{transform:rotate(-3deg)} 40%{transform:rotate(3deg)} 60%{transform:rotate(-2deg)} 80%{transform:rotate(2deg)} 100%{transform:rotate(0deg)} }
-        @keyframes packRip { 0%{transform:scale(1) rotate(0deg);opacity:1} 30%{transform:scale(1.1) rotate(-5deg);opacity:1} 60%{transform:scale(0.8) rotate(15deg) translateY(-20px);opacity:0.5} 100%{transform:scale(0) rotate(30deg) translateY(-60px);opacity:0} }
-        @keyframes cardEntrance { from{transform:translateY(40px) scale(0.9);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
-        @keyframes swipeLeft { from{transform:translateX(0) rotate(0deg);opacity:1} to{transform:translateX(-120%) rotate(-15deg);opacity:0} }
-        @keyframes hitGlow { 0%,100%{box-shadow:0 0 30px ${glow}44} 50%{box-shadow:0 0 80px ${glow}99,0 0 120px ${glow}44} }
-        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
-      `}</style>
-
-      {/* View toggle */}
-      <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
-        {[["rip","🎯 Rip"],["history","📋 My Pulls"],["community","🏆 Best Pulls"]].map(([v,l])=>(
-          <button key={v} onClick={()=>{setActiveView(v);if(v==="rip"&&phase!=="cards")setPhase("select");}}
-            style={{background:activeView===v?"rgba(232,49,122,0.15)":"transparent",color:activeView===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${activeView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {activeView==="rip" && <>
-
-        {/* SELECT PHASE */}
-        {(phase==="select"||phase==="done") && <>
-          <div style={{textAlign:"center",marginBottom:24}}>
-            <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>🎯 Pick Your Pack</div>
-            {phase==="done" && <div style={{fontSize:12,color:"#4ade80",marginBottom:8}}>✅ Pack complete! Rip another?</div>}
-          </div>
-          <div style={{marginBottom:24}}>
-            {Object.entries(PRODUCT_SETS).map(([set,types])=>(
-              <div key={set} style={{marginBottom:16}}>
-                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{set}</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {types.map(t=>{ const key=`${set} - ${t}`; const cfg=PACK_PRODUCTS[key]; return (
-                    <button key={key} onClick={()=>{setProduct(key);setPack(null);}}
-                      style={{background:product===key?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",color:product===key?"#E8317A":"rgba(255,255,255,0.5)",border:`2px solid ${product===key?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"10px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-                      {t}
-                      {cfg&&<div style={{fontSize:9,color:"rgba(255,255,255,0.25)",marginTop:2,fontWeight:400}}>{cfg.foilSlots} foil · {cfg.paperSlots} paper</div>}
-                    </button>
-                  );})}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button onClick={startRip}
-            style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"18px",fontSize:18,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 40px rgba(232,49,122,0.4)",letterSpacing:1}}>
-            🎯 RIP PACK
-          </button>
-        </>}
-
-        {/* RIPPING ANIMATION */}
-        {phase==="ripping" && (
-          <div style={{textAlign:"center",padding:"60px 0"}}>
-            <div style={{
-              width:160,height:220,margin:"0 auto",
-              background:"linear-gradient(135deg,#E8317A,#7B2FF7)",
-              borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:40,
-              animation:"packShake 0.3s ease 0.2s, packRip 0.8s ease 1s forwards",
-              boxShadow:"0 0 60px rgba(232,49,122,0.6)",
-            }}>🃏</div>
-            <div style={{marginTop:24,fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.5)",letterSpacing:2,textTransform:"uppercase"}}>Ripping...</div>
-          </div>
-        )}
-
-        {/* CARD SWIPE PHASE */}
-        {phase==="cards" && pack && card && (
-          <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-
-            {/* Progress */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>{product}</span>
-              <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.5)"}}>{cardIndex+1} / {pack.length}</span>
-            </div>
-            <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2,marginBottom:24,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${((cardIndex+1)/pack.length)*100}%`,background:"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:2,transition:"width 0.3s"}}/>
-            </div>
-
-            {/* Card */}
-            <div style={{
-              animation: swipeDir==="left" ? "swipeLeft 0.3s ease forwards" : "cardEntrance 0.4s cubic-bezier(0.34,1.56,0.64,1)",
-            }}>
-              <div style={{
-                background: isHit ? `radial-gradient(circle at 50% 30%, ${glow}22, #0a0a0a)` :
-                            isHotdog ? "radial-gradient(circle at 50% 30%, rgba(251,191,36,0.15), #0a0a0a)" :
-                            "rgba(255,255,255,0.04)",
-                border: isHit ? `2px solid ${glow}66` :
-                        isHotdog ? "2px solid rgba(251,191,36,0.4)" :
-                        "1px solid rgba(255,255,255,0.08)",
-                borderRadius:20,
-                overflow:"hidden",
-                animation: isHit ? "hitGlow 2s ease-in-out infinite" : "none",
-                position:"relative",
-              }}>
-                {/* Hit badge */}
-                {isHit && (
-                  <div style={{
-                    background:`linear-gradient(90deg,${glow},${glow}88)`,
-                    color:"#000",fontSize:11,fontWeight:900,padding:"6px 0",
-                    textAlign:"center",textTransform:"uppercase",letterSpacing:2,
-                    backgroundSize:"200% auto",animation:"shimmer 2s linear infinite",
-                  }}>🔥 HIT — {card.treatment}</div>
-                )}
-                {isHotdog && (
-                  <div style={{background:"rgba(251,191,36,0.8)",color:"#000",fontSize:11,fontWeight:900,padding:"6px 0",textAlign:"center",textTransform:"uppercase",letterSpacing:2}}>
-                    🌭 HOT DOG
-                  </div>
-                )}
-
-                {/* Card image */}
-                {card.imageUrl
-                  ? <img src={card.imageUrl} alt={card.hero}
-                      style={{width:"100%",maxHeight:420,objectFit:"contain",display:"block",
-                        filter: isHit ? `drop-shadow(0 0 20px ${glow})` : "none",
-                      }}/>
-                  : <div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8}}>
-                      <div style={{fontSize:48}}>{isHotdog?"🌭":"🃏"}</div>
-                      <div style={{fontSize:16,fontWeight:700,color:"#F0F0F0",textAlign:"center",padding:"0 24px"}}>{card.hero||card.cardName||"?"}</div>
-                      {card.weapon&&<div style={{fontSize:14,color:glow,fontWeight:700}}>{card.weapon}</div>}
-                    </div>
-                }
-
-                {/* Card info footer */}
-                <div style={{padding:"16px 20px",background:"rgba(0,0,0,0.6)"}}>
-                  <div style={{fontSize:16,fontWeight:900,color:"#F0F0F0",marginBottom:4}}>{card.hero||card.cardName||"—"}</div>
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-                    {card.treatment&&<span style={{fontSize:12,color:isHit?glow:"rgba(255,255,255,0.4)",fontWeight:isHit?700:400}}>{card.treatment}</span>}
-                    {card.weapon&&!isHotdog&&<span style={{fontSize:12,color:glow,fontWeight:700}}>{card.weapon}</span>}
-                    {card.cardNum&&<span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>#{card.cardNum}</span>}
-                    {card.slotType==="play"&&<span style={{fontSize:11,color:"#7B9CFF",background:"rgba(123,156,255,0.1)",borderRadius:6,padding:"2px 8px"}}>Play Card</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation */}
-            <div style={{display:"flex",gap:12,marginTop:20,alignItems:"center"}}>
-              <button onClick={prevCard} disabled={cardIndex===0}
-                style={{flex:1,background:"rgba(255,255,255,0.04)",color:cardIndex===0?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px",fontSize:20,cursor:cardIndex===0?"not-allowed":"pointer",fontFamily:"inherit"}}>
-                ←
-              </button>
-              <button onClick={nextCard}
-                style={{flex:3,background:cardIndex===pack.length-1?"linear-gradient(135deg,#4ade80,#22d3ee)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",letterSpacing:1}}>
-                {cardIndex===pack.length-1 ? "✅ DONE" : "NEXT →"}
-              </button>
-            </div>
-            <div style={{textAlign:"center",marginTop:10,fontSize:11,color:"rgba(255,255,255,0.2)"}}>Swipe left for next · swipe right to go back</div>
-          </div>
-        )}
-      </>}
-
-      {/* HISTORY */}
-      {activeView==="history" && (
-        <div>
-          {history.length===0
-            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0"}}>No pulls yet — rip some packs!</div>
-            : history.map((entry,ei)=>(
-              <div key={ei} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"14px",marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
-                  <span style={{fontSize:13,fontWeight:700,color:"#E8317A"}}>{entry.product}</span>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,0.25)"}}>{new Date(entry.pulledAt).toLocaleTimeString()}</span>
-                </div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {entry.cards.filter(c=>rarityScore(c)>=45).map((c,ci)=>{
-                    const g=WEAPON_GLOW[c.weapon]||"#888";
-                    return (
-                      <div key={ci} style={{display:"flex",alignItems:"center",gap:6,background:`${g}11`,border:`1px solid ${g}33`,borderRadius:8,padding:"4px 10px"}}>
-                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3}}/>}
-                        <div>
-                          <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{c.hero||c.cardName}</div>
-                          <div style={{fontSize:10,color:g}}>{c.treatment}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {!entry.cards.some(c=>rarityScore(c)>=45)&&<span style={{fontSize:12,color:"rgba(255,255,255,0.2)"}}>No notable pulls</span>}
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {/* COMMUNITY */}
-      {activeView==="community" && (
-        <div>
-          <div style={{textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.25)",marginBottom:20}}>Top simulated hits from the community</div>
-          {community.length===0
-            ? <div style={{textAlign:"center",color:"rgba(255,255,255,0.2)",padding:"60px 0"}}>Be the first to hit something big!</div>
-            : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12}}>
-                {community.map((p,i)=>{
-                  const g=WEAPON_GLOW[p.weapon]||"#888";
-                  return (
-                    <div key={p.id} style={{background:`${g}11`,border:`1.5px solid ${g}33`,borderRadius:12,overflow:"hidden",textAlign:"center"}}>
-                      {i<3&&<div style={{background:["#FFD700","#C0C0C0","#CD7F32"][i],color:"#000",fontSize:9,fontWeight:900,padding:"3px 0",letterSpacing:1}}>{["🥇 #1","🥈 #2","🥉 #3"][i]}</div>}
-                      {p.imageUrl
-                        ? <img src={p.imageUrl} alt={p.cardName} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover"}}/>
-                        : <div style={{aspectRatio:"3/4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"rgba(255,255,255,0.3)",padding:8}}>{p.cardName}</div>
-                      }
-                      <div style={{padding:"8px"}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"#F0F0F0"}}>{p.cardName}</div>
-                        <div style={{fontSize:10,color:g,marginBottom:2}}>{p.treatment}</div>
-                        <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{p.userName}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-          }
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
 function PublicCardDatabase() {
@@ -23401,7 +23110,6 @@ function PublicCardDatabase() {
             {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
             {tabBtn("1of1","💎 1/1s",0)}
-            {tabBtn("simulator","\uD83C\uDFAF Pack Rip",0)}
             {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
             {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
             {tabBtn("playbook","\uD83D\uDCD6 Playbook",0)}
@@ -23460,12 +23168,6 @@ function PublicCardDatabase() {
 
       {/* TAB CONTENT */}
       <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
-
-        {/* PACK RIP SIMULATOR TAB */}
-        {activeTab==="simulator" && <PackRipSimulator cards={cards} user={user} />}
-
-        {/* PACK RIP SIMULATOR TAB */}
-        {activeTab==="simulator" && <PackRipSimulator cards={cards} user={user} />}
 
         {/* 1/1 TAB — reuse same logic as internal checklist */}
         {activeTab==="1of1" && (() => {
@@ -24572,7 +24274,7 @@ function PublicCardDatabase() {
             addEmail={addEmail} setAddEmail={setAddEmail}
             addStatus={addStatus} setAddStatus={setAddStatus}
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
-            respondFriendReq={respondFriendReq} addFriend={addFriend}
+            respondFriendReq={respondFriendReq}
             sendFriendRequest={sendFriendRequest}
             cards={cards} owned={owned} privateCards={privateCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
