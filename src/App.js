@@ -23069,7 +23069,7 @@ function PublicCardDatabase() {
         <div style={{maxWidth:1400,margin:"0 auto",padding:"40px 24px 0",position:"relative"}}>
           <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:16,marginBottom:32}}>
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
-              <img src="/Bazooka%20Logo.png" alt="Bazooka" style={{height:"clamp(80px,14vw,140px)",width:"auto",display:"block",filter:"drop-shadow(0 6px 20px rgba(232,49,122,0.3))"}}/>
+              <img src="/Bazooka%20Logo.png" alt="Bazooka" style={{height:"clamp(140px,22vw,260px)",width:"auto",maxWidth:"min(560px,80vw)",objectFit:"contain",display:"block",marginLeft:-12,filter:"drop-shadow(0 6px 20px rgba(232,49,122,0.3))"}}/>
               <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:10}}>BoBA Collector's Database</div>
               <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
                 {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"},{v:collectionValue>0?"$"+collectionValue.toFixed(0):"--",l:"Est. Value"}].map(({v,l})=>(
