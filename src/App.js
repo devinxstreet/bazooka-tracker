@@ -4323,10 +4323,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
+          {canSeeFinancials && (
           <div style={{ background:"#1a1400", border:"1px solid #FBBF2444", borderRadius:8, padding:"8px 14px", fontSize:12, color:"#FBBF24", fontWeight:600, marginBottom:8 }}>
             {"\u26A0\uFE0F Select your breaker first, then import the CSV"}</div>
+          )}
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             {/* Whatnot CSV Import */}
+            {canSeeFinancials && (
             <label style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a2e", border:"1.5px solid #E8317A44", borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, color:"#E8317A", cursor:"pointer", whiteSpace:"nowrap" }}>
               {"\uD83D\uDCE5 Whatnot CSV"}<input type="file" accept=".csv" style={{ display:"none" }} onChange={e => {
                 const file = e.target.files[0]; if (!file) return;
@@ -4447,6 +4450,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 e.target.value="";
               }}/>
             </label>
+            )}
             {editingStreamId && existingStream && (
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ background:"#111111", color:"#AAAAAA", border:"1px solid #92400e33", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
