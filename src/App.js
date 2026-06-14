@@ -4239,7 +4239,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   }
 
   async function handleSaveRecap() {
-    if (!breaker || !date || !recap.grossRevenue) return;
+    if (!breaker || !date || (canSeeFinancials && !recap.grossRevenue)) return;
     setRecapSaving(true);
     try {
       // Only reuse existing stream ID if breaker + date + channel all match precisely
@@ -4626,10 +4626,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#AAAAAA", margin:0 }}>{"\uD83C\uDFC6 Cards Used as Chasers"}</label>
+              {canSeeFinancials && (
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <label style={{ fontSize:11, color:"#AAAAAA" }}>Manual override ($)</label>
                 <input type="number" step="0.01" value={recap.chaserCards||""} onChange={e=>rf("chaserCards")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:90, color:"#AAAAAA", padding:"4px 8px" }}/>
               </div>
+              )}
             </div>
             {(() => {
               const usedIdSet = new Set(breaks.map(b=>b.inventoryId));
@@ -4673,7 +4675,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                               <input type="checkbox" checked={isSel} readOnly style={{ flexShrink:0 }}/>
                               <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"#F0F0F0", flex:1 }}>{c.cardName}</span>
                               <span style={{ background:cc.bg, color:cc.text, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap" }}>{c.cardType}</span>
-                              {c.costPerCard>0 && <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:700 }}>${c.costPerCard.toFixed(2)}</span>}
+                              {canSeeFinancials && c.costPerCard>0 && <span style={{ fontSize:11, color:"#AAAAAA", fontWeight:700 }}>${c.costPerCard.toFixed(2)}</span>}
                             </div>
                           );
                         })}
@@ -4683,7 +4685,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   {selectedChasers.length > 0 && (
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
                       <span style={{ fontSize:12, color:"#AAAAAA", fontWeight:700 }}>
-                        {"\u2705"}{selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected · auto-cost: ${totalCost.toFixed(2)}
+                        {"\u2705"}{selectedChasers.length} card{selectedChasers.length!==1?"s":""} selected{canSeeFinancials?` · auto-cost: $${totalCost.toFixed(2)}`:""}
                       </span>
                       <button onClick={()=>{ setRecap(p=>({...p, chaserCardIds:"", chaserCards:""})); setRecapSaved(false); }} style={{ background:"none", border:"1px solid #2a2a2a", borderRadius:5, color:"#AAAAAA", cursor:"pointer", fontSize:11, padding:"2px 8px", fontFamily:"inherit" }}>{"\u2715 Clear"}</button>
                     </div>
@@ -5061,7 +5063,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         )}
 
         <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
-          <Btn onClick={handleSaveRecap} disabled={!breaker||!date||!recap.grossRevenue||recapSaving} variant="green">
+          <Btn onClick={handleSaveRecap} disabled={!breaker||!date||(canSeeFinancials&&!recap.grossRevenue)||recapSaving} variant="green">
             {recapSaving ? "Saving..." : recapSaved ? "\u2705 Update Recap" : "\uD83D\uDCBE Save Stream Recap"}
           </Btn>
           {recapSaved && (() => {
