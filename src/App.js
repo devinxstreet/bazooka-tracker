@@ -21978,7 +21978,7 @@ function PublicCardDatabase() {
   const [privateCards,  setPrivateCards]  = useState({});
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
-  const [activeTab,     setActiveTab]     = useState("cards");
+  const [activeTab,     setActiveTab]     = useState(()=>{ const h=(window.location.hash||"").replace("#","").trim(); const valid=["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"]; return valid.includes(h)?h:"cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -27131,15 +27131,16 @@ export default function App() {
                   {label:"📡 Followers",        sub:"Whatnot follower tracker",      action:()=>{setTab("performance");setPerfTabDefault("followers");setHoverTab(null);}},
                 ],
                 "checklist": [
-                  {label:"📋 Set List",      sub:"Browse cards by set",          action:()=>{setTab("checklist");setChecklistDefault("setlist");setHoverTab(null);}},
-                  {label:"📋 Checklist",sub:"Card checklist",action:()=>{setTab("checklist");setChecklistDefault("cards");setHoverTab(null);}},
-                  {label:"\u2B50 Wants",sub:"Want list",action:()=>{setTab("checklist");setChecklistDefault("wants");setHoverTab(null);}},
-                  {label:"\uD83D\uDCCA Stats",sub:"Collection stats",action:()=>{setTab("checklist");setChecklistDefault("stats");setHoverTab(null);}},
+                  {label:"🃏 Card Database",  sub:"Browse all cards",            action:()=>{window.open("/cards#cards","_blank");setHoverTab(null);}},
+                  {label:"🌈 Rainbow",        sub:"Rainbow tracker",             action:()=>{window.open("/cards#rainbow","_blank");setHoverTab(null);}},
+                  {label:"⭐ Supers",         sub:"Super Foil tracker",          action:()=>{window.open("/cards#supers","_blank");setHoverTab(null);}},
+                  {label:"💎 Secret 1/1s",    sub:"Secret 1/1 tracker",          action:()=>{window.open("/cards#1of1","_blank");setHoverTab(null);}},
+                  {label:"\u2B50 Wants",      sub:"Want list",                   action:()=>{window.open("/cards#wants","_blank");setHoverTab(null);}},
                 ],
               })[t.id]||[];
                 return (
                   <div key={t.id} style={{position:"relative"}} onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoverTab({id:t.id,x:r.left,y:r.bottom})}} onMouseLeave={()=>setTimeout(()=>setHoverTab(null),100)}>
-                    <button onClick={()=>setTab(t.id)} className="dash-tab"
+                    <button onClick={()=>{ if(t.id==="checklist"){ window.open("/cards","_blank"); } else { setTab(t.id); } }} className="dash-tab"
                       style={{
                         background: tab===t.id ? "rgba(232,49,122,0.12)" : "transparent",
                         color: tab===t.id ? "#E8317A" : "rgba(255,255,255,0.4)",
@@ -27198,7 +27199,6 @@ export default function App() {
         {tab==="finance"    && <Finance streams={streams} userRole={effectiveRole} quotes={quotes}/>}
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
-        {tab==="checklist"  && <BobaChecklist defaultView={checklistDefault} userRole={effectiveRole} user={effectiveUser} onScanUpdate={setActiveScan} onChecklistUpdated={handleOnChecklistUpdated}/>}
         {tab==="directory"  && <CompanyDirectory userRole={effectiveRole}/>}
         {tab==="importer"   && <CardSetImporter userRole={effectiveRole}/>}
       </div>
