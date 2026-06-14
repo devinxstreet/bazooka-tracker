@@ -561,6 +561,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [showImcAdj,  setShowImcAdj]  = useState(false);
   const [migrating,   setMigrating]   = useState(false);
   const [migDone,     setMigDone]     = useState(false);
+  const [opsPeriod,    setOpsPeriod]    = useState("month");
+  const [opsFrom,      setOpsFrom]      = useState("");
+  const [opsTo,        setOpsTo]        = useState("");
   const usedIds    = new Set(breaks.filter(b=>!b.isPoolLog).map(b => b.inventoryId));
   const transitIds = new Set(inventory.filter(c => c.cardStatus === "in_transit").map(c => c.id));
   const USAGE_TO_CT = { "Giveaway":"Giveaway Cards", "Insurance":"Insurance Cards", "First-Timer Pack":"First-Timer Cards", "Chaser Pull":"Chaser Cards", "Chaser":"Chaser Cards" };
@@ -1103,10 +1106,6 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
       {/* Ops Summary */}
       {canSeeFinancials && (() => {
-        const [opsPeriod,    setOpsPeriod]    = useState("month");
-        const [opsFrom,      setOpsFrom]      = useState("");
-        const [opsTo,        setOpsTo]        = useState("");
-
         function opsInPeriod(dateStr) {
           if (!dateStr) return false;
           const d = parseLocalDate(dateStr);
