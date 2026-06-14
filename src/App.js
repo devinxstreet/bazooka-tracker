@@ -5,7 +5,32 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvi
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
+// Pre-fetch BoJax card images for loading screen — runs once at module load
+const LOADING_CARD_IMAGES = { urls: [], loaded: false };
+(async () => {
+  try {
+    const CACHE_KEY = "bazooka_loading_imgs_v1";
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { urls, ts } = JSON.parse(cached);
+      if (urls?.length > 0 && Date.now() - ts < 7*24*60*60*1000) {
+        LOADING_CARD_IMAGES.urls = urls;
+        LOADING_CARD_IMAGES.loaded = true;
+        return;
+      }
+    }
+    // Fetch BoJax cards with images from Firestore
+    const snap = await getDocs(query(collection(db,"boba_checklist"), where("hero","==","BoJax")));
+    const urls = snap.docs.map(d=>d.data().imageUrl).filter(Boolean).slice(0,30);
+    if (urls.length > 0) {
+      LOADING_CARD_IMAGES.urls = urls;
+      LOADING_CARD_IMAGES.loaded = true;
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ urls, ts: Date.now() }));
+    }
+  } catch(e) {}
+})();
+
+
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU"];
@@ -18,28 +43,30 @@ function calcStream(s, targetBreaker=null) {
   const gross        = parseFloat(s.grossRevenue)||0;
   const fees         = parseFloat(s.whatnotFees)||0;
   const coupons      = parseFloat(s.coupons)||0;
+  const isSingles     = !!(s.isSinglesShow);
   const streamExp    = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
   const splitBase    = gross - fees - coupons;
   const externalCh   = !!s.externalChannel;
-  const bazNet       = splitBase * 0.30;
-  const imcNet       = externalCh ? 0 : splitBase * 0.70;
-  // Collab split calculated FIRST so commission is based on what Bazooka actually keeps
-  const collabAmt    = (s.collabPartner&&s.collabPartner!=="_") ? bazNet*(parseFloat(s.collabPct||0)/100) : 0;
-  const bazOwnShare  = bazNet - collabAmt;
-  const rate         = getRate(s);
-  const commAmt      = bazOwnShare * rate;  // commission on Bazooka's share after collab
-  const repExpShare  = streamExp * (rate * 0.30);
-  const bazExpShare  = streamExp * ((1-rate) * 0.30);
+
+  // Singles Show: 100% of net goes to breaker, no 70/30 split
+  const bazNet       = isSingles ? 0 : splitBase * 0.30;
+  const imcNet       = isSingles ? 0 : externalCh ? 0 : splitBase * 0.70;
+  const collabAmt    = 0;
+  const bazOwnShare  = isSingles ? 0 : bazNet;
+  const rate         = isSingles ? 1 : getRate(s);
+  const commAmt      = isSingles ? splitBase : bazOwnShare * rate;
+  const repExpShare  = isSingles ? 0 : streamExp * (rate * 0.30);
+  const bazExpShare  = isSingles ? 0 : streamExp * ((1-rate) * 0.30);
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
-  const eventStaffAmt = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,bazOwnShare*0.15),0);
-  const imcReimb      = externalCh ? 0 : streamExp * 0.70;
+  const eventStaffAmt = 0;
+  const imcReimb      = isSingles ? 0 : externalCh ? 0 : streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
-  const primaryCommAmt = s.splitRep ? commAmt*splitPct : commAmt;
+  const primaryCommAmt = isSingles ? splitBase : (s.splitRep ? commAmt*splitPct : commAmt);
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
-  const bazTrueNet    = bazOwnShare - commAmt - eventStaffAmt + imcReimb + imcDirectReimb;
-  let myComm = primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
+  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + imcReimb + imcDirectReimb;
+  let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
@@ -48,7 +75,7 @@ function calcStream(s, targetBreaker=null) {
            : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -792,8 +819,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const filtered = streams.filter(s => inPeriod(s.date));
         const streamTotals = filtered.reduce((acc,s) => {
           const c = calcStream(s);
+          if (c.isSingles) { acc.singlesGross += c.gross; acc.singlesComm += c.myComm; return acc; }
           const exp = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
-          // Total commission = primary rep's share + split rep's share + event staff fees + sales bonus
           const splitPct = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
           const primaryComm = s.splitRep ? c.commAmt*splitPct : c.commAmt;
           const splitRepComm = s.splitRep ? c.commAmt*(1-splitPct) : 0;
@@ -806,7 +833,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           acc.expenses += exp;
           acc.imcDirectReimb += c.imcDirectReimb||0;
           return acc;
-        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0, imcDirectReimb:0 });
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0, imcDirectReimb:0, singlesGross:0, singlesComm:0 });
 
         // Merge historical monthly summaries into totals
         const histFiltered = historicalData.filter(h => {
@@ -834,6 +861,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           trueNet:       streamTotals.trueNet  + histTotals.trueNet,
           expenses:      streamTotals.expenses || 0,
           imcDirectReimb: streamTotals.imcDirectReimb || 0,
+          singlesGross:  streamTotals.singlesGross || 0,
+          singlesComm:   streamTotals.singlesComm || 0,
         };
 
         const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
@@ -940,12 +969,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
             <div className="dash-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
               {[
-                { key:"gross",      label:"Gross Revenue",      val:totals.gross,    color:"#E8317A", icon:"📈", sub:"total across all streams" },
+                { key:"gross",      label:"Gross Revenue",      val:totals.gross,    color:"#E8317A", icon:"📈", sub:"breaks only · excl. singles" },
                 { key:"expenses",   label:"Stream Expenses",    val:totals.expenses, color:"#888",    icon:"📦", sub:"before IMC split" },
                 { key:"imc",        label:"Owed to IMC",        val:totals.imc + Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#7B9CFF", icon:"💙", sub:"70% of split base" },
                 { key:"bazooka",    label:"Bazooka 30%",        val:totals.baz,      color:"#E8317A", icon:"🏦", sub:"before commission" },
                 { key:"trueNet",    label:"True Net",           val:totals.trueNet - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0), color:"#A78BFA", icon:"✨", sub:"after all deductions" },
                 { key:"commission", label:"Commission Owed",    val:totals.comm,     color:"#4ade80", icon:"💰", sub:"net rep payout" },
+                ...(totals.singlesGross>0 ? [{ key:"singles", label:"Singles Revenue", val:totals.singlesGross, color:"#FBBF24", icon:"🃏", sub:`$${totals.singlesComm.toFixed(0)} to breaker · 100%` }] : []),
               ].map(({key,label,val,color,icon,sub}) => {
                 const isActive = drillDown === key;
                 const isPositive = val >= 0;
@@ -4115,7 +4145,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4146,7 +4176,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4689,6 +4719,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <input type="checkbox" checked={recap.isEvent||false} onChange={e=>{rf("isEvent")(e.target.checked); if(e.target.checked) rf("binOnly")(false);}} style={{ width:16, height:16, accentColor:"#A78BFA" }}/>
             <span style={{ fontSize:12, color: recap.isEvent?"#A78BFA":"#AAAAAA", fontWeight: recap.isEvent?700:400 }}>🎪 Event Break — 15% event fee</span>
             {recap.isEvent && rc && <span style={{ fontSize:12, fontWeight:800, color:"#A78BFA" }}>{fmt(rc.commAmt)} to {recap.breaker||breaker||"rep"}</span>}
+          </div>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <input type="checkbox" checked={recap.isSinglesShow||false} onChange={e=>rf("isSinglesShow")(e.target.checked)} style={{ width:16, height:16, accentColor:"#FBBF24" }}/>
+            <span style={{ fontSize:12, color: recap.isSinglesShow?"#FBBF24":"#AAAAAA", fontWeight: recap.isSinglesShow?700:400 }}>🃏 Singles Show — 100% to breaker</span>
+            {recap.isSinglesShow && rc && <span style={{ fontSize:12, fontWeight:800, color:"#FBBF24" }}>{fmt(rc.myComm)} to {recap.breaker||breaker||"rep"}</span>}
           </div>
           {canSeeFinancials && (
             <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
@@ -22911,9 +22946,19 @@ function PublicCardDatabase() {
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
   if(loading) {
-    // Grab cards with images for the floating display
-    const floatCards = cards.filter(c=>c.imageUrl).slice(0,24);
-
+    const floatUrls = LOADING_CARD_IMAGES.urls.length > 0
+      ? LOADING_CARD_IMAGES.urls
+      : (() => { // fallback: try localStorage cache
+          try {
+            const raw = localStorage.getItem("boba_checklist_cache_v3");
+            if (raw) {
+              const { cards: cc } = JSON.parse(raw);
+              return (cc||[]).filter(c=>c.imageUrl&&(c.hero||"").toLowerCase().includes("bo"))
+                .sort(()=>Math.random()-0.5).slice(0,20).map(c=>c.imageUrl);
+            }
+          } catch(e) {}
+          return [];
+        })();
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",fontFamily:"'Trebuchet MS',sans-serif",overflow:"hidden",position:"relative"}}>
         <style>{`
@@ -22928,7 +22973,7 @@ function PublicCardDatabase() {
         `}</style>
 
         {/* Floating cards */}
-        {floatCards.map((c,i)=>{
+        {floatUrls.map((url,i)=>{
           const yStart  = Math.random()*80+10;
           const yEnd    = Math.random()*80+10;
           const rotS    = (Math.random()-0.5)*20;
@@ -22936,12 +22981,10 @@ function PublicCardDatabase() {
           const dur     = 6 + Math.random()*8;
           const delay   = -(Math.random()*dur);
           const scale   = 0.55 + Math.random()*0.55;
-          const wc      = PUBLIC_WEAPON_COLORS[c.weapon] || "#444";
           return (
-            <div key={c.id} style={{
+            <div key={i} style={{
               position:"absolute",
-              left:0,
-              top:0,
+              left:0, top:0,
               width:140*scale,
               aspectRatio:"3/4",
               "--y-start":`${yStart}vh`,
@@ -22951,13 +22994,12 @@ function PublicCardDatabase() {
               animation:`floatAcross ${dur}s linear ${delay}s infinite`,
               borderRadius:10*scale,
               overflow:"hidden",
-              border:`2px solid ${wc}44`,
-              boxShadow:`0 8px 32px rgba(0,0,0,0.6), 0 0 20px ${wc}22`,
+              border:"2px solid rgba(232,49,122,0.3)",
+              boxShadow:"0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(232,49,122,0.15)",
               pointerEvents:"none",
               zIndex: Math.floor(scale*10),
             }}>
-              <img src={c.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",pointerEvents:"none"}}/>
-              <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${wc}11,transparent)`,pointerEvents:"none"}}/>
+              <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",pointerEvents:"none"}}/>
             </div>
           );
         })}
