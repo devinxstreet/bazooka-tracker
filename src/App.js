@@ -22316,6 +22316,8 @@ function PublicCardDatabase() {
   const [claimDate,       setClaimDate]       = useState("");
   const [expandedSuperSets, setExpandedSuperSets] = useState({});
   const [expandedOneGroups, setExpandedOneGroups] = useState({});
+  const [superSearch,     setSuperSearch]     = useState("");
+  const [secret1Search,   setSecret1Search]   = useState("");
   const [flippedClaim,    setFlippedClaim]    = useState(null);
 
   // -- 1/1 Tracker --
@@ -23637,14 +23639,24 @@ function PublicCardDatabase() {
                 <button onClick={()=>{ const all={}; (secret1SetFilter?secret1of1Cards.filter(c=>c.setName===secret1SetFilter):secret1of1Cards).forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
+              {/* Hero search */}
+              <div style={{ position:"relative" }}>
+                <input value={secret1Search} onChange={e=>setSecret1Search(e.target.value)} placeholder="🔍 Search hero or card #..."
+                  style={{ width:"100%", background:"#0a0a0a", border:"1px solid rgba(147,51,234,0.3)", borderRadius:10, color:"#F0F0F0", padding:"10px 14px", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+                {secret1Search && <button onClick={()=>setSecret1Search("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:16 }}>✕</button>}
+              </div>
+
               {/* Grouped trackers */}
               {(()=>{
                 const keyOf = c => secret1GroupBy==="set" ? (c.setName||"Unknown") : secret1GroupBy==="treatment" ? (c.treatment||"Unknown") : secret1GroupBy==="weapon" ? (c.weapon||"Unknown") : (c.hero||"Unknown");
                 // Set filter is primary — everything else groups within the selected set
-                const sourceCards = secret1SetFilter ? secret1of1Cards.filter(c=>c.setName===secret1SetFilter) : secret1of1Cards;
+                const q = secret1Search.trim().toLowerCase();
+                const matchesSearch = c => !q || `${c.hero||""} ${c.cardNum||""}`.toLowerCase().includes(q);
+                const sourceCards = (secret1SetFilter ? secret1of1Cards.filter(c=>c.setName===secret1SetFilter) : secret1of1Cards).filter(matchesSearch);
                 const groupMap={};
                 sourceCards.forEach(c=>{ const k=keyOf(c); if(!k)return; (groupMap[k]=groupMap[k]||[]).push(c); });
                 const groupKeys=Object.keys(groupMap).sort();
+                if(groupKeys.length===0) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:14 }}>No Secret 1/1s match your filters</div>;
                 return groupKeys.map(groupKey=>{
                 const setCards=groupMap[groupKey];
                 const setName=groupKey;
@@ -23656,7 +23668,7 @@ function PublicCardDatabase() {
                 const visibleCards=secret1StatusFilter==="claimed"?setCards.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?setCards.filter(c=>!claimMap1[c.id]):setCards;
                 if(secret1StatusFilter!=="all" && visibleCards.length===0) return null;
                 const collapseKey=`${secret1GroupBy}:${setName}`;
-                const isCollapsed=!expandedOneGroups[collapseKey];
+                const isCollapsed=q ? false : !expandedOneGroups[collapseKey];
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
                     <div onClick={()=>setExpandedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111", cursor:"pointer", userSelect:"none" }}>
@@ -23930,15 +23942,27 @@ function PublicCardDatabase() {
                 <button onClick={()=>{ const all={}; superSets.forEach(s=>{ all[s]=true; }); setExpandedSuperSets(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
+              {/* Hero search */}
+              <div style={{ position:"relative" }}>
+                <input value={superSearch} onChange={e=>setSuperSearch(e.target.value)} placeholder="🔍 Search hero or card #..."
+                  style={{ width:"100%", background:"#0a0a0a", border:"1px solid rgba(245,158,11,0.3)", borderRadius:10, color:"#F0F0F0", padding:"10px 14px", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+                {superSearch && <button onClick={()=>setSuperSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#888", cursor:"pointer", fontSize:16 }}>✕</button>}
+              </div>
+
               {/* Per-set trackers */}
-              {superSets.filter(setName => !superSetFilter || setName === superSetFilter).map(setName=>{
-                const setSuperCards=superCards.filter(c=>c.setName===setName);
+              {(()=>{
+                const sq=superSearch.trim().toLowerCase();
+                const matchSuper=c=>!sq||`${c.hero||""} ${c.cardNum||""}`.toLowerCase().includes(sq);
+                const visibleSets=superSets.filter(setName => !superSetFilter || setName === superSetFilter);
+                const rendered=visibleSets.map(setName=>{
+                const setSuperCards=superCards.filter(c=>c.setName===setName && matchSuper(c));
+                if(setSuperCards.length===0) return null;
                 const setVerified=setSuperCards.filter(c=>claimMap[c.id]?.status==="verified");
                 const setPending=setSuperCards.filter(c=>claimMap[c.id]?.status==="pending");
                 const setUnclaimed=setSuperCards.filter(c=>!claimMap[c.id]);
                 const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
                 const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
-                const isCollapsed=!expandedSuperSets[setName];
+                const isCollapsed=sq ? false : !expandedSuperSets[setName];
                 const visibleSuperCards=superStatusFilter==="claimed"?setSuperCards.filter(c=>!!claimMap[c.id]):superStatusFilter==="unclaimed"?setSuperCards.filter(c=>!claimMap[c.id]):setSuperCards;
                 if(superStatusFilter!=="all" && visibleSuperCards.length===0) return null;
                 return (
@@ -24029,7 +24053,11 @@ function PublicCardDatabase() {
                     )}
                   </div>
                 );
-              })}
+              });
+                const anyRendered=rendered.some(Boolean);
+                if(!anyRendered && (superSearch.trim()||superStatusFilter!=="all")) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:14 }}>No Super Foils match your filters</div>;
+                return rendered;
+              })()}
 
               {superCards.length===0&&(
                 <div style={{textAlign:"center",padding:"80px 0",color:"rgba(255,255,255,0.2)"}}>
