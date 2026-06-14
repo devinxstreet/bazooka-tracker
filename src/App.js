@@ -26489,11 +26489,16 @@ export default function App() {
   }
 
   async function handleDeleteStream(id) {
-    // Restore any chaser cards logged under this stream
-    const streamBreaks = breaks.filter(b => b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
-    await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id))));
-    await deleteDoc(doc(db,"streams",id));
-    showToast("\uD83D\uDDD1 Stream deleted");
+    try {
+      // Restore any chaser cards logged under this stream
+      const streamBreaks = breaks.filter(b => b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
+      await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id))));
+      await deleteDoc(doc(db,"streams",id));
+      showToast("\uD83D\uDDD1 Stream deleted");
+    } catch(e) {
+      console.error("Delete stream error:", e);
+      showToast("❌ Delete failed: " + e.message);
+    }
   }
 
   async function handleSaveComp(comp) {
