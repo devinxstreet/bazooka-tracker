@@ -22212,6 +22212,7 @@ function PublicCardDatabase() {
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
   const [secret1SetFilter, setSecret1SetFilter] = useState("");
+  const [secret1TreatFilter, setSecret1TreatFilter] = useState({}); // { [setName]: treatment }
 
   // -- Custom Rainbows --
   const [customRainbows,      setCustomRainbows]      = useState([]);
@@ -22303,7 +22304,11 @@ function PublicCardDatabase() {
   const [claimPhoto,      setClaimPhoto]      = useState(null);
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [claimSent,       setClaimSent]       = useState(false);
+  const [claimStory,      setClaimStory]      = useState("");
+  const [claimName,       setClaimName]       = useState("");
+  const [claimDate,       setClaimDate]       = useState("");
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
+  const [flippedClaim,    setFlippedClaim]    = useState(null);
 
   // -- 1/1 Tracker --
   const [oneOfOneClaims,  setOneOfOneClaims]  = useState([]);
@@ -23592,6 +23597,9 @@ function PublicCardDatabase() {
                 const setPending=setCards.filter(c=>claimMap1[c.id]?.status==="pending");
                 const verPct=setCards.length>0?(setVerified.length/setCards.length*100):0;
                 const isFull=setVerified.length===setCards.length&&setCards.length>0;
+                const setTreatments=[...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
+                const activeTreat=secret1TreatFilter[setName]||"";
+                const visibleCards=activeTreat?setCards.filter(c=>c.treatment===activeTreat):setCards;
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
                     <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
@@ -23605,18 +23613,44 @@ function PublicCardDatabase() {
                       <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${verPct}%`, background:"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", borderRadius:4, transition:"width 0.5s ease" }}/>
                       </div>
+                      {setTreatments.length>1 && (
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:12 }}>
+                          <button onClick={()=>setSecret1TreatFilter(p=>({...p,[setName]:""}))} style={{ background:activeTreat===""?"rgba(147,51,234,0.18)":"transparent", color:activeTreat===""?"#C084FC":"rgba(255,255,255,0.45)", border:`1px solid ${activeTreat===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All ({setCards.length})</button>
+                          {setTreatments.map(tr=>{
+                            const tc=setCards.filter(c=>c.treatment===tr).length;
+                            return <button key={tr} onClick={()=>setSecret1TreatFilter(p=>({...p,[setName]:tr}))} style={{ background:activeTreat===tr?"rgba(147,51,234,0.18)":"transparent", color:activeTreat===tr?"#C084FC":"rgba(255,255,255,0.45)", border:`1px solid ${activeTreat===tr?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{tr} ({tc})</button>;
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div style={{ padding:"12px 20px 16px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
-                      {setCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
+                      {visibleCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap1[c.id]; const isV=claim?.status==="verified"; const isP=claim?.status==="pending";
                         return (
                           <div key={c.id} style={{ background:isV?"#1a0a2e":"#0a0a0a", border:`1.5px solid ${isV?"#9333EA":isP?"#9333EA44":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
-                            {c.imageUrl && <div style={{ position:"relative" }}>
-                              <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block", opacity:isV?1:0.5, filter:isV?"none":"grayscale(40%)", pointerEvents:"none" }}/>
-                              {isV && <div style={{ position:"absolute", top:6, right:6, background:"#9333EA", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>✅ FOUND</div>}
-                              {isP && <div style={{ position:"absolute", top:6, right:6, background:"#1a0a2e", border:"1px solid #9333EA", color:"#9333EA", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>⏳</div>}
-                              {!isV&&!isP && <div style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,0.7)", color:"#555", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>UNCLAIMED</div>}
-                            </div>}
+                            {c.imageUrl && (()=>{
+                              const isFlipped = isV && flippedClaim===`one_${c.id}` && claim.photoUrl;
+                              const canFlip = isV && claim.photoUrl;
+                              return (
+                              <div style={{ position:"relative", aspectRatio:"3/4", cursor:canFlip?"pointer":"default" }} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`one_${c.id}`?null:`one_${c.id}`); }}>
+                                <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:isFlipped?"perspective(700px) rotateY(180deg)":"perspective(700px)", willChange:"transform" }}>
+                                  <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", overflow:"hidden" }}>
+                                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:isV?1:0.5, filter:isV?"none":"grayscale(40%)" }}/>
+                                    {isV && <div style={{ position:"absolute", top:6, right:6, background:"#9333EA", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>✅ FOUND</div>}
+                                    {isP && <div style={{ position:"absolute", top:6, right:6, background:"#1a0a2e", border:"1px solid #9333EA", color:"#9333EA", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>⏳</div>}
+                                    {!isV&&!isP && <div style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,0.7)", color:"#555", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>UNCLAIMED</div>}
+                                    {canFlip && <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>🔄 the hit</div>}
+                                  </div>
+                                  {canFlip && (
+                                    <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", overflow:"hidden", background:"#0a0a0a" }}>
+                                      <img src={claim.photoUrl} alt="the hit" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                                      <div style={{ position:"absolute", top:6, left:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>🔄 card</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              );
+                            })()}
                             <div style={{ padding:"10px 12px" }}>
                               <div style={{ fontSize:13, fontWeight:800, color:isV?"#9333EA":"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
                               <div style={{ fontSize:10, color:"#555", marginBottom:4 }}>#{c.cardNum} · {c.treatment}</div>
@@ -23673,6 +23707,7 @@ function PublicCardDatabase() {
                 cardId: card.id, cardName: card.hero, cardNum: card.cardNum,
                 setName: card.setName || "", cardImage: card.imageUrl || null,
                 userId: user.uid, userName: user.displayName || user.email,
+                submitterName: claimName || "Anonymous", story: claimStory || "", dateHit: claimDate || "",
                 photoUrl, status: "pending",
                 createdAt: new Date().toISOString(),
               });
@@ -23696,14 +23731,14 @@ function PublicCardDatabase() {
               {/* Claim modal */}
               {claimModal && (
                 <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);} }}>
+                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");} }}>
                   <div style={{background:"#111",border:"2px solid #F59E0B",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
                     {claimSent?(
                       <div style={{textAlign:"center",padding:"20px 0"}}>
                         <div style={{fontSize:52,marginBottom:16}}>⭐</div>
                         <div style={{fontSize:20,fontWeight:900,color:"#F59E0B",marginBottom:8}}>Claim Submitted!</div>
                         <div style={{fontSize:13,color:"#888",marginBottom:24}}>Your Super Foil claim is pending admin verification. You'll be notified once reviewed.</div>
-                        <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimSent(false);}} style={{background:"#F59E0B",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                        <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");}} style={{background:"#F59E0B",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
                       </div>
                     ):(
                       <>
@@ -23725,12 +23760,27 @@ function PublicCardDatabase() {
                           <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
                             onChange={e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>setClaimPhoto(ev.target.result);r.readAsDataURL(f);e.target.value="";}}/>
                         </label>
+                        <div style={{marginBottom:14}}>
+                          <label style={{fontSize:11,fontWeight:700,color:"#AAAAAA",display:"block",marginBottom:6}}>Date You Hit It</label>
+                          <input type="date" value={claimDate} onChange={e=>setClaimDate(e.target.value)} style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                        </div>
+                        <div style={{marginBottom:14}}>
+                          <label style={{fontSize:11,fontWeight:700,color:"#AAAAAA",display:"block",marginBottom:6}}>The Story <span style={{color:"#555",fontWeight:400}}>(optional)</span></label>
+                          <textarea value={claimStory} onChange={e=>setClaimStory(e.target.value)} rows={4}
+                            placeholder="Cards are about creating moments of joy… tell us the story about this hit ✨"
+                            style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"10px 12px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",resize:"vertical",lineHeight:1.6}}/>
+                        </div>
+                        <div style={{marginBottom:20}}>
+                          <label style={{fontSize:11,fontWeight:700,color:"#AAAAAA",display:"block",marginBottom:6}}>Your Name <span style={{color:"#555",fontWeight:400}}>(leave blank to stay anonymous)</span></label>
+                          <input value={claimName} onChange={e=>setClaimName(e.target.value)} placeholder="Anonymous"
+                            style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                        </div>
                         <div style={{display:"flex",gap:10}}>
                           <button onClick={()=>{if(claimPhoto)submitClaim(claimModal,claimPhoto);}} disabled={!claimPhoto||claimSubmitting}
                             style={{flex:1,background:claimPhoto?"#F59E0B":"#1a1a1a",color:claimPhoto?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:claimPhoto?"pointer":"not-allowed",fontFamily:"inherit"}}>
                             {claimSubmitting?"Submitting...":"Submit Claim"}
                           </button>
-                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                         </div>
                       </>
                     )}
@@ -23836,16 +23886,34 @@ function PublicCardDatabase() {
                         const myClaim=claim?.userId===user?.uid;
                         return (
                           <div key={c.id} style={{background:isVerified?"rgba(245,158,11,0.08)":"rgba(0,0,0,0.4)",border:`1.5px solid ${isVerified?"rgba(245,158,11,0.6)":isPending?"rgba(245,158,11,0.25)":"rgba(255,255,255,0.08)"}`,borderRadius:14,overflow:"hidden",backdropFilter:"blur(4px)"}}>
-                            {c.imageUrl&&(
-                              <div style={{position:"relative"}}>
-                                <img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block",opacity:isVerified?1:isPending?0.6:0.5,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":isPending?"grayscale(45%)":"grayscale(70%)"}}/>
+                            {c.imageUrl&&(()=>{
+                              const isFlipped = isVerified && flippedClaim===`super_${c.id}` && (claim.photoUrl || claim.story);
+                              const canFlip = isVerified && (claim.photoUrl || claim.story);
+                              return (
+                              <div style={{position:"relative",aspectRatio:"3/4",cursor:canFlip?"pointer":"default"}} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`super_${c.id}`?null:`super_${c.id}`); }}>
+                                <div style={{position:"relative",width:"100%",height:"100%",transformStyle:"preserve-3d",transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)",transform:isFlipped?"perspective(700px) rotateY(180deg)":"perspective(700px)",willChange:"transform"}}>
+                                  <div style={{position:"absolute",inset:0,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",overflow:"hidden",borderRadius:12}}>
+                                    <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block",opacity:isVerified?1:isPending?0.6:0.5,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":isPending?"grayscale(45%)":"grayscale(70%)"}}/>
+                                    {canFlip && <div style={{position:"absolute",bottom:6,right:6,background:"rgba(0,0,0,0.7)",color:"#F59E0B",borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700}}>🔄 the hit</div>}
+                                  </div>
+                                  {canFlip && (
+                                    <div style={{position:"absolute",inset:0,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",transform:"rotateY(180deg)",overflow:"hidden",borderRadius:12,background:"#0a0a0a",display:"flex",flexDirection:"column"}}>
+                                      {claim.photoUrl && <img src={claim.photoUrl} alt="the hit" style={{width:"100%",flex:1,objectFit:"cover",display:"block",minHeight:0}}/>}
+                                      {claim.story && <div style={{padding:"8px 10px",fontSize:10,color:"#FBBF24",fontStyle:"italic",lineHeight:1.5,maxHeight:"40%",overflowY:"auto"}}>"{claim.story}"</div>}
+                                      <div style={{position:"absolute",top:6,left:6,background:"rgba(0,0,0,0.7)",color:"#F59E0B",borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700}}>🔄 card</div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            )}
+                              );
+                            })()}
                             <div style={{padding:"10px 12px"}}>
                               <div style={{fontSize:12,fontWeight:800,color:isVerified?"#F59E0B":"#F0F0F0",marginBottom:2}}>{c.hero}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:6}}>#{c.cardNum} · 1/1 Super</div>
-                              {isVerified&&<div style={{fontSize:11,fontWeight:700,color:"#F59E0B",marginBottom:6}}>🏆 {claim.userName}</div>}
-                              {isPending&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:6}}>⏳ {claim.userName}</div>}
+                              {isVerified&&<div style={{fontSize:11,fontWeight:700,color:"#F59E0B",marginBottom:claim.story?4:6}}>🏆 {claim.submitterName||claim.userName||"Anonymous"}</div>}
+                              {isVerified&&claim.story&&<div style={{fontSize:10,color:"#888",fontStyle:"italic",lineHeight:1.5,marginBottom:4}}>"{claim.story}"</div>}
+                              {isVerified&&claim.dateHit&&<div style={{fontSize:10,color:"#444",marginBottom:6}}>{claim.dateHit}</div>}
+                              {isPending&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:6}}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {!isVerified&&!isPending&&<div style={{fontSize:10,fontWeight:700,color:"#FBBF24",marginBottom:6,letterSpacing:0.5}}>⭐ Available</div>}
                               {isDenied&&myClaim&&<div style={{fontSize:10,color:"#E8317A",marginBottom:6}}>❌ Denied{claim.denialReason?`: ${claim.denialReason}`:""}</div>}
                               {user&&myOwned&&!isVerified&&!isPending&&(
