@@ -4752,6 +4752,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               </div>
             )}
           {userRole?.role === "Admin" && <>
+          <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
             <input type="checkbox" checked={recap.binOnly||false} onChange={e=>{rf("binOnly")(e.target.checked); if(e.target.checked) rf("isEvent")(false);}} style={{ width:16, height:16 }}/>
             <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break — flat 35% commission</span>
@@ -4782,8 +4783,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <span style={{ fontSize:11, color:"#AAAAAA" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
             </div>
           )}
+          </div>
           </>}
-        </div>
 
         {/* Split Commission — Admin only */}
         {userRole?.role === "Admin" && <div style={{ background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
@@ -5206,7 +5207,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         })()}
 
         </div>{/* end two-column layout */}
-      </div>
+      </div>}
       {!cardsOnly && (() => {
         const calcS = (s) => calcStream(s);
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
