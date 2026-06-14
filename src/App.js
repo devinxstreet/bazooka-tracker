@@ -22314,8 +22314,8 @@ function PublicCardDatabase() {
   const [claimStory,      setClaimStory]      = useState("");
   const [claimName,       setClaimName]       = useState("");
   const [claimDate,       setClaimDate]       = useState("");
-  const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
-  const [collapsedOneGroups, setCollapsedOneGroups] = useState({});
+  const [expandedSuperSets, setExpandedSuperSets] = useState({});
+  const [expandedOneGroups, setExpandedOneGroups] = useState({});
   const [flippedClaim,    setFlippedClaim]    = useState(null);
 
   // -- 1/1 Tracker --
@@ -23630,11 +23630,11 @@ function PublicCardDatabase() {
               <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
                 {[["set","💎 Set"],["treatment","🎨 Treatment"],["weapon","⚔️ Weapon"],["hero","🦸 Hero"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");setCollapsedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");setExpandedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                 ))}
                 <div style={{ flex:1 }}/>
-                <button onClick={()=>{ const all={}; secret1of1Cards.forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setCollapsedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
-                <button onClick={()=>setCollapsedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
+                <button onClick={()=>setExpandedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
+                <button onClick={()=>{ const all={}; secret1of1Cards.forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
               {/* Grouped trackers */}
@@ -23654,10 +23654,10 @@ function PublicCardDatabase() {
                 const visibleCards=secret1StatusFilter==="claimed"?setCards.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?setCards.filter(c=>!claimMap1[c.id]):setCards;
                 if(secret1StatusFilter!=="all" && visibleCards.length===0) return null;
                 const collapseKey=`${secret1GroupBy}:${setName}`;
-                const isCollapsed=!!collapsedOneGroups[collapseKey];
+                const isCollapsed=!expandedOneGroups[collapseKey];
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
-                    <div onClick={()=>setCollapsedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111", cursor:"pointer", userSelect:"none" }}>
+                    <div onClick={()=>setExpandedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111", cursor:"pointer", userSelect:"none" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                         <div>
                           <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"#F0F0F0" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
@@ -23923,6 +23923,9 @@ function PublicCardDatabase() {
                 {[["all","All"],["claimed","🏆 Claimed"],["unclaimed","⭐ Available"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setSuperStatusFilter(v)} style={{ background:superStatusFilter===v?"rgba(245,158,11,0.15)":"transparent", color:superStatusFilter===v?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superStatusFilter===v?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                 ))}
+                <div style={{ flex:1 }}/>
+                <button onClick={()=>setExpandedSuperSets({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
+                <button onClick={()=>{ const all={}; superSets.forEach(s=>{ all[s]=true; }); setExpandedSuperSets(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
               {/* Per-set trackers */}
@@ -23933,12 +23936,12 @@ function PublicCardDatabase() {
                 const setUnclaimed=setSuperCards.filter(c=>!claimMap[c.id]);
                 const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
                 const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
-                const isCollapsed=!!collapsedSuperSets[setName];
+                const isCollapsed=!expandedSuperSets[setName];
                 const visibleSuperCards=superStatusFilter==="claimed"?setSuperCards.filter(c=>!!claimMap[c.id]):superStatusFilter==="unclaimed"?setSuperCards.filter(c=>!claimMap[c.id]):setSuperCards;
                 if(superStatusFilter!=="all" && visibleSuperCards.length===0) return null;
                 return (
                   <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
-                    <div onClick={()=>setCollapsedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
+                    <div onClick={()=>setExpandedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                         <div>
                           <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
