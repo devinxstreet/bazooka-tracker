@@ -53,9 +53,15 @@ function calcStream(s, targetBreaker=null) {
   const imcNet       = isSingles ? 0 : externalCh ? 0 : splitBase * 0.70;
   const collabAmt    = 0;
   const bazOwnShare  = isSingles ? 0 : bazNet;
+  const isBigU        = (s.breaker||"").toLowerCase() === "bigu";
+  // BigU pays his own mags/packaging/topLoaders and gets reimbursed separately —
+  // don't deduct those from his commission. Still report to IMC for 70% reimbursement.
+  const repExpBase    = isBigU
+    ? (parseFloat(s.whatnotPromo)||0) + (parseFloat(s.chaserCards)||0)
+    : streamExp;
   const rate         = isSingles ? 1 : getRate(s);
   const commAmt      = isSingles ? splitBase : bazOwnShare * rate;
-  const repExpShare  = isSingles ? 0 : streamExp * (rate * 0.30);
+  const repExpShare  = isSingles ? 0 : repExpBase * (rate * 0.30);
   const bazExpShare  = isSingles ? 0 : streamExp * ((1-rate) * 0.30);
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
@@ -4978,7 +4984,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
-                    ...(canSeeFinancials ? [{ l:"\u2212 Bazooka Expense Share",    v:"\u2212 "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
+                    ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
+                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack/TL)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
