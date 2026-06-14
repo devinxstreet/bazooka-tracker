@@ -22345,9 +22345,11 @@ function PublicCardDatabase() {
   }
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
+    const wasOwned = !!owned[cardId];
     const next = {...owned};
     if (qty<=0) delete next[cardId]; else next[cardId]=qty;
     setOwned(next);
+    if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId); if(card) setCardFx({ type:"caught", card }); }
     await setDoc(doc(db,"boba_owned",user.uid), next);
   }
   async function toggleWant(cardId) {
