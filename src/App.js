@@ -23634,8 +23634,11 @@ function PublicCardDatabase() {
           const claimMap = {};
           superClaims.forEach(cl => { claimMap[cl.cardId] = cl; });
           const pendingClaims = superClaims.filter(cl => cl.status === "pending");
-          const verifiedCount = superClaims.filter(cl => cl.status === "verified").length;
-          const totalSupers = superCards.length;
+          // Scope the community overview to the selected set (or all sets when none selected)
+          const scopedSupers = superSetFilter ? superCards.filter(c => c.setName === superSetFilter) : superCards;
+          const scopedSuperIds = new Set(scopedSupers.map(c => c.id));
+          const verifiedCount = superClaims.filter(cl => cl.status === "verified" && scopedSuperIds.has(cl.cardId)).length;
+          const totalSupers = scopedSupers.length;
 
           async function submitClaim(card, photoBase64) {
             if (!user) { setSigningIn(true); return; }
@@ -23746,7 +23749,7 @@ function PublicCardDatabase() {
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#F59E0B",textTransform:"uppercase",letterSpacing:3,marginBottom:6}}>⭐ Community Super Foil Hunt</div>
                     <div style={{fontSize:22,fontWeight:900,color:"#F0F0F0"}}>How many 1/1s have been pulled?</div>
-                    <div style={{fontSize:13,color:"rgba(255,255,255,0.3)",marginTop:4}}>{totalSupers} total Super Foils · each is a unique 1/1</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,0.3)",marginTop:4}}>{totalSupers} total Super Foils{superSetFilter?` in ${superSetFilter}`:""} · each is a unique 1/1</div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:48,fontWeight:900,color:"#F59E0B",lineHeight:1}}>{verifiedCount}</div>
@@ -23758,7 +23761,7 @@ function PublicCardDatabase() {
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between"}}>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>0 found</span>
-                  <span style={{fontSize:12,fontWeight:700,color:"#F59E0B"}}>{totalSupers>0?(verifiedCount/totalSupers*100).toFixed(1):0}% of all Supers claimed</span>
+                  <span style={{fontSize:12,fontWeight:700,color:"#F59E0B"}}>{totalSupers>0?(verifiedCount/totalSupers*100).toFixed(1):0}% of {superSetFilter?superSetFilter:"all"} Supers claimed</span>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{totalSupers} total</span>
                 </div>
               </div>
