@@ -22204,7 +22204,7 @@ function PublicCardDatabase() {
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
-  const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment
+  const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment | treatmentWeapon
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
 
@@ -23965,10 +23965,18 @@ function PublicCardDatabase() {
             .map(c => ({ ...c, treatment: normalizeTreatment(c) }));
           const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
 
-          // -- Build group stats (shared logic for hero & treatment) --
+          // -- Build group stats (shared logic for hero / treatment / treatment+weapon) --
+          const groupKeyOf = c => {
+            if(rainbowGroupBy === "hero") return c.hero;
+            if(rainbowGroupBy === "treatmentWeapon") {
+              const tr = c.treatment || "", wp = c.weapon || "";
+              return (tr || wp) ? `${tr}${tr&&wp?" ":""}${wp}`.trim() : "";
+            }
+            return c.treatment;
+          };
           const groupMap = {};
           rainbowCards.forEach(c => {
-            const key = rainbowGroupBy === "hero" ? c.hero : c.treatment;
+            const key = groupKeyOf(c);
             if(!key) return;
             if(!groupMap[key]) groupMap[key] = [];
             groupMap[key].push(c);
@@ -23982,7 +23990,7 @@ function PublicCardDatabase() {
             // secondary breakdown tags
             const bySecondary = {};
             gcards.forEach(c => {
-              const s = rainbowGroupBy === "hero" ? (c.setName || "Unknown") : (c.hero || "Unknown");
+              const s = rainbowGroupBy === "hero" ? (c.setName || "Unknown") : rainbowGroupBy === "treatmentWeapon" ? (c.setName || "Unknown") : (c.hero || "Unknown");
               if(!bySecondary[s]) bySecondary[s] = { total:0, owned:0 };
               bySecondary[s].total++;
               if(owned[c.id]) bySecondary[s].owned++;
@@ -23991,7 +23999,7 @@ function PublicCardDatabase() {
           });
           const completedRainbows = groupStats.filter(g => g.complete).length;
           const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
-          const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : "Search treatment...";
+          const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : rainbowGroupBy === "treatmentWeapon" ? "Search treatment + weapon..." : "Search treatment...";
           const filteredGroups = groupStats.filter(g => !search || g.key.toLowerCase().includes(search.toLowerCase()));
           const visibleGroups = filteredGroups.filter(g => {
             if(rainbowFilter === "complete") return g.complete;
@@ -24020,7 +24028,7 @@ function PublicCardDatabase() {
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                 {/* Group-by toggle */}
                 <div style={{ display:"flex", background:"rgba(255,255,255,0.04)", borderRadius:20, padding:3, gap:2 }}>
-                  {[["hero","\uD83E\uDDB8 By Hero"],["treatment","\uD83C\uDFA8 By Treatment"]].map(([v,l])=>(
+                  {[["hero","\uD83E\uDDB8 By Hero"],["treatment","\uD83C\uDFA8 By Treatment"],["treatmentWeapon","\u2694\uFE0F Treatment + Weapon"]].map(([v,l])=>(
                     <button key={v} onClick={()=>{ setRainbowGroupBy(v); setExpandedHero(null); setSearch(""); }} style={{ background:rainbowGroupBy===v?"rgba(232,49,122,0.9)":"transparent", color:rainbowGroupBy===v?"#fff":"rgba(255,255,255,0.4)", border:"none", borderRadius:17, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
                   ))}
                 </div>
@@ -24034,7 +24042,7 @@ function PublicCardDatabase() {
                 {[["all","All"],["complete","\uD83C\uDF08 Complete"],["partial","\uD83D\uDD36 In Progress"],["missing","\u2B1C Not Started"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setRainbowFilter(v)} style={{ background:rainbowFilter===v?"rgba(232,49,122,0.15)":"transparent", color:rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.4)", border:`1.5px solid ${rainbowFilter===v?"#E8317A":"rgba(255,255,255,0.08)"}`, borderRadius:20, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
                 ))}
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>{visibleGroups.length} {rainbowGroupBy === "hero" ? "heroes" : "treatments"}</span>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>{visibleGroups.length} {rainbowGroupBy === "hero" ? "heroes" : rainbowGroupBy === "treatmentWeapon" ? "rainbows" : "treatments"}</span>
               </div>
 
               {/* Rows */}
@@ -24042,13 +24050,16 @@ function PublicCardDatabase() {
                 {visibleGroups.map(({ key, total, ownedCount, complete, bySecondary }) => {
                   const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
                   const isExpanded = expandedHero === key;
-                  const groupCardList = rainbowCards.filter(c => (rainbowGroupBy === "hero" ? c.hero : c.treatment) === key)
+                  const groupCardList = rainbowCards.filter(c => groupKeyOf(c) === key)
                     .sort((a,b) => {
                       if(rainbowGroupBy === "hero") {
                         const WEAPONS = ["Fire","Ice","Steel","Brawl","Glow","Hex","Gum","Super","Alt","Metallic"];
                         const wa = WEAPONS.indexOf(a.weapon), wb = WEAPONS.indexOf(b.weapon);
                         if(wa !== wb) return wa - wb;
                         return (a.treatment||"").localeCompare(b.treatment||"");
+                      }
+                      if(rainbowGroupBy === "treatmentWeapon") {
+                        return (a.hero||"").localeCompare(b.hero||"");
                       }
                       return (a.hero||"").localeCompare(b.hero||"");
                     });
@@ -24116,7 +24127,7 @@ function PublicCardDatabase() {
                 {visibleGroups.length === 0 && (
                   <div style={{ textAlign:"center", padding:60, color:"rgba(255,255,255,0.2)" }}>
                     <div style={{ fontSize:40, marginBottom:12 }}>{"\uD83C\uDF08"}</div>
-                    <div style={{ fontSize:15, fontWeight:700 }}>No {rainbowGroupBy === "hero" ? "heroes" : "treatments"} match your filters</div>
+                    <div style={{ fontSize:15, fontWeight:700 }}>No {rainbowGroupBy === "hero" ? "heroes" : rainbowGroupBy === "treatmentWeapon" ? "rainbows" : "treatments"} match your filters</div>
                   </div>
                 )}
               </div>
