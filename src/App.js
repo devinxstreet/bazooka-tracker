@@ -72,7 +72,8 @@ function calcStream(s, targetBreaker=null) {
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
   const primaryCommAmt = isSingles ? splitBase : (s.splitRep ? commAmt*splitPct : commAmt);
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
-  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + repExpShare - bazExpShare + imcReimb + imcDirectReimb;
+  const biguCardCosts = isBigU ? (parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0) : 0;
+  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts;
   let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
@@ -82,7 +83,9 @@ function calcStream(s, targetBreaker=null) {
            : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
-  const biguReimb = isBigU ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0) : 0;
+  const biguReimb = isBigU
+    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)
+    : 0;
 
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb };
 }
@@ -4154,7 +4157,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4185,7 +4188,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4719,7 +4722,27 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               })}
             </div>
 
-        <div style={{ display:"flex", gap:16, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
+            {/* BigU-only: giveaway + insurance card reimbursement */}
+            {(recap.breaker||breaker||"").toLowerCase()==="bigu" && (
+              <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", marginBottom:10, textTransform:"uppercase", letterSpacing:1 }}>🔄 BigU Reimbursables — Cards</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  <div>
+                    <label style={{ ...S.lbl, color:"#FBBF24" }}>Giveaway Cards ($)</label>
+                    <input type="number" step="0.01" value={recap.biguGiveawayCards||""} onChange={e=>{ rf("biguGiveawayCards")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
+                  </div>
+                  <div>
+                    <label style={{ ...S.lbl, color:"#FBBF24" }}>Insurance Cards ($)</label>
+                    <input type="number" step="0.01" value={recap.biguInsuranceCards||""} onChange={e=>{ rf("biguInsuranceCards")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
+                  </div>
+                </div>
+                {rc && ((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0))>0 && (
+                  <div style={{ fontSize:12, color:"#FBBF24", fontWeight:700, marginTop:8 }}>
+                    Total card reimb this stream: ${((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)).toFixed(2)}
+                  </div>
+                )}
+              </div>
+            )}
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
             <input type="checkbox" checked={recap.binOnly||false} onChange={e=>{rf("binOnly")(e.target.checked); if(e.target.checked) rf("isEvent")(false);}} style={{ width:16, height:16 }}/>
             <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break — flat 35% commission</span>
@@ -13824,10 +13847,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {isAdmin && (() => {
         const biguStreams = filteredStreams.filter(s =>
           (s.breaker||"").toLowerCase()==="bigu" &&
-          ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0))>0
+          ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0))>0
         );
         if (!biguStreams.length) return null;
-        const totalReimb = biguStreams.reduce((sum,s)=>sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0),0);
+        const totalReimb = biguStreams.reduce((sum,s)=>sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0),0);
         return (
           <div style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
@@ -13837,13 +13860,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ fontSize:11, color:"#888", marginBottom:12 }}>Owed to BigU at end of month — he pays these upfront, we reimburse 100%</div>
             <table style={{ width:"100%", fontSize:11, borderCollapse:"collapse" }}>
               <thead><tr style={{ borderBottom:"1px solid rgba(251,191,36,0.2)" }}>
-                {["Date","Stream","MagPros","Packaging","Top Loaders","Total"].map(h=>(
+                {["Date","Stream","MagPros","Packaging","Top Loaders","Giveaway Cards","Insurance Cards","Total"].map(h=>(
                   <th key={h} style={{ padding:"4px 8px", textAlign:"left", color:"#555", fontWeight:700, fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {biguStreams.map(s=>{
                   const mags=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, tl=parseFloat(s.topLoaders)||0;
+                  const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
+                  const tot=mags+pack+tl+giveaway+insurance;
                   return (
                     <tr key={s.id} style={{ borderBottom:"1px solid #1a1a1a" }}>
                       <td style={{ padding:"6px 8px", color:"#AAAAAA" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
@@ -13851,7 +13876,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <td style={{ padding:"6px 8px", color:mags>0?"#F0F0F0":"#333" }}>{mags>0?"$"+mags.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:pack>0?"#F0F0F0":"#333" }}>{pack>0?"$"+pack.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:tl>0?"#F0F0F0":"#333"  }}>{tl>0?"$"+tl.toFixed(2):"—"}</td>
-                      <td style={{ padding:"6px 8px", color:"#FBBF24", fontWeight:700 }}>${(mags+pack+tl).toFixed(2)}</td>
+                      <td style={{ padding:"6px 8px", color:giveaway>0?"#F0F0F0":"#333" }}>{giveaway>0?"$"+giveaway.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:insurance>0?"#F0F0F0":"#333" }}>{insurance>0?"$"+insurance.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:"#FBBF24", fontWeight:700 }}>${tot.toFixed(2)}</td>
                     </tr>
                   );
                 })}
