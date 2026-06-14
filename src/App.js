@@ -15773,6 +15773,40 @@ const SKU_LABEL = {
   double: { label:"Double Mega",        color:"#E8317A", bg:"rgba(232,49,122,0.1)",   border:"rgba(232,49,122,0.25)"  },
 };
 
+function FixMetallicAutos() {
+  const [running, setRunning] = useState(false);
+  const [result,  setResult]  = useState(null);
+
+  async function run() {
+    if (!window.confirm('Update all cards where cardNum ends in "8" and treatment is wrong → "Inspired Ink Metallic Battlefoil"?')) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const toFix = snap.docs.filter(d => {
+      const num = String(d.data().cardNum||"");
+      const treat = d.data().treatment||"";
+      return num.endsWith("8") && treat === "Inspired Ink Battlefoil";
+    });
+    const CHUNK = 400;
+    let fixed = 0;
+    for (let i=0; i<toFix.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toFix.slice(i,i+CHUNK).forEach(d => batch.set(doc(db,"boba_checklist",d.id), { treatment:"Inspired Ink Metallic Battlefoil" }, {merge:true}));
+      await batch.commit();
+      fixed += Math.min(CHUNK, toFix.length-i);
+    }
+    setRunning(false);
+    setResult(fixed);
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <Btn onClick={run} disabled={running} variant="green">{running ? "Fixing..." : "⚡ Fix Metallic Autos"}</Btn>
+      {result !== null && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {result} cards → "Inspired Ink Metallic Battlefoil"</div>}
+    </div>
+  );
+}
+
 function GenerateMissing8s() {
   const [scanning,  setScanning]  = useState(false);
   const [preview,   setPreview]   = useState(null);  // { toCreate: [] }
@@ -16095,6 +16129,15 @@ function DataCleanup() {
           Finds all auto cards (e.g. DBA1–DBA7) that are missing their Metallic "8" variant and creates them with treatment <strong style={{color:"#C0C0C0"}}>Inspired Ink Metallic Battlefoil</strong>.
         </div>
         <GenerateMissing8s/>
+
+      {/* Fix Metallic Auto treatments */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="⚡ Fix Metallic Auto Treatments"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+          Finds all cards where cardNum ends in "8" and treatment is "Inspired Ink Battlefoil" or "Inspired Ink Superfoil" — updates them to "Inspired Ink Metallic Battlefoil".
+        </div>
+        <FixMetallicAutos/>
+      </div>
       </div>
 
       <div style={{ ...S.card }}>
