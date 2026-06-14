@@ -427,6 +427,9 @@ function GlobalStyles() {
       @keyframes expandDown { from { opacity:0; transform:scaleY(0.96) translateY(-6px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
       @keyframes saveFlash { 0%{box-shadow:0 0 0 0 rgba(22,101,52,0.6);} 50%{box-shadow:0 0 0 12px rgba(22,101,52,0.02);} 100%{box-shadow:none;} }
       @keyframes pulsRed { 0%,100%{box-shadow:0 0 0 0 rgba(153,27,27,0.5);} 50%{box-shadow:0 0 0 8px rgba(153,27,27,0);} }
+      @keyframes tickerScroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+      .ticker-track { display:inline-flex; gap:10px; animation:tickerScroll 30s linear infinite; }
+      .ticker-wrap:hover .ticker-track { animation-play-state:paused; }
       @keyframes pulsYellow { 0%,100%{box-shadow:0 0 0 0 rgba(146,64,14,0.4);} 50%{box-shadow:0 0 0 6px rgba(146,64,14,0);} }
       @keyframes pulsCritical { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.6);} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0.04);} }
       .toast { animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
@@ -23470,6 +23473,7 @@ function PublicCardDatabase() {
           const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified" && scoped1of1Ids.has(c.cardId)).length;
           const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
           const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
+          const recent1of1 = oneOfOneClaims.filter(c=>c.status==="verified").sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0)).slice(0,12);
 
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:16, paddingBottom:40 }}>
@@ -23554,6 +23558,26 @@ function PublicCardDatabase() {
                   <div style={{ height:"100%", width:`${totalCount>0?(verifiedCount1/totalCount*100):0}%`, background:"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)", backgroundSize:"200% 100%", animation:"gradientShift 3s ease infinite", borderRadius:5, transition:"width 0.5s ease" }}/>
                 </div>
               </div>
+
+              {/* Recent claims ticker */}
+              {recent1of1.length>0 && (
+                <div className="ticker-wrap" style={{ background:"#0a0a0a", border:"1px solid rgba(147,51,234,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"center" }}>
+                  <div style={{ flexShrink:0, background:"#9333EA", color:"#fff", fontSize:10, fontWeight:800, padding:"8px 12px", letterSpacing:0.5, whiteSpace:"nowrap" }}>💎 LATEST HITS</div>
+                  <div style={{ overflow:"hidden", flex:1 }}>
+                    <div className="ticker-track">
+                      {[...recent1of1,...recent1of1].map((cl,i)=>(
+                        <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", whiteSpace:"nowrap" }}>
+                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:24, height:32, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
+                          <span style={{ fontSize:12, fontWeight:700, color:"#C084FC" }}>{cl.cardName}</span>
+                          <span style={{ fontSize:11, color:"#666" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#888" }}>by {cl.submitterName||"Anonymous"}</span>
+                          <span style={{ color:"#333" }}>·</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Admin pending review */}
               {isAdminUser && pendingClaims1.length>0 && (
@@ -23691,6 +23715,7 @@ function PublicCardDatabase() {
           const scopedSuperIds = new Set(scopedSupers.map(c => c.id));
           const verifiedCount = superClaims.filter(cl => cl.status === "verified" && scopedSuperIds.has(cl.cardId)).length;
           const totalSupers = scopedSupers.length;
+          const recentSupers = superClaims.filter(cl => cl.status === "verified").sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0)).slice(0,12);
 
           async function submitClaim(card, photoBase64) {
             if (!user) { setSigningIn(true); return; }
@@ -23833,6 +23858,26 @@ function PublicCardDatabase() {
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{totalSupers} total</span>
                 </div>
               </div>
+
+              {/* Recent claims ticker */}
+              {recentSupers.length>0 && (
+                <div className="ticker-wrap" style={{ background:"#0a0a0a", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"center" }}>
+                  <div style={{ flexShrink:0, background:"#F59E0B", color:"#000", fontSize:10, fontWeight:800, padding:"8px 12px", letterSpacing:0.5, whiteSpace:"nowrap" }}>⭐ LATEST HITS</div>
+                  <div style={{ overflow:"hidden", flex:1 }}>
+                    <div className="ticker-track">
+                      {[...recentSupers,...recentSupers].map((cl,i)=>(
+                        <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", whiteSpace:"nowrap" }}>
+                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:24, height:32, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
+                          <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24" }}>{cl.cardName}</span>
+                          <span style={{ fontSize:11, color:"#666" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#888" }}>by {cl.submitterName||cl.userName||"Anonymous"}</span>
+                          <span style={{ color:"#333" }}>·</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Set filter */}
               {superSets.length > 1 && (
