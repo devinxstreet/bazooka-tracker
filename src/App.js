@@ -347,7 +347,7 @@ function useDebounce(value, delay=220) {
 // recalculate 100 streams on every keystroke
 const streamCalcCache = new Map();
 function calcStreamMemo(s, targetBreaker=null) {
-  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${targetBreaker||""}`;
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${targetBreaker||""}`;
   if (streamCalcCache.has(key)) return streamCalcCache.get(key);
   const result = calcStream(s, targetBreaker);
   streamCalcCache.set(key, result);
@@ -4991,7 +4991,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack/TL)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
-                    ...(canSeeFinancials && rc.imcReimb>0 ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(rc.imcReimb), c:"#60A5FA" }] : []),
+                    ...(canSeeFinancials ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(rc.imcReimb||0), c:"#60A5FA" }] : []),
                     ...(canSeeFinancials ? [{ l:"Bazooka True Net",           v:fmt(rc.bazTrueNet),           c:"#166534" }] : []),
                   ].map(({l,v,c}) => (
                     <div key={l} style={{ textAlign:"center", background: l==="Bazooka True Net"?"#D6F4E3":"#FFFFFF", borderRadius:8, padding:"10px 8px", border:`1px solid ${l==="Bazooka True Net"?"#16653444":"#F0E0E8"}` }}>
