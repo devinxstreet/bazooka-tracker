@@ -442,6 +442,9 @@ function GlobalStyles() {
       .boba-flip-card > div { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
       .boba-card-flip { transform-style: preserve-3d; transition: transform 0.5s ease; }
       .boba-card-flip:hover { transform: rotateY(180deg); }
+      .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
+      .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+      @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
 
       /* Mobile */
       @media (max-width: 768px) {
@@ -15046,7 +15049,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 
   if (c.imageUrl) {
     return (
-      <div style={{ aspectRatio:"3/4" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
+      <div className="boba-card-hover" style={{ aspectRatio:"3/4" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:isFlipped?"transform 0.45s cubic-bezier(0.4,0,0.2,1)":"box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":undefined, borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
@@ -15054,7 +15057,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
-            <div style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>
+            <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
