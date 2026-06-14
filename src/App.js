@@ -21949,9 +21949,10 @@ function CardFxOverlay({ fx, onDone }) {
             {/* scan line */}
             <div style={{ position:"absolute", left:0, right:0, height:"45%", background:"linear-gradient(180deg, transparent, rgba(251,191,36,0.35), transparent)", animation:"huntScan 1.6s ease forwards" }}/>
             {/* targeting corners */}
-            {[["top","left"],["top","right"],["bottom","left"],["bottom","right"]].map(([v,h],i)=>(
-              <div key={i} style={{ position:"absolute", [v]:8, [h]:8, width:22, height:22, [`border${v[0].toUpperCase()+v.slice(1)}`]:"3px solid #FBBF24", [`border${h[0].toUpperCase()+h.slice(1)}`]:"3px solid #FBBF24", animation:`huntCorner 1.6s ease ${0.1*i}s forwards`, opacity:0 }}/>
-            ))}
+            <div style={{ position:"absolute", top:8, left:8, width:22, height:22, borderTop:"3px solid #FBBF24", borderLeft:"3px solid #FBBF24", animation:"huntCorner 1.6s ease 0s forwards", opacity:0 }}/>
+            <div style={{ position:"absolute", top:8, right:8, width:22, height:22, borderTop:"3px solid #FBBF24", borderRight:"3px solid #FBBF24", animation:"huntCorner 1.6s ease 0.1s forwards", opacity:0 }}/>
+            <div style={{ position:"absolute", bottom:8, left:8, width:22, height:22, borderBottom:"3px solid #FBBF24", borderLeft:"3px solid #FBBF24", animation:"huntCorner 1.6s ease 0.2s forwards", opacity:0 }}/>
+            <div style={{ position:"absolute", bottom:8, right:8, width:22, height:22, borderBottom:"3px solid #FBBF24", borderRight:"3px solid #FBBF24", animation:"huntCorner 1.6s ease 0.3s forwards", opacity:0 }}/>
           </div>
         </div>
         {/* text */}
@@ -22374,7 +22375,7 @@ function PublicCardDatabase() {
     const wasOwned = !!next[cardId];
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setOwned(next);
-    if (!wasOwned) { const card = cards.find(c=>c.id===cardId); if(card) setCardFx({ type:"caught", card }); }
+    if (!wasOwned) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
     await setDoc(doc(db,"boba_owned",user.uid), next);
   }
   async function setOwnedQty(cardId, qty) {
@@ -22383,7 +22384,7 @@ function PublicCardDatabase() {
     const next = {...owned};
     if (qty<=0) delete next[cardId]; else next[cardId]=qty;
     setOwned(next);
-    if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId); if(card) setCardFx({ type:"caught", card }); }
+    if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
     await setDoc(doc(db,"boba_owned",user.uid), next);
   }
   async function toggleWant(cardId) {
@@ -22392,7 +22393,7 @@ function PublicCardDatabase() {
     const wasWanted = !!next[cardId];
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setWantList(next);
-    if (!wasWanted) { const card = cards.find(c=>c.id===cardId); if(card) setCardFx({ type:"hunt", card }); }
+    if (!wasWanted) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"hunt", card }); }
     await setDoc(doc(db,"boba_wants",user.uid), next);
   }
   async function togglePrivate(cardId) {
