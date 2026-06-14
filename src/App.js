@@ -22216,6 +22216,8 @@ function PublicCardDatabase() {
   const [superSetFilter,   setSuperSetFilter]   = useState("");
   const [secret1SetFilter, setSecret1SetFilter] = useState("");
   const [secret1TreatFilter, setSecret1TreatFilter] = useState({}); // { [setName]: treatment }
+  const [superStatusFilter,  setSuperStatusFilter]  = useState("all"); // all | claimed | unclaimed
+  const [secret1StatusFilter,setSecret1StatusFilter]= useState("all"); // all | claimed | unclaimed
 
   // -- Custom Rainbows --
   const [customRainbows,      setCustomRainbows]      = useState([]);
@@ -23613,6 +23615,14 @@ function PublicCardDatabase() {
                 </div>
               )}
 
+              {/* Status filter */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83C\uDFAF Show:"}</span>
+                {[["all","All"],["claimed","🏆 Claimed"],["unclaimed","💎 Available"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setSecret1StatusFilter(v)} style={{ background:secret1StatusFilter===v?"rgba(147,51,234,0.18)":"transparent", color:secret1StatusFilter===v?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1StatusFilter===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                ))}
+              </div>
+
               {/* Per-set grids */}
               {sets1of1.filter(setName => !secret1SetFilter || setName === secret1SetFilter).map(setName=>{
                 const setCards=secret1of1Cards.filter(c=>c.setName===setName);
@@ -23623,7 +23633,9 @@ function PublicCardDatabase() {
                 const isFull=setVerified.length===setCards.length&&setCards.length>0;
                 const setTreatments=[...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
                 const activeTreat=secret1TreatFilter[setName]||"";
-                const visibleCards=activeTreat?setCards.filter(c=>c.treatment===activeTreat):setCards;
+                const treatFiltered=activeTreat?setCards.filter(c=>c.treatment===activeTreat):setCards;
+                const visibleCards=secret1StatusFilter==="claimed"?treatFiltered.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?treatFiltered.filter(c=>!claimMap1[c.id]):treatFiltered;
+                if(secret1StatusFilter!=="all" && visibleCards.length===0) return null;
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
                     <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
@@ -23890,6 +23902,14 @@ function PublicCardDatabase() {
                 </div>
               )}
 
+              {/* Status filter */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:"#F59E0B" }}>{"\uD83C\uDFAF Show:"}</span>
+                {[["all","All"],["claimed","🏆 Claimed"],["unclaimed","⭐ Available"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setSuperStatusFilter(v)} style={{ background:superStatusFilter===v?"rgba(245,158,11,0.15)":"transparent", color:superStatusFilter===v?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superStatusFilter===v?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                ))}
+              </div>
+
               {/* Per-set trackers */}
               {superSets.filter(setName => !superSetFilter || setName === superSetFilter).map(setName=>{
                 const setSuperCards=superCards.filter(c=>c.setName===setName);
@@ -23899,6 +23919,8 @@ function PublicCardDatabase() {
                 const verPct=setSuperCards.length>0?(setVerified.length/setSuperCards.length*100):0;
                 const isFull=setVerified.length===setSuperCards.length&&setSuperCards.length>0;
                 const isCollapsed=!!collapsedSuperSets[setName];
+                const visibleSuperCards=superStatusFilter==="claimed"?setSuperCards.filter(c=>!!claimMap[c.id]):superStatusFilter==="unclaimed"?setSuperCards.filter(c=>!claimMap[c.id]):setSuperCards;
+                if(superStatusFilter!=="all" && visibleSuperCards.length===0) return null;
                 return (
                   <div key={setName} style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${isFull?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.06)"}`,borderRadius:20,overflow:"hidden",backdropFilter:"blur(10px)"}}>
                     <div onClick={()=>setCollapsedSuperSets(prev=>({...prev,[setName]:!prev[setName]}))} style={{padding:"20px 24px",background:isFull?"linear-gradient(135deg,rgba(245,158,11,0.08),transparent)":"transparent",cursor:"pointer",userSelect:"none"}}>
@@ -23922,7 +23944,7 @@ function PublicCardDatabase() {
                     </div>
                     {!isCollapsed&&(
                     <div style={{padding:"12px 24px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
-                      {setSuperCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
+                      {visibleSuperCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap[c.id];
                         const isVerified=claim?.status==="verified";
                         const isPending=claim?.status==="pending";
