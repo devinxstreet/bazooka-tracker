@@ -23607,13 +23607,13 @@ function PublicCardDatabase() {
                 </div>
               )}
 
-              {/* Set filter */}
-              {secret1GroupBy==="set" && sets1of1.length > 1 && (
+              {/* Set filter — primary */}
+              {sets1of1.length > 1 && (
                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDC8E Set:"}</span>
-                  <button onClick={()=>setSecret1SetFilter("")} style={{ background:secret1SetFilter===""?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===""?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
+                  <button onClick={()=>{setSecret1SetFilter("");setExpandedOneGroups({});}} style={{ background:secret1SetFilter===""?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===""?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
                   {sets1of1.map(s=>(
-                    <button key={s} onClick={()=>setSecret1SetFilter(s)} style={{ background:secret1SetFilter===s?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===s?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===s?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
+                    <button key={s} onClick={()=>{setSecret1SetFilter(s);setExpandedOneGroups({});}} style={{ background:secret1SetFilter===s?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===s?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===s?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
                   ))}
                 </div>
               )}
@@ -23630,19 +23630,21 @@ function PublicCardDatabase() {
               <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
                 {[["set","💎 Set"],["treatment","🎨 Treatment"],["weapon","⚔️ Weapon"],["hero","🦸 Hero"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");setExpandedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setExpandedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                 ))}
                 <div style={{ flex:1 }}/>
                 <button onClick={()=>setExpandedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
-                <button onClick={()=>{ const all={}; secret1of1Cards.forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
+                <button onClick={()=>{ const all={}; (secret1SetFilter?secret1of1Cards.filter(c=>c.setName===secret1SetFilter):secret1of1Cards).forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
               {/* Grouped trackers */}
               {(()=>{
                 const keyOf = c => secret1GroupBy==="set" ? (c.setName||"Unknown") : secret1GroupBy==="treatment" ? (c.treatment||"Unknown") : secret1GroupBy==="weapon" ? (c.weapon||"Unknown") : (c.hero||"Unknown");
+                // Set filter is primary — everything else groups within the selected set
+                const sourceCards = secret1SetFilter ? secret1of1Cards.filter(c=>c.setName===secret1SetFilter) : secret1of1Cards;
                 const groupMap={};
-                secret1of1Cards.forEach(c=>{ const k=keyOf(c); if(!k)return; (groupMap[k]=groupMap[k]||[]).push(c); });
-                const groupKeys=Object.keys(groupMap).sort().filter(k => !(secret1GroupBy==="set" && secret1SetFilter) || k===secret1SetFilter);
+                sourceCards.forEach(c=>{ const k=keyOf(c); if(!k)return; (groupMap[k]=groupMap[k]||[]).push(c); });
+                const groupKeys=Object.keys(groupMap).sort();
                 return groupKeys.map(groupKey=>{
                 const setCards=groupMap[groupKey];
                 const setName=groupKey;
