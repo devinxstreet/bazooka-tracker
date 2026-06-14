@@ -22207,6 +22207,7 @@ function PublicCardDatabase() {
   const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment | treatmentWeapon
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
+  const [superSetFilter,   setSuperSetFilter]   = useState("");
 
   // -- Custom Rainbows --
   const [customRainbows,      setCustomRainbows]      = useState([]);
@@ -23762,8 +23763,19 @@ function PublicCardDatabase() {
                 </div>
               </div>
 
+              {/* Set filter */}
+              {superSets.length > 1 && (
+                <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#F59E0B" }}>{"\u2B50 Set:"}</span>
+                  <button onClick={()=>setSuperSetFilter("")} style={{ background:superSetFilter===""?"rgba(245,158,11,0.15)":"transparent", color:superSetFilter===""?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superSetFilter===""?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
+                  {superSets.map(s=>(
+                    <button key={s} onClick={()=>setSuperSetFilter(s)} style={{ background:superSetFilter===s?"rgba(245,158,11,0.15)":"transparent", color:superSetFilter===s?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superSetFilter===s?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
+                  ))}
+                </div>
+              )}
+
               {/* Per-set trackers */}
-              {superSets.map(setName=>{
+              {superSets.filter(setName => !superSetFilter || setName === superSetFilter).map(setName=>{
                 const setSuperCards=superCards.filter(c=>c.setName===setName);
                 const setVerified=setSuperCards.filter(c=>claimMap[c.id]?.status==="verified");
                 const setPending=setSuperCards.filter(c=>claimMap[c.id]?.status==="pending");
