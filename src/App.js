@@ -22218,6 +22218,7 @@ function PublicCardDatabase() {
   const [secret1TreatFilter, setSecret1TreatFilter] = useState({}); // { [setName]: treatment }
   const [superStatusFilter,  setSuperStatusFilter]  = useState("all"); // all | claimed | unclaimed
   const [secret1StatusFilter,setSecret1StatusFilter]= useState("all"); // all | claimed | unclaimed
+  const [secret1GroupBy,     setSecret1GroupBy]     = useState("set"); // set | treatment | weapon | hero
 
   // -- Custom Rainbows --
   const [customRainbows,      setCustomRainbows]      = useState([]);
@@ -23605,7 +23606,7 @@ function PublicCardDatabase() {
               )}
 
               {/* Set filter */}
-              {sets1of1.length > 1 && (
+              {secret1GroupBy==="set" && sets1of1.length > 1 && (
                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDC8E Set:"}</span>
                   <button onClick={()=>setSecret1SetFilter("")} style={{ background:secret1SetFilter===""?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===""?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
@@ -23623,18 +23624,29 @@ function PublicCardDatabase() {
                 ))}
               </div>
 
-              {/* Per-set grids */}
-              {sets1of1.filter(setName => !secret1SetFilter || setName === secret1SetFilter).map(setName=>{
-                const setCards=secret1of1Cards.filter(c=>c.setName===setName);
+              {/* Group-by toggle */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
+                {[["set","💎 Set"],["treatment","🎨 Treatment"],["weapon","⚔️ Weapon"],["hero","🦸 Hero"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                ))}
+              </div>
+
+              {/* Grouped trackers */}
+              {(()=>{
+                const keyOf = c => secret1GroupBy==="set" ? (c.setName||"Unknown") : secret1GroupBy==="treatment" ? (c.treatment||"Unknown") : secret1GroupBy==="weapon" ? (c.weapon||"Unknown") : (c.hero||"Unknown");
+                const groupMap={};
+                secret1of1Cards.forEach(c=>{ const k=keyOf(c); if(!k)return; (groupMap[k]=groupMap[k]||[]).push(c); });
+                const groupKeys=Object.keys(groupMap).sort().filter(k => !(secret1GroupBy==="set" && secret1SetFilter) || k===secret1SetFilter);
+                return groupKeys.map(groupKey=>{
+                const setCards=groupMap[groupKey];
+                const setName=groupKey;
                 const setVerified=setCards.filter(c=>claimMap1[c.id]?.status==="verified");
                 const setUnclaimed=setCards.filter(c=>!claimMap1[c.id]);
                 const setPending=setCards.filter(c=>claimMap1[c.id]?.status==="pending");
                 const verPct=setCards.length>0?(setVerified.length/setCards.length*100):0;
                 const isFull=setVerified.length===setCards.length&&setCards.length>0;
-                const setTreatments=[...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
-                const activeTreat=secret1TreatFilter[setName]||"";
-                const treatFiltered=activeTreat?setCards.filter(c=>c.treatment===activeTreat):setCards;
-                const visibleCards=secret1StatusFilter==="claimed"?treatFiltered.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?treatFiltered.filter(c=>!claimMap1[c.id]):treatFiltered;
+                const visibleCards=secret1StatusFilter==="claimed"?setCards.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?setCards.filter(c=>!claimMap1[c.id]):setCards;
                 if(secret1StatusFilter!=="all" && visibleCards.length===0) return null;
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
@@ -23649,15 +23661,6 @@ function PublicCardDatabase() {
                       <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${verPct}%`, background:"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", borderRadius:4, transition:"width 0.5s ease" }}/>
                       </div>
-                      {setTreatments.length>1 && (
-                        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:12 }}>
-                          <button onClick={()=>setSecret1TreatFilter(p=>({...p,[setName]:""}))} style={{ background:activeTreat===""?"rgba(147,51,234,0.18)":"transparent", color:activeTreat===""?"#C084FC":"rgba(255,255,255,0.45)", border:`1px solid ${activeTreat===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All ({setCards.length})</button>
-                          {setTreatments.map(tr=>{
-                            const tc=setCards.filter(c=>c.treatment===tr).length;
-                            return <button key={tr} onClick={()=>setSecret1TreatFilter(p=>({...p,[setName]:tr}))} style={{ background:activeTreat===tr?"rgba(147,51,234,0.18)":"transparent", color:activeTreat===tr?"#C084FC":"rgba(255,255,255,0.45)", border:`1px solid ${activeTreat===tr?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{tr} ({tc})</button>;
-                          })}
-                        </div>
-                      )}
                     </div>
                     <div style={{ padding:"12px 20px 16px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
                       {visibleCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
@@ -23709,7 +23712,8 @@ function PublicCardDatabase() {
                     </div>
                   </div>
                 );
-              })}
+              });
+              })()}
             </div>
           );
         })()}
