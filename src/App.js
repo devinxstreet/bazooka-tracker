@@ -82,7 +82,9 @@ function calcStream(s, targetBreaker=null) {
            : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles };
+  const biguReimb = isBigU ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0) : 0;
+
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -13275,13 +13277,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                    : c.myComm;
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
+    acc.biguReimb += c.biguReimb||0;
     acc.newBuyers += parseInt(s.newBuyers)||0;
     if (!isEventOnly && parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society") {
       acc.mmSum   += parseFloat(s.marketMultiple);
       acc.mmCount += 1;
     }
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
+  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, biguReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
 
   function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
@@ -13773,6 +13776,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                               ...(totals.tips>0?[{ l:"Tips (100% yours)", v:fmt(totals.tips), c:"#FBBF24" }]:[]),
                               ...(totals.salesBonus>0?[{ l:"🎁 Sales Bonus", v:"+"+fmt(totals.salesBonus), c:"#A78BFA" }]:[]),
                               ...((totals.tips>0||totals.salesBonus>0)?[{ l:"Total Earned", v:fmt(totals.comm+totals.tips+totals.salesBonus), c:"#4ade80" }]:[]),
+                              ...(totals.biguReimb>0?[{ l:"🔄 Expense Reimbursement", v:"+"+fmt(totals.biguReimb), c:"#FBBF24" }]:[]),
                             ]),
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"#111111", borderRadius:8, padding:"10px" }}>
