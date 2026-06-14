@@ -13769,8 +13769,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                             { l:"Gross Revenue",        v:fmt(totals.gross),   c:"#E8317A" },
                             { l:"Bazooka True Net",     v:fmt(totals.trueNet), c:"#A78BFA" },
                             ...(isAdmin ? [
-                              { l:"\u2212 Commission",       v:fmt(totals.comm),    c:"#991b1b" },
-                              { l:"Bazooka True Net",   v:fmt(totals.trueNet), c:"#4ade80" },
+                              { l:"− Commission",        v:fmt(totals.comm),    c:"#991b1b" },
+                              { l:"Bazooka True Net",    v:fmt(totals.trueNet), c:"#4ade80" },
+                              ...(totals.biguReimb>0?[{ l:"🔄 Expense Reimb", v:"+"+fmt(totals.biguReimb), c:"#FBBF24" }]:[]),
                             ] : [
                               { l:"Commission",         v:fmt(totals.comm),    c:"#4ade80" },
                               ...(totals.tips>0?[{ l:"Tips (100% yours)", v:fmt(totals.tips), c:"#FBBF24" }]:[]),
@@ -13787,7 +13788,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         </div>
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                           <thead><tr>
-                            {[["Date","Rate","Commission",...(totals.biguReimb>0?["Reimb"]:[])]].map(headers=>headers.map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>))[0]}
+                            {["Date","Type","Gross","Baz Net",...(isAdmin?["Rep Exp","IMC Reimb","True Net"]:["Rate","Commission"]),...(totals.biguReimb>0?["Reimb"]:[])] .map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
                           </tr></thead>
                           <tbody>
                             {stubStreams.map((s,i)=>{
