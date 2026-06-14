@@ -13591,7 +13591,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             };
 
             // Exclude event-only AND split-rep streams from gross/baz totals — only own streams count
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); const ownStream=!c.isEventOnly&&!c.isSplitRep; acc.gross+=ownStream?c.gross:0; acc.baz+=ownStream?c.bazNet:0; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=ownStream?c.bazTrueNet:0; return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); const ownStream=!c.isEventOnly&&!c.isSplitRep; acc.gross+=ownStream?c.gross:0; acc.baz+=ownStream?c.bazNet:0; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=ownStream?c.bazTrueNet:0; acc.biguReimb+=(c.biguReimb||0); return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0,biguReimb:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -13787,7 +13787,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         </div>
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                           <thead><tr>
-                            {["Date","Type","Gross","Baz Net",...(isAdmin?["Rep Exp","IMC Reimb","True Net"]:["Rate","Commission"])].map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>)}
+                            {[["Date","Rate","Commission",...(totals.biguReimb>0?["Reimb"]:[])]].map(headers=>headers.map(h=><th key={h} style={{ ...S.th, fontSize:9, padding:"6px 10px" }}>{h}</th>))[0]}
                           </tr></thead>
                           <tbody>
                             {stubStreams.map((s,i)=>{
