@@ -20,7 +20,7 @@ const LOADING_CARD_IMAGES = { urls: [], loaded: false };
       }
     }
     const snap = await getDocs(query(collection(db,"boba_checklist"), where("hero","==","BoJax")));
-    const urls = snap.docs.map(d=>d.data().imageUrl).filter(Boolean).slice(0,30);
+    const urls = snap.docs.map(d=>d.data().imageUrl).filter(Boolean).slice(0,60);
     if (urls.length > 0) {
       LOADING_CARD_IMAGES.urls = urls;
       LOADING_CARD_IMAGES.loaded = true;
@@ -22845,7 +22845,7 @@ function PublicCardDatabase() {
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
   if(loading) {
-    const floatUrls = LOADING_CARD_IMAGES.urls.length > 0
+    const baseUrls = LOADING_CARD_IMAGES.urls.length > 0
       ? LOADING_CARD_IMAGES.urls
       : (() => { // fallback: try localStorage cache
           try {
@@ -22853,11 +22853,16 @@ function PublicCardDatabase() {
             if (raw) {
               const { cards: cc } = JSON.parse(raw);
               return (cc||[]).filter(c=>c.imageUrl&&(c.hero||"").toLowerCase().includes("bo"))
-                .sort(()=>Math.random()-0.5).slice(0,20).map(c=>c.imageUrl);
+                .sort(()=>Math.random()-0.5).slice(0,40).map(c=>c.imageUrl);
             }
           } catch(e) {}
           return [];
         })();
+    // Multiply the pool so the screen fills with flying cards (target ~55), then shuffle
+    const TARGET_CARDS = 55;
+    const floatUrls = baseUrls.length > 0
+      ? Array.from({length:TARGET_CARDS},(_,i)=>baseUrls[i % baseUrls.length]).sort(()=>Math.random()-0.5)
+      : [];
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",fontFamily:"'Trebuchet MS',sans-serif",overflow:"hidden",position:"relative"}}>
         <style>{`
@@ -22873,13 +22878,13 @@ function PublicCardDatabase() {
 
         {/* Floating cards */}
         {floatUrls.map((url,i)=>{
-          const yStart  = Math.random()*80+10;
-          const yEnd    = Math.random()*80+10;
-          const rotS    = (Math.random()-0.5)*20;
-          const rotE    = (Math.random()-0.5)*20;
-          const dur     = 6 + Math.random()*8;
+          const yStart  = Math.random()*90+5;
+          const yEnd    = Math.random()*90+5;
+          const rotS    = (Math.random()-0.5)*40;
+          const rotE    = (Math.random()-0.5)*40;
+          const dur     = 5 + Math.random()*10;
           const delay   = -(Math.random()*dur);
-          const scale   = 0.55 + Math.random()*0.55;
+          const scale   = 0.4 + Math.random()*0.7;
           return (
             <div key={i} style={{
               position:"absolute",
