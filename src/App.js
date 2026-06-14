@@ -4585,26 +4585,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Financials — Admin only */}
         {userRole?.role === "Admin" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
           {[
-            ["grossRevenue",      "Gross Revenue ($)",  "#166534", false],
-            ["whatnotFees",       "Whatnot Fees ($)",          "#991b1b", false],
-            ["coupons",           "Coupons ($)",               "#991b1b", false],
-            ["whatnotPromo",      "Whatnot Promo ($)",         "#991b1b", false],
-          ].filter(([,,, adminOnly]) => !adminOnly).map(([key, label, color]) => (
+            ["grossRevenue",  "Gross Revenue ($)", "#166534"],
+            ["whatnotFees",   "Whatnot Fees ($)",  "#991b1b"],
+            ["coupons",       "Coupons ($)",        "#991b1b"],
+            ["whatnotPromo",  "Whatnot Promo ($)",  "#991b1b"],
+          ].map(([key, label, color]) => (
             <div key={key}>
               <label style={{ ...S.lbl, color: key==="grossRevenue"?"#166534":S.lbl.color }}>{label}</label>
-              <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color }}/>
+              <input type="number" step="0.01" value={recap[key]||""} onChange={e=>rf(key)(e.target.value)} placeholder="0.00" style={{ ...S.inp, color}}/>
             </div>
           ))}
-        </div>
-
-        {/* Tips — Admin only */}
-        {userRole?.role === "Admin" && <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:2 }}>💰 Tips</div>
-            <div style={{ fontSize:10, color:"#555" }}>100% goes to the rep — not included in IMC or Bazooka revenue</div>
-          </div>
-          <input type="number" step="0.01" value={recap.tips||""} onChange={e=>rf("tips")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#FBBF24", fontWeight:700 }}/>
-          {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
         </div>}
 
         {/* Sales Bonus — Admin only */}
@@ -23931,8 +23921,14 @@ function PublicCardDatabase() {
 
         {/* RAINBOW TRACKER TAB */}
         {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
+          const PLAYS_TREATMENTS = ["plays","paper plays","bonus plays","paper plays (pl)","bonus plays (bpl)"];
+          const normalizeTreatment = t => {
+            if(PLAYS_TREATMENTS.includes((t||"").toLowerCase())) return "Plays";
+            return t;
+          };
           const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
-            .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
+            .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="home team discount"; })
+            .map(c => ({ ...c, treatment: normalizeTreatment(c.treatment) }));
           const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
 
           // -- Build group stats (shared logic for hero & treatment) --
