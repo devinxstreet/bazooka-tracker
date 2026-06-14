@@ -23950,13 +23950,19 @@ function PublicCardDatabase() {
         {/* RAINBOW TRACKER TAB */}
         {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
           const PLAYS_TREATMENTS = ["plays","paper plays","bonus plays","paper plays (pl)","bonus plays (bpl)"];
-          const normalizeTreatment = t => {
-            if(PLAYS_TREATMENTS.includes((t||"").toLowerCase())) return "Plays";
-            return t;
+          const normalizeTreatment = c => {
+            const t = (c.treatment||"").toLowerCase();
+            if(PLAYS_TREATMENTS.includes(t)) {
+              // Split by cardNum prefix: BPL -> Bonus Plays rainbow, PL -> Plays rainbow
+              const num = String(c.cardNum||"").trim().toUpperCase();
+              if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
+              return "Plays";
+            }
+            return c.treatment;
           };
           const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
             .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="home team discount"; })
-            .map(c => ({ ...c, treatment: normalizeTreatment(c.treatment) }));
+            .map(c => ({ ...c, treatment: normalizeTreatment(c) }));
           const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
 
           // -- Build group stats (shared logic for hero & treatment) --
