@@ -22909,8 +22909,7 @@ function PublicCardDatabase() {
         {/* Center logo */}
         <div style={{position:"relative",zIndex:20,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
           <div style={{animation:"logoGlow 2s ease-in-out infinite"}}>
-            <div style={{fontSize:11,fontWeight:900,letterSpacing:6,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",marginBottom:6}}>Bazooka</div>
-            <div style={{fontSize:48,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-2,lineHeight:1}}>VAULT</div>
+            <img src="/BazookaLogo.png" alt="Bazooka" style={{width:"min(280px,60vw)",height:"auto",display:"block",margin:"0 auto",filter:"drop-shadow(0 8px 24px rgba(232,49,122,0.35))"}}/>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",letterSpacing:4,textTransform:"uppercase",marginTop:8}}>BoBA Collector Database</div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
@@ -23065,12 +23064,8 @@ function PublicCardDatabase() {
         <div style={{maxWidth:1400,margin:"0 auto",padding:"40px 24px 0",position:"relative"}}>
           <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:16,marginBottom:32}}>
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginBottom:8}}>Bazooka Vault</div>
-              <h1 style={{margin:0,fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1,textTransform:"uppercase",letterSpacing:"-1px"}}>
-                <span style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200%",animation:"gradientShift 4s ease infinite"}}>Bazooka</span>
-                <br/>
-                <span style={{color:"#F0F0F0"}}>{"Collector's Database"}</span>
-              </h1>
+              <img src="/Bazooka%20Logo.png" alt="Bazooka" style={{height:"clamp(80px,14vw,140px)",width:"auto",display:"block",filter:"drop-shadow(0 6px 20px rgba(232,49,122,0.3))"}}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:10}}>BoBA Collector's Database</div>
               <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
                 {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"},{v:collectionValue>0?"$"+collectionValue.toFixed(0):"--",l:"Est. Value"}].map(({v,l})=>(
                   <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"6px 14px",backdropFilter:"blur(10px)"}}>
