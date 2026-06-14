@@ -503,18 +503,17 @@ function LoginScreen() {
       <div style={{position:"absolute",width:600,height:600,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,49,122,0.07) 0%,transparent 70%)",top:"-15%",left:"-10%",animation:"loginOrb 12s ease-in-out infinite",pointerEvents:"none"}}/>
       <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,47,247,0.07) 0%,transparent 70%)",bottom:"-10%",right:"-10%",animation:"loginOrb 15s ease-in-out infinite reverse",pointerEvents:"none"}}/>
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:40,animation:"loginFade 0.7s ease both",position:"relative",zIndex:1}}>
-        <div style={{position:"relative",width:100,height:100}}>
+        <div style={{position:"relative",width:120,height:120}}>
           <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.2)",animation:"loginSpin 10s linear infinite"}}/>
           <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"1.5px dashed rgba(123,47,247,0.15)",animation:"loginSpinR 14s linear infinite"}}/>
           <div style={{position:"absolute",inset:14,borderRadius:"50%",border:"2px solid rgba(232,49,122,0.5)",animation:"loginSpin 5s linear infinite",boxShadow:"0 0 20px rgba(232,49,122,0.2)"}}/>
           <div style={{position:"absolute",inset:28,borderRadius:"50%",border:"1.5px solid rgba(123,47,247,0.4)",animation:"loginSpinR 3s linear infinite"}}/>
           <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <div style={{width:10,height:10,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",boxShadow:"0 0 20px rgba(232,49,122,0.8)",animation:"loginPulse 2s ease-in-out infinite"}}/>
+            <img src="/BazookaLogo.png" alt="" style={{width:56,height:56,objectFit:"contain",filter:"drop-shadow(0 0 12px rgba(232,49,122,0.6))",animation:"loginPulse 2.5s ease-in-out infinite"}}/>
           </div>
         </div>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:11,fontWeight:900,letterSpacing:8,color:"rgba(255,255,255,0.15)",textTransform:"uppercase",marginBottom:6}}>Bazooka Breaks</div>
-          <div style={{fontSize:52,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-2,lineHeight:1,marginBottom:8}}>Dashboard</div>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(44px,8vw,68px)",width:"auto",maxWidth:"80vw",objectFit:"contain",display:"block",margin:"0 auto 12px",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.35))"}}/>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.2)",letterSpacing:3,textTransform:"uppercase"}}>Internal Operations</div>
         </div>
         <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"32px 40px",textAlign:"center",minWidth:320}}>
@@ -27076,13 +27075,8 @@ export default function App() {
             {/* Top row: brand + controls */}
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
               <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
-                <div style={{width:32,height:32,borderRadius:"50%",border:"1.5px solid rgba(232,49,122,0.5)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 16px rgba(232,49,122,0.3)",flexShrink:0}}>
-                  <div style={{width:9,height:9,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)"}}/>
-                </div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:4,textTransform:"uppercase"}}>Bazooka Breaks</div>
-                  <div style={{fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7,#7B9CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-0.5,lineHeight:1}}>Dashboard</div>
-                </div>
+                <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:38,width:"auto",objectFit:"contain",display:"block",filter:"drop-shadow(0 3px 12px rgba(232,49,122,0.3))"}}/>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(232,49,122,0.7)",letterSpacing:3,textTransform:"uppercase"}}>Dashboard</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <button onClick={()=>setGOpen(p=>!p)}
