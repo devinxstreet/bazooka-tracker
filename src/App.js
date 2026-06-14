@@ -5152,8 +5152,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         )}
 
         </div>{/* end left column */}
-
-        {/* ── RIGHT: live preview panel ── */}
         {(()=>{
           const rc = hasRecapData ? calcStream({ ...recap, breaker, date }) : null;
           const mm = parseFloat(recap.marketMultiple)||0;
@@ -5208,7 +5206,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         })()}
 
         </div>{/* end two-column layout */}
-      </div>}
+      </div>
       {!cardsOnly && (() => {
         const calcS = (s) => calcStream(s);
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
