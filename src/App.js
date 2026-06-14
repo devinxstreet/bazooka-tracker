@@ -13799,7 +13799,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   </div>
                 );
               })()}
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                {/* Preview */}
+                <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:10, padding:"16px 20px" }}>
                     <div>
                       <span style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>{targetBreaker}</span>
                       <span style={{ color:"#666", fontSize:12, marginLeft:10 }}>{periodLabel}</span>
