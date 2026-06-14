@@ -23949,12 +23949,12 @@ function PublicCardDatabase() {
 
         {/* RAINBOW TRACKER TAB */}
         {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
-          const PLAYS_TREATMENTS = ["plays","paper plays","bonus plays","paper plays (pl)","bonus plays (bpl)"];
           const normalizeTreatment = c => {
             const t = (c.treatment||"").toLowerCase();
-            if(PLAYS_TREATMENTS.includes(t)) {
-              // Split by cardNum prefix: BPL -> Bonus Plays rainbow, PL -> Plays rainbow
-              const num = String(c.cardNum||"").trim().toUpperCase();
+            const num = String(c.cardNum||"").trim().toUpperCase();
+            // Any "plays" treatment OR a PL/BPL cardNum prefix collapses into one of two rainbows
+            const isPlays = t.includes("plays") || /^B?PL[\s\-]?\d/.test(num) || num.startsWith("BPL") || num.startsWith("PL");
+            if(isPlays) {
               if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
               return "Plays";
             }
@@ -23967,6 +23967,8 @@ function PublicCardDatabase() {
 
           // -- Build group stats (shared logic for hero / treatment / treatment+weapon) --
           const groupKeyOf = c => {
+            // Plays & Bonus Plays always collapse into a single rainbow each, in every mode
+            if(c.treatment === "Plays" || c.treatment === "Bonus Plays") return c.treatment;
             if(rainbowGroupBy === "hero") return c.hero;
             if(rainbowGroupBy === "treatmentWeapon") {
               const tr = c.treatment || "", wp = c.weapon || "";
