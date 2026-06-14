@@ -13752,53 +13752,6 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     <button onClick={()=>setStubAdminView(true)} style={{ background:stubAdminView?"#1A1A2E":"transparent", color:stubAdminView?"#E8317A":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Admin</button>
                   </div>
                 </div>
-              {/* BigU Expense Reimbursement — always visible when BigU streams have expenses */}
-              {(() => {
-                const biguStreams = stubStreams.filter(s => (s.breaker||"").toLowerCase()==="bigu" && ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0))>0);
-                if (!biguStreams.length) return null;
-                const totalReimb = biguStreams.reduce((sum,s)=>(
-                  sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)
-                ),0);
-                return (
-                  <div style={{ background:"rgba(251,191,36,0.06)", border:"1.5px solid rgba(251,191,36,0.3)", borderRadius:12, padding:"14px 18px", marginBottom:14 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                      <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>🔄 BigU Expense Reimbursement</div>
-                      <div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</div>
-                    </div>
-                    <div style={{ fontSize:11, color:"#888", marginBottom:10 }}>Owed at end of month — BigU pays these upfront</div>
-                    <table style={{ width:"100%", fontSize:11, borderCollapse:"collapse" }}>
-                      <thead>
-                        <tr style={{ borderBottom:"1px solid rgba(251,191,36,0.2)" }}>
-                          {["Date","MagPros","Packaging","Top Loaders","Total"].map(h=>(
-                            <th key={h} style={{ padding:"4px 8px", textAlign:"left", color:"#555", fontWeight:700, fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {biguStreams.map(s=>{
-                          const mags = parseFloat(s.magpros)||0;
-                          const pack = parseFloat(s.packagingMaterial)||0;
-                          const tl   = parseFloat(s.topLoaders)||0;
-                          const tot  = mags+pack+tl;
-                          return (
-                            <tr key={s.id} style={{ borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-                              <td style={{ padding:"5px 8px", color:"#AAAAAA" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                              <td style={{ padding:"5px 8px", color:mags>0?"#F0F0F0":"#444" }}>{mags>0?"$"+mags.toFixed(2):"—"}</td>
-                              <td style={{ padding:"5px 8px", color:pack>0?"#F0F0F0":"#444" }}>{pack>0?"$"+pack.toFixed(2):"—"}</td>
-                              <td style={{ padding:"5px 8px", color:tl>0?"#F0F0F0":"#444"  }}>{tl>0?"$"+tl.toFixed(2):"—"}</td>
-                              <td style={{ padding:"5px 8px", color:"#FBBF24", fontWeight:700 }}>${tot.toFixed(2)}</td>
-                            </tr>
-                          );
-                        })}
-                        <tr style={{ borderTop:"1px solid rgba(251,191,36,0.3)" }}>
-                          <td colSpan={4} style={{ padding:"6px 8px", color:"#888", fontWeight:700, fontSize:11 }}>TOTAL OWED TO BIGU</td>
-                          <td style={{ padding:"6px 8px", color:"#FBBF24", fontWeight:900, fontSize:14 }}>${totalReimb.toFixed(2)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
                 {/* Preview */}
                 <div style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:10, padding:"16px 20px" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
@@ -13865,6 +13818,51 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
           })()}
         </div>
       )}
+
+      {/* -- BIGU EXPENSE REIMBURSEMENT -- */}
+      {isAdmin && (() => {
+        const biguStreams = filteredStreams.filter(s =>
+          (s.breaker||"").toLowerCase()==="bigu" &&
+          ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0))>0
+        );
+        if (!biguStreams.length) return null;
+        const totalReimb = biguStreams.reduce((sum,s)=>sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0),0);
+        return (
+          <div style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:"#FBBF24" }}>🔄 BigU Expense Reimbursement</div>
+              <div style={{ fontSize:24, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</div>
+            </div>
+            <div style={{ fontSize:11, color:"#888", marginBottom:12 }}>Owed to BigU at end of month — he pays these upfront, we reimburse 100%</div>
+            <table style={{ width:"100%", fontSize:11, borderCollapse:"collapse" }}>
+              <thead><tr style={{ borderBottom:"1px solid rgba(251,191,36,0.2)" }}>
+                {["Date","Stream","MagPros","Packaging","Top Loaders","Total"].map(h=>(
+                  <th key={h} style={{ padding:"4px 8px", textAlign:"left", color:"#555", fontWeight:700, fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {biguStreams.map(s=>{
+                  const mags=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, tl=parseFloat(s.topLoaders)||0;
+                  return (
+                    <tr key={s.id} style={{ borderBottom:"1px solid #1a1a1a" }}>
+                      <td style={{ padding:"6px 8px", color:"#AAAAAA" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                      <td style={{ padding:"6px 8px", color:"#888" }}>{s.streamName||s.breakType||"Break"}</td>
+                      <td style={{ padding:"6px 8px", color:mags>0?"#F0F0F0":"#333" }}>{mags>0?"$"+mags.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:pack>0?"#F0F0F0":"#333" }}>{pack>0?"$"+pack.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:tl>0?"#F0F0F0":"#333"  }}>{tl>0?"$"+tl.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:"#FBBF24", fontWeight:700 }}>${(mags+pack+tl).toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ borderTop:"1px solid rgba(251,191,36,0.3)" }}>
+                  <td colSpan={5} style={{ padding:"8px 8px", color:"#888", fontWeight:700 }}>TOTAL OWED TO BIGU</td>
+                  <td style={{ padding:"8px 8px", color:"#FBBF24", fontWeight:900, fontSize:16 }}>${totalReimb.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* -- PAY STUB HISTORY -- */}
       {isAdmin && payStubs.length > 0 && (
