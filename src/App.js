@@ -24072,7 +24072,7 @@ function PublicCardDatabase() {
                     <div key={key} style={{ background:"rgba(255,255,255,0.02)", border:`1.5px solid ${complete?"rgba(74,222,128,0.2)":ownedCount>0?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.05)"}`, borderRadius:12, overflow:"hidden", backdropFilter:"blur(10px)" }}>
                       <div onClick={()=>setExpandedHero(isExpanded ? null : key)} style={{ padding:"14px 16px", cursor:"pointer" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: showSecondary ? 6 : 8 }}>
-                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"rgba(255,255,255,0.3)" }}>
+                          <span style={{ fontSize:13, fontWeight:800, color:complete?"#F0F0F0":ownedCount>0?"#F0F0F0":"rgba(255,255,255,0.7)" }}>
                             {complete && "\uD83C\uDF08 "}{key}
                           </span>
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -24088,7 +24088,7 @@ function PublicCardDatabase() {
                               const sc = sd.owned===sd.total?"#4ade80":sd.owned>0?"#FBBF24":"rgba(255,255,255,0.2)";
                               return (
                                 <div key={label} style={{ display:"flex", alignItems:"center", gap:3, background:"rgba(255,255,255,0.04)", borderRadius:5, padding:"2px 7px" }}>
-                                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{label}:</span>
+                                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.55)" }}>{label}:</span>
                                   <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
                                   {sd.owned===sd.total && <span style={{ fontSize:9 }}>{"\uD83C\uDF08"}</span>}
                                 </div>
