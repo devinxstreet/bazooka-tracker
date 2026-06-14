@@ -22314,6 +22314,7 @@ function PublicCardDatabase() {
   const [claimName,       setClaimName]       = useState("");
   const [claimDate,       setClaimDate]       = useState("");
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
+  const [collapsedOneGroups, setCollapsedOneGroups] = useState({});
   const [flippedClaim,    setFlippedClaim]    = useState(null);
 
   // -- 1/1 Tracker --
@@ -23628,8 +23629,11 @@ function PublicCardDatabase() {
               <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
                 {[["set","💎 Set"],["treatment","🎨 Treatment"],["weapon","⚔️ Weapon"],["hero","🦸 Hero"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setSecret1SetFilter("");setCollapsedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                 ))}
+                <div style={{ flex:1 }}/>
+                <button onClick={()=>{ const all={}; secret1of1Cards.forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setCollapsedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
+                <button onClick={()=>setCollapsedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
               {/* Grouped trackers */}
@@ -23648,20 +23652,26 @@ function PublicCardDatabase() {
                 const isFull=setVerified.length===setCards.length&&setCards.length>0;
                 const visibleCards=secret1StatusFilter==="claimed"?setCards.filter(c=>!!claimMap1[c.id]):secret1StatusFilter==="unclaimed"?setCards.filter(c=>!claimMap1[c.id]):setCards;
                 if(secret1StatusFilter!=="all" && visibleCards.length===0) return null;
+                const collapseKey=`${secret1GroupBy}:${setName}`;
+                const isCollapsed=!!collapsedOneGroups[collapseKey];
                 return (
                   <div key={setName} style={{ background:"#111", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
-                    <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
+                    <div onClick={()=>setCollapsedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111", cursor:"pointer", userSelect:"none" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                         <div>
                           <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"#F0F0F0" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
                           <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed</div>
                         </div>
-                        <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"#555", fontWeight:400 }}>/{setCards.length}</span></div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"#555", fontWeight:400 }}>/{setCards.length}</span></div>
+                          <span style={{ color:"rgba(255,255,255,0.3)", fontSize:14 }}>{isCollapsed?"▼":"▲"}</span>
+                        </div>
                       </div>
                       <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${verPct}%`, background:"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", borderRadius:4, transition:"width 0.5s ease" }}/>
                       </div>
                     </div>
+                    {!isCollapsed && (
                     <div style={{ padding:"12px 20px 16px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
                       {visibleCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap1[c.id]; const isV=claim?.status==="verified"; const isP=claim?.status==="pending";
@@ -23710,6 +23720,7 @@ function PublicCardDatabase() {
                         );
                       })}
                     </div>
+                    )}
                   </div>
                 );
               });
