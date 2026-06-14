@@ -21578,7 +21578,7 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
   );
 }
 
-function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto}) {
+function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto, WEAPON_COLORS={}}) {
   if (!scanModal) return null;
   return (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
@@ -23151,7 +23151,7 @@ function PublicCardDatabase() {
       {/* Counter offer modal */}
       <CounterModal counterModal={counterModal} counterSent={counterSent} setCounterModal={setCounterModal} counterAmt={counterAmt} setCounterAmt={setCounterAmt} setCounterSent={setCounterSent} counterOffer={counterOffer} negHistory={negHistory}/>
       {/* Scan modal */}
-      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp} confirmScan={confirmScan}
+      {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp} confirmScan={confirmScan} WEAPON_COLORS={WEAPON_COLORS}
           scanCardPhoto={scanCardPhoto}
           />}
       {/* HERO HEADER */}
