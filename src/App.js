@@ -4730,7 +4730,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
 
             {/* BigU-only: giveaway + insurance card reimbursement */}
-            {(recap.breaker||breaker||"").toLowerCase()==="bigu" && (
+            {(recap.breaker||breaker||"").toLowerCase()==="bigu" && (canSeeFinancials || matchedBreaker.toLowerCase()==="bigu") && (
               <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", marginBottom:10, textTransform:"uppercase", letterSpacing:1 }}>🔄 BigU Reimbursables — Cards</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
@@ -4936,6 +4936,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div key={pt} style={{ display:"grid", gridTemplateColumns:"1fr 80px 80px auto", gap:8, alignItems:"center", marginBottom:8 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#E8317A" }}>{pt}</div>
                 <input type="number" min="0" step="1" value={recap[`prod_${pt}`]||""} onChange={e=>rf(`prod_${pt}`)(e.target.value)} placeholder="0 boxes" style={{ ...S.inp, color:"#E8317A", textAlign:"center" }}/>
+                {canSeeFinancials ? (
                 <input type="number" min="0" step="0.01" value={streamPrice ?? globalPrice}
                   onChange={e => {
                     const val = e.target.value;
@@ -4956,6 +4957,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   }}
                   style={{ ...S.inp, fontSize:11, padding:"3px 6px", color: streamPrice !== undefined && streamPrice !== String(globalPrice) ? "#FBBF24" : "#555" }}
                 />
+                ) : (
+                <div style={{ fontSize:11, padding:"3px 6px", color:"#555", textAlign:"center" }} title="Set by admin">${effectivePrice.toFixed(2)}</div>
+                )}
                 <button onClick={()=>rf(`prod_${pt}`)("")} style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:16 }}>{"\u2715"}</button>
               </div>
             );
@@ -13516,7 +13520,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         </div>
 
         {/* Revenue */}
-        <div style={S.card}>
+        {isAdmin && <div style={S.card}>
           <SectionLabel t="Revenue & Expenses" />
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12 }}>
             {[
@@ -13535,7 +13539,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Live preview */}
         {(parseFloat(form.grossRevenue)||0) > 0 && (
