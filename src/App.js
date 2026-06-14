@@ -19,7 +19,6 @@ const LOADING_CARD_IMAGES = { urls: [], loaded: false };
         return;
       }
     }
-    // Fetch BoJax cards with images from Firestore
     const snap = await getDocs(query(collection(db,"boba_checklist"), where("hero","==","BoJax")));
     const urls = snap.docs.map(d=>d.data().imageUrl).filter(Boolean).slice(0,30);
     if (urls.length > 0) {
@@ -29,6 +28,8 @@ const LOADING_CARD_IMAGES = { urls: [], loaded: false };
     }
   } catch(e) {}
 })();
+
+const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chaser Cards"];
 
 
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
