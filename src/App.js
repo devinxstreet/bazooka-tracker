@@ -23660,7 +23660,7 @@ function PublicCardDatabase() {
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                         <div>
                           <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"#F0F0F0" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
-                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed</div>
+                          <div style={{ fontSize:11, color:"#555", marginTop:2 }}>{setVerified.length} verified · {setPending.length} pending · <span style={{ color:setUnclaimed.length>0?"#C084FC":"#555", fontWeight:setUnclaimed.length>0?800:400 }}>{setUnclaimed.length} available</span></div>
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                           <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"#555", fontWeight:400 }}>/{setCards.length}</span></div>
@@ -23676,24 +23676,22 @@ function PublicCardDatabase() {
                       {visibleCards.sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true})).map(c=>{
                         const claim=claimMap1[c.id]; const isV=claim?.status==="verified"; const isP=claim?.status==="pending";
                         return (
-                          <div key={c.id} style={{ background:isV?"#1a0a2e":"#0a0a0a", border:`1.5px solid ${isV?"#9333EA":isP?"#9333EA44":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                          <div key={c.id} style={{ background:isV?"rgba(147,51,234,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${isV?"rgba(147,51,234,0.6)":isP?"rgba(147,51,234,0.25)":"rgba(255,255,255,0.08)"}`, borderRadius:14, overflow:"hidden", backdropFilter:"blur(4px)" }}>
                             {c.imageUrl && (()=>{
-                              const isFlipped = isV && flippedClaim===`one_${c.id}` && claim.photoUrl;
-                              const canFlip = isV && claim.photoUrl;
+                              const isFlipped = isV && flippedClaim===`one_${c.id}` && (claim.photoUrl || claim.story);
+                              const canFlip = isV && (claim.photoUrl || claim.story);
                               return (
                               <div style={{ position:"relative", aspectRatio:"3/4", cursor:canFlip?"pointer":"default" }} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`one_${c.id}`?null:`one_${c.id}`); }}>
                                 <div style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:isFlipped?"perspective(700px) rotateY(180deg)":"perspective(700px)", willChange:"transform" }}>
-                                  <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", overflow:"hidden" }}>
-                                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:isV?1:0.5, filter:isV?"none":"grayscale(40%)" }}/>
-                                    {isV && <div style={{ position:"absolute", top:6, right:6, background:"#9333EA", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>✅ FOUND</div>}
-                                    {isP && <div style={{ position:"absolute", top:6, right:6, background:"#1a0a2e", border:"1px solid #9333EA", color:"#9333EA", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>⏳</div>}
-                                    {!isV&&!isP && <div style={{ position:"absolute", top:6, right:6, background:"rgba(0,0,0,0.7)", color:"#555", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>UNCLAIMED</div>}
-                                    {canFlip && <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>🔄 the hit</div>}
+                                  <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", overflow:"hidden", borderRadius:10 }}>
+                                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:isV?1:isP?0.6:0.5, filter:isV?"drop-shadow(0 0 12px rgba(147,51,234,0.6))":isP?"grayscale(45%)":"grayscale(70%)" }}/>
+                                    {canFlip && <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"2px 8px", fontSize:9, fontWeight:700 }}>🔄 the hit</div>}
                                   </div>
                                   {canFlip && (
-                                    <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", overflow:"hidden", background:"#0a0a0a" }}>
-                                      <img src={claim.photoUrl} alt="the hit" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-                                      <div style={{ position:"absolute", top:6, left:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>🔄 card</div>
+                                    <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", overflow:"hidden", borderRadius:10, background:"#0a0a0a", display:"flex", flexDirection:"column" }}>
+                                      {claim.photoUrl && <img src={claim.photoUrl} alt="the hit" style={{ width:"100%", flex:1, objectFit:"cover", display:"block", minHeight:0 }}/>}
+                                      {claim.story && <div style={{ padding:"8px 10px", fontSize:10, color:"#C084FC", fontStyle:"italic", lineHeight:1.5, maxHeight:"40%", overflowY:"auto" }}>"{claim.story}"</div>}
+                                      <div style={{ position:"absolute", top:6, left:6, background:"rgba(0,0,0,0.7)", color:"#C084FC", borderRadius:20, padding:"2px 8px", fontSize:9, fontWeight:700 }}>🔄 card</div>
                                     </div>
                                   )}
                                 </div>
@@ -23704,11 +23702,12 @@ function PublicCardDatabase() {
                               <div style={{ fontSize:13, fontWeight:800, color:isV?"#9333EA":"#F0F0F0", marginBottom:2 }}>{c.hero}</div>
                               <div style={{ fontSize:10, color:"#555", marginBottom:4 }}>#{c.cardNum} · {c.treatment}</div>
                               {isV && <>
-                                <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:4 }}>🏆 {claim.submitterName||"Anonymous"}</div>
+                                <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:claim.story?4:6 }}>🏆 {claim.submitterName||claim.userName||"Anonymous"}</div>
                                 {claim.story && <div style={{ fontSize:10, color:"#888", fontStyle:"italic", lineHeight:1.5, marginBottom:4 }}>"{claim.story}"</div>}
-                                {claim.dateHit && <div style={{ fontSize:10, color:"#444" }}>{claim.dateHit}</div>}
+                                {claim.dateHit && <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>{claim.dateHit}</div>}
                               </>}
-                              {isP && <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>⏳ {claim.submitterName||"Anonymous"}</div>}
+                              {isP && <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
+                              {!isV&&!isP && <div style={{ fontSize:10, fontWeight:700, color:"#C084FC", marginBottom:6, letterSpacing:0.5 }}>💎 Available</div>}
                               {user && owned?.[c.id] && !isV && !isP && (
                                 <button onClick={()=>{ setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
                                   style={{ width:"100%", background:"linear-gradient(135deg,#7C3AED,#A855F7)", color:"#fff", border:"none", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
