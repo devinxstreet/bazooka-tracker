@@ -22208,6 +22208,7 @@ function PublicCardDatabase() {
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
+  const [secret1SetFilter, setSecret1SetFilter] = useState("");
 
   // -- Custom Rainbows --
   const [customRainbows,      setCustomRainbows]      = useState([]);
@@ -23454,8 +23455,11 @@ function PublicCardDatabase() {
           const sets1of1 = [...new Set(secret1of1Cards.map(c=>c.setName).filter(Boolean))].sort();
           const claimMap1 = {};
           oneOfOneClaims.forEach(cl => { claimMap1[cl.cardId] = cl; });
-          const totalCount    = secret1of1Cards.length;
-          const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified").length;
+          // Scope community counters to the selected set (or all sets when none selected)
+          const scoped1of1 = secret1SetFilter ? secret1of1Cards.filter(c => c.setName === secret1SetFilter) : secret1of1Cards;
+          const scoped1of1Ids = new Set(scoped1of1.map(c => c.id));
+          const totalCount    = scoped1of1.length;
+          const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified" && scoped1of1Ids.has(c.cardId)).length;
           const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
           const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
 
@@ -23531,7 +23535,7 @@ function PublicCardDatabase() {
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div>
                     <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>💎 Community Secret 1/1 Hunt</div>
-                    <div style={{ fontSize:13, color:"#555" }}>{totalCount} Secret 1/1s across all sets</div>
+                    <div style={{ fontSize:13, color:"#555" }}>{totalCount} Secret 1/1s{secret1SetFilter?` in ${secret1SetFilter}`:" across all sets"}</div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontSize:28, fontWeight:900, color:"#9333EA" }}>{verifiedCount1}<span style={{ fontSize:14, color:"#555", fontWeight:400 }}>/{totalCount}</span></div>
@@ -23566,8 +23570,19 @@ function PublicCardDatabase() {
                 </div>
               )}
 
+              {/* Set filter */}
+              {sets1of1.length > 1 && (
+                <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDC8E Set:"}</span>
+                  <button onClick={()=>setSecret1SetFilter("")} style={{ background:secret1SetFilter===""?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===""?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
+                  {sets1of1.map(s=>(
+                    <button key={s} onClick={()=>setSecret1SetFilter(s)} style={{ background:secret1SetFilter===s?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===s?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===s?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
+                  ))}
+                </div>
+              )}
+
               {/* Per-set grids */}
-              {sets1of1.map(setName=>{
+              {sets1of1.filter(setName => !secret1SetFilter || setName === secret1SetFilter).map(setName=>{
                 const setCards=secret1of1Cards.filter(c=>c.setName===setName);
                 const setVerified=setCards.filter(c=>claimMap1[c.id]?.status==="verified");
                 const setUnclaimed=setCards.filter(c=>!claimMap1[c.id]);
@@ -23793,7 +23808,7 @@ function PublicCardDatabase() {
                         <div>
                           <div style={{fontSize:16,fontWeight:800,color:isFull?"#F59E0B":"#F0F0F0"}}>{isFull?"🏆 ":"⭐ "}{setName}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:3}}>
-                            {setVerified.length} verified · {setPending.length} pending · {setUnclaimed.length} unclaimed
+                            {setVerified.length} verified · {setPending.length} pending · <span style={{color:setUnclaimed.length>0?"#60A5FA":"rgba(255,255,255,0.3)",fontWeight:setUnclaimed.length>0?800:400}}>{setUnclaimed.length} unclaimed</span>
                           </div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -23817,13 +23832,13 @@ function PublicCardDatabase() {
                         const myOwned=owned?.[c.id];
                         const myClaim=claim?.userId===user?.uid;
                         return (
-                          <div key={c.id} style={{background:isVerified?"rgba(245,158,11,0.08)":"rgba(0,0,0,0.4)",border:`1.5px solid ${isVerified?"rgba(245,158,11,0.6)":isPending?"rgba(245,158,11,0.25)":"rgba(255,255,255,0.06)"}`,borderRadius:14,overflow:"hidden",backdropFilter:"blur(4px)"}}>
+                          <div key={c.id} style={{background:isVerified?"rgba(245,158,11,0.08)":isPending?"rgba(0,0,0,0.4)":"rgba(96,165,250,0.06)",border:`1.5px solid ${isVerified?"rgba(245,158,11,0.6)":isPending?"rgba(245,158,11,0.25)":"rgba(96,165,250,0.55)"}`,borderRadius:14,overflow:"hidden",backdropFilter:"blur(4px)",boxShadow:(!isVerified&&!isPending)?"0 0 0 1px rgba(96,165,250,0.25)":"none"}}>
                             {c.imageUrl&&(
                               <div style={{position:"relative"}}>
-                                <img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block",opacity:isVerified?1:0.55,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":"grayscale(40%)"}}/>
+                                <img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block",opacity:isVerified?1:isPending?0.55:0.92,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":isPending?"grayscale(40%)":"none"}}/>
                                 {isVerified&&<div style={{position:"absolute",top:6,right:6,background:"#F59E0B",color:"#000",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:800}}>✅ FOUND</div>}
                                 {isPending&&<div style={{position:"absolute",top:6,right:6,background:"rgba(26,20,0,0.9)",border:"1px solid #F59E0B",color:"#F59E0B",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:800}}>⏳ PENDING</div>}
-                                {!isVerified&&!isPending&&<div style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.75)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"3px 8px",fontSize:9,fontWeight:700}}>UNCLAIMED</div>}
+                                {!isVerified&&!isPending&&<div style={{position:"absolute",top:6,right:6,background:"#60A5FA",color:"#000",borderRadius:20,padding:"3px 9px",fontSize:9,fontWeight:800}}>💎 UP FOR GRABS</div>}
                               </div>
                             )}
                             <div style={{padding:"10px 12px"}}>
