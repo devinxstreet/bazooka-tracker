@@ -4719,10 +4719,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         placeholder="0"
                         style={{ ...S.inp, color:"#E8317A", flex:1 }}
                       />
-                      {costPer > 0 && qty > 0 && (
+                      {canSeeFinancials && costPer > 0 && qty > 0 && (
                         <span style={{ fontSize:11, color:"#E8317A", fontWeight:700, whiteSpace:"nowrap" }}>${total}</span>
                       )}
-                      {!costPer && <span style={{ fontSize:10, color:"#D1D5DB", whiteSpace:"nowrap" }}>no cost set</span>}
+                      {canSeeFinancials && !costPer && <span style={{ fontSize:10, color:"#D1D5DB", whiteSpace:"nowrap" }}>no cost set</span>}
                     </div>
                   </div>
                 );
