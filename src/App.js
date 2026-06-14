@@ -7704,6 +7704,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
 // --- WHATNOT FOLLOWER TRACKER ------------------------------------
 const WN_CHANNELS = [
   { key:"bazookavault",   label:"Bazooka Vault",      url:"https://www.whatnot.com/user/bazookavault",   color:"#E8317A" },
+  { key:"bazookabreaks",  label:"Bazooka Breaks",     url:"https://www.whatnot.com/user/bazookabreaks",  color:"#7B9CFF" },
   { key:"pullsandpars",   label:"Pulls & Pars",        url:"https://www.whatnot.com/user/pullsandpars",   color:"#60A5FA" },
   { key:"valleyhithouse", label:"Valley Hit House",    url:"https://www.whatnot.com/user/valleyhithouse", color:"#4ade80" },
 ];
