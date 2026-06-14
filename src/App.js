@@ -4487,7 +4487,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           return null; // helper defined, used below
         })()}
 
-        {/* Breaker + Channel + Date + Break Type */}
+        {/* Breaker + Channel + Date + Break Type — Admin sees full controls, streamers see read-only */}
+        {userRole?.role === "Admin" ? (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
           <div>
@@ -4511,6 +4512,20 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </select>
           </div>
         </div>
+        ) : (
+        <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>
+            {breaker} · <span style={{ color:"#555", fontWeight:400 }}>{date||"Select a date"}</span>
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <TextInput label="Date" type="date" value={date} onChange={setDate}/>
+            <div>
+              <label style={S.lbl}>Stream Name</label>
+              <input value={recap.streamName||""} onChange={e=>rf("streamName")(e.target.value)} placeholder="e.g. Friday Night Break #12" style={{ ...S.inp, color: recap.streamName?"#F0F0F0":"#9CA3AF" }}/>
+            </div>
+          </div>
+        </div>
+        )}
 
         {/* Link to planned stream */}
         {(() => {
@@ -4539,6 +4554,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           );
         })()}
 
+        {userRole?.role === "Admin" && (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:14 }}>
           <div>
             <label style={S.lbl}>Session Type</label>
@@ -4566,8 +4582,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
         </div>
 
-        {/* Financials */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+        {/* Financials — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
           {[
             ["grossRevenue",      "Gross Revenue ($)",  "#166534", false],
             ["whatnotFees",       "Whatnot Fees ($)",          "#991b1b", false],
@@ -4581,18 +4597,18 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           ))}
         </div>
 
-        {/* Tips — goes 100% to rep, not in IMC/Bazooka split */}
-        <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+        {/* Tips — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:2 }}>💰 Tips</div>
             <div style={{ fontSize:10, color:"#555" }}>100% goes to the rep — not included in IMC or Bazooka revenue</div>
           </div>
           <input type="number" step="0.01" value={recap.tips||""} onChange={e=>rf("tips")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#FBBF24", fontWeight:700 }}/>
           {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
-        </div>
+        </div>}
 
-        {/* Sales Bonus — flat bonus on top of commission, 100% to rep */}
-        <div style={{ background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
+        {/* Sales Bonus — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#A78BFA", marginBottom:2 }}>🎁 Sales Bonus</div>
@@ -4604,7 +4620,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {parseFloat(recap.salesBonus)>0 && (
             <input type="text" value={recap.salesBonusNote||""} onChange={e=>rf("salesBonusNote")(e.target.value)} placeholder="Reason (e.g. Whatnot promo, performance bonus...)" style={{ ...S.inp, marginTop:8, fontSize:11, color:"#A78BFA" }}/>
           )}
-        </div>
+        </div>}
 
         {/* Zion Cases Revenue -- auto-filled, read-only, Bazooka only */}
         {parseFloat(recap.zionRevenue||0) > 0 && (
@@ -4686,6 +4702,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               );
             })()}
           </div>
+        )}
           {/* Supply qty fields -- auto-calc from cost per unit */}
           <div style={{ display:"contents" }}>
               {[
@@ -4743,6 +4760,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 )}
               </div>
             )}
+          {userRole?.role === "Admin" && <>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
             <input type="checkbox" checked={recap.binOnly||false} onChange={e=>{rf("binOnly")(e.target.checked); if(e.target.checked) rf("isEvent")(false);}} style={{ width:16, height:16 }}/>
             <span style={{ fontSize:12, color:"#AAAAAA" }}>BIN Break — flat 35% commission</span>
@@ -4773,10 +4791,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <span style={{ fontSize:11, color:"#AAAAAA" }}>{recap.commissionOverride !== "" ? `Using ${recap.commissionOverride}%` : "Leave blank to use tier rate"}</span>
             </div>
           )}
+          </>}
         </div>
 
-        {/* Split Commission */}
-        <div style={{ background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+        {/* Split Commission — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: recap.splitRep ? 10 : 0 }}>
             <div>
               <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24" }}>✂️ Split Commission</span>
@@ -4810,10 +4829,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
-        {/* Event Staff — multiple reps, 15% each capped at $1k */}
-        <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+        {/* Event Staff — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:(recap.eventStaff||[]).length>0?10:0 }}>
             <div>
               <span style={{ fontSize:12, fontWeight:700, color:"#A78BFA" }}>🎪 Event Staff Pay</span>
@@ -4847,8 +4866,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               {" · "}{(recap.eventStaff||[]).map(es=>es.breaker).join(", ")}
             </div>
           )}
-        </div>
+        </div>}
 
+        {/* IMC Direct / External Channel / Collab — Admin only */}
+        {userRole?.role === "Admin" && <>
         {/* IMC Direct Reimbursement */}
         <div style={{ background:"rgba(59,130,246,0.05)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
@@ -4908,6 +4929,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             );
           })()}
         </div>
+        </>}
 
         {/* Product used this stream */}
         <div style={{ marginBottom:14 }}>
