@@ -21632,10 +21632,44 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 </div>
               );
             })()}
+            {photoScan?.status==="candidates"&&photoScan.candidates&&(
+              <div style={{background:"rgba(13,13,13,0.9)",border:"1.5px solid rgba(251,191,36,0.35)",borderRadius:20,padding:"22px 20px",animation:"floatUp 0.3s ease"}}>
+                <div style={{textAlign:"center",marginBottom:6}}>
+                  <div style={{fontSize:30,marginBottom:6}}>🔍</div>
+                  <div style={{fontSize:16,fontWeight:800,color:"#FBBF24",marginBottom:4}}>Did you mean one of these?</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Couldn't be 100% sure — tap the right card</div>
+                  {(photoScan.detected?.hero||photoScan.detected?.cardNum)&&<div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginBottom:14}}>Read: {photoScan.detected?.hero||"?"}{photoScan.detected?.cardNum?` · #${photoScan.detected.cardNum}`:""}</div>}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+                  {photoScan.candidates.map(c=>{
+                    const wc=WEAPON_COLORS[c.weapon]||"#888";
+                    return (
+                      <button key={c.id} onClick={()=>{ setPhotoScan({status:"matched",card:c,detected:photoScan.detected}); setScanQty(1); }}
+                        style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${wc}55`,borderRadius:12,overflow:"hidden",cursor:"pointer",padding:0,fontFamily:"inherit",textAlign:"left",transition:"transform 0.15s,border-color 0.15s"}}
+                        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.borderColor=wc;}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=wc+"55";}}>
+                        {c.imageUrl&&<img src={c.imageUrl} alt="" style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}}/>}
+                        <div style={{padding:"7px 9px"}}>
+                          <div style={{fontSize:12,fontWeight:800,color:"#F0F0F0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero}</div>
+                          <div style={{fontSize:9,color:"#666"}}>#{c.cardNum} · {c.treatment}</div>
+                          {c.weapon&&<span style={{fontSize:9,color:wc,fontWeight:700}}>{c.weapon}</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                  <label style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:12,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
+                    None — Rescan<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                  </label>
+                </div>
+              </div>
+            )}
             {photoScan?.status==="nomatch"&&(
               <div style={{background:"rgba(26,10,10,0.8)",border:"1.5px solid rgba(232,49,122,0.3)",borderRadius:20,padding:28,textAlign:"center",animation:"floatUp 0.3s ease"}}>
                 <div style={{fontSize:36,marginBottom:10}}>{"\u274C"}</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:12}}>Card not recognized</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:8}}>Card not recognized</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:16,lineHeight:1.6}}>Tip: fill the frame with the card, avoid glare,<br/>and keep the card number visible</div>
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
                   Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
@@ -22397,23 +22431,65 @@ function PublicCardDatabase() {
     try {
       const base64 = await new Promise((res,rej) => {
         const img=new Image(), url=URL.createObjectURL(file);
-        img.onload=()=>{ URL.revokeObjectURL(url); const MAX=1200,scale=Math.min(1,MAX/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); res(canvas.toDataURL("image/jpeg",0.92).split(",")[1]); };
+        img.onload=()=>{ URL.revokeObjectURL(url); const MAX=1600,scale=Math.min(1,MAX/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); res(canvas.toDataURL("image/jpeg",0.9).split(",")[1]); };
         img.onerror=rej; img.src=url;
       });
       const resp=await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg"})});
       if(!resp.ok){const e=await resp.json().catch(()=>({}));setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`});return;}
       const data=await resp.json();
       if(!data.cardNum&&!data.hero){setPhotoScan({status:"nomatch"});setTimeout(()=>setPhotoScan(null),3000);return;}
-      const normNum=n=>String(n||"").replace(/[\s\-]/g,"").toLowerCase();
-      const heroMatch=(a,b)=>{if(!a||!b)return false;const al=a.toLowerCase(),bl=b.toLowerCase();if(al===bl)return true;if(al.split(" ")[0]!==bl.split(" ")[0])return false;return al.includes(bl)||bl.includes(al);};
-      const iNum=normNum(data.cardNum),iHero=(data.hero||"").toLowerCase(),iWeap=(data.weapon||"").toLowerCase();
+
+      const normNum=n=>String(n||"").replace(/[\s\-_.#]/g,"").toLowerCase();
+      const clean=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      // Levenshtein distance for fuzzy text comparison
+      const lev=(a,b)=>{a=clean(a);b=clean(b);if(!a||!b)return Math.max(a.length,b.length);const m=[];for(let i=0;i<=b.length;i++)m[i]=[i];for(let j=0;j<=a.length;j++)m[0][j]=j;for(let i=1;i<=b.length;i++)for(let j=1;j<=a.length;j++)m[i][j]=b[i-1]===a[j-1]?m[i-1][j-1]:Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);return m[b.length][a.length];};
+      // Fuzzy hero match: exact, contains, first-name, or close edit distance
+      const heroMatch=(cardHero,id)=>{
+        if(!cardHero||!id)return false;
+        const a=clean(cardHero),b=clean(id);
+        if(!a||!b)return false;
+        if(a===b)return true;
+        if(a.includes(b)||b.includes(a))return true;
+        const aF=cardHero.toLowerCase().split(/\s+/)[0],bF=id.toLowerCase().split(/\s+/)[0];
+        if(clean(aF)===clean(bF)&&aF.length>2)return true;
+        // tolerate OCR typos: allow ~20% character errors
+        const dist=lev(a,b),tol=Math.max(1,Math.floor(Math.max(a.length,b.length)*0.22));
+        return dist<=tol;
+      };
+
+      const iNum=normNum(data.cardNum),iHero=(data.hero||"").toLowerCase(),iWeap=(data.weapon||"").toLowerCase(),iTreat=(data.treatment||"").toLowerCase();
       let match=null;
+
+      // 1. Exact card number + hero (most reliable)
       if(iNum&&iHero) match=cards.find(c=>normNum(c.cardNum)===iNum&&heroMatch(c.hero,iHero));
+      // 2. Exact card number alone
       if(!match&&iNum) match=cards.find(c=>normNum(c.cardNum)===iNum);
+      // 3. Hero + weapon + treatment all agree
+      if(!match&&iHero&&iWeap&&iTreat) match=cards.find(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap&&c.treatment?.toLowerCase()===iTreat);
+      // 4. Hero + weapon, single candidate
       if(!match&&iHero&&iWeap){const cands=cards.filter(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
+      // 5. Hero alone, single candidate
       if(!match&&iHero){const cands=cards.filter(c=>heroMatch(c.hero,iHero));if(cands.length===1)match=cands[0];}
-      if(!match){setPhotoScan({status:"nomatch",identified:data});return;}
-      setPhotoScan({status:"matched",card:match,detected:data}); setScanQty(1);
+      // 6. Fuzzy card number (off by 1 char) + hero agreement
+      if(!match&&iNum&&iHero){const cands=cards.filter(c=>lev(normNum(c.cardNum),iNum)<=1&&heroMatch(c.hero,iHero));if(cands.length===1)match=cands[0];}
+
+      if(match){ setPhotoScan({status:"matched",card:match,detected:data}); setScanQty(1); return; }
+
+      // No single confident match -- gather likely candidates so user can pick instead of re-shooting
+      const scored=cards.map(c=>{
+        let s=0;
+        if(iNum&&normNum(c.cardNum)===iNum)s+=100;
+        else if(iNum&&lev(normNum(c.cardNum),iNum)<=1)s+=40;
+        if(iHero&&heroMatch(c.hero,iHero))s+=50;
+        if(iWeap&&c.weapon?.toLowerCase()===iWeap)s+=20;
+        if(iTreat&&c.treatment?.toLowerCase()===iTreat)s+=15;
+        return {card:c,score:s};
+      }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+
+      const candidates=scored.slice(0,6).map(x=>x.card);
+      if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data}); return; }
+
+      setPhotoScan({status:"nomatch",identified:data});
     } catch(e){setPhotoScan({status:"error",message:e.message});}
   }
   async function confirmScan(card,qty) {
