@@ -25650,7 +25650,7 @@ function PublicCardDatabase() {
                 </div>
               );
             })()}
-            <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
               <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setFilterTreat("");setFilterWeapon("");setFilterPower(new Set());setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
                 <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
