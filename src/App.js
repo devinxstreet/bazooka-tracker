@@ -21944,7 +21944,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
         </div>
         {/* eBay sold listings — opens real eBay search */}
         {(()=>{
-          const q = encodeURIComponent(`Bo Jackson ${c.hero||""} ${c.treatment||""}`.replace(/\s+/g," ").trim());
+          const q = encodeURIComponent(`Bo Battle Arena ${c.hero||""} ${c.weapon||""} ${c.treatment||""}`.replace(/\s+/g," ").trim());
           const soldUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&LH_Sold=1&LH_Complete=1&_sop=13`;
           const activeUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&_sop=15`;
           return (
