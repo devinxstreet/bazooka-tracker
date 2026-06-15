@@ -22282,7 +22282,7 @@ function PublicCardDatabase() {
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
   const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ const seg=(window.location.pathname||"").split("/").filter(Boolean); const pathTab=seg[0]==="cards"&&seg[1]?seg[1]:""; if(VALID_TABS.includes(pathTab)) return pathTab; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -22305,18 +22305,20 @@ function PublicCardDatabase() {
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
 
-  // -- Keep the URL in sync with the active tab (real website-style navigation) --
+  // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
+  // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team" };
   useEffect(() => {
-    const target = activeTab === "cards" ? "/cards" : `/cards/${activeTab}`;
+    const target = TAB_PATHS[activeTab] || "/cards";
     if (window.location.pathname !== target) {
       window.history.pushState({ tab: activeTab }, "", target);
     }
   }, [activeTab]);
   useEffect(() => {
     const onPop = () => {
-      const seg = (window.location.pathname||"").split("/").filter(Boolean);
-      const pathTab = seg[0]==="cards" && seg[1] ? seg[1] : "cards";
-      setActiveTab(VALID_TABS.includes(pathTab) ? pathTab : "cards");
+      const p = window.location.pathname || "/cards";
+      const found = Object.keys(TAB_PATHS).find(k => TAB_PATHS[k] === p);
+      setActiveTab(found || "cards");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -27536,7 +27538,9 @@ export default function App() {
 
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
-  if (window.location.pathname === "/cards" || window.location.pathname.startsWith("/cards/"))    return <PublicCardDatabase />;
+  // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team"];
+  if (CARD_DB_PATHS.includes(window.location.pathname)) return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
