@@ -22586,13 +22586,19 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
             <div style={{ fontSize:11, color:"#666", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
             {lots.map((l,i)=>(
               <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
+                {l.photoUrl && (
+                  <div style={{ position:"relative", flexShrink:0 }}>
+                    <img src={l.photoUrl} alt="" style={{ width:38, height:51, objectFit:"cover", borderRadius:6, border:"1px solid #333" }}/>
+                    <button onClick={()=>{ if(window.confirm("Delete this saved photo? You'll need to re-scan or upload to list this copy with a pic.")) onUpdate(l.id, { ...l, photoUrl:"" }); }} title="Delete saved photo" style={{ position:"absolute", top:-6, right:-6, background:"#1a1a1a", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                  </div>
+                )}
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:12, color:"#ddd", fontWeight:700 }}>
                     {LOT_METHODS.find(m=>m.v===l.method)?.l || l.method}
                     {l.cost!=null && <span style={{ color:"#E8317A" }}> · ${l.cost}</span>}
                     {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
                   </div>
-                  <div style={{ fontSize:10, color:"#666" }}>{l.date}{l.notes?` · ${l.notes}`:""}</div>
+                  <div style={{ fontSize:10, color:"#666" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
                 </div>
                 <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                 <button onClick={()=>onRemove(l.id)} style={{ background:"none", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>×</button>
@@ -23146,6 +23152,8 @@ function PublicCardDatabase() {
   const navGroupItems = useRef({});
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -23719,6 +23727,32 @@ function PublicCardDatabase() {
     await setDoc(doc(db,"boba_private",user.uid), next);
   }
   // -- Lot (per-copy cost/value) tracking --
+  async function updateProfilePic(file) {
+    if (!file || !user) return;
+    setEditPicUploading(true);
+    try {
+      // Compress to ~400px square-ish for a profile pic
+      const dataUrl = await new Promise((res,rej)=>{
+        const img=new Image(), url=URL.createObjectURL(file);
+        img.onload=()=>{ URL.revokeObjectURL(url);
+          const MAX=400, scale=Math.min(1,MAX/Math.max(img.width,img.height));
+          const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+          const c=document.createElement("canvas"); c.width=w; c.height=h;
+          c.getContext("2d").drawImage(img,0,0,w,h);
+          res(c.toDataURL("image/jpeg",0.85));
+        };
+        img.onerror=rej; img.src=url;
+      });
+      const sref = ref(storage, `profile_pics/${user.uid}/${uid()}.jpg`);
+      await uploadString(sref, dataUrl, "data_url");
+      const url = await getDownloadURL(sref);
+      await setDoc(doc(db,"users",user.uid), { photoURL: url }, { merge:true });
+      try { localStorage.setItem("bazooka_photo_" + user.uid, url); } catch(e) {}
+      setMyPhotoURL(url);
+      showToast("Profile picture updated!");
+    } catch(e) { console.error("profile pic update failed:", e); alert("Couldn't update photo. Try again."); }
+    setEditPicUploading(false);
+  }
   async function saveLots(nextLots) {
     setLots(nextLots);
     if (!user) return;
@@ -24673,6 +24707,32 @@ function PublicCardDatabase() {
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {editProfileOpen && user && (
+        <div onClick={()=>setEditProfileOpen(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(420px,100%)",padding:"24px 24px 22px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>Edit Profile</div>
+              <button onClick={()=>setEditProfileOpen(false)} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
+              {(myPhotoURL||user.photoURL)
+                ? <img src={myPhotoURL||user.photoURL} alt="" style={{width:96,height:96,borderRadius:"50%",objectFit:"cover",border:"3px solid #E8317A",boxShadow:"0 0 24px rgba(232,49,122,0.4)"}}/>
+                : <div style={{width:96,height:96,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,fontWeight:900,color:"#fff"}}>{(myUsername||user.displayName||user.email||"?").charAt(myUsername?1:0).toUpperCase()}</div>}
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
+                <div style={{fontSize:12,color:"#666"}}>{user.email}</div>
+              </div>
+              <label style={{display:"block",width:"100%",cursor:editPicUploading?"wait":"pointer"}}>
+                <div style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:800,textAlign:"center",opacity:editPicUploading?0.6:1}}>
+                  {editPicUploading?"Uploading…":(myPhotoURL||user.photoURL)?"📷 Change Picture":"📷 Add Picture"}
+                </div>
+                <input type="file" accept="image/*" disabled={editPicUploading} style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) updateProfilePic(f); e.target.value=""; }}/>
+              </label>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>Your username can't be changed once claimed.</div>
+            </div>
+          </div>
+        </div>
+      )}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
@@ -24893,6 +24953,7 @@ function PublicCardDatabase() {
                       <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
                     </div>
                     {[
+                      {label:"✏️ Edit Profile",act:()=>setEditProfileOpen(true)},
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
