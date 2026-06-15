@@ -23258,6 +23258,9 @@ function PublicCardDatabase() {
 
   // -- Scan --
   const [scanModal,     setScanModal]     = useState(false);
+  const [importModal,   setImportModal]   = useState(false);
+  const [importRows,    setImportRows]    = useState(null); // parsed+matched rows for preview
+  const [importing,     setImporting]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
   const scanInFlight = useRef(false);
   const [scanSession,   setScanSession]   = useState([]);
@@ -23727,6 +23730,105 @@ function PublicCardDatabase() {
     await setDoc(doc(db,"boba_private",user.uid), next);
   }
   // -- Lot (per-copy cost/value) tracking --
+  // -- Collection CSV import --
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], field = "", inQ = false;
+    for (let i=0;i<text.length;i++) {
+      const ch = text[i], nx = text[i+1];
+      if (inQ) {
+        if (ch === '"' && nx === '"') { field += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else field += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === ",") { row.push(field); field = ""; }
+        else if (ch === "\n") { row.push(field); rows.push(row); row=[]; field=""; }
+        else if (ch === "\r") { /* skip */ }
+        else field += ch;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ""));
+  }
+
+  function matchImportRow(rec, hdr) {
+    const get = (name) => { const idx = hdr.findIndex(h => h.toLowerCase().trim() === name.toLowerCase()); return idx>=0 ? (rec[idx]||"").trim() : ""; };
+    const hero = get("Name");
+    const cardNum = get("Card Number");
+    const parallel = get("Parallel");   // maps to treatment
+    const weapon = get("Weapon");
+    const power = get("Power");
+    const qty = parseInt(get("Quantity")) || 1;
+    const value = parseFloat(get("Estimated Value")) || null;
+    if (!hero && !cardNum) return null;
+    const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
+    // 1) exact-ish: hero + treatment + weapon (+power)
+    let match = cards.find(c =>
+      norm(c.hero)===norm(hero) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && (!power || String(c.power)===String(power))
+    );
+    // 2) hero + cardNum
+    if (!match && cardNum) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.cardNum)===norm(cardNum));
+    // 3) hero + treatment + weapon (no power)
+    if (!match) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon));
+    // 4) hero + weapon + power
+    if (!match && power) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.weapon)===norm(weapon) && String(c.power)===String(power));
+    return { csv:{hero,cardNum,parallel,weapon,power,qty,value}, match:match||null };
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const rows = parseCSV(e.target.result);
+        if (rows.length < 2) { alert("That file looks empty. Make sure it has a header row and at least one card."); return; }
+        const hdr = rows[0];
+        const parsed = rows.slice(1).map(r => matchImportRow(r, hdr)).filter(Boolean);
+        if (!parsed.length) { alert("Couldn't read any cards from that file. Check that the columns match the template."); return; }
+        setImportRows(parsed);
+      } catch(err) { console.error(err); alert("Couldn't read that CSV. Try the template format."); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function runImport() {
+    if (!user) { setSigningIn(true); return; }
+    if (!importRows) return;
+    setImporting(true);
+    try {
+      const matched = importRows.filter(r => r.match);
+      const nextOwned = { ...owned };
+      const newLots = [];
+      for (const r of matched) {
+        const id = r.match.id;
+        const q = r.csv.qty || 1;
+        nextOwned[id] = (nextOwned[id]||0) + q;
+        for (let i=0;i<q;i++) {
+          newLots.push({ id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other", date:new Date().toISOString().split("T")[0], notes:"Imported", photoUrl:"" });
+        }
+      }
+      setOwned(nextOwned);
+      await setDoc(doc(db,"boba_owned",user.uid), nextOwned);
+      const mergedLots = [...lots, ...newLots];
+      setLots(mergedLots);
+      try { await setDoc(doc(db,"boba_lots",user.uid), { lots: mergedLots }); } catch(e){}
+      showToast(`Imported ${matched.length} card${matched.length!==1?"s":""} into your collection!`);
+      setImportModal(false); setImportRows(null);
+    } catch(e) { console.error("import failed:", e); alert("Import failed. Please try again."); }
+    setImporting(false);
+  }
+
+  function downloadImportTemplate() {
+    const headers = ["Name","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value"];
+    const example = ["Bo Jackson","TB1","Tecmo Bowl","","250","1","500"];
+    const csv = headers.join(",") + "\n" + example.join(",") + "\n";
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="bazooka-collection-template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function updateProfilePic(file) {
     if (!file || !user) return;
     setEditPicUploading(true);
@@ -24707,6 +24809,65 @@ function PublicCardDatabase() {
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {importModal && (
+        <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>Import Your Collection</div>
+              <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:18}}>Already track your collection somewhere else? Export it as a CSV and drop it in here — we'll match your cards automatically. Or download our template, fill it out, and import.</div>
+
+            {!importRows ? (
+              <>
+                <label style={{display:"block",cursor:"pointer",marginBottom:12}}>
+                  <div style={{background:"linear-gradient(135deg,rgba(123,156,255,0.06),rgba(74,222,128,0.05))",border:"2px dashed rgba(123,156,255,0.35)",borderRadius:14,padding:"34px 20px",textAlign:"center"}}>
+                    <div style={{fontSize:40,marginBottom:8}}>{"\uD83D\uDCC4"}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#7B9CFF",marginBottom:4}}>Choose a CSV file</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>We'll match each row to the BoBA database</div>
+                  </div>
+                  <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
+                </label>
+                <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Template columns: Name, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
+              </>
+            ) : (()=>{
+              const matched = importRows.filter(r=>r.match);
+              const unmatched = importRows.filter(r=>!r.match);
+              const totalCards = matched.reduce((s,r)=>s+(r.csv.qty||1),0);
+              return (
+                <>
+                  <div style={{display:"flex",gap:10,marginBottom:16}}>
+                    <div style={{flex:1,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.25)",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{matched.length}</div>
+                      <div style={{fontSize:10,color:"#888",fontWeight:700,textTransform:"uppercase"}}>Matched ({totalCards} cards)</div>
+                    </div>
+                    <div style={{flex:1,background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontSize:22,fontWeight:900,color:"#FBBF24"}}>{unmatched.length}</div>
+                      <div style={{fontSize:10,color:"#888",fontWeight:700,textTransform:"uppercase"}}>Not found</div>
+                    </div>
+                  </div>
+                  {unmatched.length>0 && (
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:6}}>These couldn't be matched and will be skipped:</div>
+                      <div style={{maxHeight:120,overflowY:"auto",background:"rgba(255,255,255,0.02)",borderRadius:8,padding:8}}>
+                        {unmatched.slice(0,40).map((r,i)=>(
+                          <div key={i} style={{fontSize:11,color:"#999",padding:"2px 0"}}>{r.csv.hero||"?"} · {r.csv.parallel||""} {r.csv.weapon?`(${r.csv.weapon})`:""} {r.csv.cardNum?`#${r.csv.cardNum}`:""}</div>
+                        ))}
+                        {unmatched.length>40 && <div style={{fontSize:11,color:"#666",marginTop:4}}>…and {unmatched.length-40} more</div>}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>setImportRows(null)} disabled={importing} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
+                    <button onClick={runImport} disabled={importing||matched.length===0} style={{flex:2,background:matched.length?"linear-gradient(135deg,#4ade80,#22c55e)":"#333",color:matched.length?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:importing?"wait":matched.length?"pointer":"not-allowed",fontFamily:"inherit"}}>{importing?"Importing…":`Import ${totalCards} card${totalCards!==1?"s":""}`}</button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
       {editProfileOpen && user && (
         <div onClick={()=>setEditProfileOpen(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(420px,100%)",padding:"24px 24px 22px"}}>
@@ -24881,6 +25042,8 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
+                  <button onClick={()=>{ setImportModal(true); setImportRows(null); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                    {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
                     title="Share your public collection page"
                     style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
