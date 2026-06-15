@@ -27277,6 +27277,11 @@ export default function App() {
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
+  const _path = window.location.pathname;
+  if (typeof document !== "undefined") {
+    const titles = { "/":"Bazooka — BoBA Card Collector Database", "/cards":"Card Database — Bazooka", "/sell":"Sell a Card — Bazooka", "/deck":"Deck Builder — Bazooka", "/playbook":"Playbook — Bazooka", "/chases":"Chase Tracker — Bazooka", "/dashboard":"Team Dashboard — Bazooka" };
+    document.title = titles[_path] || "Bazooka — BoBA Card Collector Database";
+  }
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
   if (quoteMatch) return <PublicQuote quoteId={quoteMatch[1]} />;
 
