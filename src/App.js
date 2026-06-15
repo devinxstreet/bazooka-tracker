@@ -22891,6 +22891,7 @@ function OnboardingModal({ user, onComplete, inp }) {
       if (!check.exists() || check.data().username !== u) {
         throw new Error("Your username didn't save to the server. This is usually a Firestore rules issue on the 'users' collection — make sure the rules allow you to write your own profile, then try again.");
       }
+      console.log("[username-claim] saved OK to server:", u, "→ doc now has:", check.data().username);
       setStep(2);
     } catch(e) { console.error("claim failed:", e); alert("Couldn't save username: "+(e.message||"unknown error")); }
     setSaving(false);
@@ -23081,6 +23082,7 @@ function PublicCardDatabase() {
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
   const [myUsername,    setMyUsername]    = useState("");
+  const usernameClaimedThisSession = useRef(false);
   const [myPhotoURL,    setMyPhotoURL]    = useState("");
   const [onboarding,    setOnboarding]    = useState(false);
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
@@ -23451,9 +23453,18 @@ function PublicCardDatabase() {
           }, { merge:true });
           // If no username claimed yet, trigger onboarding
           const existing = usnap.exists() ? usnap.data() : {};
+          console.log("[username-check]", {
+            uid: u.uid,
+            email: u.email,
+            docExists: usnap.exists(),
+            usernameOnDoc: existing.username || "(none)",
+            fromServer: true,
+            willOnboard: !existing.username,
+          });
           setMyUsername(existing.username || "");
           setMyPhotoURL(existing.photoURL || "");
-          if (!existing.username) setOnboarding(true);
+          if (existing.username) usernameClaimedThisSession.current = true;
+          if (!existing.username && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
           const [ownSnap, wSnap, prvSnap, lotSnap] = await Promise.all([
@@ -24569,7 +24580,7 @@ function PublicCardDatabase() {
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
-      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
