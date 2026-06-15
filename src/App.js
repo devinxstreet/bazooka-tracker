@@ -22378,6 +22378,8 @@ function PublicCardDatabase() {
 
   // -- Card FX (hunt / caught animations) --
   const [cardFx,        setCardFx]        = useState(null); // { type:"hunt"|"caught", card }
+  const [milestone,     setMilestone]     = useState(null); // { label, sub }
+  const lastMilestoneRef = useRef(null);
   const [rainbowFx,     setRainbowFx]     = useState(null); // { name, cards:[] }
   const completedRainbowsRef = useRef(null); // snapshot of complete rainbow keys
 
@@ -22699,6 +22701,23 @@ function PublicCardDatabase() {
     if (!user) return;
     setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
   }, [user]);
+
+  // Detect collection milestones -> celebratory toast
+  useEffect(() => {
+    if (!user || !cards.length) return;
+    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+    const COUNT_MILES = [10,25,50,100,150,200,250,300,400,500,750,1000];
+    const pct = cards.length>0 ? (owNow/cards.length*100) : 0;
+    const PCT_MILES = [10,25,50,75,90,100];
+    // First run: snapshot, don't fire
+    if (lastMilestoneRef.current === null) { lastMilestoneRef.current = { count:owNow, pct }; return; }
+    const prev = lastMilestoneRef.current;
+    let hit = null;
+    for (const m of COUNT_MILES) { if (prev.count < m && owNow >= m) hit = { label:`${m} CARDS!`, sub:"Your collection is growing 🔥" }; }
+    for (const m of PCT_MILES) { if (prev.pct < m && pct >= m) hit = { label:`${m}% COMPLETE!`, sub: m>=100 ? "You collected them ALL 🏆" : "Keep hunting 🎯" }; }
+    lastMilestoneRef.current = { count:owNow, pct };
+    if (hit) { setMilestone(hit); setTimeout(()=>setMilestone(null), 3200); }
+  }, [owned, cards, user]);
 
   // Detect rainbow completion -> grand celebration
   useEffect(() => {
@@ -23516,6 +23535,9 @@ function PublicCardDatabase() {
         @keyframes cardEntrance { from{opacity:0;transform:translateY(20px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)} }
         .pub-tab:hover{background:rgba(232,49,122,0.1)!important;color:rgba(255,255,255,0.8)!important;transform:translateY(-1px)}
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
+        .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
+        .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+        @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
         .pub-card-grid > *:nth-child(4n){animation-delay:0.15s}
@@ -23538,6 +23560,8 @@ function PublicCardDatabase() {
         @keyframes caughtBurst { 0%{transform:scale(0.2);opacity:0} 22%{opacity:1} 100%{transform:scale(2.8);opacity:0} }
         @keyframes caughtText { 0%{opacity:0;transform:scale(0.6) translateY(10px)} 30%{opacity:1;transform:scale(1.1) translateY(0)} 45%{transform:scale(1)} 85%{opacity:1} 100%{opacity:0;transform:scale(0.95)} }
         @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:0} 12%{opacity:1} 100%{transform:translateY(620px) rotate(720deg);opacity:0} }
+        @keyframes milestonePop { 0%{transform:translateX(-50%) translateY(-30px) scale(0.8);opacity:0} 60%{transform:translateX(-50%) translateY(4px) scale(1.05);opacity:1} 100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1} }
+        @keyframes wantPulse { 0%,100%{transform:scale(1);opacity:0.9} 50%{transform:scale(1.12);opacity:1} }
         @keyframes starPop { 0%{transform:scale(0) rotate(0deg);opacity:0} 35%{transform:scale(1.3) rotate(180deg);opacity:1} 100%{transform:scale(0.6) rotate(360deg);opacity:0} }
 
         /* ── RAINBOW COMPLETE — GRAND CELEBRATION ── */
@@ -23559,6 +23583,14 @@ function PublicCardDatabase() {
 
       {/* ── CARD FX OVERLAY ── */}
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
+      {milestone && (
+        <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
+          <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
+            <div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:1,textShadow:"0 2px 8px rgba(0,0,0,0.3)"}}>🎉 {milestone.label}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.9)",marginTop:2}}>{milestone.sub}</div>
+          </div>
+        </div>
+      )}
 
       {/* ── RAINBOW COMPLETE CELEBRATION ── */}
       {rainbowFx && <RainbowCelebration fx={rainbowFx} onDone={()=>setRainbowFx(null)} />}
@@ -24376,6 +24408,29 @@ function PublicCardDatabase() {
         {/* CARDS TAB */}
         {activeTab==="cards"&&(
           <>
+            {user && cards.length>0 && (()=>{
+              const pct = cards.length>0 ? (totalOwned/cards.length*100) : 0;
+              const pctR = Math.round(pct*10)/10;
+              return (
+                <div style={{background:"linear-gradient(135deg, rgba(232,49,122,0.10), rgba(123,47,247,0.08))",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:"16px 20px",marginBottom:16,backdropFilter:"blur(10px)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:10,flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Your Collection</div>
+                      <div style={{fontSize:26,fontWeight:900,color:"#fff",lineHeight:1.1,marginTop:3}}>
+                        {totalOwned.toLocaleString()} <span style={{fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>/ {cards.length.toLocaleString()} cards</span>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:30,fontWeight:900,color:"#E8317A",lineHeight:1,textShadow:"0 0 20px rgba(232,49,122,0.5)"}}>{pctR}%</div>
+                      {collectionValue>0 && <div style={{fontSize:12,color:"#4ade80",fontWeight:700,marginTop:4}}>~${collectionValue.toLocaleString(undefined,{maximumFractionDigits:0})} est. value</div>}
+                    </div>
+                  </div>
+                  <div style={{height:10,background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",position:"relative"}}>
+                    <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:"linear-gradient(90deg,#E8317A,#FBBF24)",borderRadius:6,transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)",boxShadow:"0 0 12px rgba(232,49,122,0.6)"}}/>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
               <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setFilterTreat("");setFilterWeapon("");setFilterPower(new Set());setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
@@ -24696,10 +24751,11 @@ function PublicCardDatabase() {
         {activeTab==="wants"&&(
           <div>
             {Object.keys(wantList).length===0?(
-              <div style={{textAlign:"center",padding:80,color:"rgba(255,255,255,0.2)"}}>
-                <div style={{fontSize:48,marginBottom:16}}>{"\uD83C\uDFAF"}</div>
-                <div style={{fontSize:16,fontWeight:700}}>No cards on your want list</div>
-                <div style={{fontSize:13,marginTop:8}}>Flip a card in the Cards tab and tap + Want</div>
+              <div style={{textAlign:"center",padding:"70px 20px"}}>
+                <div style={{fontSize:56,marginBottom:18,animation:"wantPulse 2s ease-in-out infinite"}}>{"\uD83C\uDFAF"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#fff",marginBottom:8}}>Start your hunt</div>
+                <div style={{fontSize:14,color:"rgba(255,255,255,0.45)",maxWidth:340,margin:"0 auto",lineHeight:1.6}}>Tap the {"\uD83C\uDFAF"} on any card to add it to your want list. Track the cards you're chasing and never lose sight of the ones that got away.</div>
+                <button onClick={()=>setActiveTab("cards")} style={{marginTop:22,background:"linear-gradient(135deg,#E8317A,#FBBF24)",border:"none",color:"#fff",borderRadius:24,padding:"11px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>Browse Cards →</button>
               </div>
             ):(
               <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
