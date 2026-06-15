@@ -22216,7 +22216,7 @@ function PublicHomepage() {
   ];
 
   return (
-    <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", overflowX:"hidden" }}>
+    <div style={{ position:"relative", minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", overflowX:"hidden" }}>
       <style>{`
         @keyframes homeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
         @keyframes homeGlow { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
@@ -22229,6 +22229,16 @@ function PublicHomepage() {
 
       {/* Ambient glow background */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,49,122,0.18), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(123,47,247,0.12), transparent 70%)" }}/>
+
+      {/* Hero background video */}
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:"min(820px,100vh)", overflow:"hidden", zIndex:0, pointerEvents:"none" }}>
+        <video autoPlay loop muted playsInline poster="/bazooka-hero-poster.jpg"
+          style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", minWidth:"100%", minHeight:"100%", width:"auto", height:"auto", objectFit:"cover", opacity:0.55 }}>
+          <source src="/bazooka-hero.mp4" type="video/mp4" />
+        </video>
+        {/* Medium overlay so hero text pops */}
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(8,0,10,0.55) 0%, rgba(8,0,10,0.45) 40%, rgba(8,0,10,0.85) 85%, #08000a 100%)" }}/>
+      </div>
 
       {/* Nav bar */}
       <div style={{ position:"relative", zIndex:2, maxWidth:1200, margin:"0 auto", padding:"20px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -22770,7 +22780,7 @@ function OnboardingModal({ user, onComplete, inp }) {
     setUploading(false);
   }
 
-  function finish() { onComplete(clean(username)); }
+  function finish() { onComplete(clean(username), photoURL); }
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:10020, background:"rgba(0,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(10px)" }}>
@@ -22931,6 +22941,7 @@ function PublicCardDatabase() {
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
   const [myUsername,    setMyUsername]    = useState("");
+  const [myPhotoURL,    setMyPhotoURL]    = useState("");
   const [onboarding,    setOnboarding]    = useState(false);
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
@@ -23287,6 +23298,7 @@ function PublicCardDatabase() {
           // If no username claimed yet, trigger onboarding
           const existing = usnap.exists() ? usnap.data() : {};
           setMyUsername(existing.username || "");
+          setMyPhotoURL(existing.photoURL || "");
           if (!existing.username) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
@@ -23310,7 +23322,7 @@ function PublicCardDatabase() {
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]);
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL("");
       }
     });
   }, []);
@@ -24348,7 +24360,7 @@ function PublicCardDatabase() {
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
-      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname)=>{ setMyUsername(uname); setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
@@ -24497,7 +24509,7 @@ function PublicCardDatabase() {
             <div style={{display:"flex",alignItems:"center",gap:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s"}}>
               {user?(
                 <>
-                  {user.photoURL&&<img src={user.photoURL} alt="" style={{width:40,height:40,borderRadius:"50%",border:"2px solid #E8317A",boxShadow:"0 0 16px rgba(232,49,122,0.4)"}}/>}
+                  {(myPhotoURL||user.photoURL)&&<img src={myPhotoURL||user.photoURL} alt="" style={{width:40,height:40,borderRadius:"50%",border:"2px solid #E8317A",boxShadow:"0 0 16px rgba(232,49,122,0.4)",objectFit:"cover"}}/>}
                   <div>
                     <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
                     <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
