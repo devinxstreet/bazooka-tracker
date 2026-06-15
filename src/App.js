@@ -23829,6 +23829,21 @@ function PublicCardDatabase() {
     URL.revokeObjectURL(url);
   }
 
+  async function clearCollection() {
+    if (!user) return;
+    const count = Object.keys(owned).length;
+    if (!window.confirm(`Clear your entire collection? This removes all ${count} card${count!==1?"s":""} and their saved details/photos. This can't be undone.`)) return;
+    if (!window.confirm("Are you absolutely sure? Type-of-no-return — your whole collection will be wiped.")) return;
+    try {
+      setOwned({});
+      await setDoc(doc(db,"boba_owned",user.uid), {});
+      setLots([]);
+      await setDoc(doc(db,"boba_lots",user.uid), { lots: [] });
+      showToast("Collection cleared.");
+      setEditProfileOpen(false);
+    } catch(e) { console.error("clear collection failed:", e); alert("Couldn't clear collection. Try again."); }
+  }
+
   async function updateProfilePic(file) {
     if (!file || !user) return;
     setEditPicUploading(true);
@@ -24890,6 +24905,10 @@ function PublicCardDatabase() {
                 <input type="file" accept="image/*" disabled={editPicUploading} style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) updateProfilePic(f); e.target.value=""; }}/>
               </label>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>Your username can't be changed once claimed.</div>
+              <div style={{width:"100%",borderTop:"1px solid #222",marginTop:6,paddingTop:14}}>
+                <button onClick={clearCollection} style={{width:"100%",background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#EF4444",borderRadius:12,padding:"11px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑 Clear my collection</button>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:6}}>Removes all owned cards and saved details. Can't be undone.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -25891,11 +25910,11 @@ function PublicCardDatabase() {
                 <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
               </select>
               {/* Power multi-select dropdown */}
-              <div style={{position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
+              <div style={{position:"relative",zIndex:powerMenuOpen?10000:"auto",flex:1,minWidth:140}}>
                 <button onClick={()=>setPowerMenuOpen(o=>!o)}
-                  style={{...inp,width:130,height:"auto",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,textAlign:"left",color:filterPower.size>0?"#E8317A":undefined,borderColor:filterPower.size>0?"#E8317A":undefined}}>
-                  <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{filterPower.size>0?`⚡ Power (${filterPower.size})`:"All Power"}</span>
-                  <span style={{fontSize:9,opacity:0.6}}>▼</span>
+                  style={{...inp,width:"100%",height:"auto",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,textAlign:"left",color:filterPower.size>0?"#E8317A":"#F0F0F0",borderColor:filterPower.size>0?"#E8317A":"rgba(255,255,255,0.1)"}}>
+                  <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{filterPower.size>0?`Power (${filterPower.size})`:"All Power"}</span>
+                  <span style={{fontSize:10,opacity:0.5,marginLeft:4}}>▾</span>
                 </button>
                 {powerMenuOpen && (
                   <>
