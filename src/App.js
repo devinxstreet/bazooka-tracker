@@ -23754,26 +23754,41 @@ function PublicCardDatabase() {
 
   function matchImportRow(rec, hdr) {
     const get = (name) => { const idx = hdr.findIndex(h => h.toLowerCase().trim() === name.toLowerCase()); return idx>=0 ? (rec[idx]||"").trim() : ""; };
-    const hero = get("Name");
+    const heroRaw = get("Name");
+    const setName = get("Set");
     const cardNum = get("Card Number");
     const parallel = get("Parallel");   // maps to treatment
     const weapon = get("Weapon");
     const power = get("Power");
     const qty = parseInt(get("Quantity")) || 1;
     const value = parseFloat(get("Estimated Value")) || null;
-    if (!hero && !cardNum) return null;
+    if (!heroRaw && !cardNum) return null;
     const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
-    // 1) exact-ish: hero + treatment + weapon (+power)
-    let match = cards.find(c =>
-      norm(c.hero)===norm(hero) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && (!power || String(c.power)===String(power))
-    );
-    // 2) hero + cardNum
-    if (!match && cardNum) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.cardNum)===norm(cardNum));
-    // 3) hero + treatment + weapon (no power)
-    if (!match) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon));
-    // 4) hero + weapon + power
-    if (!match && power) match = cards.find(c => norm(c.hero)===norm(hero) && norm(c.weapon)===norm(weapon) && String(c.power)===String(power));
-    return { csv:{hero,cardNum,parallel,weapon,power,qty,value}, match:match||null };
+    // Hero name variants: full string, the quoted nickname (BoBA hero name), and the string with the quoted part removed
+    const heroVariants = (() => {
+      const v = new Set();
+      if (heroRaw) v.add(heroRaw);
+      const q = heroRaw.match(/"([^"]+)"|'([^']+)'/); // pull a quoted nickname like "Cutback"
+      if (q) { v.add(q[1]||q[2]); v.add(heroRaw.replace(/["']/g,"").trim()); }
+      return [...v];
+    })();
+    const heroMatches = c => heroVariants.some(h => norm(c.hero)===norm(h));
+    const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
+
+    let match = null;
+    // 1) cardNum + set (card numbers like BFA-5 are unique within a set — most reliable)
+    if (cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum) && setMatches(c));
+    // 2) cardNum alone (if set didn't line up but number is unique enough)
+    if (!match && cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum) && heroMatches(c));
+    // 3) hero + treatment + weapon + power + set
+    if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && (!power||String(c.power)===String(power)) && setMatches(c));
+    // 4) hero + treatment + weapon + set (no power)
+    if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && setMatches(c));
+    // 5) hero + treatment + weapon (no set — last resort)
+    if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon));
+    // 6) bare cardNum match (some sets have globally unique numbers)
+    if (!match && cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum));
+    return { csv:{hero:heroRaw,setName,cardNum,parallel,weapon,power,qty,value}, match:match||null };
   }
 
   function handleImportFile(file) {
@@ -23820,8 +23835,8 @@ function PublicCardDatabase() {
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value"];
-    const example = ["Bo Jackson","TB1","Tecmo Bowl","","250","1","500"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value"];
+    const example = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500"];
     const csv = headers.join(",") + "\n" + example.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -24844,7 +24859,7 @@ function PublicCardDatabase() {
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Template columns: Name, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Template columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
               </>
             ) : (()=>{
               const matched = importRows.filter(r=>r.match);
@@ -24867,7 +24882,7 @@ function PublicCardDatabase() {
                       <div style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginBottom:6}}>These couldn't be matched and will be skipped:</div>
                       <div style={{maxHeight:120,overflowY:"auto",background:"rgba(255,255,255,0.02)",borderRadius:8,padding:8}}>
                         {unmatched.slice(0,40).map((r,i)=>(
-                          <div key={i} style={{fontSize:11,color:"#999",padding:"2px 0"}}>{r.csv.hero||"?"} · {r.csv.parallel||""} {r.csv.weapon?`(${r.csv.weapon})`:""} {r.csv.cardNum?`#${r.csv.cardNum}`:""}</div>
+                          <div key={i} style={{fontSize:11,color:"#999",padding:"2px 0"}}>{r.csv.hero||"?"} · {r.csv.parallel||""} {r.csv.weapon?`(${r.csv.weapon})`:""} {r.csv.cardNum?`#${r.csv.cardNum}`:""}{r.csv.setName?` — ${r.csv.setName}`:""}</div>
                         ))}
                         {unmatched.length>40 && <div style={{fontSize:11,color:"#666",marginTop:4}}>…and {unmatched.length-40} more</div>}
                       </div>
