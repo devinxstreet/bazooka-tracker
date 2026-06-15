@@ -21723,6 +21723,12 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
   if (!scanModal) return null;
   return (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
+          <style>{`
+            @keyframes scanBeam { 0%{top:6%} 50%{top:90%} 100%{top:6%} }
+            @keyframes scanDots { 0%,20%{opacity:0.2} 50%{opacity:1} 100%{opacity:0.2} }
+            @keyframes spin { to { transform:rotate(360deg); } }
+            @keyframes floatUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+          `}</style>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",background:"rgba(10,10,10,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,49,122,0.2)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:18,fontWeight:900,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{"\uD83D\uDCF7 Scan Mode"}</span>
@@ -21744,9 +21750,21 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
               </label>
             )}
             {photoScan?.status==="scanning"&&(
-              <div style={{textAlign:"center",padding:50}}>
-                <div style={{width:48,height:48,border:"3px solid rgba(123,156,255,0.2)",borderTopColor:"#7B9CFF",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/>
-                <div style={{fontSize:15,fontWeight:700,color:"#7B9CFF"}}>Reading card...</div>
+              <div style={{textAlign:"center",padding:"40px 20px"}}>
+                {/* Animated scan frame */}
+                <div style={{position:"relative",width:160,height:213,margin:"0 auto 24px",borderRadius:14,overflow:"hidden",background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.08))",border:"2px solid rgba(232,49,122,0.3)"}}>
+                  {/* card silhouette */}
+                  <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,opacity:0.25}}>🃏</div>
+                  {/* scanning beam */}
+                  <div style={{position:"absolute",left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#E8317A,#FBBF24,#E8317A,transparent)",boxShadow:"0 0 16px rgba(232,49,122,0.9)",animation:"scanBeam 1.6s ease-in-out infinite"}}/>
+                  {/* corner brackets */}
+                  <div style={{position:"absolute",top:8,left:8,width:20,height:20,borderTop:"2px solid #E8317A",borderLeft:"2px solid #E8317A"}}/>
+                  <div style={{position:"absolute",top:8,right:8,width:20,height:20,borderTop:"2px solid #E8317A",borderRight:"2px solid #E8317A"}}/>
+                  <div style={{position:"absolute",bottom:8,left:8,width:20,height:20,borderBottom:"2px solid #E8317A",borderLeft:"2px solid #E8317A"}}/>
+                  <div style={{position:"absolute",bottom:8,right:8,width:20,height:20,borderBottom:"2px solid #E8317A",borderRight:"2px solid #E8317A"}}/>
+                </div>
+                <div style={{fontSize:16,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Identifying your card…</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Reading hero, weapon &amp; treatment <span style={{display:"inline-block",animation:"scanDots 1.4s infinite"}}>●●●</span></div>
               </div>
             )}
             {photoScan?.status==="matched"&&photoScan.card&&(()=>{
@@ -23200,6 +23218,7 @@ function PublicCardDatabase() {
   // -- Scan --
   const [scanModal,     setScanModal]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
+  const scanInFlight = useRef(false);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
 
@@ -23708,6 +23727,8 @@ function PublicCardDatabase() {
 
   // -- Scan --
   async function scanCardPhoto(file) {
+    if (scanInFlight.current) return; // prevent overlapping scans when scanning back-to-back
+    scanInFlight.current = true;
     setPhotoScan({status:"scanning"});
     try {
       // Build full-card image + a zoomed bottom-left corner crop (where the tiny card number lives)
@@ -23804,6 +23825,7 @@ function PublicCardDatabase() {
 
       setPhotoScan({status:"nomatch",identified:data});
     } catch(e){setPhotoScan({status:"error",message:e.message});}
+    finally { scanInFlight.current = false; }
   }
   async function confirmScan(card,qty) {
     if(!user){setSigningIn(true);return;}
