@@ -7769,6 +7769,21 @@ function WhatnotFollowerTracker({ isAdmin }) {
   const [saved,      setSaved]      = useState(false);
   const [activeView, setActiveView] = useState("chart"); // chart | table
 
+  // Vault member (registered user) counts
+  const [userStats, setUserStats] = useState(null); // { total, newWeek, newMonth }
+  useEffect(()=>{
+    getDocs(collection(db,"users")).then(snap=>{
+      const now = Date.now();
+      const WEEK = 7*24*60*60*1000, MONTH = 30*24*60*60*1000;
+      let newWeek=0, newMonth=0;
+      snap.docs.forEach(d=>{
+        const fs = d.data().firstSeen;
+        if (typeof fs==="number") { if (now-fs<=WEEK) newWeek++; if (now-fs<=MONTH) newMonth++; }
+      });
+      setUserStats({ total:snap.size, newWeek, newMonth });
+    }).catch(()=>{});
+  },[]);
+
   // Persist to localStorage + Firestore
   async function saveEntry() {
     const hasAny = WN_CHANNELS.some(c => form[c.key] !== "");
@@ -7827,6 +7842,30 @@ function WhatnotFollowerTracker({ isAdmin }) {
 
   return (
     <div style={{ marginTop:24 }}>
+      {/* Vault Members — registered user count */}
+      <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px", marginBottom:16 }}>
+        <div style={{ fontSize:14, fontWeight:800, color:"#F0F0F0", marginBottom:14 }}>👥 Vault Members</div>
+        {userStats ? (
+          <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
+            <div style={{ flex:"1 1 120px", background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.25)", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ fontSize:28, fontWeight:900, color:"#E8317A", lineHeight:1 }}>{userStats.total.toLocaleString()}</div>
+              <div style={{ fontSize:11, color:"#888", marginTop:6, fontWeight:600 }}>Total accounts</div>
+            </div>
+            <div style={{ flex:"1 1 120px", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ fontSize:28, fontWeight:900, color:"#4ade80", lineHeight:1 }}>+{userStats.newWeek.toLocaleString()}</div>
+              <div style={{ fontSize:11, color:"#888", marginTop:6, fontWeight:600 }}>New this week</div>
+            </div>
+            <div style={{ flex:"1 1 120px", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ fontSize:28, fontWeight:900, color:"#7B9CFF", lineHeight:1 }}>+{userStats.newMonth.toLocaleString()}</div>
+              <div style={{ fontSize:11, color:"#888", marginTop:6, fontWeight:600 }}>New this month</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize:12, color:"#555" }}>Loading member counts…</div>
+        )}
+        <div style={{ fontSize:10, color:"#444", marginTop:12 }}>Counts everyone who has signed in. "New" is based on first sign-in date (tracked going forward).</div>
+      </div>
+
       <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"18px 20px" }}>
 
         {/* Header */}
@@ -22558,6 +22597,17 @@ function PublicCardDatabase() {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
+        // Record this user for admin user-count (firstSeen set once, lastSeen updated each visit)
+        try {
+          const uref = doc(db,"users",u.uid);
+          const usnap = await getDoc(uref);
+          await setDoc(uref, {
+            email: u.email || "",
+            displayName: u.displayName || "",
+            lastSeen: Date.now(),
+            ...(usnap.exists() ? {} : { firstSeen: Date.now() }),
+          }, { merge:true });
+        } catch(e) { console.error("user record failed:", e); }
         try {
           const [ownSnap, wSnap, prvSnap] = await Promise.all([
             getDoc(doc(db,"boba_owned",u.uid)),
