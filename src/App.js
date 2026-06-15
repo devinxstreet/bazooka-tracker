@@ -22180,6 +22180,15 @@ function RainbowCelebration({ fx, onDone }) {
 // ── PUBLIC HOMEPAGE ── the front door at bazookadash.com ──────────────────────
 function PublicHomepage() {
   const [cardCount, setCardCount] = useState(null);
+  const heroVideoRef = useRef(null);
+  const [videoMuted, setVideoMuted] = useState(true);
+  function toggleVideoSound() {
+    const v = heroVideoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    if (!v.muted) { v.play().catch(()=>{}); } // ensure it's playing when unmuted
+    setVideoMuted(v.muted);
+  }
   const [liveListings, setLiveListings] = useState([]);
   useEffect(() => {
     try {
@@ -22231,13 +22240,20 @@ function PublicHomepage() {
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,49,122,0.18), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(123,47,247,0.12), transparent 70%)" }}/>
 
       {/* Hero background video */}
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:"min(820px,100vh)", overflow:"hidden", zIndex:0, pointerEvents:"none" }}>
-        <video autoPlay loop muted playsInline poster="/bazooka-hero-poster.jpg"
-          style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", minWidth:"100%", minHeight:"100%", width:"auto", height:"auto", objectFit:"cover", opacity:0.55 }}>
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:"min(820px,100vh)", overflow:"hidden", zIndex:0 }}>
+        <video ref={heroVideoRef} autoPlay loop muted playsInline poster="/bazooka-hero-poster.jpg"
+          style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", minWidth:"100%", minHeight:"100%", width:"auto", height:"auto", objectFit:"cover", opacity:0.55, pointerEvents:"none" }}>
           <source src="/bazooka-hero.mp4" type="video/mp4" />
         </video>
         {/* Medium overlay so hero text pops */}
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(8,0,10,0.55) 0%, rgba(8,0,10,0.45) 40%, rgba(8,0,10,0.85) 85%, #08000a 100%)" }}/>
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(8,0,10,0.55) 0%, rgba(8,0,10,0.45) 40%, rgba(8,0,10,0.85) 85%, #08000a 100%)", pointerEvents:"none" }}/>
+        {/* Tap-to-unmute control */}
+        <button onClick={toggleVideoSound} title={videoMuted?"Tap for sound":"Mute"}
+          style={{ position:"absolute", bottom:20, right:20, zIndex:3, display:"flex", alignItems:"center", gap:8, background:"rgba(8,0,10,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:30, padding:videoMuted?"8px 16px":"8px", height:38, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, backdropFilter:"blur(10px)", transition:"all 0.2s" }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="#E8317A";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.2)";}}>
+          {videoMuted ? <>🔇 <span>Tap for sound</span></> : <>🔊</>}
+        </button>
       </div>
 
       {/* Nav bar */}
