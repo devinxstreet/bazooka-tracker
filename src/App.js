@@ -21923,15 +21923,27 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
             </div>
           )}
         </div>
-        {/* eBay placeholder */}
-        <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:24}}>{"\uD83D\uDED2"}</div>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>eBay Sales Data</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>Coming soon -- eBay sold listings will appear here for real-world comps</div>
-          </div>
-          <div style={{marginLeft:"auto",fontSize:10,background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>COMING SOON</div>
-        </div>
+        {/* eBay sold listings — opens real eBay search */}
+        {(()=>{
+          const q = encodeURIComponent(`Bo Jackson ${c.hero||""} ${c.treatment||""}`.replace(/\s+/g," ").trim());
+          const soldUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&LH_Sold=1&LH_Complete=1&_sop=13`;
+          const activeUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&_sop=15`;
+          const url130 = `https://130point.com/sales/?query=${q}`;
+          return (
+            <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px 18px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#7B9CFF"}}>🛒 Wider Market Comps</div>
+                <span style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>Check the broader market</span>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <a href={soldUrl} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>eBay Sold ↗</a>
+                <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.3)",color:"#7B9CFF",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>eBay Active ↗</a>
+                <a href={url130} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>130point ↗</a>
+              </div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:10,lineHeight:1.5}}>Opens a live search for this card on each platform. Niche BoBA cards may have limited results — your best comps are the community sales above.</div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   </div>
