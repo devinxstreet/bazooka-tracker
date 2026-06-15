@@ -26245,11 +26245,9 @@ function PublicCardDatabase() {
                       </div>
                     </div>
                   )}
-                  {/* Card dim when private (default) */}
-                  {!publicCards[c.id]&&privacyAnim!==c.id&&(
-                    <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.4)",pointerEvents:"none",zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"flex-end",padding:6}}>
-                      <span style={{fontSize:14,filter:"drop-shadow(0 1px 3px rgba(0,0,0,0.8))"}}>{"\uD83D\uDD12"}</span>
-                    </div>
+                  {/* Owned cards are private by default — subtle dim + lock until made public */}
+                  {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
+                    <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5}}/>
                   )}
                   {/* Public/Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
