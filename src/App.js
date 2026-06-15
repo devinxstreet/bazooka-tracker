@@ -23142,7 +23142,7 @@ function Leaderboard({ user, marketSales=[] }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 3500); };
+  const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
@@ -23959,14 +23959,15 @@ function PublicCardDatabase() {
     const count = Object.keys(owned).length;
     if (!window.confirm(`Clear your entire collection? This removes all ${count} card${count!==1?"s":""} and their saved details/photos. This can't be undone.`)) return;
     if (!window.confirm("Are you absolutely sure? Type-of-no-return — your whole collection will be wiped.")) return;
+    let ok = false;
     try {
       setOwned({});
       await setDoc(doc(db,"boba_owned",user.uid), {});
       setLots([]);
       await setDoc(doc(db,"boba_lots",user.uid), { lots: [] });
-      showToast("Collection cleared.");
-      setEditProfileOpen(false);
+      ok = true;
     } catch(e) { console.error("clear collection failed:", e); alert("Couldn't clear collection. Try again."); }
+    if (ok) { showToast("Collection cleared."); setEditProfileOpen(false); }
   }
 
   async function updateProfilePic(file) {
@@ -25144,7 +25145,7 @@ function PublicCardDatabase() {
                   <label style={{fontSize:11,color:"#FBBF24",fontWeight:700,display:"block",marginBottom:4}}>🛍️ Whatnot</label>
                   <input value={myWhatnot} onChange={e=>setMyWhatnot(e.target.value)} placeholder="your whatnot username" maxLength={40} style={{...inp,width:"100%",boxSizing:"border-box",fontSize:13}}/>
                 </div>
-                <button onClick={async()=>{ try{ await setDoc(doc(db,"users",user.uid),{discordName:myDiscord.trim(),whatnotName:myWhatnot.trim()},{merge:true}); showToast("Handles saved!"); }catch(e){ alert("Couldn't save. Try again."); } }} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>Save handles</button>
+                <button onClick={async()=>{ let ok=false; try{ await setDoc(doc(db,"users",user.uid),{discordName:myDiscord.trim(),whatnotName:myWhatnot.trim()},{merge:true}); ok=true; }catch(e){ console.error(e); alert("Couldn't save. Try again."); } if(ok) showToast("Handles saved!"); }} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>Save handles</button>
               </div>
               <div style={{width:"100%",borderTop:"1px solid #222",marginTop:6,paddingTop:14}}>
                 <button onClick={clearCollection} style={{width:"100%",background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#EF4444",borderRadius:12,padding:"11px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑 Clear my collection</button>
