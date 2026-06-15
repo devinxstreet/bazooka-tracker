@@ -22730,7 +22730,9 @@ function OnboardingModal({ user, onComplete, inp }) {
     const t = setTimeout(async () => {
       try {
         const snap = await getDoc(doc(db,"usernames",u));
-        setStatus(snap.exists() ? "taken" : "available");
+        if (!snap.exists()) { setStatus("available"); }
+        else if (snap.data().uid === user?.uid) { setStatus("mine"); } // already reserved to me — let me finish claiming it
+        else { setStatus("taken"); }
       } catch(e) { setStatus(null); }
       setChecking(false);
     }, 400);
@@ -22739,11 +22741,11 @@ function OnboardingModal({ user, onComplete, inp }) {
 
   async function claimUsername() {
     const u = clean(username);
-    if (u.length < 3 || status !== "available" || !user) return;
+    if (u.length < 3 || (status !== "available" && status !== "mine") || !user) return;
     setSaving(true);
     try {
-      // Reserve the handle and write it to the profile
-      await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() });
+      // Reserve the handle (no-op if already mine) and write it to the profile
+      await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() }, { merge:true });
       await setDoc(doc(db,"users",user.uid), { username: u }, { merge:true });
       // Verify it actually persisted (catches silent rule denials)
       const check = await getDoc(doc(db,"users",user.uid));
@@ -22794,14 +22796,17 @@ function OnboardingModal({ user, onComplete, inp }) {
             <div style={{ minHeight:20, fontSize:12, fontWeight:700, marginBottom:18 }}>
               {checking && <span style={{ color:"#888" }}>Checking…</span>}
               {!checking && status==="available" && <span style={{ color:"#4ade80" }}>✓ @{clean(username)} is available</span>}
+              {!checking && status==="mine" && <span style={{ color:"#4ade80" }}>✓ @{clean(username)} is already yours — finish claiming it</span>}
               {!checking && status==="taken" && <span style={{ color:"#EF4444" }}>✗ That handle's taken — try another</span>}
               {!checking && status==="invalid" && <span style={{ color:"#FBBF24" }}>At least 3 characters (letters, numbers, _)</span>}
             </div>
 
-            <button onClick={claimUsername} disabled={status!=="available"||saving}
-              style={{ width:"100%", background: status==="available"?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a", color: status==="available"?"#fff":"#666", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor: status==="available"?"pointer":"not-allowed", fontFamily:"inherit" }}>
+            {(()=>{ const ok = status==="available"||status==="mine"; return (
+            <button onClick={claimUsername} disabled={!ok||saving}
+              style={{ width:"100%", background: ok?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a", color: ok?"#fff":"#666", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor: ok?"pointer":"not-allowed", fontFamily:"inherit" }}>
               {saving ? "Claiming…" : "Claim it →"}
             </button>
+            ); })()}
           </>
         ) : (
           <>
