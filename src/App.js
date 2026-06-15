@@ -24672,19 +24672,10 @@ function PublicCardDatabase() {
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
               <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(48px,7vw,84px)",width:"auto",maxWidth:"min(420px,72vw)",objectFit:"contain",display:"block",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.3))"}}/>
               <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>
-              <div style={{display:"flex",gap:24,marginTop:16,flexWrap:"wrap"}}>
-                {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"},{v:collectionValue>0?"$"+collectionValue.toFixed(0):"--",l:"Est. Value"}].map(({v,l})=>(
-                  <div key={l} style={{display:"flex",flexDirection:"column"}}>
-                    <span style={{fontSize:20,fontWeight:900,color:"#fff",lineHeight:1}}>{v}</span>
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:3,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>{l}</span>
-                  </div>
-                ))}
-              </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s"}}>
               {user?(
                 <>
-                  {(myPhotoURL||user.photoURL)&&<img src={myPhotoURL||user.photoURL} alt="" style={{width:40,height:40,borderRadius:"50%",border:"2px solid #E8317A",boxShadow:"0 0 16px rgba(232,49,122,0.4)",objectFit:"cover"}}/>}
                   <div>
                     <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
                     <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
