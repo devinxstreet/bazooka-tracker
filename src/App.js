@@ -22180,6 +22180,7 @@ function RainbowCelebration({ fx, onDone }) {
 // ── PUBLIC HOMEPAGE ── the front door at bazookadash.com ──────────────────────
 function PublicHomepage() {
   const [cardCount, setCardCount] = useState(null);
+  const [liveListings, setLiveListings] = useState([]);
   useEffect(() => {
     try {
       const r = localStorage.getItem("boba_checklist_cache_v3");
@@ -22190,6 +22191,16 @@ function PublicHomepage() {
         const res = await fetch("/cards-data.json");
         if (res.ok) { const all = await res.json(); if (Array.isArray(all)) setCardCount(all.length); }
       } catch(e) {}
+    })();
+    // Recent active marketplace listings to show the marketplace is alive
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db,"marketplace"), where("status","==","active")));
+        const items = snap.docs.map(d=>({id:d.id,...d.data()}))
+          .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""))
+          .slice(0,8);
+        setLiveListings(items);
+      } catch(e) { console.error("homepage listings failed:", e); }
     })();
   }, []);
 
@@ -22276,6 +22287,38 @@ function PublicHomepage() {
 
       {/* FEATURES */}
       <div style={{ position:"relative", zIndex:2, maxWidth:1100, margin:"0 auto", padding:"40px 24px 60px" }}>
+        {liveListings.length>0 && (
+          <div style={{ marginBottom:48 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:8 }}>
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <span style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"homeGlow 1.6s ease-in-out infinite" }}/>
+                  <span style={{ fontSize:11, fontWeight:900, color:"#4ade80", letterSpacing:1.5 }}>LIVE ON THE MARKETPLACE</span>
+                </div>
+                <div style={{ fontSize:"clamp(20px,3vw,26px)", fontWeight:900, color:"#fff" }}>Cards up for grabs right now</div>
+              </div>
+              <button onClick={()=>go("/market")} style={{ background:"rgba(74,222,128,0.12)", border:"1px solid rgba(74,222,128,0.35)", color:"#4ade80", borderRadius:24, padding:"9px 20px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Browse all →</button>
+            </div>
+            <div style={{ display:"flex", gap:14, overflowX:"auto", paddingBottom:8, scrollbarWidth:"none" }} className="nav-bar">
+              {liveListings.map(l=>(
+                <div key={l.id} onClick={()=>go("/market")} style={{ flex:"0 0 auto", width:160, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, overflow:"hidden", cursor:"pointer", transition:"transform 0.2s, border-color 0.2s" }}
+                  onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor="rgba(74,222,128,0.4)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.borderColor="rgba(255,255,255,0.08)";}}>
+                  <div style={{ width:"100%", aspectRatio:"3/4", background:"#0a0a0a", overflow:"hidden" }}>
+                    {(l.sellerPhotos&&l.sellerPhotos[0])||l.cardImage
+                      ? <img src={(l.sellerPhotos&&l.sellerPhotos[0])||l.cardImage} alt={l.cardName} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>🃏</div>}
+                  </div>
+                  <div style={{ padding:"10px 12px" }}>
+                    <div style={{ fontSize:12, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{l.cardName}</div>
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:1 }}>{l.cardTreatment||l.setName||""}</div>
+                    <div style={{ fontSize:14, fontWeight:900, color:"#4ade80", marginTop:5 }}>{l.isOBO||!l.askingPrice ? "Best Offer" : `$${(l.askingPrice||0).toFixed(2)}`}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:18 }}>
           {features.map((f,i)=>(
             <div key={i} className="home-feat" style={{ background:"rgba(255,255,255,0.03)", border:"1.5px solid rgba(255,255,255,0.07)", borderRadius:18, padding:"26px 24px", backdropFilter:"blur(10px)", transition:"all 0.25s", cursor:"default" }}>
