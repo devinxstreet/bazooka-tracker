@@ -23141,6 +23141,8 @@ function Leaderboard({ user, marketSales=[] }) {
 
 function PublicCardDatabase() {
   // -- Core state --
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 3500); };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
@@ -24862,6 +24864,7 @@ function PublicCardDatabase() {
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
+      {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
       {isMobile && navMenu && navGroupItems.current[navMenu] && (
         <div onClick={()=>setNavMenu(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:90}}>
