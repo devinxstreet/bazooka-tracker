@@ -23798,7 +23798,9 @@ function PublicCardDatabase() {
     const get = (name) => { const idx = hdr.findIndex(h => h.toLowerCase().trim() === name.toLowerCase()); return idx>=0 ? (rec[idx]||"").trim() : ""; };
     const heroRaw = get("Name");
     const csvSet = get("Set");
-    const setName = (setMap && setMap[csvSet]) ? setMap[csvSet] : csvSet; // use mapped set if provided
+    const mappedSet = setMap ? setMap[csvSet] : undefined;
+    const forceSkip = mappedSet === "__SKIP__"; // user marked this set as not in our database
+    const setName = (mappedSet && !forceSkip) ? mappedSet : csvSet; // use mapped set if provided
     const cardNum = get("Card Number");
     const parallel = get("Parallel");   // maps to treatment
     const weapon = get("Weapon");
@@ -23819,6 +23821,7 @@ function PublicCardDatabase() {
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -25051,29 +25054,38 @@ function PublicCardDatabase() {
               const setIdx = importRaw.hdr.findIndex(h=>h.toLowerCase().trim()==="set");
               const csvSets = [...new Set(importRaw.records.map(r=>(r[setIdx]||"").trim()))].sort((a,b)=>(a||"").localeCompare(b||""));
               const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-              const allMapped = csvSets.every(cs => cs==="" ? true : importSetMap[cs]);
+              // Every set needs a choice — a real set OR "skip" (not in our database)
+              const allMapped = csvSets.every(cs => cs==="" ? true : !!importSetMap[cs]);
+              const skipCount = csvSets.filter(cs=>cs!==""&&importSetMap[cs]==="__SKIP__").reduce((s,cs)=>s+importRaw.records.filter(r=>(r[setIdx]||"").trim()===cs).length,0);
               const countFor = cs => importRaw.records.filter(r=>(r[setIdx]||"").trim()===cs).length;
               return (
                 <>
-                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",lineHeight:1.5,marginBottom:14}}>Match each set in your file to a Bazooka set. We pre-filled any obvious matches — just confirm or adjust the rest. <strong style={{color:"#FBBF24"}}>All sets must be mapped before importing.</strong></div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",lineHeight:1.5,marginBottom:14}}>Match each set in your file to a Bazooka set. We pre-filled obvious matches. If we don't carry a set yet, choose <strong style={{color:"#FBBF24"}}>"Not in database"</strong> — those cards will be saved to your Pending list so we know to add them.</div>
                   <div style={{maxHeight:320,overflowY:"auto",marginBottom:16}}>
-                    {csvSets.filter(cs=>cs!=="").map(cs=>(
-                      <div key={cs} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${importSetMap[cs]?"rgba(74,222,128,0.25)":"rgba(251,191,36,0.3)"}`,borderRadius:10,padding:"10px 12px"}}>
+                    {csvSets.filter(cs=>cs!=="").map(cs=>{
+                      const isSkip = importSetMap[cs]==="__SKIP__";
+                      const isMapped = importSetMap[cs] && !isSkip;
+                      const borderC = isMapped?"rgba(74,222,128,0.25)":isSkip?"rgba(123,156,255,0.3)":"rgba(251,191,36,0.3)";
+                      return (
+                      <div key={cs} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${borderC}`,borderRadius:10,padding:"10px 12px"}}>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cs}</div>
                           <div style={{fontSize:10,color:"#666"}}>{countFor(cs)} card{countFor(cs)!==1?"s":""}</div>
                         </div>
                         <span style={{color:"#555",fontSize:14}}>→</span>
-                        <select value={importSetMap[cs]||""} onChange={e=>setImportSetMap(prev=>({...prev,[cs]:e.target.value}))} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:importSetMap[cs]?"rgba(74,222,128,0.4)":"rgba(251,191,36,0.4)"}}>
+                        <select value={importSetMap[cs]||""} onChange={e=>setImportSetMap(prev=>({...prev,[cs]:e.target.value}))} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:isMapped?"rgba(74,222,128,0.4)":isSkip?"rgba(123,156,255,0.4)":"rgba(251,191,36,0.4)"}}>
                           <option value="">— pick a set —</option>
                           {ourSets.map(os=><option key={os} value={os}>{os}</option>)}
+                          <option value="__SKIP__">⊘ Not in database (skip)</option>
                         </select>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {skipCount>0 && <div style={{fontSize:11,color:"#7B9CFF",marginBottom:12,textAlign:"center"}}>{skipCount} card{skipCount!==1?"s":""} will go to your Pending list (not in our database yet)</div>}
                   <div style={{display:"flex",gap:10}}>
                     <button onClick={()=>{ setImportRaw(null); setImportSetMap({}); }} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
-                    <button onClick={applySetMappingAndMatch} disabled={!allMapped} style={{flex:2,background:allMapped?"linear-gradient(135deg,#7B9CFF,#4ade80)":"#333",color:allMapped?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:allMapped?"pointer":"not-allowed",fontFamily:"inherit"}}>{allMapped?"Continue →":"Map all sets first"}</button>
+                    <button onClick={applySetMappingAndMatch} disabled={!allMapped} style={{flex:2,background:allMapped?"linear-gradient(135deg,#7B9CFF,#4ade80)":"#333",color:allMapped?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:allMapped?"pointer":"not-allowed",fontFamily:"inherit"}}>{allMapped?"Continue →":"Choose for every set"}</button>
                   </div>
                 </>
               );
