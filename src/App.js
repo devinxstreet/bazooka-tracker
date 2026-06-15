@@ -14908,6 +14908,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                   treatment === "paper plays" ||
                   treatment === "play" ||
                   treatment === "plays" ||
+                  treatment === "hot dog" ||
+                  treatment.includes("hot dog") ||
                   (treatment.includes("play") && !treatment.includes("bonus")) ||
                   (String(c.cardNum||"").toUpperCase().startsWith("PL") && !String(c.cardNum||"").toUpperCase().startsWith("BPL"));
 
@@ -15739,13 +15741,17 @@ const CANONICAL_WEAPONS = ["Steel","Brawl","Fire","Ice","Glow","Hex","Gum","Supe
 const SKU_MAP = {
   // All SKUs
   "Inspired Ink Battlefoil":         "all",
-  "Inspired Ink Metallic Battlefoil": "all",
+  "Inspired Ink Metallic Battlefoil": "hobby",
+  "Inspired Ink Superfoil":           "all",
   "Alpha Battlefoil":                 "all",
   "Helmet Icon Battlefoil":           "all",
   "Tecmo News Battlefoil":            "all",
   "80's 8-Bit Rad Battlefoil":        "all",
   "Scoreboard Battlefoil":            "all",
   "Logofoil":                         "all",
+  "Tecmo Bowl Logofoil":              "all",
+  "Battlefoil":                       "all",
+  "Paper Plays":                      "all",
   "Sore Thumb Battlefoil":            "all",
   "Rage Quit Battlefoil":             "all",
   "Bonus Plays":                      "double",
@@ -15770,12 +15776,15 @@ const SKU_MAP = {
   "Big Pixel Battlefoil":             "double",
   "Silver Coin Flip Battlefoil":      "double",
   "Helmets Battlefoil":               "double",
+  // Day One Double Mega
+  "Pixel Helmet Alt":                 "dayone",
 };
 
 const SKU_LABEL = {
   all:    { label:"Hobby & Double Mega", color:"#4ade80", bg:"rgba(74,222,128,0.1)",   border:"rgba(74,222,128,0.25)"  },
   hobby:  { label:"Hobby",              color:"#7B9CFF", bg:"rgba(123,156,255,0.1)",  border:"rgba(123,156,255,0.25)" },
   double: { label:"Double Mega",        color:"#E8317A", bg:"rgba(232,49,122,0.1)",   border:"rgba(232,49,122,0.25)"  },
+  dayone: { label:"Day One Double Mega",color:"#FBBF24", bg:"rgba(251,191,36,0.1)",   border:"rgba(251,191,36,0.3)"   },
 };
 
 function FixMetallicAutos() {
@@ -15808,6 +15817,43 @@ function FixMetallicAutos() {
     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
       <Btn onClick={run} disabled={running} variant="green">{running ? "Fixing..." : "⚡ Fix Metallic Autos"}</Btn>
       {result !== null && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {result} cards → "Inspired Ink Metallic Battlefoil"</div>}
+    </div>
+  );
+}
+
+function FixTreatmentTypos() {
+  const [running, setRunning] = useState(false);
+  const [result,  setResult]  = useState(null);
+
+  // wrong text in DB -> correct text. Add more pairs here anytime.
+  const TYPO_FIXES = [
+    { from: "Halltime Alts",   to: "Halftime Alts" },
+    { from: "Pixel Helemt Alt", to: "Pixel Helmet Alt" },
+  ];
+
+  async function run() {
+    if (!window.confirm("Scan all cards and fix known treatment typos (Halltime → Halftime, Helemt → Helmet)?")) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const map = Object.fromEntries(TYPO_FIXES.map(f=>[f.from, f.to]));
+    const toFix = snap.docs.filter(d => map[d.data().treatment||""] !== undefined);
+    const CHUNK = 400;
+    let fixed = 0;
+    for (let i=0; i<toFix.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toFix.slice(i,i+CHUNK).forEach(d => batch.set(doc(db,"boba_checklist",d.id), { treatment: map[d.data().treatment] }, {merge:true}));
+      await batch.commit();
+      fixed += Math.min(CHUNK, toFix.length-i);
+    }
+    setRunning(false);
+    setResult(fixed);
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <Btn onClick={run} disabled={running} variant="green">{running ? "Fixing..." : "🔤 Fix Treatment Typos"}</Btn>
+      {result !== null && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {result} cards (Halftime / Pixel Helmet)</div>}
     </div>
   );
 }
@@ -16142,6 +16188,15 @@ function DataCleanup() {
           Finds all cards where cardNum ends in "8" and treatment is "Inspired Ink Battlefoil" or "Inspired Ink Superfoil" — updates them to "Inspired Ink Metallic Battlefoil".
         </div>
         <FixMetallicAutos/>
+      </div>
+
+      {/* Fix treatment typos */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🔤 Fix Treatment Typos"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+          Finds cards with misspelled treatments and corrects them: "Halltime Alts" → "Halftime Alts", "Pixel Helemt Alt" → "Pixel Helmet Alt".
+        </div>
+        <FixTreatmentTypos/>
       </div>
       </div>
 
@@ -22187,7 +22242,8 @@ function PublicCardDatabase() {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const [activeTab,     setActiveTab]     = useState(()=>{ const h=(window.location.hash||"").replace("#","").trim(); const valid=["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"]; if(valid.includes(h)) return h; if(savedUI.activeTab && valid.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ const seg=(window.location.pathname||"").split("/").filter(Boolean); const pathTab=seg[0]==="cards"&&seg[1]?seg[1]:""; if(VALID_TABS.includes(pathTab)) return pathTab; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -22209,6 +22265,23 @@ function PublicCardDatabase() {
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
+
+  // -- Keep the URL in sync with the active tab (real website-style navigation) --
+  useEffect(() => {
+    const target = activeTab === "cards" ? "/cards" : `/cards/${activeTab}`;
+    if (window.location.pathname !== target) {
+      window.history.pushState({ tab: activeTab }, "", target);
+    }
+  }, [activeTab]);
+  useEffect(() => {
+    const onPop = () => {
+      const seg = (window.location.pathname||"").split("/").filter(Boolean);
+      const pathTab = seg[0]==="cards" && seg[1] ? seg[1] : "cards";
+      setActiveTab(VALID_TABS.includes(pathTab) ? pathTab : "cards");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // -- Persist UI state to sessionStorage whenever it changes --
   useEffect(() => {
@@ -24260,16 +24333,16 @@ function PublicCardDatabase() {
                 <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
               </select>
               {/* Power multi-select dropdown */}
-              <div style={{position:"relative"}}>
+              <div style={{position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
                 <button onClick={()=>setPowerMenuOpen(o=>!o)}
-                  style={{...inp,width:130,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,color:filterPower.size>0?"#E8317A":undefined,borderColor:filterPower.size>0?"#E8317A":undefined}}>
+                  style={{...inp,width:130,height:"auto",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,textAlign:"left",color:filterPower.size>0?"#E8317A":undefined,borderColor:filterPower.size>0?"#E8317A":undefined}}>
                   <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{filterPower.size>0?`⚡ Power (${filterPower.size})`:"All Power"}</span>
                   <span style={{fontSize:9,opacity:0.6}}>▼</span>
                 </button>
                 {powerMenuOpen && (
                   <>
-                    <div onClick={()=>setPowerMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
-                    <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:999,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
+                    <div onClick={()=>setPowerMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:9998}}/>
+                    <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
                         <span style={{fontSize:10,color:"#888",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
                         {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
@@ -27352,7 +27425,7 @@ export default function App() {
 
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
-  if (window.location.pathname === "/cards")    return <PublicCardDatabase />;
+  if (window.location.pathname === "/cards" || window.location.pathname.startsWith("/cards/"))    return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
