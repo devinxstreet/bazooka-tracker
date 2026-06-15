@@ -15156,6 +15156,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
           {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
+          {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰{lotCount>0?` ${lotCount}`:""}</button>}
           {isAdmin && onImageUpload && (
             <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               🖼 Add Image
@@ -22825,7 +22826,7 @@ function PublicCardDatabase() {
   // Detect collection milestones -> celebratory toast
   useEffect(() => {
     if (!user || !cards.length) return;
-    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).reduce((sum,id)=>sum+(owned[id]||1),0);
     const COUNT_MILES = [10,25,50,100,150,200,250,300,400,500,750,1000];
     const pct = cards.length>0 ? (owNow/cards.length*100) : 0;
     const PCT_MILES = [10,25,50,75,90,100];
@@ -23511,7 +23512,8 @@ function PublicCardDatabase() {
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
-  const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+  const uniqueOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
+  const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).reduce((sum,id)=>sum+(owned[id]||1),0);
   const collectionValue=(()=>{
     // Build avg sale price per cardId from marketSales
     const priceMap={};
