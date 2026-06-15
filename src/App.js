@@ -22318,6 +22318,12 @@ function BackToTop() {
 }
 
 function ComingSoon() {
+  const [signingIn, setSigningIn] = useState(false);
+  async function earlyAccessLogin() {
+    setSigningIn(true);
+    try { await signInWithPopup(auth, googleProvider); }
+    catch { setSigningIn(false); }
+  }
   return (
     <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, position:"relative", overflow:"hidden" }}>
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,49,122,0.18), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(123,47,247,0.12), transparent 70%)" }}/>
@@ -22337,7 +22343,15 @@ function ComingSoon() {
           <a href="https://www.whatnot.com/user/bazookavault" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:8, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", borderRadius:30, padding:"13px 28px", fontSize:14, fontWeight:800, boxShadow:"0 4px 24px rgba(232,49,122,0.4)" }}>📺 Bazooka Vault</a>
           <a href="https://www.whatnot.com/user/bazookabreaks" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.85)", border:"1.5px solid rgba(255,255,255,0.18)", borderRadius:30, padding:"13px 28px", fontSize:14, fontWeight:800 }}>📺 Bazooka Breaks</a>
         </div>
-        <a href="/" style={{ fontSize:13, color:"rgba(255,255,255,0.4)", textDecoration:"none", fontWeight:600 }}>← Back to home</a>
+        <a href="/" style={{ fontSize:13, color:"rgba(255,255,255,0.4)", textDecoration:"none", fontWeight:600, display:"block", marginBottom:28 }}>← Back to home</a>
+        <div style={{ borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:22 }}>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginBottom:12, fontWeight:600 }}>Got early access?</div>
+          <button onClick={earlyAccessLogin} disabled={signingIn} style={{ display:"inline-flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.06)", color:"#fff", border:"1px solid rgba(255,255,255,0.18)", borderRadius:30, padding:"11px 24px", fontSize:14, fontWeight:800, cursor:signingIn?"wait":"pointer", fontFamily:"inherit" }}>
+            <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+            {signingIn ? "Signing in…" : "Sign in with Google"}
+          </button>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:12, lineHeight:1.5 }}>Early-access accounts only. Everyone else, see you June 18th!</div>
+        </div>
       </div>
     </div>
   );
