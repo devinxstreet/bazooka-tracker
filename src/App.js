@@ -22525,6 +22525,133 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
   );
 }
 
+function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
+  const cardName = (id) => { const c = cards.find(x=>x.id===id); return c ? `${c.hero}${c.treatment?` · ${c.treatment}`:""}` : "Card"; };
+  // Purchases: lots with a cost (any acquisition with money out)
+  const purchases = lots
+    .filter(l => l.cost != null && l.cost > 0)
+    .map(l => ({ ...l, when: l.date || "", name: cardName(l.cardId) }))
+    .sort((a,b)=>(b.when||"").localeCompare(a.when||""));
+  // Sales: market_sales where this user is the seller
+  const sales = marketSales
+    .filter(s => s.sellerUid === user?.uid && s.price)
+    .map(s => ({ ...s, when: (s.soldDate || (s.soldAt||"").split("T")[0] || ""), name: s.cardName || "Card" }))
+    .sort((a,b)=>(b.when||"").localeCompare(a.when||""));
+
+  const totalPurchases = purchases.reduce((s,p)=>s+(p.cost||0),0);
+  const totalSales     = sales.reduce((s,x)=>s+(Number(x.price)||0),0);
+  const netProfit      = totalSales - totalPurchases;
+  const currentValue   = lots.reduce((s,l)=>s+(l.value||0),0);
+
+  // Monthly P&L
+  const months = {};
+  const monthKey = (d) => (d||"").slice(0,7); // YYYY-MM
+  purchases.forEach(p=>{ const k=monthKey(p.when); if(!k)return; (months[k]=months[k]||{buy:0,sell:0}).buy += p.cost||0; });
+  sales.forEach(s=>{ const k=monthKey(s.when); if(!k)return; (months[k]=months[k]||{buy:0,sell:0}).sell += Number(s.price)||0; });
+  const monthRows = Object.keys(months).sort((a,b)=>b.localeCompare(a)).map(k=>({ month:k, ...months[k], net:(months[k].sell-months[k].buy) }));
+  const fmtMonth = (k) => { try { const [y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleDateString(undefined,{month:"short",year:"numeric"}); } catch { return k; } };
+  const money = (n) => `${n<0?"-":""}$${Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+  const card = { background:"#111", border:"1px solid #2a2a2a", borderRadius:14, padding:"16px 18px" };
+
+  if (!user) return <div style={{textAlign:"center",padding:60,color:"rgba(255,255,255,0.4)"}}>Sign in to see your ledger.</div>;
+
+  return (
+    <div style={{ maxWidth:820, margin:"0 auto" }}>
+      <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4 }}>📒 Your Ledger</div>
+      <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", marginBottom:20 }}>Lifetime buying & selling, pulled from your card costs and your marketplace sales.</div>
+
+      {/* Top-line numbers */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:16 }}>
+        <div style={{ ...card, borderColor:"rgba(232,49,122,0.25)" }}>
+          <div style={{ fontSize:11, color:"#888", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Purchases</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(totalPurchases)}</div>
+          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>{purchases.length} buy{purchases.length===1?"":"s"}</div>
+        </div>
+        <div style={{ ...card, borderColor:"rgba(74,222,128,0.25)" }}>
+          <div style={{ fontSize:11, color:"#888", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Sales</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#4ade80", marginTop:4 }}>{money(totalSales)}</div>
+          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>{sales.length} sale{sales.length===1?"":"s"}</div>
+        </div>
+        <div style={{ ...card, borderColor:netProfit>=0?"rgba(74,222,128,0.25)":"rgba(239,68,68,0.25)" }}>
+          <div style={{ fontSize:11, color:"#888", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Net Profit</div>
+          <div style={{ fontSize:24, fontWeight:900, color:netProfit>=0?"#4ade80":"#EF4444", marginTop:4 }}>{money(netProfit)}</div>
+          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>sales − purchases</div>
+        </div>
+        <div style={{ ...card, borderColor:"rgba(123,156,255,0.25)" }}>
+          <div style={{ fontSize:11, color:"#888", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Est. Holdings</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#7B9CFF", marginTop:4 }}>{money(currentValue)}</div>
+          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>current value owned</div>
+        </div>
+      </div>
+
+      {/* Monthly P&L */}
+      <div style={{ ...card, marginBottom:16 }}>
+        <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:12 }}>Month-by-Month P&L</div>
+        {monthRows.length===0 ? (
+          <div style={{ fontSize:13, color:"#666" }}>No activity yet. Add card costs (💰 Details) and make marketplace sales to populate this.</div>
+        ) : (
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr style={{ color:"#888", textAlign:"right" }}>
+                  <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:700 }}>Month</th>
+                  <th style={{ padding:"6px 8px", fontWeight:700 }}>Purchases</th>
+                  <th style={{ padding:"6px 8px", fontWeight:700 }}>Sales</th>
+                  <th style={{ padding:"6px 8px", fontWeight:700 }}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthRows.map(r=>(
+                  <tr key={r.month} style={{ borderTop:"1px solid #1f1f1f" }}>
+                    <td style={{ textAlign:"left", padding:"8px", color:"#ddd", fontWeight:700 }}>{fmtMonth(r.month)}</td>
+                    <td style={{ textAlign:"right", padding:"8px", color:"#E8317A" }}>{money(r.buy)}</td>
+                    <td style={{ textAlign:"right", padding:"8px", color:"#4ade80" }}>{money(r.sell)}</td>
+                    <td style={{ textAlign:"right", padding:"8px", fontWeight:800, color:r.net>=0?"#4ade80":"#EF4444" }}>{money(r.net)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Recent transactions */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
+        <div style={card}>
+          <div style={{ fontSize:14, fontWeight:800, color:"#E8317A", marginBottom:10 }}>Purchases</div>
+          {purchases.length===0 ? <div style={{ fontSize:12, color:"#666" }}>No purchases logged. Use 💰 Details on a card to add cost.</div> :
+            purchases.slice(0,20).map(p=>(
+              <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderTop:"1px solid #1a1a1a" }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12, color:"#ddd", fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
+                  <div style={{ fontSize:10, color:"#666" }}>{(LOT_METHODS.find(m=>m.v===p.method)?.l||p.method)} · {p.when}</div>
+                </div>
+                <div style={{ fontSize:13, fontWeight:800, color:"#E8317A", whiteSpace:"nowrap", marginLeft:8 }}>{money(p.cost)}</div>
+              </div>
+            ))
+          }
+        </div>
+        <div style={card}>
+          <div style={{ fontSize:14, fontWeight:800, color:"#4ade80", marginBottom:10 }}>Sales</div>
+          {sales.length===0 ? <div style={{ fontSize:12, color:"#666" }}>No marketplace sales yet.</div> :
+            sales.slice(0,20).map(s=>(
+              <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderTop:"1px solid #1a1a1a" }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12, color:"#ddd", fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.name}</div>
+                  <div style={{ fontSize:10, color:"#666" }}>to {s.buyerName||"buyer"} · {s.when}</div>
+                </div>
+                <div style={{ fontSize:13, fontWeight:800, color:"#4ade80", whiteSpace:"nowrap", marginLeft:8 }}>{money(Number(s.price))}</div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+      <div style={{ fontSize:10, color:"#444", marginTop:16, textAlign:"center" }}>Purchases come from costs you enter on your cards. Sales come from completed marketplace transactions where you were the seller. Trades and gifts (no cost) are excluded from spend.</div>
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
@@ -22542,8 +22669,8 @@ function PublicCardDatabase() {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team","ledger"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -22580,7 +22707,7 @@ function PublicCardDatabase() {
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger" };
   useEffect(() => {
     const target = TAB_PATHS[activeTab] || "/cards";
     if (window.location.pathname !== target) {
@@ -24110,6 +24237,7 @@ function PublicCardDatabase() {
             {user&&tabBtn("messages","\uD83D\uDCAC Messages",unreadThreads)}
             {user&&tabBtn("friends","\uD83D\uDC65 Friends",(friendReqs.length+teamInvites.length))}
             {user&&tabBtn("team","\uD83C\uDFC6 Team",0)}
+            {user&&tabBtn("ledger","\uD83D\uDCD2 Ledger",0)}
           </div>
         </div>
       </div>
@@ -25264,6 +25392,9 @@ function PublicCardDatabase() {
             cards={cards} owned={owned} friendOwned={friendOwned}
             inp={inp} inviteToTeam={inviteToTeam}
           />
+        )}
+        {activeTab==="ledger"&&(
+          <AccountingLedger lots={lots} marketSales={marketSales} user={user} cards={cards} />
         )}
       </div>{/* end tab content */}
     </div>
@@ -27996,7 +28127,7 @@ export default function App() {
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
