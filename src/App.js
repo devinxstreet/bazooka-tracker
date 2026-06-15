@@ -14571,6 +14571,7 @@ function BobaShowcase({ uid }) {
   const [pageDir,   setPageDir]   = useState(1);
   const [copied,    setCopied]    = useState(false);
   const [ownerName, setOwnerName] = useState("");
+  const [ownerSocials, setOwnerSocials] = useState({ discord:"", whatnot:"" });
   const [privateIds, setPrivateIds] = useState({});
   const CARDS_PER_PAGE = 9;
   const ownedDocId = uid || "owned";
@@ -14585,7 +14586,7 @@ function BobaShowcase({ uid }) {
               getDoc(doc(db,"users",uid)),
               getDoc(doc(db,"boba_private",uid)),
             ]);
-            if (uSnap.exists()) { const d=uSnap.data(); setOwnerName(d.username ? `@${d.username}` : ((d.displayName||d.email||"").split(" ")[0]||"")); }
+            if (uSnap.exists()) { const d=uSnap.data(); setOwnerName(d.username ? `@${d.username}` : ((d.displayName||d.email||"").split(" ")[0]||"")); setOwnerSocials({ discord:d.discordName||"", whatnot:d.whatnotName||"" }); }
             if (pSnap.exists()) setPrivateIds(pSnap.data()||{});
           } catch(e) {}
         }
@@ -14680,6 +14681,12 @@ function BobaShowcase({ uid }) {
                 <span style={{ color:"#F0F0F0" }}> Collection</span>
               </div>
               <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
+              {(ownerSocials.discord || ownerSocials.whatnot) && (
+                <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  {ownerSocials.discord && <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:"rgba(88,101,242,0.12)", border:"1px solid rgba(88,101,242,0.35)", color:"#8b9cff", borderRadius:8, padding:"4px 10px", fontSize:12, fontWeight:700 }}>💬 {ownerSocials.discord}</span>}
+                  {ownerSocials.whatnot && <a href={`https://www.whatnot.com/user/${ownerSocials.whatnot.replace(/^@/,"")}`} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:5, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.35)", color:"#FBBF24", borderRadius:8, padding:"4px 10px", fontSize:12, fontWeight:700, textDecoration:"none" }}>🛍️ {ownerSocials.whatnot}</a>}
+                </div>
+              )}
             </div>
             <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "#1a1a1a", border:`1px solid ${copied?"#4ade80":"#2a2a2a"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
               {copied ? "\u2705 Copied!" : "\uD83D\uDD17 Share Link"}
@@ -22896,7 +22903,9 @@ function OnboardingModal({ user, onComplete, inp }) {
   const [saving, setSaving] = useState(false);
   const [photoURL, setPhotoURL] = useState(user?.photoURL || "");
   const [uploading, setUploading] = useState(false);
-  const [step, setStep] = useState(1); // 1 = username, 2 = pic
+  const [discordName, setDiscordName] = useState("");
+  const [whatnotName, setWhatnotName] = useState("");
+  const [step, setStep] = useState(1); // 1 = username, 2 = pic + socials
 
   const clean = (s) => s.toLowerCase().replace(/[^a-z0-9_]/g,"").slice(0,20);
 
@@ -22946,7 +22955,13 @@ function OnboardingModal({ user, onComplete, inp }) {
     setUploading(false);
   }
 
-  function finish() { onComplete(clean(username), photoURL); }
+  function finish() {
+    const d = discordName.trim(), w = whatnotName.trim();
+    if (d || w) {
+      setDoc(doc(db,"users",user.uid), { ...(d?{discordName:d}:{}), ...(w?{whatnotName:w}:{}) }, { merge:true }).catch(()=>{});
+    }
+    onComplete(clean(username), photoURL);
+  }
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:10020, background:"rgba(0,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(10px)" }}>
@@ -22986,8 +23001,8 @@ function OnboardingModal({ user, onComplete, inp }) {
           </>
         ) : (
           <>
-            <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>Add a profile photo</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>Optional — but it makes your profile pop. You can always change it later.</div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>Finish your profile</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>Add a photo and link your community handles — all optional, but they help people recognize you. You can change these anytime.</div>
 
             <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
               <label style={{ position:"relative", cursor: uploading?"wait":"pointer" }}>
@@ -22997,6 +23012,22 @@ function OnboardingModal({ user, onComplete, inp }) {
                 <div style={{ position:"absolute", bottom:0, right:0, background:"#E8317A", borderRadius:"50%", width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, border:"2px solid #0d0d0d" }}>✎</div>
                 <input type="file" accept="image/*" style={{ display:"none" }} disabled={uploading} onChange={e=>{const f=e.target.files?.[0]; if(f)uploadPic(f); e.target.value="";}}/>
               </label>
+            </div>
+
+            {/* Discord + Whatnot handles for credibility */}
+            <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:"14px 14px 4px", marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:"rgba(255,255,255,0.6)", letterSpacing:0.5 }}>Link your community handles <span style={{fontWeight:600,color:"rgba(255,255,255,0.35)"}}>(optional)</span></div>
+                {clean(username) && <button onClick={()=>{ setDiscordName(clean(username)); setWhatnotName(clean(username)); }} style={{ background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Same as @{clean(username)}</button>}
+              </div>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:"#8b9cff", fontWeight:700, display:"block", marginBottom:4 }}>💬 Discord</label>
+                <input value={discordName} onChange={e=>setDiscordName(e.target.value)} placeholder="your discord username" maxLength={40} style={{...inp, width:"100%", boxSizing:"border-box", fontSize:13}}/>
+              </div>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, color:"#FBBF24", fontWeight:700, display:"block", marginBottom:4 }}>🛍️ Whatnot</label>
+                <input value={whatnotName} onChange={e=>setWhatnotName(e.target.value)} placeholder="your whatnot username" maxLength={40} style={{...inp, width:"100%", boxSizing:"border-box", fontSize:13}}/>
+              </div>
             </div>
 
             <button onClick={finish} style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
@@ -23120,6 +23151,8 @@ function PublicCardDatabase() {
   const [myUsername,    setMyUsername]    = useState("");
   const usernameClaimedThisSession = useRef(false);
   const [myPhotoURL,    setMyPhotoURL]    = useState("");
+  const [myDiscord,     setMyDiscord]     = useState("");
+  const [myWhatnot,     setMyWhatnot]     = useState("");
   const [onboarding,    setOnboarding]    = useState(false);
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
@@ -23264,6 +23297,8 @@ function PublicCardDatabase() {
   const [userMissing,   setUserMissing]   = useState([]); // this collector's own unmatched imports
   const [userMissingModal, setUserMissingModal] = useState(false);
   const [importRows,    setImportRows]    = useState(null); // parsed+matched rows for preview
+  const [importRaw,     setImportRaw]     = useState(null); // { hdr, records } before set mapping
+  const [importSetMap,  setImportSetMap]  = useState({});   // { csvSetName: yourSetName }
   const [importing,     setImporting]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
   const scanInFlight = useRef(false);
@@ -23522,6 +23557,8 @@ function PublicCardDatabase() {
           }
           setMyUsername(effectiveUsername);
           setMyPhotoURL(effectivePhoto);
+          setMyDiscord(existing.discordName || "");
+          setMyWhatnot(existing.whatnotName || "");
           if (effectiveUsername) usernameClaimedThisSession.current = true;
           if (!effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
@@ -23757,10 +23794,11 @@ function PublicCardDatabase() {
     return rows.filter(r => r.some(c => c.trim() !== ""));
   }
 
-  function matchImportRow(rec, hdr) {
+  function matchImportRow(rec, hdr, setMap) {
     const get = (name) => { const idx = hdr.findIndex(h => h.toLowerCase().trim() === name.toLowerCase()); return idx>=0 ? (rec[idx]||"").trim() : ""; };
     const heroRaw = get("Name");
-    const setName = get("Set");
+    const csvSet = get("Set");
+    const setName = (setMap && setMap[csvSet]) ? setMap[csvSet] : csvSet; // use mapped set if provided
     const cardNum = get("Card Number");
     const parallel = get("Parallel");   // maps to treatment
     const weapon = get("Weapon");
@@ -23781,19 +23819,19 @@ function PublicCardDatabase() {
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    // 1) cardNum + set (card numbers like BFA-5 are unique within a set — most reliable)
+    // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
+    // so a set-blind match would grab the wrong card. Every tier below requires the set.
+    // 1) cardNum + set (most precise — number is unique within a set)
     if (cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum) && setMatches(c));
-    // 2) cardNum alone (if set didn't line up but number is unique enough)
-    if (!match && cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum) && heroMatches(c));
-    // 3) hero + treatment + weapon + power + set
+    // 2) hero + treatment + weapon + power + set
     if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && (!power||String(c.power)===String(power)) && setMatches(c));
-    // 4) hero + treatment + weapon + set (no power)
+    // 3) hero + treatment + weapon + set (no power)
     if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon) && setMatches(c));
-    // 5) hero + treatment + weapon (no set — last resort)
-    if (!match) match = cards.find(c => heroMatches(c) && norm(c.treatment)===norm(parallel) && norm(c.weapon)===norm(weapon));
-    // 6) bare cardNum match (some sets have globally unique numbers)
-    if (!match && cardNum) match = cards.find(c => norm(c.cardNum)===norm(cardNum));
-    return { csv:{hero:heroRaw,setName,cardNum,parallel,weapon,power,qty,value}, match:match||null };
+    // 4) hero + cardNum + set (covers treatment/weapon spelling differences)
+    if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
+    // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
+    // than import the wrong card. The user mapped the set, so this stays strict.
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value}, match:match||null };
   }
 
   function handleImportFile(file) {
@@ -23804,18 +23842,31 @@ function PublicCardDatabase() {
         const rows = parseCSV(e.target.result);
         if (rows.length < 2) { alert("That file looks empty. Make sure it has a header row and at least one card."); return; }
         const hdr = rows[0];
-        // Set column is required — without it, cards from different sets can match incorrectly
         const hasSet = hdr.some(h => h.toLowerCase().trim() === "set");
-        if (!hasSet) { alert("Your CSV is missing a \"Set\" column. The Set is required so we match the right card (the same hero can exist in multiple sets). Please add a \"Set\" column with each card's set name, then try again. You can download our template for the correct format."); return; }
-        const parsed = rows.slice(1).map(r => matchImportRow(r, hdr)).filter(Boolean);
-        if (!parsed.length) { alert("Couldn't read any cards from that file. Check that the columns match the template."); return; }
-        // Flag rows missing a set value so the user can fix them
-        const missingSetCount = parsed.filter(r => !r.csv.setName).length;
-        if (missingSetCount === parsed.length) { alert("None of your cards have a Set filled in. The Set is required to match cards correctly. Please fill in the Set column for each card and try again."); return; }
-        setImportRows(parsed);
+        if (!hasSet) { alert("Your CSV needs a \"Set\" column so we can match cards to the right set. Download our template for the correct format."); return; }
+        const records = rows.slice(1).filter(r => r.some(c => c.trim()!==""));
+        if (!records.length) { alert("Couldn't read any cards from that file. Check the columns match the template."); return; }
+        // Find the unique set names in their file — they'll map each to one of our sets
+        const setIdx = hdr.findIndex(h => h.toLowerCase().trim()==="set");
+        const csvSets = [...new Set(records.map(r => (r[setIdx]||"").trim()).filter(Boolean))].sort();
+        // Pre-fill any that already match one of our set names exactly
+        const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))];
+        const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
+        const initialMap = {};
+        csvSets.forEach(cs => { const hit = ourSets.find(os => norm(os)===norm(cs) || norm(os).includes(norm(cs)) || norm(cs).includes(norm(os))); if (hit) initialMap[cs]=hit; });
+        setImportRaw({ hdr, records });
+        setImportSetMap(initialMap);
+        setImportRows(null);
       } catch(err) { console.error(err); alert("Couldn't read that CSV. Try the template format."); }
     };
     reader.readAsText(file);
+  }
+
+  function applySetMappingAndMatch() {
+    if (!importRaw) return;
+    const { hdr, records } = importRaw;
+    const parsed = records.map(r => matchImportRow(r, hdr, importSetMap)).filter(Boolean);
+    setImportRows(parsed);
   }
 
   async function loadMissingCards() {
@@ -23881,7 +23932,7 @@ function PublicCardDatabase() {
       }
 
       showToast(`Imported ${matched.length} card${matched.length!==1?"s":""}${unmatched.length?` · ${unmatched.length} not in database yet`:""}!`);
-      setImportModal(false); setImportRows(null);
+      setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({});
     } catch(e) { console.error("import failed:", e); alert("Import failed. Please try again."); }
     setImporting(false);
   }
@@ -24954,29 +25005,16 @@ function PublicCardDatabase() {
         </div>
       )}
       {importModal && (
-        <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+        <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>Import Your Collection</div>
-              <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+              <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
             </div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:12}}>Already track your collection somewhere else? Export it as a CSV and drop it in here — we'll match your cards automatically. Or download our template, fill it out, and import.</div>
             <div style={{fontSize:12,color:"#FBBF24",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 12px",marginBottom:18,lineHeight:1.5}}>⚠️ <strong>The "Set" column is required.</strong> The same hero can appear in multiple sets, so we need the set name to match the right card. Make sure every card has its set filled in before importing.</div>
 
-            {!importRows ? (
-              <>
-                <label style={{display:"block",cursor:"pointer",marginBottom:12}}>
-                  <div style={{background:"linear-gradient(135deg,rgba(123,156,255,0.06),rgba(74,222,128,0.05))",border:"2px dashed rgba(123,156,255,0.35)",borderRadius:14,padding:"34px 20px",textAlign:"center"}}>
-                    <div style={{fontSize:40,marginBottom:8}}>{"\uD83D\uDCC4"}</div>
-                    <div style={{fontSize:16,fontWeight:800,color:"#7B9CFF",marginBottom:4}}>Choose a CSV file</div>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>We'll match each row to the BoBA database</div>
-                  </div>
-                  <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
-                </label>
-                <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, <span style={{color:"#FBBF24",fontWeight:700}}>Set (required)</span>, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
-              </>
-            ) : (()=>{
+            {importRows ? (()=>{
               const matched = importRows.filter(r=>r.match);
               const unmatched = importRows.filter(r=>!r.match);
               const totalCards = matched.reduce((s,r)=>s+(r.csv.qty||1),0);
@@ -25009,7 +25047,50 @@ function PublicCardDatabase() {
                   </div>
                 </>
               );
-            })()}
+            })() : importRaw ? (()=>{
+              const setIdx = importRaw.hdr.findIndex(h=>h.toLowerCase().trim()==="set");
+              const csvSets = [...new Set(importRaw.records.map(r=>(r[setIdx]||"").trim()))].sort((a,b)=>(a||"").localeCompare(b||""));
+              const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+              const allMapped = csvSets.every(cs => cs==="" ? true : importSetMap[cs]);
+              const countFor = cs => importRaw.records.filter(r=>(r[setIdx]||"").trim()===cs).length;
+              return (
+                <>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",lineHeight:1.5,marginBottom:14}}>Match each set in your file to a Bazooka set. We pre-filled any obvious matches — just confirm or adjust the rest. <strong style={{color:"#FBBF24"}}>All sets must be mapped before importing.</strong></div>
+                  <div style={{maxHeight:320,overflowY:"auto",marginBottom:16}}>
+                    {csvSets.filter(cs=>cs!=="").map(cs=>(
+                      <div key={cs} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${importSetMap[cs]?"rgba(74,222,128,0.25)":"rgba(251,191,36,0.3)"}`,borderRadius:10,padding:"10px 12px"}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cs}</div>
+                          <div style={{fontSize:10,color:"#666"}}>{countFor(cs)} card{countFor(cs)!==1?"s":""}</div>
+                        </div>
+                        <span style={{color:"#555",fontSize:14}}>→</span>
+                        <select value={importSetMap[cs]||""} onChange={e=>setImportSetMap(prev=>({...prev,[cs]:e.target.value}))} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:importSetMap[cs]?"rgba(74,222,128,0.4)":"rgba(251,191,36,0.4)"}}>
+                          <option value="">— pick a set —</option>
+                          {ourSets.map(os=><option key={os} value={os}>{os}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>{ setImportRaw(null); setImportSetMap({}); }} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
+                    <button onClick={applySetMappingAndMatch} disabled={!allMapped} style={{flex:2,background:allMapped?"linear-gradient(135deg,#7B9CFF,#4ade80)":"#333",color:allMapped?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:allMapped?"pointer":"not-allowed",fontFamily:"inherit"}}>{allMapped?"Continue →":"Map all sets first"}</button>
+                  </div>
+                </>
+              );
+            })() : (
+              <>
+                <label style={{display:"block",cursor:"pointer",marginBottom:12}}>
+                  <div style={{background:"linear-gradient(135deg,rgba(123,156,255,0.06),rgba(74,222,128,0.05))",border:"2px dashed rgba(123,156,255,0.35)",borderRadius:14,padding:"34px 20px",textAlign:"center"}}>
+                    <div style={{fontSize:40,marginBottom:8}}>{"\uD83D\uDCC4"}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#7B9CFF",marginBottom:4}}>Choose a CSV file</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Next you'll match your sets to ours, then import</div>
+                  </div>
+                  <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
+                </label>
+                <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -25035,6 +25116,21 @@ function PublicCardDatabase() {
                 <input type="file" accept="image/*" disabled={editPicUploading} style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) updateProfilePic(f); e.target.value=""; }}/>
               </label>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>Your username can't be changed once claimed.</div>
+              <div style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px 14px 4px",marginTop:6}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.6)"}}>Community handles</div>
+                  {myUsername && <button onClick={()=>{ setMyDiscord(myUsername); setMyWhatnot(myUsername); }} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.3)",color:"#7B9CFF",borderRadius:7,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Same as @{myUsername}</button>}
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#8b9cff",fontWeight:700,display:"block",marginBottom:4}}>💬 Discord</label>
+                  <input value={myDiscord} onChange={e=>setMyDiscord(e.target.value)} placeholder="your discord username" maxLength={40} style={{...inp,width:"100%",boxSizing:"border-box",fontSize:13}}/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#FBBF24",fontWeight:700,display:"block",marginBottom:4}}>🛍️ Whatnot</label>
+                  <input value={myWhatnot} onChange={e=>setMyWhatnot(e.target.value)} placeholder="your whatnot username" maxLength={40} style={{...inp,width:"100%",boxSizing:"border-box",fontSize:13}}/>
+                </div>
+                <button onClick={async()=>{ try{ await setDoc(doc(db,"users",user.uid),{discordName:myDiscord.trim(),whatnotName:myWhatnot.trim()},{merge:true}); showToast("Handles saved!"); }catch(e){ alert("Couldn't save. Try again."); } }} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>Save handles</button>
+              </div>
               <div style={{width:"100%",borderTop:"1px solid #222",marginTop:6,paddingTop:14}}>
                 <button onClick={clearCollection} style={{width:"100%",background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#EF4444",borderRadius:12,padding:"11px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑 Clear my collection</button>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:6}}>Removes all owned cards and saved details. Can't be undone.</div>
@@ -25191,7 +25287,7 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
-                  <button onClick={()=>{ setImportModal(true); setImportRows(null); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                  <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
                     title="Share your public collection page"
