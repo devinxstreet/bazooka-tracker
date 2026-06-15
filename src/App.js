@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // Pre-fetch BoJax card images for loading screen — runs once at module load
@@ -22858,10 +22858,12 @@ function OnboardingModal({ user, onComplete, inp }) {
       // Reserve the handle (no-op if already mine) and write it to the profile
       await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() }, { merge:true });
       await setDoc(doc(db,"users",user.uid), { username: u }, { merge:true });
-      // Verify it actually persisted (catches silent rule denials)
-      const check = await getDoc(doc(db,"users",user.uid));
+      // Verify from the SERVER (not local cache) — catches silent rule denials
+      let check;
+      try { check = await getDocFromServer(doc(db,"users",user.uid)); }
+      catch(se) { check = await getDoc(doc(db,"users",user.uid)); }
       if (!check.exists() || check.data().username !== u) {
-        throw new Error("Username didn't save — your account may not have write permission. Check Firestore rules for the users collection.");
+        throw new Error("Your username didn't save to the server. This is usually a Firestore rules issue on the 'users' collection — make sure the rules allow you to write your own profile, then try again.");
       }
       setStep(2);
     } catch(e) { console.error("claim failed:", e); alert("Couldn't save username: "+(e.message||"unknown error")); }
@@ -23403,7 +23405,9 @@ function PublicCardDatabase() {
         // Record this user for admin user-count (firstSeen set once, lastSeen updated each visit)
         try {
           const uref = doc(db,"users",u.uid);
-          const usnap = await getDoc(uref);
+          let usnap;
+          try { usnap = await getDocFromServer(uref); }
+          catch(se) { usnap = await getDoc(uref); }
           // --- Access pause: only @bazookabreaks.com team until June 18 (flip ACCESS_PAUSED to false to re-open) ---
           const ACCESS_PAUSED = true;
           const isTeam = (u.email||"").toLowerCase().endsWith("@bazookabreaks.com");
