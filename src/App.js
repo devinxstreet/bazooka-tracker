@@ -22899,6 +22899,7 @@ function OnboardingModal({ user, onComplete, inp }) {
       await uploadBytes(sref, file);
       const url = await getDownloadURL(sref);
       await setDoc(doc(db,"users",user.uid), { photoURL: url }, { merge:true });
+      try { localStorage.setItem("bazooka_photo_" + user.uid, url); } catch(e) {}
       setPhotoURL(url);
     } catch(e) { console.error("pic upload failed:", e); alert("Photo upload failed."); }
     setUploading(false);
@@ -23448,15 +23449,20 @@ function PublicCardDatabase() {
           // If no username claimed yet, trigger onboarding
           const existing = usnap.exists() ? usnap.data() : {};
           // localStorage backup keyed to this user — survives Firestore read flakiness
-          let lsUsername = "";
+          let lsUsername = "", lsPhoto = "";
           try { lsUsername = localStorage.getItem("bazooka_username_" + u.uid) || ""; } catch(e) {}
+          try { lsPhoto = localStorage.getItem("bazooka_photo_" + u.uid) || ""; } catch(e) {}
           const effectiveUsername = existing.username || lsUsername;
+          const effectivePhoto = existing.photoURL || lsPhoto;
           // If the server somehow lost it but we have it locally, re-write it to the server
           if (!existing.username && lsUsername) {
             setDoc(doc(db,"users",u.uid), { username: lsUsername }, { merge:true }).catch(()=>{});
           }
+          if (!existing.photoURL && lsPhoto) {
+            setDoc(doc(db,"users",u.uid), { photoURL: lsPhoto }, { merge:true }).catch(()=>{});
+          }
           setMyUsername(effectiveUsername);
-          setMyPhotoURL(existing.photoURL || "");
+          setMyPhotoURL(effectivePhoto);
           if (effectiveUsername) usernameClaimedThisSession.current = true;
           if (!effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
@@ -23481,7 +23487,7 @@ function PublicCardDatabase() {
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL("");
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false;
       }
     });
   }, []);
@@ -24576,7 +24582,7 @@ function PublicCardDatabase() {
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
-      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
