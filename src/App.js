@@ -2787,10 +2787,6 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 </div>);
                               })()}
                             </div>
-                            {r.name.trim()&&(
-                              <a href={`https://130point.com/sales/?sSearch=${encodeURIComponent(r.name.trim())}`} target="_blank" rel="noreferrer"
-                                style={{background:"#111",color:"#E8317A",border:"1px solid #E8317A33",borderRadius:6,padding:"4px 7px",fontSize:11,textDecoration:"none",flexShrink:0}}>🔍</a>
-                            )}
                           </div>
                         )}
                         <button onClick={()=>setRows(p=>p.filter(x=>x.id!==r.id))}
@@ -21928,7 +21924,6 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
           const q = encodeURIComponent(`Bo Jackson ${c.hero||""} ${c.treatment||""}`.replace(/\s+/g," ").trim());
           const soldUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&LH_Sold=1&LH_Complete=1&_sop=13`;
           const activeUrl = `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=0&_sop=15`;
-          const url130 = `https://130point.com/sales/?query=${q}`;
           return (
             <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px 18px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
@@ -21938,9 +21933,8 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 <a href={soldUrl} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>eBay Sold ↗</a>
                 <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.3)",color:"#7B9CFF",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>eBay Active ↗</a>
-                <a href={url130} target="_blank" rel="noopener noreferrer" style={{flex:"1 1 130px",textAlign:"center",textDecoration:"none",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",color:"#FBBF24",borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800}}>130point ↗</a>
               </div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:10,lineHeight:1.5}}>Opens a live search for this card on each platform. Niche BoBA cards may have limited results — your best comps are the community sales above.</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:10,lineHeight:1.5}}>Opens a live search for this card on eBay. Niche BoBA cards may have limited results — your best comps are the community sales above.</div>
             </div>
           );
         })()}
@@ -24368,7 +24362,7 @@ function PublicCardDatabase() {
           {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
         </button>
         {open && (
-          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:600}}>
+          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
             {items.map(it=>(
               <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
                 display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
@@ -24640,7 +24634,7 @@ function PublicCardDatabase() {
       <div style={{position:"sticky",top:0,zIndex:500,background:"rgba(8,0,10,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
           {/* Left: primary nav */}
-          <div className="nav-bar" style={{display:"flex",gap:28,alignItems:"center",overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch",flex:1}}>
+          <div className="nav-bar" style={{display:"flex",gap:28,alignItems:"center",flex:1,flexWrap:"nowrap",minWidth:0}}>
             {navItem("cards","Card Database",0)}
             {navGroup("collect","Collectibility",[
               {id:"rainbow",label:"🌈 Rainbow Progress",badge:0},
