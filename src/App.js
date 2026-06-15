@@ -24189,11 +24189,11 @@ function PublicCardDatabase() {
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
               <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(48px,7vw,84px)",width:"auto",maxWidth:"min(420px,72vw)",objectFit:"contain",display:"block",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.3))"}}/>
               <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>
-              <div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:24,marginTop:16,flexWrap:"wrap"}}>
                 {[{v:cards.length.toLocaleString(),l:"Cards"},{v:sets.length,l:"Sets"},{v:totalOwned,l:"Owned"},{v:collectionValue>0?"$"+collectionValue.toFixed(0):"--",l:"Est. Value"}].map(({v,l})=>(
-                  <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"6px 14px",backdropFilter:"blur(10px)"}}>
-                    <span style={{fontSize:15,fontWeight:900,color:"#E8317A"}}>{v}</span>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginLeft:6}}>{l}</span>
+                  <div key={l} style={{display:"flex",flexDirection:"column"}}>
+                    <span style={{fontSize:20,fontWeight:900,color:"#fff",lineHeight:1}}>{v}</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:3,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>{l}</span>
                   </div>
                 ))}
               </div>
@@ -24227,9 +24227,13 @@ function PublicCardDatabase() {
               )}
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Tab bar — website-style nav */}
-          <div className="nav-bar" style={{display:"flex",gap:26,alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.08)",marginBottom:20,overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch"}}>
+      {/* Sticky website-style nav */}
+      <div style={{position:"sticky",top:0,zIndex:500,background:"rgba(8,0,10,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"0 24px"}}>
+          <div className="nav-bar" style={{display:"flex",gap:26,alignItems:"center",overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch"}}>
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
             {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
