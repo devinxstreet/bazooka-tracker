@@ -22998,6 +22998,9 @@ function PublicCardDatabase() {
   const [filterTreat,   setFilterTreat]   = useState(savedUI.filterTreat ?? "");
   const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
   const [powerMenuOpen, setPowerMenuOpen] = useState(false);
+  const [navMenu,       setNavMenu]       = useState(null); // "collect" | "play" | null (hover dropdowns)
+  const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -24323,6 +24326,56 @@ function PublicCardDatabase() {
     </button>
   );
 
+  // Single top-level nav item (Card Database, Marketplace, Leaderboard)
+  const navItem=(id,label,badge)=>(
+    <button key={id} onClick={()=>setActiveTab(id)} className="nav-tab" data-active={activeTab===id?"1":"0"} style={{
+      background:"transparent", color:activeTab===id?"#fff":"rgba(255,255,255,0.55)", border:"none",
+      borderBottom:`2px solid ${activeTab===id?"#E8317A":"transparent"}`,
+      padding:"14px 2px", fontSize:14, fontWeight:activeTab===id?800:600, cursor:"pointer", fontFamily:"inherit",
+      whiteSpace:"nowrap", letterSpacing:0.2, transition:"color 0.15s, border-color 0.15s",
+      display:"inline-flex", alignItems:"center", gap:6,
+    }}>
+      {label}
+      {badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{badge}</span>}
+    </button>
+  );
+
+  // Hover dropdown group (Collectibility, Gameplay)
+  const navGroup=(key,label,items)=>{
+    const childActive = items.some(it=>it.id===activeTab);
+    const open = navMenu===key;
+    return (
+      <div key={key} style={{position:"relative"}} onMouseEnter={()=>setNavMenu(key)} onMouseLeave={()=>setNavMenu(m=>m===key?null:m)}>
+        <button className="nav-tab" data-active={childActive?"1":"0"} onClick={()=>setNavMenu(o=>o===key?null:key)} style={{
+          background:"transparent", color:childActive?"#fff":"rgba(255,255,255,0.55)", border:"none",
+          borderBottom:`2px solid ${childActive?"#E8317A":"transparent"}`,
+          padding:"14px 2px", fontSize:14, fontWeight:childActive?800:600, cursor:"pointer", fontFamily:"inherit",
+          whiteSpace:"nowrap", letterSpacing:0.2, transition:"color 0.15s, border-color 0.15s",
+          display:"inline-flex", alignItems:"center", gap:6,
+        }}>
+          {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
+        </button>
+        {open && (
+          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:600}}>
+            {items.map(it=>(
+              <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
+                background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"none",
+                color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,
+                cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"background 0.12s",
+              }}
+                onMouseEnter={e=>{if(activeTab!==it.id)e.currentTarget.style.background="rgba(255,255,255,0.05)";}}
+                onMouseLeave={e=>{if(activeTab!==it.id)e.currentTarget.style.background="transparent";}}>
+                <span>{it.label}</span>
+                {it.badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{it.badge}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
       <style>{`
@@ -24361,6 +24414,7 @@ function PublicCardDatabase() {
         @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:0} 12%{opacity:1} 100%{transform:translateY(620px) rotate(720deg);opacity:0} }
         @keyframes milestonePop { 0%{transform:translateX(-50%) translateY(-30px) scale(0.8);opacity:0} 60%{transform:translateX(-50%) translateY(4px) scale(1.05);opacity:1} 100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1} }
         @keyframes wantPulse { 0%,100%{transform:scale(1);opacity:0.9} 50%{transform:scale(1.12);opacity:1} }
+        @keyframes slideInRight { from{transform:translateX(100%)} to{transform:translateX(0)} }
         .nav-tab:hover { color:#fff !important; }
         .nav-tab[data-active="0"]:hover { border-bottom-color: rgba(232,49,122,0.4) !important; }
         .nav-bar::-webkit-scrollbar { height:0; display:none; }
@@ -24572,24 +24626,111 @@ function PublicCardDatabase() {
 
       {/* Sticky website-style nav */}
       <div style={{position:"sticky",top:0,zIndex:500,background:"rgba(8,0,10,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"0 24px"}}>
-          <div className="nav-bar" style={{display:"flex",gap:26,alignItems:"center",overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch"}}>
-            {tabBtn("cards","\uD83C\uDCCF Cards",0)}
-            {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
-            {tabBtn("supers","\u2B50 Supers",0)}
-            {tabBtn("1of1","💎 1/1s",0)}
-            {tabBtn("wants","\uD83C\uDFAF Wants",Object.keys(wantList).length)}
-            {tabBtn("deck","\u2694\uFE0F Deck Builder",0)}
-            {tabBtn("playbook","\uD83D\uDCD6 Playbook",0)}
-            {tabBtn("market","\uD83D\uDCB0 Market",wantNotifs.length)}
-            {user&&tabBtn("messages","\uD83D\uDCAC Messages",unreadThreads)}
-            {user&&tabBtn("friends","\uD83D\uDC65 Friends",(friendReqs.length+teamInvites.length))}
-            {user&&tabBtn("team","\uD83C\uDFC6 Team",0)}
-            {user&&tabBtn("ledger","\uD83D\uDCD2 Ledger",0)}
-            {tabBtn("leaderboard","\uD83C\uDFC6 Leaderboard",0)}
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+          {/* Left: primary nav */}
+          <div className="nav-bar" style={{display:"flex",gap:28,alignItems:"center",overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch",flex:1}}>
+            {navItem("cards","Card Database",0)}
+            {navGroup("collect","Collectibility",[
+              {id:"rainbow",label:"🌈 Rainbow Progress",badge:0},
+              {id:"supers",label:"⭐ Supers",badge:0},
+              {id:"1of1",label:"💎 Secret 1/1s",badge:0},
+              {id:"wants",label:"🎯 Want List",badge:Object.keys(wantList).length},
+            ])}
+            {navGroup("play","Gameplay",[
+              {id:"deck",label:"⚔️ Deck Builder",badge:0},
+              {id:"playbook",label:"📖 Playbook",badge:0},
+              ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
+            ])}
+            {navItem("market","Marketplace",wantNotifs.length)}
+            {navItem("leaderboard","Leaderboard",0)}
+          </div>
+
+          {/* Right: messages + profile */}
+          <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            {user&&(
+              <button onClick={()=>setMsgPanelOpen(true)} title="Messages" style={{position:"relative",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                💬
+                {unreadThreads>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadThreads}</span>}
+              </button>
+            )}
+            {user&&(
+              <div style={{position:"relative"}} onMouseLeave={()=>setProfileMenuOpen(false)}>
+                <button onClick={()=>setProfileMenuOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center"}}>
+                  {(myPhotoURL||user.photoURL)
+                    ? <img src={myPhotoURL||user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",border:"2px solid #E8317A"}}/>
+                    : <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:900,color:"#fff",border:"2px solid #E8317A"}}>{(myUsername||user.displayName||user.email||"?").charAt(myUsername?1:0).toUpperCase()}</div>}
+                </button>
+                {profileMenuOpen&&(
+                  <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:200,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:600}}>
+                    <div style={{padding:"8px 12px 10px",borderBottom:"1px solid #222",marginBottom:4}}>
+                      <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
+                      <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
+                    </div>
+                    {[
+                      {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
+                      {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
+                      {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
+                    ].map((it,idx)=>(
+                      <button key={idx} onClick={()=>{it.act();setProfileMenuOpen(false);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,background:"transparent",border:"none",color:"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <span>{it.label}</span>
+                        {it.badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{it.badge}</span>}
+                      </button>
+                    ))}
+                    <div style={{borderTop:"1px solid #222",marginTop:4,paddingTop:4}}>
+                      <button onClick={()=>{signOut(auth);setProfileMenuOpen(false);}} style={{width:"100%",background:"transparent",border:"none",color:"#888",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Sign out</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Messages slide-in panel */}
+      {msgPanelOpen&&user&&(
+        <>
+          <div onClick={()=>setMsgPanelOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,backdropFilter:"blur(2px)"}}/>
+          <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(460px,100%)",background:"#0d0d0d",borderLeft:"1px solid #2a2a2a",zIndex:1001,boxShadow:"-8px 0 40px rgba(0,0,0,0.6)",display:"flex",flexDirection:"column",animation:"slideInRight 0.25s ease"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:"1px solid #222"}}>
+              <div style={{fontSize:16,fontWeight:900,color:"#fff"}}>💬 Messages</div>
+              <button onClick={()=>setMsgPanelOpen(false)} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+              {pendingReviews.length>0&&(
+                <div style={{ background:"linear-gradient(135deg, rgba(232,49,122,0.12), rgba(251,191,36,0.08))", border:"1px solid rgba(232,49,122,0.25)", borderRadius:14, padding:"14px 16px", marginBottom:16 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:"#fff", marginBottom:8 }}>⭐ Rate your recent {pendingReviews.length===1?"purchase":"purchases"}</div>
+                  {pendingReviews.slice(0,4).map(s=>(
+                    <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, background:"rgba(0,0,0,0.25)", borderRadius:10, padding:"8px 12px", marginBottom:6 }}>
+                      <div style={{ minWidth:0 }}><div style={{ fontSize:13, fontWeight:700, color:"#eee", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.cardName}</div><div style={{ fontSize:11, color:"#888" }}>from {s.sellerName||"seller"}</div></div>
+                      <button onClick={()=>setReviewModal({sale:s})} style={{ background:"linear-gradient(135deg,#E8317A,#FBBF24)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Rate</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <MessagesTab
+                user={user}
+                activeThread={activeThread}
+                setActiveThread={setActiveThread}
+                threads={threads}
+                threadMsgs={threadMsgs}
+                newMsg={newMsg}
+                setNewMsg={setNewMsg}
+                sendMessage={sendMessage}
+                closeThread={closeThread}
+                marketSales={marketSales}
+                inp={inp}
+                WEAPON_COLORS={WEAPON_COLORS}
+                setSigningIn={setSigningIn}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Market notifications bar */}
       {marketNotifs.length>0&&(
