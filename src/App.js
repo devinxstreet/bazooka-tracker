@@ -14551,12 +14551,25 @@ function BobaShowcase({ uid }) {
   const [page,      setPage]      = useState(0);
   const [pageDir,   setPageDir]   = useState(1);
   const [copied,    setCopied]    = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [privateIds, setPrivateIds] = useState({});
   const CARDS_PER_PAGE = 9;
   const ownedDocId = uid || "owned";
 
   useEffect(() => {
     async function load() {
       try {
+        // 0. Owner name + private flags (for a personal, privacy-respecting profile)
+        if (uid) {
+          try {
+            const [uSnap, pSnap] = await Promise.all([
+              getDoc(doc(db,"users",uid)),
+              getDoc(doc(db,"boba_private",uid)),
+            ]);
+            if (uSnap.exists()) { const d=uSnap.data(); setOwnerName(d.username ? `@${d.username}` : ((d.displayName||d.email||"").split(" ")[0]||"")); }
+            if (pSnap.exists()) setPrivateIds(pSnap.data()||{});
+          } catch(e) {}
+        }
         // 1. Load owned doc
         const ownedSnap = await getDoc(doc(db, "boba_owned", ownedDocId));
         const ownedData = ownedSnap.exists() ? ownedSnap.data() : {};
@@ -14597,7 +14610,7 @@ function BobaShowcase({ uid }) {
     load();
   }, [ownedDocId]);
 
-  const ownedCards = cards.filter(c => owned[c.id]);
+  const ownedCards = cards.filter(c => owned[c.id] && !privateIds[c.id]);
   const sorted = [...ownedCards].sort((a, b) => {
     if (sortBy === "set") {
       const s = (a.setName||"").localeCompare(b.setName||"");
@@ -14644,7 +14657,7 @@ function BobaShowcase({ uid }) {
           <div style={{ display:"flex", alignItems:"flex-start", gap:20, marginBottom:20, flexWrap:"wrap" }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:28, fontWeight:900, letterSpacing:-1, lineHeight:1 }}>
-                <span style={{ color:"#E8317A" }}>BAZOOKA</span>
+                <span style={{ color:"#E8317A" }}>{ownerName ? `${ownerName}'s` : "BAZOOKA"}</span>
                 <span style={{ color:"#F0F0F0" }}> Collection</span>
               </div>
               <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
@@ -22454,9 +22467,10 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
     if (stats || loading || !uid) return;
     setLoading(true);
     try {
-      const [ownSnap, revSnap] = await Promise.all([
+      const [ownSnap, revSnap, uSnap] = await Promise.all([
         getDoc(doc(db,"boba_owned",uid)),
         getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
+        getDoc(doc(db,"users",uid)),
       ]);
       const owned = ownSnap.exists() ? ownSnap.data() : {};
       const collectionCount = Object.values(owned).reduce((s,q)=>s+(q||1),0);
@@ -22464,7 +22478,8 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
       const reviews = revSnap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
       const reviewCount = reviews.length;
       const rating = reviewCount>0 ? reviews.reduce((s,r)=>s+(r.stars||0),0)/reviewCount : null;
-      setStats({ collectionCount, deals, rating, reviewCount, reviews });
+      const handle = uSnap.exists() && uSnap.data().username ? `@${uSnap.data().username}` : null;
+      setStats({ collectionCount, deals, rating, reviewCount, reviews, handle });
     } catch(e) { console.error("seller stats failed:", e); setStats({ collectionCount:0, deals:0, rating:null, reviewCount:0, reviews:[] }); }
     setLoading(false);
   }
@@ -22479,7 +22494,8 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
       <span style={{ color:"#7B9CFF", fontWeight:700, cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted", textUnderlineOffset:2 }}>{name||"Collector"}</span>
       {open && (
         <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:250, maxHeight:340, overflowY:"auto", background:"#141414", border:"1px solid #2a2a2a", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
-          <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:10 }}>{name||"Collector"}</div>
+          <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:2 }}>{name||"Collector"}</div>
+          {stats?.handle && <div style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, marginBottom:8 }}>{stats.handle}</div>}
           {!stats ? (
             <div style={{ fontSize:12, color:"#666" }}>Loading…</div>
           ) : (
@@ -22652,6 +22668,121 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
   );
 }
 
+function OnboardingModal({ user, onComplete, inp }) {
+  const [username, setUsername] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [status, setStatus] = useState(null); // null | "available" | "taken" | "invalid"
+  const [saving, setSaving] = useState(false);
+  const [photoURL, setPhotoURL] = useState(user?.photoURL || "");
+  const [uploading, setUploading] = useState(false);
+  const [step, setStep] = useState(1); // 1 = username, 2 = pic
+
+  const clean = (s) => s.toLowerCase().replace(/[^a-z0-9_]/g,"").slice(0,20);
+
+  // Debounced availability check
+  useEffect(() => {
+    const u = clean(username);
+    if (u.length < 3) { setStatus(u.length===0 ? null : "invalid"); return; }
+    setChecking(true); setStatus(null);
+    const t = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db,"usernames",u));
+        setStatus(snap.exists() ? "taken" : "available");
+      } catch(e) { setStatus(null); }
+      setChecking(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [username]);
+
+  async function claimUsername() {
+    const u = clean(username);
+    if (u.length < 3 || status !== "available" || !user) return;
+    setSaving(true);
+    try {
+      // Reserve the handle and write it to the profile
+      await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() });
+      await setDoc(doc(db,"users",user.uid), { username: u }, { merge:true });
+      setStep(2);
+    } catch(e) { console.error("claim failed:", e); alert("Couldn't claim that username — try another."); }
+    setSaving(false);
+  }
+
+  async function uploadPic(file) {
+    if (!file || !user) return;
+    setUploading(true);
+    try {
+      const sref = ref(storage, `profile_pics/${user.uid}/${uid()}.jpg`);
+      await uploadBytes(sref, file);
+      const url = await getDownloadURL(sref);
+      await setDoc(doc(db,"users",user.uid), { photoURL: url }, { merge:true });
+      setPhotoURL(url);
+    } catch(e) { console.error("pic upload failed:", e); alert("Photo upload failed."); }
+    setUploading(false);
+  }
+
+  function finish() { onComplete(clean(username)); }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:10020, background:"rgba(0,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(10px)" }}>
+      <div style={{ background:"linear-gradient(135deg,#0d0d0d,#140810)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:22, width:"min(440px,100%)", padding:"32px 30px", boxShadow:"0 40px 120px rgba(232,49,122,0.2)" }}>
+        {/* progress */}
+        <div style={{ display:"flex", gap:6, marginBottom:22 }}>
+          <div style={{ flex:1, height:4, borderRadius:2, background: step>=1 ? "#E8317A" : "#2a2a2a" }}/>
+          <div style={{ flex:1, height:4, borderRadius:2, background: step>=2 ? "#E8317A" : "#2a2a2a" }}/>
+        </div>
+
+        {step===1 ? (
+          <>
+            <div style={{ fontSize:26, marginBottom:6 }}>👋</div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>Claim your username</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>This is your handle across Bazooka — on your profile, the leaderboard, and the marketplace. Pick something good, it's yours.</div>
+
+            <div style={{ position:"relative", marginBottom:8 }}>
+              <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", fontSize:16, color:"#666", fontWeight:700 }}>@</span>
+              <input autoFocus value={username} onChange={e=>setUsername(clean(e.target.value))} placeholder="yourhandle" maxLength={20}
+                style={{...inp, width:"100%", paddingLeft:32, fontSize:16, boxSizing:"border-box",
+                  borderColor: status==="available"?"#4ade80":status==="taken"?"#EF4444":undefined }}/>
+            </div>
+            <div style={{ minHeight:20, fontSize:12, fontWeight:700, marginBottom:18 }}>
+              {checking && <span style={{ color:"#888" }}>Checking…</span>}
+              {!checking && status==="available" && <span style={{ color:"#4ade80" }}>✓ @{clean(username)} is available</span>}
+              {!checking && status==="taken" && <span style={{ color:"#EF4444" }}>✗ That handle's taken — try another</span>}
+              {!checking && status==="invalid" && <span style={{ color:"#FBBF24" }}>At least 3 characters (letters, numbers, _)</span>}
+            </div>
+
+            <button onClick={claimUsername} disabled={status!=="available"||saving}
+              style={{ width:"100%", background: status==="available"?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a", color: status==="available"?"#fff":"#666", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor: status==="available"?"pointer":"not-allowed", fontFamily:"inherit" }}>
+              {saving ? "Claiming…" : "Claim it →"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>Add a profile photo</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>Optional — but it makes your profile pop. You can always change it later.</div>
+
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+              <label style={{ position:"relative", cursor: uploading?"wait":"pointer" }}>
+                {photoURL
+                  ? <img src={photoURL} alt="" style={{ width:96, height:96, borderRadius:"50%", objectFit:"cover", border:"3px solid #E8317A", boxShadow:"0 0 24px rgba(232,49,122,0.4)" }}/>
+                  : <div style={{ width:96, height:96, borderRadius:"50%", background:"#1a1a1a", border:"2px dashed rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, color:"#555" }}>{uploading?"…":"📷"}</div>}
+                <div style={{ position:"absolute", bottom:0, right:0, background:"#E8317A", borderRadius:"50%", width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, border:"2px solid #0d0d0d" }}>✎</div>
+                <input type="file" accept="image/*" style={{ display:"none" }} disabled={uploading} onChange={e=>{const f=e.target.files?.[0]; if(f)uploadPic(f); e.target.value="";}}/>
+              </label>
+            </div>
+
+            <button onClick={finish} style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
+              {photoURL ? "All set — let's go 🚀" : "Finish"}
+            </button>
+            <button onClick={finish} style={{ width:"100%", background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+              Skip for now
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
@@ -22661,6 +22792,8 @@ function PublicCardDatabase() {
   const [privateCards,  setPrivateCards]  = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
+  const [myUsername,    setMyUsername]    = useState("");
+  const [onboarding,    setOnboarding]    = useState(false);
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
   const [ownedDocId,    setOwnedDocId]    = useState(null);
@@ -23013,6 +23146,10 @@ function PublicCardDatabase() {
             lastSeen: Date.now(),
             ...(usnap.exists() ? {} : { firstSeen: Date.now() }),
           }, { merge:true });
+          // If no username claimed yet, trigger onboarding
+          const existing = usnap.exists() ? usnap.data() : {};
+          setMyUsername(existing.username || "");
+          if (!existing.username) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
           const [ownSnap, wSnap, prvSnap, lotSnap] = await Promise.all([
@@ -24053,6 +24190,7 @@ function PublicCardDatabase() {
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
+      {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname)=>{ setMyUsername(uname); setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
@@ -24210,6 +24348,10 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {"\uD83D\uDCF7 Scan"}</button>
+                  <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
+                    title="Share your public collection page"
+                    style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s"}}>
+                    {"\uD83D\uDD17 Share"}</button>
                   {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                     <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
                       title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
