@@ -1,4 +1,5 @@
 /* eslint-disable */
+/* Bazooka Vault — build marker 2026-06-15-b (commit test) */
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
