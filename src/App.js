@@ -24482,7 +24482,7 @@ function PublicCardDatabase() {
     const childActive = items.some(it=>it.id===activeTab);
     const open = navMenu===key;
     return (
-      <div key={key} style={{position:"relative"}} onMouseEnter={()=>setNavMenu(key)} onMouseLeave={()=>setNavMenu(m=>m===key?null:m)}>
+      <div key={key} style={{position:"relative"}} {...(isMobile ? {} : { onMouseEnter:()=>setNavMenu(key), onMouseLeave:()=>setNavMenu(m=>m===key?null:m) })}>
         <button className="nav-tab" data-active={childActive?"1":"0"} onClick={()=>setNavMenu(o=>o===key?null:key)} style={{
           background:"transparent", color:childActive?"#fff":"rgba(255,255,255,0.55)", border:"none",
           borderBottom:`2px solid ${childActive?"#E8317A":"transparent"}`,
@@ -24493,12 +24493,14 @@ function PublicCardDatabase() {
           {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
         </button>
         {open && (
-          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
+          <div style={isMobile
+            ? {position:"fixed",top:96,left:12,right:12,maxWidth:360,margin:"0 auto",background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}
+            : {position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
             {items.map(it=>(
               <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
                 display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
                 background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"none",
-                color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,
+                color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:isMobile?"12px 14px":"9px 12px",fontSize:isMobile?14:13,fontWeight:700,
                 cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"background 0.12s",
               }}
                 onMouseEnter={e=>{if(activeTab!==it.id)e.currentTarget.style.background="rgba(255,255,255,0.05)";}}
@@ -24712,37 +24714,37 @@ function PublicCardDatabase() {
         <div style={{position:"absolute",top:-80,right:"15%",width:300,height:300,background:"radial-gradient(circle,rgba(123,47,247,0.1),transparent 70%)",pointerEvents:"none",animation:"glowPulse 6s ease infinite 2s"}}/>
         <div style={{position:"absolute",bottom:0,left:"40%",width:500,height:200,background:"radial-gradient(ellipse,rgba(123,156,255,0.06),transparent 70%)",pointerEvents:"none"}}/>
 
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px 24px 0",position:"relative"}}>
-          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:16,marginBottom:24}}>
-            <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)"}}>
-              <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(48px,7vw,84px)",width:"auto",maxWidth:"min(420px,72vw)",objectFit:"contain",display:"block",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.3))"}}/>
-              <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"16px 14px 0":"24px 24px 0",position:"relative"}}>
+          <div style={{display:"flex",alignItems:isMobile?"center":"flex-end",justifyContent:"space-between",flexWrap:"nowrap",gap:12,marginBottom:isMobile?16:24}}>
+            <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)",minWidth:0}}>
+              <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(40px,7vw,84px)",width:"auto",maxWidth:"min(420px,60vw)",objectFit:"contain",display:"block",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.3))"}}/>
+              {!isMobile && <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s"}}>
+            <div style={{display:"flex",alignItems:"center",gap:isMobile?8:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s",flexShrink:0}}>
               {user?(
                 <>
-                  <div>
+                  {!isMobile && <div>
                     <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
                     <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
-                  </div>
-                  <button onClick={()=>setScanModal(true)} style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s"}}
+                  </div>}
+                  <button onClick={()=>setScanModal(true)} style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
-                    {"\uD83D\uDCF7 Scan"}</button>
+                    {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
                     title="Share your public collection page"
-                    style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s"}}>
-                    {"\uD83D\uDD17 Share"}</button>
-                  {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
+                    style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                    {isMobile ? "\uD83D\uDD17" : "\uD83D\uDD17 Share"}</button>
+                  {!isMobile && (user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                     <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
                       title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
                       style={{background:"transparent",color:"rgba(255,255,255,0.4)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                       {"\u2B07 cards-data.json"}</button>
                   )}
-                  <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
+                  {!isMobile && <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>}
                 </>
               ):(
-                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)",transition:"all 0.2s"}}
+                <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:14,padding:isMobile?"9px 18px":"10px 24px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 32px rgba(232,49,122,0.4)",transition:"all 0.2s",whiteSpace:"nowrap"}}
                   onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 16px 48px rgba(232,49,122,0.5)";}}
                   onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 8px 32px rgba(232,49,122,0.4)";}}>
                   Sign in
@@ -24755,9 +24757,9 @@ function PublicCardDatabase() {
 
       {/* Sticky website-style nav */}
       <div style={{position:"sticky",top:0,zIndex:500,background:"rgba(8,0,10,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"0 12px":"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:isMobile?8:16}}>
           {/* Left: primary nav */}
-          <div className="nav-bar" style={{display:"flex",gap:28,alignItems:"center",flex:1,flexWrap:"nowrap",minWidth:0}}>
+          <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
             {navItem("cards","Card Database",0)}
             {navGroup("collect","Collectibility",[
               {id:"rainbow",label:"🌈 Rainbow Progress",badge:0},
@@ -24783,7 +24785,7 @@ function PublicCardDatabase() {
               </button>
             )}
             {user&&(
-              <div style={{position:"relative"}} onMouseEnter={()=>setProfileMenuOpen(true)} onMouseLeave={()=>setProfileMenuOpen(false)}>
+              <div style={{position:"relative"}} {...(isMobile ? {} : { onMouseEnter:()=>setProfileMenuOpen(true), onMouseLeave:()=>setProfileMenuOpen(false) })}>
                 <button onClick={()=>setProfileMenuOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center"}}>
                   {(myPhotoURL||user.photoURL)
                     ? <img src={myPhotoURL||user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",border:"2px solid #E8317A"}}/>
