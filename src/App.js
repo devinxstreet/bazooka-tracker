@@ -22183,7 +22183,11 @@ function PublicCardDatabase() {
   const [privateCards,  setPrivateCards]  = useState({});
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
-  const [activeTab,     setActiveTab]     = useState(()=>{ const h=(window.location.hash||"").replace("#","").trim(); const valid=["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"]; return valid.includes(h)?h:"cards"; });
+  // -- UI state persistence (per browser session) --
+  const UI_STATE_KEY = "bazooka_vault_ui_v1";
+  const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
+  const savedUI = (typeof window !== "undefined") ? loadUI() : {};
+  const [activeTab,     setActiveTab]     = useState(()=>{ const h=(window.location.hash||"").replace("#","").trim(); const valid=["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team"]; if(valid.includes(h)) return h; if(savedUI.activeTab && valid.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -22194,16 +22198,46 @@ function PublicCardDatabase() {
   const isMobile = windowWidth < 768;
 
   // -- Cards/filter state --
-  const [search,        setSearch]        = useState("");
+  const [search,        setSearch]        = useState(savedUI.search ?? "");
   const debouncedSearch = useDebounce(search, 250);
-  const [filterSet,     setFilterSet]     = useState("");
-  const [filterWeapon,  setFilterWeapon]  = useState("");
-  const [filterTreat,   setFilterTreat]   = useState("");
-  const [filterPower,   setFilterPower]   = useState(new Set());
-  const [filterOwned,   setFilterOwned]   = useState("all");
-  const [sortBy,        setSortBy]        = useState("cardNum");
-  const [page,          setPage]          = useState(1);
+  const [filterSet,     setFilterSet]     = useState(savedUI.filterSet ?? "");
+  const [filterWeapon,  setFilterWeapon]  = useState(savedUI.filterWeapon ?? "");
+  const [filterTreat,   setFilterTreat]   = useState(savedUI.filterTreat ?? "");
+  const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
+  const [powerMenuOpen, setPowerMenuOpen] = useState(false);
+  const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
+  const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
+  const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
+
+  // -- Persist UI state to sessionStorage whenever it changes --
+  useEffect(() => {
+    try {
+      const prev = loadUI();
+      sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
+        ...prev,
+        activeTab, search, filterSet, filterWeapon, filterTreat,
+        filterPower: Array.from(filterPower), filterOwned, sortBy, page,
+      }));
+    } catch(e) {}
+  }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page]);
+
+  // -- Save scroll position continuously, restore once after cards render --
+  useEffect(() => {
+    const saveScroll = () => { try { const u = loadUI(); u.scrollY = window.scrollY; sessionStorage.setItem(UI_STATE_KEY, JSON.stringify(u)); } catch(e) {} };
+    window.addEventListener("scroll", saveScroll, { passive:true });
+    return () => window.removeEventListener("scroll", saveScroll);
+  }, []);
+  const scrollRestoredRef = useRef(false);
+  useEffect(() => {
+    if (scrollRestoredRef.current) return;
+    if (loading) return;
+    const y = savedUI.scrollY;
+    if (typeof y === "number" && y > 0) {
+      requestAnimationFrame(() => { requestAnimationFrame(() => { window.scrollTo(0, y); }); });
+    }
+    scrollRestoredRef.current = true;
+  }, [loading]);
   const PAGE_SIZE = 100;
 
   // -- Rainbow Tracker --
@@ -24225,16 +24259,35 @@ function PublicCardDatabase() {
               <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
               </select>
-              {/* Power multi-select toggle buttons */}
-              <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginRight:2}}>Power:</span>
-                {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>(
-                  <button key={p} onClick={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}}
-                    style={{background:filterPower.has(p)?"rgba(232,49,122,0.2)":"transparent",color:filterPower.has(p)?"#E8317A":"rgba(255,255,255,0.3)",border:`1px solid ${filterPower.has(p)?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
-                    {p}
-                  </button>
-                ))}
-                {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:10,cursor:"pointer",padding:"3px 6px"}}>✕ clear</button>}
+              {/* Power multi-select dropdown */}
+              <div style={{position:"relative"}}>
+                <button onClick={()=>setPowerMenuOpen(o=>!o)}
+                  style={{...inp,width:130,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,color:filterPower.size>0?"#E8317A":undefined,borderColor:filterPower.size>0?"#E8317A":undefined}}>
+                  <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{filterPower.size>0?`⚡ Power (${filterPower.size})`:"All Power"}</span>
+                  <span style={{fontSize:9,opacity:0.6}}>▼</span>
+                </button>
+                {powerMenuOpen && (
+                  <>
+                    <div onClick={()=>setPowerMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
+                    <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:999,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
+                        <span style={{fontSize:10,color:"#888",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
+                        {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                      </div>
+                      {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>{
+                        const on=filterPower.has(p);
+                        return (
+                          <label key={p} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",background:on?"rgba(232,49,122,0.12)":"transparent"}}
+                            onMouseEnter={e=>{if(!on)e.currentTarget.style.background="rgba(255,255,255,0.04)";}}
+                            onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
+                            <input type="checkbox" checked={on} onChange={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
+                            <span style={{fontSize:12,fontWeight:700,color:on?"#E8317A":"#ccc"}}>{p}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
               <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
