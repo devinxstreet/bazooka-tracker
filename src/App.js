@@ -22558,15 +22558,20 @@ function PublicCardDatabase() {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
-        const [ownSnap, wSnap, prvSnap] = await Promise.all([
-          getDoc(doc(db,"boba_owned",u.uid)),
-          getDoc(doc(db,"boba_wants",u.uid)),
-          getDoc(doc(db,"boba_private",u.uid)),
-        ]);
-        setOwned(ownSnap.exists() ? ownSnap.data() : {});
-        setOwnedDocId(u.uid);
-        setWantList(wSnap.exists() ? wSnap.data() : {});
-        setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
+        try {
+          const [ownSnap, wSnap, prvSnap] = await Promise.all([
+            getDoc(doc(db,"boba_owned",u.uid)),
+            getDoc(doc(db,"boba_wants",u.uid)),
+            getDoc(doc(db,"boba_private",u.uid)),
+          ]);
+          setOwned(ownSnap.exists() ? ownSnap.data() : {});
+          setOwnedDocId(u.uid);
+          setWantList(wSnap.exists() ? wSnap.data() : {});
+          setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
+        } catch (e) {
+          console.error("Collection load failed (check Firestore rules for boba_owned/wants/private):", e);
+          setOwnedDocId(u.uid);
+        }
       } else {
         setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({});
       }
@@ -22691,7 +22696,7 @@ function PublicCardDatabase() {
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setOwned(next);
     if (!wasOwned) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    await setDoc(doc(db,"boba_owned",user.uid), next);
+    try { await setDoc(doc(db,"boba_owned",user.uid), next); } catch(e){ console.error("save owned failed:", e); }
   }
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
@@ -22700,7 +22705,7 @@ function PublicCardDatabase() {
     if (qty<=0) delete next[cardId]; else next[cardId]=qty;
     setOwned(next);
     if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    await setDoc(doc(db,"boba_owned",user.uid), next);
+    try { await setDoc(doc(db,"boba_owned",user.uid), next); } catch(e){ console.error("save owned qty failed:", e); }
   }
   async function toggleWant(cardId) {
     if (!user) { setSigningIn(true); return; }
@@ -22709,7 +22714,7 @@ function PublicCardDatabase() {
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setWantList(next);
     if (!wasWanted) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"hunt", card }); }
-    await setDoc(doc(db,"boba_wants",user.uid), next);
+    try { await setDoc(doc(db,"boba_wants",user.uid), next); } catch(e){ console.error("save want failed:", e); }
   }
   async function togglePrivate(cardId) {
     if (!user) return;
