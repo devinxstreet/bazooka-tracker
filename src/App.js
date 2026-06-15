@@ -20593,7 +20593,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                         {l.cardImage?<img src={l.cardImage} alt={l.cardName} style={{width:48,height:64,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:48,height:64,background:"rgba(255,255,255,0.05)",borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.3)"}}>IMG</div>}
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{l.cardName}</div>
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} · {l.cardPower}\u26A1</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{l.cardTreatment} · {l.cardPower}{"\u26A1"}</div>
                           <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginTop:4}}>${(l.askingPrice||0).toFixed(2)}</div>
                           <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.listType==="trade"?"For Trade":l.listType==="either"?"Sale/Trade":"For Sale"}</div>
                         </div>
@@ -20807,7 +20807,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                             <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:2}}>{l.cardName}</div>
                             <div style={{fontSize:11,color:wc,fontWeight:700,marginBottom:2}}>{l.cardWeapon}</div>
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardTreatment}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}\u26A1 · {l.setName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{l.cardPower}{"\u26A1"} · {l.setName}</div>
                           </div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -21044,7 +21044,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                                     {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
                                   <div style={{flex:1}}>
-                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}\u26A1 · {card.treatment}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:"#F0F0F0"}}>{card.hero} · {card.power}{"\u26A1"} · {card.treatment}</div>
                                     <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
                                 </div>
@@ -21149,7 +21149,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                               <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0"}}>{c.hero}</div>
                               <div style={{fontSize:10,color:wc,fontWeight:700}}>{c.weapon}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{c.treatment}</div>
-                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}\u26A1</div>
+                              <div style={{fontSize:11,fontWeight:800,color:wc,marginTop:2}}>{c.power}{"\u26A1"}</div>
                               {fo[c.id]>1&&<div style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>{"\u00D7"}{fo[c.id]}</div>}
                             </div>
                           );
@@ -21619,7 +21619,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                       <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{c.treatment}</div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>#{c.cardNum} · {c.setName}</div>
-                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}\u26A1</div>
+                      <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}{"\u26A1"}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
@@ -21691,7 +21691,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 {scanSession.slice(0,5).map((s,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
                     <span style={{fontSize:20}}>{"\u2705"}</span>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} · {s.card.power}\u26A1</div></div>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.card.hero}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{s.card.treatment} · {s.card.power}{"\u26A1"}</div></div>
                     <span style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>+{s.qty}</span>
                   </div>
                 ))}
@@ -21734,7 +21734,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <span style={{background:`${wc}22`,color:wc,borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700}}>{c.weapon}</span>
             <span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.treatment}</span>
-            {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}\u26A1</span>}
+            {c.power&&<span style={{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"2px 8px",fontSize:11}}>{c.power}{"\u26A1"}</span>}
             {c.setName&&<span style={{background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.3)",borderRadius:6,padding:"2px 8px",fontSize:10}}>{c.setName}</span>}
           </div>
         </div>
@@ -21795,7 +21795,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
                 {nearSales.sort((a,b)=>b.soldDate?.localeCompare(a.soldDate||"")||0).slice(0,6).map((s,i)=>(
                   <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,0.03)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} · {s.cardPower}\u26A1</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.cardTreatment} · {s.cardPower}{"\u26A1"}</div>
                       <div style={{fontSize:10,color:"rgba(255,255,255,0.25)"}}>{s.soldDate||"--"}</div>
                     </div>
                     <span style={{fontSize:14,fontWeight:800,color:"#FBBF24",flexShrink:0}}>${(s.price||0).toFixed(2)}</span>
@@ -22003,6 +22003,66 @@ function CardFxOverlay({ fx, onDone }) {
   );
 }
 
+// ── RAINBOW COMPLETE — GRAND CELEBRATION ──────────────────────────────────────
+function RainbowCelebration({ fx, onDone }) {
+  const { name, cards = [] } = fx;
+  React.useEffect(() => {
+    const t = setTimeout(onDone, 5200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  const rainbowColors = ["#F97316","#FBBF24","#4ade80","#60A5FA","#A855F7","#F472B6","#EF4444"];
+  const confettiColors = [...rainbowColors, "#FFFFFF", "#E8317A"];
+  // fan out up to 7 card images
+  const fanCards = cards.filter(c=>c.imageUrl).slice(0,7);
+  const n = fanCards.length || 1;
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:100001, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", overflow:"hidden" }} onClick={onDone}>
+      {/* dark backdrop */}
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at center, rgba(20,0,30,0.6), rgba(0,0,0,0.92) 75%)", animation:"rbBackdrop 5.2s ease forwards" }}/>
+      {/* rotating rainbow god-rays */}
+      <div style={{ position:"absolute", width:"180vmax", height:"180vmax", animation:"rbRayspin 8s linear infinite, rbBackdrop 5.2s ease forwards", background:"repeating-conic-gradient(from 0deg, rgba(249,115,22,0.10) 0deg 12deg, transparent 12deg 24deg, rgba(168,85,247,0.10) 24deg 36deg, transparent 36deg 48deg)", pointerEvents:"none" }}/>
+      {/* shockwave rings */}
+      {[0,0.3,0.6].map((d,i)=>(
+        <div key={i} style={{ position:"absolute", width:"40vmin", height:"40vmin", borderRadius:"50%", border:"4px solid rgba(168,85,247,0.5)", animation:`rbShockwave 1.6s ease ${d}s forwards` }}/>
+      ))}
+      {/* confetti storm */}
+      {Array.from({length:90}).map((_,i)=>{
+        const left=Math.random()*100, delay=Math.random()*1.2, dur=2.2+Math.random()*2;
+        const size=7+Math.random()*10, color=confettiColors[i%confettiColors.length], round=Math.random()>0.5;
+        return <div key={i} style={{ position:"absolute", top:-30, left:`${left}%`, width:size, height:round?size:size*0.45, background:color, borderRadius:round?"50%":2, animation:`rbConfetti ${dur}s linear ${delay}s forwards`, boxShadow:`0 0 8px ${color}` }}/>;
+      })}
+      {/* fanned cards */}
+      <div style={{ position:"relative", width:"min(220px,50vw)", aspectRatio:"3/4", marginTop:"-4vh" }}>
+        {fanCards.map((c,i)=>{
+          const spread=14; // deg between cards
+          const rot=(i-(n-1)/2)*spread;
+          const offset=(i-(n-1)/2)*30;
+          return (
+            <div key={c.id} style={{ position:"absolute", inset:0, transform:`translateX(${offset}px)`, "--rb-rot":`${rot}deg`, "--rb-rot-start":`${rot*2}deg`, animation:`rbCardFan 5.2s cubic-bezier(0.34,1.56,0.64,1) ${0.3+i*0.08}s both`, transformOrigin:"bottom center" }}>
+              <div style={{ width:"100%", height:"100%", borderRadius:12, overflow:"hidden", border:"3px solid rgba(255,255,255,0.9)", boxShadow:`0 0 30px ${rainbowColors[i%rainbowColors.length]}, 0 10px 40px rgba(0,0,0,0.6)` }}>
+                <img src={c.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* big rainbow badge */}
+      <div style={{ position:"absolute", top:"14%", fontSize:"clamp(60px,14vw,130px)", animation:"rbBadge 5.2s ease 0.2s both, rbHue 3s linear infinite" }}>🌈</div>
+      {/* title */}
+      <div style={{ position:"absolute", bottom:"20%", textAlign:"center", animation:"rbTitle 5.2s ease 0.3s both", padding:"0 20px" }}>
+        <div style={{ fontSize:"clamp(28px,6vw,56px)", fontWeight:900, letterSpacing:2, fontFamily:"'Trebuchet MS',sans-serif", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444)", backgroundSize:"200% auto", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text", textShadow:"0 0 40px rgba(168,85,247,0.4)", animation:"rbHue 4s linear infinite" }}>RAINBOW COMPLETE!</div>
+      </div>
+      {/* subtitle */}
+      <div style={{ position:"absolute", bottom:"13%", textAlign:"center", animation:"rbSub 5.2s ease 0.6s both", padding:"0 20px" }}>
+        <div style={{ fontSize:"clamp(16px,3vw,24px)", fontWeight:800, color:"#fff", letterSpacing:1, textShadow:"0 2px 12px rgba(0,0,0,0.8)" }}>{name}</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)", letterSpacing:2, marginTop:8, textTransform:"uppercase" }}>All {cards.length} cards collected · tap to dismiss</div>
+      </div>
+    </div>
+  );
+}
+
 // ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
 function PublicCardDatabase() {
   // -- Core state --
@@ -22062,6 +22122,8 @@ function PublicCardDatabase() {
 
   // -- Card FX (hunt / caught animations) --
   const [cardFx,        setCardFx]        = useState(null); // { type:"hunt"|"caught", card }
+  const [rainbowFx,     setRainbowFx]     = useState(null); // { name, cards:[] }
+  const completedRainbowsRef = useRef(null); // snapshot of complete rainbow keys
 
   // -- Playbook --
   const [pbCards,       setPbCards]       = useState([]);
@@ -22361,6 +22423,37 @@ function PublicCardDatabase() {
     setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
   }, [user]);
 
+  // Detect rainbow completion -> grand celebration
+  useEffect(() => {
+    if (!cards.length) return;
+    // Match the rainbow tab's hero-grouping: exclude "home team discount", group by hero
+    const groups = {};
+    cards.forEach(c => {
+      const t = (c.treatment||"").toLowerCase();
+      if (t === "home team discount") return;
+      const key = c.hero;
+      if (!key) return;
+      (groups[key] = groups[key] || []).push(c);
+    });
+    // A real rainbow needs at least 2 cards to be meaningful
+    const nowComplete = new Set();
+    Object.entries(groups).forEach(([key, gcards]) => {
+      if (gcards.length < 2) return;
+      if (gcards.every(c => owned[c.id])) nowComplete.add(key);
+    });
+    const prev = completedRainbowsRef.current;
+    // First run: just snapshot, don't celebrate existing completions
+    if (prev === null) { completedRainbowsRef.current = nowComplete; return; }
+    // Find newly completed
+    let newlyDone = null;
+    nowComplete.forEach(k => { if (!prev.has(k)) newlyDone = k; });
+    completedRainbowsRef.current = nowComplete;
+    if (newlyDone) {
+      setCardFx(null); // suppress the small "caught" FX in favor of the grand celebration
+      setRainbowFx({ name: newlyDone, cards: groups[newlyDone] });
+    }
+  }, [owned, cards]);
+
   // Infinite scroll
   useEffect(() => {
     function onScroll() { if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<400) setPage(p=>p+1); }
@@ -22430,12 +22523,29 @@ function PublicCardDatabase() {
   async function scanCardPhoto(file) {
     setPhotoScan({status:"scanning"});
     try {
-      const base64 = await new Promise((res,rej) => {
+      // Build full-card image + a zoomed bottom-left corner crop (where the tiny card number lives)
+      const { full, corner } = await new Promise((res,rej) => {
         const img=new Image(), url=URL.createObjectURL(file);
-        img.onload=()=>{ URL.revokeObjectURL(url); const MAX=1600,scale=Math.min(1,MAX/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); res(canvas.toDataURL("image/jpeg",0.9).split(",")[1]); };
+        img.onload=()=>{
+          URL.revokeObjectURL(url);
+          const MAX=1600, scale=Math.min(1,MAX/Math.max(img.width,img.height));
+          const fw=Math.round(img.width*scale), fh=Math.round(img.height*scale);
+          const fc=document.createElement("canvas"); fc.width=fw; fc.height=fh;
+          fc.getContext("2d").drawImage(img,0,0,fw,fh);
+          const fullB64=fc.toDataURL("image/jpeg",0.9).split(",")[1];
+          // Bottom-left corner: left ~40% width, bottom ~22% height, upscaled ~2.2x for legibility
+          const cropW=Math.round(img.width*0.42), cropH=Math.round(img.height*0.22);
+          const sx=0, sy=img.height-cropH;
+          const ZOOM=2.2; const cw=Math.round(cropW*ZOOM), ch=Math.round(cropH*ZOOM);
+          const cc=document.createElement("canvas"); cc.width=cw; cc.height=ch;
+          const ctx=cc.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+          ctx.drawImage(img, sx,sy,cropW,cropH, 0,0,cw,ch);
+          const cornerB64=cc.toDataURL("image/jpeg",0.92).split(",")[1];
+          res({ full:fullB64, corner:cornerB64 });
+        };
         img.onerror=rej; img.src=url;
       });
-      const resp=await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg"})});
+      const resp=await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:full,cornerBase64:corner,mediaType:"image/jpeg"})});
       if(!resp.ok){const e=await resp.json().catch(()=>({}));setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`});return;}
       const data=await resp.json();
       if(!data.cardNum&&!data.hero){setPhotoScan({status:"nomatch"});setTimeout(()=>setPhotoScan(null),3000);return;}
@@ -22459,35 +22569,50 @@ function PublicCardDatabase() {
       };
 
       const iNum=normNum(data.cardNum),iHero=(data.hero||"").toLowerCase(),iWeap=(data.weapon||"").toLowerCase(),iTreat=(data.treatment||"").toLowerCase();
+      const iPow=String(data.power||"").replace(/[^0-9]/g,"");
       let match=null;
 
-      // 1. Exact card number + hero (most reliable)
-      if(iNum&&iHero) match=cards.find(c=>normNum(c.cardNum)===iNum&&heroMatch(c.hero,iHero));
-      // 2. Exact card number alone
-      if(!match&&iNum) match=cards.find(c=>normNum(c.cardNum)===iNum);
-      // 3. Hero + weapon + treatment all agree
-      if(!match&&iHero&&iWeap&&iTreat) match=cards.find(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap&&c.treatment?.toLowerCase()===iTreat);
-      // 4. Hero + weapon, single candidate
-      if(!match&&iHero&&iWeap){const cands=cards.filter(c=>heroMatch(c.hero,iHero)&&c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
-      // 5. Hero alone, single candidate
-      if(!match&&iHero){const cands=cards.filter(c=>heroMatch(c.hero,iHero));if(cands.length===1)match=cands[0];}
-      // 6. Fuzzy card number (off by 1 char) + hero agreement
-      if(!match&&iNum&&iHero){const cands=cards.filter(c=>lev(normNum(c.cardNum),iNum)<=1&&heroMatch(c.hero,iHero));if(cands.length===1)match=cands[0];}
+      // HERO-FIRST: hero name is the most reliable read. Find all cards for this hero, then pin the variant.
+      const heroCards = iHero ? cards.filter(c=>heroMatch(c.hero,iHero)) : [];
+
+      if(heroCards.length){
+        // 1. Hero + exact card number (pins the exact variant)
+        if(iNum) match=heroCards.find(c=>normNum(c.cardNum)===iNum);
+        // 2. Hero + fuzzy card number (off by 1 char — handles a misread digit)
+        if(!match&&iNum){const cands=heroCards.filter(c=>lev(normNum(c.cardNum),iNum)<=1);if(cands.length===1)match=cands[0];}
+        // 3. Hero + treatment + weapon all agree (no number needed)
+        if(!match&&iTreat&&iWeap) match=heroCards.find(c=>c.treatment?.toLowerCase()===iTreat&&c.weapon?.toLowerCase()===iWeap);
+        // 4. Hero + treatment + power agree
+        if(!match&&iTreat&&iPow){const cands=heroCards.filter(c=>c.treatment?.toLowerCase()===iTreat&&String(c.power||"").replace(/[^0-9]/g,"")===iPow);if(cands.length===1)match=cands[0];}
+        // 5. Hero + treatment, single candidate
+        if(!match&&iTreat){const cands=heroCards.filter(c=>c.treatment?.toLowerCase()===iTreat);if(cands.length===1)match=cands[0];}
+        // 6. Hero + weapon + power, single candidate
+        if(!match&&iWeap&&iPow){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap&&String(c.power||"").replace(/[^0-9]/g,"")===iPow);if(cands.length===1)match=cands[0];}
+        // 7. Hero + weapon, single candidate
+        if(!match&&iWeap){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
+        // 8. Hero has only one card total
+        if(!match&&heroCards.length===1) match=heroCards[0];
+      }
+
+      // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
+      if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
       if(match){ setPhotoScan({status:"matched",card:match,detected:data}); setScanQty(1); return; }
 
-      // No single confident match -- gather likely candidates so user can pick instead of re-shooting
-      const scored=cards.map(c=>{
+      // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
+      let pool = heroCards.length ? heroCards : cards;
+      const scored=pool.map(c=>{
         let s=0;
-        if(iNum&&normNum(c.cardNum)===iNum)s+=100;
-        else if(iNum&&lev(normNum(c.cardNum),iNum)<=1)s+=40;
-        if(iHero&&heroMatch(c.hero,iHero))s+=50;
-        if(iWeap&&c.weapon?.toLowerCase()===iWeap)s+=20;
-        if(iTreat&&c.treatment?.toLowerCase()===iTreat)s+=15;
+        if(iHero&&heroMatch(c.hero,iHero))s+=60;          // hero is king
+        if(iNum&&normNum(c.cardNum)===iNum)s+=50;
+        else if(iNum&&lev(normNum(c.cardNum),iNum)<=1)s+=20;
+        if(iTreat&&c.treatment?.toLowerCase()===iTreat)s+=35; // treatment strongly narrows
+        if(iWeap&&c.weapon?.toLowerCase()===iWeap)s+=30;      // weapon narrows the rainbow
+        if(iPow&&String(c.power||"").replace(/[^0-9]/g,"")===iPow)s+=15;
         return {card:c,score:s};
       }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
 
-      const candidates=scored.slice(0,6).map(x=>x.card);
+      const candidates=scored.slice(0,8).map(x=>x.card);
       if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data}); return; }
 
       setPhotoScan({status:"nomatch",identified:data});
@@ -23137,6 +23262,17 @@ function PublicCardDatabase() {
         @keyframes caughtText { 0%{opacity:0;transform:scale(0.6) translateY(10px)} 30%{opacity:1;transform:scale(1.1) translateY(0)} 45%{transform:scale(1)} 85%{opacity:1} 100%{opacity:0;transform:scale(0.95)} }
         @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:0} 12%{opacity:1} 100%{transform:translateY(620px) rotate(720deg);opacity:0} }
         @keyframes starPop { 0%{transform:scale(0) rotate(0deg);opacity:0} 35%{transform:scale(1.3) rotate(180deg);opacity:1} 100%{transform:scale(0.6) rotate(360deg);opacity:0} }
+
+        /* ── RAINBOW COMPLETE — GRAND CELEBRATION ── */
+        @keyframes rbBackdrop { 0%{opacity:0} 8%{opacity:1} 88%{opacity:1} 100%{opacity:0} }
+        @keyframes rbRayspin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes rbTitle { 0%{opacity:0;transform:scale(0.3) translateY(40px)} 18%{opacity:1;transform:scale(1.15) translateY(0)} 30%{transform:scale(0.95)} 42%{transform:scale(1.05)} 55%{transform:scale(1)} 88%{opacity:1} 100%{opacity:0;transform:scale(0.9)} }
+        @keyframes rbSub { 0%{opacity:0;transform:translateY(20px)} 25%{opacity:1;transform:translateY(0)} 88%{opacity:1} 100%{opacity:0} }
+        @keyframes rbHue { from{filter:hue-rotate(0deg)} to{filter:hue-rotate(360deg)} }
+        @keyframes rbCardFan { 0%{opacity:0;transform:translateY(80px) scale(0.5) rotate(var(--rb-rot-start))} 30%{opacity:1} 45%{transform:translateY(0) scale(1) rotate(var(--rb-rot))} 88%{opacity:1;transform:translateY(0) scale(1) rotate(var(--rb-rot))} 100%{opacity:0;transform:translateY(-40px) scale(0.9) rotate(var(--rb-rot))} }
+        @keyframes rbConfetti { 0%{transform:translateY(-30px) rotate(0deg);opacity:0} 10%{opacity:1} 100%{transform:translateY(110vh) rotate(900deg);opacity:0} }
+        @keyframes rbShockwave { 0%{transform:scale(0.1);opacity:0.9} 100%{transform:scale(3.5);opacity:0} }
+        @keyframes rbBadge { 0%{transform:scale(0) rotate(-20deg);opacity:0} 40%{transform:scale(1.2) rotate(8deg);opacity:1} 60%{transform:scale(0.95) rotate(-3deg)} 75%{transform:scale(1.05)} 88%{transform:scale(1);opacity:1} 100%{opacity:0} }
       `}</style>
 
       {/* Comp Modal */}
@@ -23146,6 +23282,9 @@ function PublicCardDatabase() {
 
       {/* ── CARD FX OVERLAY ── */}
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
+
+      {/* ── RAINBOW COMPLETE CELEBRATION ── */}
+      {rainbowFx && <RainbowCelebration fx={rainbowFx} onDone={()=>setRainbowFx(null)} />}
 
       {/* Sign-in modal */}
       {signingIn&&(
@@ -23168,7 +23307,7 @@ function PublicCardDatabase() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCB0 List for Sale/Trade"}</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}\u26A1</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}{"\u26A1"}</div>
             <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
               {[["sale","For Sale"],["trade","For Trade"],["either","Sale or Trade"],["offer","Best Offer"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setListType(v)} style={{flex:1,minWidth:"45%",background:listType===v?"rgba(74,222,128,0.15)":"transparent",border:"1.5px solid "+(listType===v?"#4ade80":"rgba(255,255,255,0.1)"),color:listType===v?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
