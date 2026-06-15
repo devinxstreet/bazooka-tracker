@@ -22291,19 +22291,19 @@ function PublicCardDatabase() {
     return ()=>unsub();
   }, []);
 
-  // -- Load cards (instant from localStorage, then CDN, then Firestore fallback) --
   // -- Load cards (instant from localStorage init, background refresh if stale) --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v3";
     const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+    let cacheHasCards = false;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
-        const { ts } = JSON.parse(raw);
-        // Cards already in state from useState init — just check if still fresh
-        if (Date.now() - ts < CACHE_TTL) { setLoading(false); return; }
-        // Stale — show cached cards immediately (already in state), refresh in background
-        setLoading(false);
+        const parsed = JSON.parse(raw);
+        cacheHasCards = Array.isArray(parsed.cards) && parsed.cards.length > 0;
+        // Only trust the cache early-return if it actually contains cards AND is fresh
+        if (cacheHasCards && Date.now() - parsed.ts < CACHE_TTL) { setLoading(false); return; }
+        if (cacheHasCards) setLoading(false); // stale but usable — show now, refresh below
       }
     } catch(e) {}
     (async () => {
@@ -22311,24 +22311,29 @@ function PublicCardDatabase() {
         const r = await fetch("/cards-data.json");
         if (r.ok) {
           const all = await r.json();
-          setCards(all); setLoading(false);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-          return;
+          if (Array.isArray(all) && all.length>0) {
+            setCards(all); setLoading(false);
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+            return;
+          }
         }
       } catch(e) {}
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
         const r2 = await fetch(url);
         const all = await r2.json();
-        setCards(all); setLoading(false);
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-        return;
+        if (Array.isArray(all) && all.length>0) {
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
       } catch(e) {}
-      getDocs(collection(db,"boba_checklist")).then(snap => {
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
         const all = snap.docs.map(d=>({id:d.id,...d.data()}));
         setCards(all); setLoading(false);
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-      });
+      } catch(e) { setLoading(false); }
     })();
   }, []);
   // -- Auth + owned + wants + private --
@@ -24177,6 +24182,23 @@ function PublicCardDatabase() {
                 </div>
               ))}
             </div>
+            {cards.length===0 && !loading && (
+              <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.5)"}}>
+                <div style={{fontSize:40,marginBottom:14}}>📭</div>
+                <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Cards didn't load</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:18,lineHeight:1.6}}>This can happen on a slow or spotty connection.</div>
+                <button onClick={()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }}
+                  style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
+                  🔄 Reload Cards
+                </button>
+              </div>
+            )}
+            {cards.length>0 && filtered.length===0 && (
+              <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.4)"}}>
+                <div style={{fontSize:32,marginBottom:12}}>🔍</div>
+                <div style={{fontSize:14,fontWeight:700}}>No cards match your filters</div>
+              </div>
+            )}
             {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
           </>
         )}
