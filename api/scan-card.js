@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const { imageBase64, mediaType, setName, treatment, weapon } = req.body;
+    const { imageBase64, cornerBase64, mediaType, setName, treatment, weapon } = req.body;
 
     if (!imageBase64) return res.status(400).json({ error: "No image data provided" });
 
@@ -20,30 +20,47 @@ export default async function handler(req, res) {
       finalMediaType = "image/jpeg";
     }
 
-    const systemPrompt = `You are a Bo Jackson Battle Arena (BoBA) trading card identifier. 
-Your job is to read card details from images and return structured JSON.
+    const systemPrompt = `You are a Bo Jackson Battle Arena (BoBA) trading card identifier. You read details from photos of cards and return structured JSON. Photos may be angled, glare-y, blurry, or imperfect — do your best and NEVER invent details you cannot actually see.
 
-Always return valid JSON with these fields:
-- cardNum: the card number (e.g. "1", "ALT-4", "PL-59", "RAD-1") — look for # symbol or number in corner
-- hero: the hero name printed on the card (e.g. "Maverick", "Showtime", "Gaveler")
-- weapon: the weapon type (Fire, Ice, Steel, Brawl, Glow, Hex, Gum, Metallic, Alt, Super)
-- treatment: the card treatment/variant (e.g. "Base Set", "80's Rad Battlefoil", "Prizm")
-- power: the power number (e.g. "135", "130", "160")
-- visualHints: 6-10 descriptive keywords about the card's visual appearance, colors, patterns, foil type, background art
+READ THE CARD IN THIS PRIORITY ORDER:
+1. HERO NAME — this is the single most important field. It is printed large and bold, usually across the card (often a banner near the center or bottom). It is big and readable even in bad photos. Always read it carefully. (e.g. "Maverick", "Showtime", "Gaveler", "BoJax")
+2. TREATMENT — the variant/finish name, usually in small text near the bottom (e.g. "Base Set", "80's Rad Battlefoil", "Prizm", "Sort Thumbs"). Read it if you can.
+3. WEAPON — the element/weapon type, shown by an icon and color theme: Fire (orange/red), Ice (blue), Steel (silver/grey), Brawl (red), Glow (green), Hex (purple), Gum (pink), Metallic (chrome), Alt, Super (gold). One of: Fire, Ice, Steel, Brawl, Glow, Hex, Gum, Metallic, Alt, Super.
+4. POWER — a large number, usually top-right (e.g. "135", "160").
+5. CARD NUMBER — SMALL, printed in the BOTTOM-LEFT corner. Often tiny and can be blurry. A SECOND zoomed-in image of the bottom-left corner may be provided — use it to read this number. Formats look like "1", "TB1", "ALT-4", "PL-59", "RAD-1", "EPR1". If you genuinely cannot read it, return null — do NOT guess.
 
-Return ONLY valid JSON, no markdown, no explanation.
-Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set","power":"135","visualHints":"blue ice border, dark background, snowflake pattern, holographic sheen, portrait pose"}`;
+RULES:
+- Hero name + treatment together usually identify the card even without the number. Prioritize getting those right over guessing the number.
+- If a field is unreadable, return null for it rather than guessing.
+- Return ONLY valid JSON. No markdown, no explanation.
+
+Fields:
+- hero: hero name (string or null)
+- cardNum: bottom-left card number (string or null — null if unreadable, never guess)
+- weapon: one of the weapon types above (string or null)
+- treatment: treatment/variant name (string or null)
+- power: power number (string or null)
+- confidence: confidence the HERO is correct, "high" | "medium" | "low"
+- visualHints: 6-10 keywords about colors, foil, pattern, background art
+
+Example: {"hero":"Showtime","cardNum":"4","weapon":"Ice","treatment":"Base Set","power":"135","confidence":"high","visualHints":"blue ice border, dark background, snowflake pattern, holographic sheen, portrait pose"}`;
 
     const userContent = [
+      { type: "text", text: "FULL CARD photo:" },
       {
         type: "image",
-        source: {
-          type: "base64",
-          media_type: finalMediaType,
-          data: imageBase64,
-        },
+        source: { type: "base64", media_type: finalMediaType, data: imageBase64 },
       },
     ];
+
+    // Optional zoomed bottom-left corner crop to help read the tiny card number
+    if (cornerBase64) {
+      userContent.push({ type: "text", text: "ZOOMED-IN bottom-left corner (use this to read the small card number):" });
+      userContent.push({
+        type: "image",
+        source: { type: "base64", media_type: finalMediaType, data: cornerBase64 },
+      });
+    }
 
     // Add context hints if provided
     const contextParts = [];
@@ -51,9 +68,9 @@ Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set",
     if (treatment) contextParts.push(`Treatment: ${treatment}`);
     if (weapon)    contextParts.push(`Weapon: ${weapon}`);
     if (contextParts.length > 0) {
-      userContent.push({ type: "text", text: `Context: ${contextParts.join(", ")}. Identify the card and return JSON.` });
+      userContent.push({ type: "text", text: `Context hint: ${contextParts.join(", ")}. Identify the card and return JSON. Prioritize reading the HERO name first.` });
     } else {
-      userContent.push({ type: "text", text: "Identify this BoBA card and return JSON with cardNum, hero, weapon, treatment, power, and visualHints." });
+      userContent.push({ type: "text", text: "Identify this BoBA card. Read the HERO name first (large/bold), then treatment, weapon, power, and finally the small bottom-left card number. Return JSON." });
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -65,7 +82,7 @@ Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set",
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 256,
+        max_tokens: 320,
         system: systemPrompt,
         messages: [{ role: "user", content: userContent }],
       }),
@@ -87,7 +104,6 @@ Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set",
       parsed = JSON.parse(clean);
     } catch (e) {
       console.error("JSON parse error:", e, "Raw:", rawText);
-      // Try to extract what we can
       const numMatch  = rawText.match(/"cardNum"\s*:\s*"([^"]+)"/);
       const heroMatch = rawText.match(/"hero"\s*:\s*"([^"]+)"/);
       if (numMatch)  parsed.cardNum = numMatch[1];
@@ -100,6 +116,7 @@ Example: {"cardNum":"4","hero":"Showtime","weapon":"Ice","treatment":"Base Set",
       weapon:       parsed.weapon      || null,
       treatment:    parsed.treatment   || null,
       power:        parsed.power       || null,
+      confidence:   parsed.confidence  || null,
       visualHints:  parsed.visualHints || null,
       identified:   parsed,
     });
