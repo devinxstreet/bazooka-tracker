@@ -23764,6 +23764,9 @@ function PublicCardDatabase() {
               onMouseLeave={e=>{e.target.style.transform="";e.target.style.boxShadow="0 8px 32px rgba(232,49,122,0.4)";}}>
               Sign in with Google
             </button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:16,lineHeight:1.5}}>
+              By signing in, you agree to our <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"#E8317A",fontWeight:700,textDecoration:"none"}}>Privacy Policy</a>.
+            </div>
           </div>
         </div>
       )}
@@ -25822,6 +25825,69 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
   );
 }
 
+function PublicPrivacyPolicy() {
+  const S = {
+    wrap:{ minHeight:"100vh", background:"#08000a", color:"#e8e8e8", fontFamily:"'Trebuchet MS',-apple-system,sans-serif" },
+    inner:{ maxWidth:760, margin:"0 auto", padding:"48px 24px 80px" },
+    h1:{ fontSize:34, fontWeight:900, color:"#fff", marginBottom:6, letterSpacing:-0.5 },
+    updated:{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:36 },
+    h2:{ fontSize:18, fontWeight:800, color:"#E8317A", margin:"32px 0 10px" },
+    p:{ fontSize:15, lineHeight:1.7, color:"rgba(255,255,255,0.75)", marginBottom:12 },
+    li:{ fontSize:15, lineHeight:1.7, color:"rgba(255,255,255,0.75)", marginBottom:8 },
+    a:{ color:"#E8317A", fontWeight:700, textDecoration:"none" },
+    back:{ display:"inline-block", marginBottom:28, color:"#E8317A", fontWeight:700, textDecoration:"none", fontSize:14 },
+  };
+  return (
+    <div style={S.wrap}>
+      <div style={S.inner}>
+        <a href="/cards" style={S.back}>← Back to Bazooka</a>
+        <h1 style={S.h1}>Privacy Policy</h1>
+        <div style={S.updated}>Last updated: June 15, 2026</div>
+
+        <h2 style={S.h2}>1. Introduction / Who We Are</h2>
+        <p style={S.p}>Bazooka ("Bazooka Vault," "we," "us," or "our") is operated by Bazooka Breaks LLC. This Privacy Policy explains how we collect, use, and protect your information when you use our website, the Bazooka Vault collection platform, and related services (the "Service").</p>
+
+        <h2 style={S.h2}>2. Information We Collect</h2>
+        <p style={S.p}>We may collect the following information:</p>
+        <ul>
+          <li style={S.li}><strong>Account data:</strong> when you sign in with Google, we receive your name, email address, and Google profile identifier. We do not see or store your Google password.</li>
+          <li style={S.li}><strong>Collection data:</strong> the cards, quantities, wants, decks, costs, values, and acquisition details you add to your account.</li>
+          <li style={S.li}><strong>Marketplace & sale submissions:</strong> listings, offers, messages, and sale details you create, including payment handles (e.g., PayPal or Zelle usernames) you choose to share to complete a transaction.</li>
+          <li style={S.li}><strong>Sell-page submissions:</strong> name, contact info, and card details you provide when submitting cards for a quote.</li>
+          <li style={S.li}><strong>Usage data:</strong> basic technical information such as device and browser type, and activity within the Service used to operate and improve it.</li>
+        </ul>
+
+        <h2 style={S.h2}>3. How We Use Your Information</h2>
+        <p style={S.p}>We use your information to operate and improve the Service, maintain your collection and account, enable community and marketplace features, respond to inquiries and quote submissions, send account-related communications, and comply with legal obligations.</p>
+
+        <h2 style={S.h2}>4. Payments Between Users</h2>
+        <p style={S.p}>Bazooka does not process payments directly. Marketplace and sale transactions are arranged peer-to-peer between users using third-party payment services such as PayPal or Zelle. Any payment handle you share is provided to the other party to complete a transaction. We do not collect, store, or have access to your full financial account numbers, and we are not a party to transactions between users. Your use of any third-party payment service is governed by that provider's own terms and privacy policy.</p>
+
+        <h2 style={S.h2}>5. Third-Party Services</h2>
+        <p style={S.p}>We rely on trusted third-party services to operate the Service, including Google Firebase (authentication, database, and file storage) and Google Sign-In. These providers process data on our behalf and maintain their own privacy policies governing their use of that data. Marketplace transactions may involve third-party payment services as described in Section 4.</p>
+
+        <h2 style={S.h2}>6. Cookies and Similar Technologies</h2>
+        <p style={S.p}>We use cookies and similar browser technologies that are necessary to operate the Service, such as keeping you signed in and remembering your place in the app. If we add analytics or advertising technologies in the future, we will update this policy accordingly.</p>
+
+        <h2 style={S.h2}>7. Data Retention and Security</h2>
+        <p style={S.p}>We retain your data for as long as your account is active or as needed to provide the Service and fulfill the purposes described in this policy. We use reasonable technical and organizational measures to protect your information. However, no method of transmission or storage is completely secure, and we cannot guarantee absolute security.</p>
+
+        <h2 style={S.h2}>8. Your Rights</h2>
+        <p style={S.p}>Depending on where you live, you may have the right to access, correct, delete, or export your personal data, or to object to or restrict certain processing. To exercise these rights, please contact us using the information below. If you are located in the European Economic Area, the United Kingdom, or California, additional disclosures and rights may apply.</p>
+
+        <h2 style={S.h2}>9. Children's Privacy</h2>
+        <p style={S.p}>The Service is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us personal information, please contact us so we can remove it.</p>
+
+        <h2 style={S.h2}>10. Changes to This Policy</h2>
+        <p style={S.p}>We may update this Privacy Policy from time to time. We will post the updated version on this page and revise the "Last updated" date above. Your continued use of the Service after changes take effect constitutes acceptance of the updated policy.</p>
+
+        <h2 style={S.h2}>11. Contact</h2>
+        <p style={S.p}>For privacy-related questions or to exercise your rights, please contact us at <a href="mailto:support@bazookabreaks.com" style={S.a}>support@bazookabreaks.com</a>.</p>
+      </div>
+    </div>
+  );
+}
+
 function PublicSellPage() {
   const [seller, setSeller]   = useState({ name:"", contact:"", source:"Discord", payment:"", paymentHandle:"" });
   const [rows, setRows]       = useState([{ id:uid(), name:"", qty:"1", askingPrice:"" }]);
@@ -27716,6 +27782,7 @@ export default function App() {
   const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
+  if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
   // Homepage at root — the public front door
