@@ -73,7 +73,9 @@ function calcStream(s, targetBreaker=null) {
   const primaryCommAmt = isSingles ? splitBase : (s.splitRep ? commAmt*splitPct : commAmt);
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
   const biguCardCosts = isBigU ? (parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0) : 0;
-  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts;
+  // Shipping is split 50/50: BigU fronts it, Bazooka reimburses half (and eats that half as a cost)
+  const biguShippingHalf = isBigU ? ((parseFloat(s.biguShipping)||0) * 0.5) : 0;
+  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts - biguShippingHalf;
   let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
@@ -84,10 +86,10 @@ function calcStream(s, targetBreaker=null) {
            : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   }
   const biguReimb = isBigU
-    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)
+    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+biguShippingHalf
     : 0;
 
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -4157,7 +4159,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4188,7 +4190,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", biguShipping:existingStream.biguShipping||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4760,9 +4762,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     <input type="number" step="0.01" value={recap.biguInsuranceCards||""} onChange={e=>{ rf("biguInsuranceCards")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
                   </div>
                 </div>
-                {rc && ((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0))>0 && (
+                <div style={{ marginTop:10 }}>
+                  <label style={{ ...S.lbl, color:"#FBBF24" }}>Shipping ($) — split 50/50 with Bazooka</label>
+                  <input type="number" step="0.01" value={recap.biguShipping||""} onChange={e=>{ rf("biguShipping")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
+                  {(parseFloat(recap.biguShipping)||0)>0 && (
+                    <div style={{ fontSize:11, color:"#FBBF24", marginTop:4 }}>You're reimbursed ${((parseFloat(recap.biguShipping)||0)*0.5).toFixed(2)} (half of ${(parseFloat(recap.biguShipping)||0).toFixed(2)})</div>
+                  )}
+                </div>
+                {rc && ((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5))>0 && (
                   <div style={{ fontSize:12, color:"#FBBF24", fontWeight:700, marginTop:8 }}>
-                    Total card reimb this stream: ${((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)).toFixed(2)}
+                    Total reimb this stream: ${((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5)).toFixed(2)}
                   </div>
                 )}
               </div>
@@ -5046,6 +5055,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
                     ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack/TL)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
+                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && (parseFloat(recap.biguShipping)||0)>0 ? [{ l:"📦 Shipping reimb (50% of "+fmt(parseFloat(recap.biguShipping)||0)+")", v:"+ "+fmt((parseFloat(recap.biguShipping)||0)*0.5), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(rc.imcReimb||0), c:"#60A5FA" }] : []),
