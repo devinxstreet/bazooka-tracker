@@ -6,6 +6,20 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvi
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 
+// --- Early-access allowlist ---------------------------------------------
+// Until June 18, only @bazookabreaks.com team + these specific emails can get in.
+// Add any individual emails you want to grant early access to (lowercase).
+const EARLY_ACCESS_EMAILS = [
+  // "jeff@example.com",
+  // "tester@gmail.com",
+];
+function hasEarlyAccess(email) {
+  const e = (email || "").toLowerCase().trim();
+  if (!e) return false;
+  return e.endsWith("@bazookabreaks.com") || EARLY_ACCESS_EMAILS.includes(e);
+}
+// ------------------------------------------------------------------------
+
 // Pre-fetch BoJax card images for loading screen — runs once at module load
 const LOADING_CARD_IMAGES = { urls: [], loaded: false };
 (async () => {
@@ -23530,7 +23544,7 @@ function PublicCardDatabase() {
           catch(se) { usnap = await getDoc(uref); }
           // --- Access pause: only @bazookabreaks.com team until June 18 (flip ACCESS_PAUSED to false to re-open) ---
           const ACCESS_PAUSED = true;
-          const isTeam = (u.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+          const isTeam = hasEarlyAccess(u.email);
           if (ACCESS_PAUSED && !isTeam) {
             alert("We're putting some finishing touches on things and aren't quite open yet — please check back on June 18th. Thanks for your patience!");
             await signOut(auth);
@@ -29320,7 +29334,7 @@ export default function App() {
 
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
   const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
-  const _isTeam = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const _isTeam = hasEarlyAccess(user?.email);
   const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/sell","/chases","/showcase"];
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
