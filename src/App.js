@@ -14572,7 +14572,7 @@ function BobaShowcase({ uid }) {
   const [copied,    setCopied]    = useState(false);
   const [ownerName, setOwnerName] = useState("");
   const [ownerSocials, setOwnerSocials] = useState({ discord:"", whatnot:"" });
-  const [privateIds, setPrivateIds] = useState({});
+  const [publicIds, setPublicIds] = useState({});
   const CARDS_PER_PAGE = 9;
   const ownedDocId = uid || "owned";
 
@@ -14584,10 +14584,10 @@ function BobaShowcase({ uid }) {
           try {
             const [uSnap, pSnap] = await Promise.all([
               getDoc(doc(db,"users",uid)),
-              getDoc(doc(db,"boba_private",uid)),
+              getDoc(doc(db,"boba_public",uid)),
             ]);
             if (uSnap.exists()) { const d=uSnap.data(); setOwnerName(d.username ? `@${d.username}` : ((d.displayName||d.email||"").split(" ")[0]||"")); setOwnerSocials({ discord:d.discordName||"", whatnot:d.whatnotName||"" }); }
-            if (pSnap.exists()) setPrivateIds(pSnap.data()||{});
+            if (pSnap.exists()) setPublicIds(pSnap.data()||{});
           } catch(e) {}
         }
         // 1. Load owned doc
@@ -14630,7 +14630,7 @@ function BobaShowcase({ uid }) {
     load();
   }, [ownedDocId]);
 
-  const ownedCards = cards.filter(c => owned[c.id] && !privateIds[c.id]);
+  const ownedCards = cards.filter(c => owned[c.id] && publicIds[c.id]);
   const sorted = [...ownedCards].sort((a, b) => {
     if (sortBy === "set") {
       const s = (a.setName||"").localeCompare(b.setName||"");
@@ -14731,8 +14731,8 @@ function BobaShowcase({ uid }) {
         {ownedCards.length === 0 ? (
           <div style={{ textAlign:"center", padding:"100px 0", color:"#333" }}>
             <div style={{ fontSize:56, marginBottom:20 }}>{"\uD83C\uDCCF"}</div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#555" }}>No cards yet</div>
-            <div style={{ fontSize:13, marginTop:8, color:"#333" }}>Mark cards as owned in the BoBA Checklist to populate your showcase.</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#555" }}>No public cards yet</div>
+            <div style={{ fontSize:13, marginTop:8, color:"#333" }}>Collections are private by default. Tap the 👁 icon on any owned card in the Card Database to make it public and show it here.</div>
           </div>
         ) : (
           <>
@@ -21210,7 +21210,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, privateCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -23147,7 +23147,7 @@ function PublicCardDatabase() {
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
-  const [privateCards,  setPrivateCards]  = useState({});
+  const [publicCards,   setPublicCards]   = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
   const [myUsername,    setMyUsername]    = useState("");
@@ -23568,13 +23568,13 @@ function PublicCardDatabase() {
           const [ownSnap, wSnap, prvSnap, lotSnap] = await Promise.all([
             getDoc(doc(db,"boba_owned",u.uid)),
             getDoc(doc(db,"boba_wants",u.uid)),
-            getDoc(doc(db,"boba_private",u.uid)),
+            getDoc(doc(db,"boba_public",u.uid)),
             getDoc(doc(db,"boba_lots",u.uid)),
           ]);
           setOwned(ownSnap.exists() ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
           setWantList(wSnap.exists() ? wSnap.data() : {});
-          setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
+          setPublicCards(prvSnap.exists() ? prvSnap.data() : {});
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
           try { const umSnap = await getDoc(doc(db,"user_missing",u.uid)); setUserMissing(umSnap.exists() && Array.isArray(umSnap.data().cards) ? umSnap.data().cards : []); } catch(e){}
           try {
@@ -23586,7 +23586,7 @@ function PublicCardDatabase() {
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPublicCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
       }
     });
   }, []);
@@ -23768,10 +23768,10 @@ function PublicCardDatabase() {
   }
   async function togglePrivate(cardId) {
     if (!user) return;
-    const next = {...privateCards};
+    const next = {...publicCards};
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
-    setPrivateCards(next);
-    await setDoc(doc(db,"boba_private",user.uid), next);
+    setPublicCards(next);
+    await setDoc(doc(db,"boba_public",user.uid), next);
   }
   // -- Lot (per-copy cost/value) tracking --
   // -- Collection CSV import --
@@ -26207,25 +26207,24 @@ function PublicCardDatabase() {
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
                     onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
-                  {/* Comp button moved to card back (inside BobaCard flip) */}
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
                       <div style={{fontSize:48,animation:"lockPulse 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards",lineHeight:1,marginBottom:6}}>
-                        {privateCards[c.id]?"\uD83D\uDD12":"\uD83D\uDC41"}
+                        {publicCards[c.id]?"\uD83D\uDC41":"\uD83D\uDD12"}
                       </div>
                       <div style={{fontSize:11,fontWeight:800,color:"#fff",textAlign:"center",textShadow:"0 2px 8px rgba(0,0,0,0.8)",letterSpacing:0.5}}>
-                        {privateCards[c.id]?"Hidden from friends":"Visible to friends"}
+                        {publicCards[c.id]?"Public — visible on your profile":"Private — only you can see"}
                       </div>
                     </div>
                   )}
-                  {/* Card dim when private */}
-                  {privateCards[c.id]&&privacyAnim!==c.id&&(
+                  {/* Card dim when private (default) */}
+                  {!publicCards[c.id]&&privacyAnim!==c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.4)",pointerEvents:"none",zIndex:5,display:"flex",alignItems:"flex-end",justifyContent:"flex-end",padding:6}}>
                       <span style={{fontSize:14,filter:"drop-shadow(0 1px 3px rgba(0,0,0,0.8))"}}>{"\uD83D\uDD12"}</span>
                     </div>
                   )}
-                  {/* Private toggle + list button on owned cards */}
+                  {/* Public/Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
                     <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
                       <button onClick={e=>{
@@ -26233,9 +26232,9 @@ function PublicCardDatabase() {
                         togglePrivate(c.id);
                         setPrivacyAnim(c.id);
                         setTimeout(()=>setPrivacyAnim(null), 1300);
-                      }} title={privateCards[c.id]?"Card is private (friends can't see)":"Card is visible to friends"}
-                        style={{background:privateCards[c.id]?"rgba(232,49,122,0.85)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700,transition:"background 0.2s"}}>
-                        {privateCards[c.id]?"\uD83D\uDD12":"\uD83D\uDC41"}
+                      }} title={publicCards[c.id]?"Public — tap to make private":"Private — tap to make public"}
+                        style={{background:publicCards[c.id]?"rgba(74,222,128,0.85)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700,transition:"background 0.2s"}}>
+                        {publicCards[c.id]?"\uD83D\uDC41":"\uD83D\uDD12"}
                       </button>
                       <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
                         style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
@@ -26575,7 +26574,7 @@ function PublicCardDatabase() {
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
             respondFriendReq={respondFriendReq}
             sendFriendRequest={sendFriendRequest}
-            cards={cards} owned={owned} privateCards={privateCards}
+            cards={cards} owned={owned} publicCards={publicCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             inp={inp} teamInvites={teamInvites}
           respondTeamInvite={respondTeamInvite}
