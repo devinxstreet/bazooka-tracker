@@ -22783,6 +22783,91 @@ function OnboardingModal({ user, onComplete, inp }) {
   );
 }
 
+const LB_TIERS = [[0,"Rookie","#7B9CFF"],[25,"Collector","#4ade80"],[100,"Veteran","#FBBF24"],[300,"Elite","#E8317A"],[750,"Legend","#A855F7"],[1500,"Hall of Fame","#FFD700"]];
+function lbTier(count){ return [...LB_TIERS].reverse().find(t=>count>=t[0]) || LB_TIERS[0]; }
+
+function Leaderboard({ user, marketSales=[] }) {
+  const [rows, setRows] = useState(null);
+  const [cat, setCat] = useState("collectionCount");
+  const CATS = [
+    { key:"collectionCount", label:"📦 Total Cards" },
+    { key:"uniqueCount",     label:"🃏 Unique Cards" },
+    { key:"rainbowCount",    label:"🌈 Rainbows" },
+    { key:"oneOfOneCount",   label:"💎 1/1s" },
+    { key:"deals",           label:"🤝 Deals Done" },
+  ];
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db,"users"));
+        const dealCounts = {};
+        marketSales.forEach(s => { if(s.sellerUid){dealCounts[s.sellerUid]=(dealCounts[s.sellerUid]||0)+1;} if(s.buyerUid){dealCounts[s.buyerUid]=(dealCounts[s.buyerUid]||0)+1;} });
+        const list = snap.docs.map(d => { const x=d.data(); return {
+          uid: d.id,
+          name: x.username ? `@${x.username}` : (x.displayName ? x.displayName.split(" ")[0] : "Collector"),
+          photoURL: x.photoURL || "",
+          collectionCount: x.collectionCount||0,
+          uniqueCount: x.uniqueCount||0,
+          rainbowCount: x.rainbowCount||0,
+          oneOfOneCount: x.oneOfOneCount||0,
+          deals: dealCounts[d.id]||0,
+        }; });
+        if (alive) setRows(list);
+      } catch(e) { console.error("leaderboard load failed:", e); if(alive) setRows([]); }
+    })();
+    return () => { alive = false; };
+  }, [marketSales]);
+
+  const ranked = (rows||[]).filter(r => (r[cat]||0) > 0).sort((a,b)=>(b[cat]||0)-(a[cat]||0)).slice(0,100);
+  const myRank = user ? ranked.findIndex(r=>r.uid===user.uid) : -1;
+  const medal = (i)=> i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`;
+
+  return (
+    <div style={{ maxWidth:720, margin:"0 auto" }}>
+      <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4 }}>🏆 Leaderboard</div>
+      <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", marginBottom:18 }}>The top collectors in the Bazooka community. Climb the ranks.</div>
+
+      {/* Category toggle */}
+      <div className="nav-bar" style={{ display:"flex", gap:8, marginBottom:18, overflowX:"auto", paddingBottom:4 }}>
+        {CATS.map(c=>(
+          <button key={c.key} onClick={()=>setCat(c.key)} style={{ whiteSpace:"nowrap", background:cat===c.key?"rgba(232,49,122,0.15)":"transparent", color:cat===c.key?"#E8317A":"rgba(255,255,255,0.5)", border:`1px solid ${cat===c.key?"#E8317A":"rgba(255,255,255,0.12)"}`, borderRadius:20, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{c.label}</button>
+        ))}
+      </div>
+
+      {!rows ? (
+        <div style={{ textAlign:"center", padding:60, color:"#666" }}>Loading rankings…</div>
+      ) : ranked.length===0 ? (
+        <div style={{ textAlign:"center", padding:60, color:"#666" }}>No rankings yet in this category. Be the first!</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {ranked.map((r,i)=>{
+            const isMe = user && r.uid===user.uid;
+            const tier = lbTier(r.collectionCount);
+            return (
+              <div key={r.uid} style={{ display:"flex", alignItems:"center", gap:12, background:isMe?"rgba(232,49,122,0.1)":"#111", border:`1px solid ${isMe?"rgba(232,49,122,0.4)":"#222"}`, borderRadius:12, padding:"10px 14px" }}>
+                <div style={{ width:30, textAlign:"center", fontSize:i<3?20:14, fontWeight:900, color:i<3?"#FBBF24":"#666" }}>{medal(i)}</div>
+                {r.photoURL
+                  ? <img src={r.photoURL} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", border:"1px solid #333" }}/>
+                  : <div style={{ width:36, height:36, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🃏</div>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.name}{isMe&&<span style={{color:"#E8317A",fontSize:11,marginLeft:6}}>YOU</span>}</div>
+                  <div style={{ fontSize:10, fontWeight:700, color:tier[2] }}>{tier[1]}</div>
+                </div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#E8317A" }}>{(r[cat]||0).toLocaleString()}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {user && myRank===-1 && rows && (
+        <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#666" }}>You're not ranked in this category yet — start collecting to climb on.</div>
+      )}
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
@@ -22802,8 +22887,8 @@ function PublicCardDatabase() {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team","ledger"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -22840,7 +22925,7 @@ function PublicCardDatabase() {
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
   useEffect(() => {
     const target = TAB_PATHS[activeTab] || "/cards";
     if (window.location.pathname !== target) {
@@ -23248,6 +23333,26 @@ function PublicCardDatabase() {
     if (!user) return;
     setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
   }, [user]);
+
+  // Write denormalized collection stats to the user doc (powers the leaderboard) — debounced
+  useEffect(() => {
+    if (!user || !cards.length) return;
+    const t = setTimeout(async () => {
+      try {
+        const ownedIds = Object.keys(owned).filter(id => cards.find(c=>c.id===id));
+        const collectionCount = ownedIds.reduce((s,id)=>s+(owned[id]||1),0);
+        const uniqueCount = ownedIds.length;
+        const oneOfOneCount = ownedIds.filter(id => { const c=cards.find(x=>x.id===id); return c && (String(c.notation||"").includes("1/1") || String(c.cardNum||"").includes("1/1")); }).length;
+        // rainbow groups fully owned
+        const groups = {};
+        cards.forEach(c => { const t2=(c.treatment||"").toLowerCase(); if(t2==="home team discount")return; if(!c.hero)return; (groups[c.hero]=groups[c.hero]||[]).push(c); });
+        let rainbowCount = 0;
+        Object.values(groups).forEach(g => { if(g.length>=2 && g.every(c=>owned[c.id])) rainbowCount++; });
+        await setDoc(doc(db,"users",user.uid), { collectionCount, uniqueCount, oneOfOneCount, rainbowCount, statsUpdatedAt: Date.now() }, { merge:true });
+      } catch(e) { console.error("stats denorm failed:", e); }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [owned, cards, user]);
 
   // Detect collection milestones -> celebratory toast
   useEffect(() => {
@@ -24388,6 +24493,7 @@ function PublicCardDatabase() {
             {user&&tabBtn("friends","\uD83D\uDC65 Friends",(friendReqs.length+teamInvites.length))}
             {user&&tabBtn("team","\uD83C\uDFC6 Team",0)}
             {user&&tabBtn("ledger","\uD83D\uDCD2 Ledger",0)}
+            {tabBtn("leaderboard","\uD83C\uDFC6 Leaderboard",0)}
           </div>
         </div>
       </div>
@@ -25545,6 +25651,9 @@ function PublicCardDatabase() {
         )}
         {activeTab==="ledger"&&(
           <AccountingLedger lots={lots} marketSales={marketSales} user={user} cards={cards} />
+        )}
+        {activeTab==="leaderboard"&&(
+          <Leaderboard user={user} marketSales={marketSales} />
         )}
       </div>{/* end tab content */}
     </div>
@@ -28277,7 +28386,7 @@ export default function App() {
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <PublicCardDatabase />;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
