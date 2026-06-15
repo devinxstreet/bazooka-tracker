@@ -23143,6 +23143,7 @@ function PublicCardDatabase() {
   const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
   const [powerMenuOpen, setPowerMenuOpen] = useState(false);
   const [navMenu,       setNavMenu]       = useState(null); // "collect" | "play" | null (hover dropdowns)
+  const navGroupItems = useRef({});
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
@@ -24551,6 +24552,8 @@ function PublicCardDatabase() {
   const navGroup=(key,label,items)=>{
     const childActive = items.some(it=>it.id===activeTab);
     const open = navMenu===key;
+    // Stash items so the root-level mobile overlay can render them outside the scroll container
+    navGroupItems.current[key] = { label, items };
     return (
       <div key={key} style={{position:"relative"}} {...(isMobile ? {} : { onMouseEnter:()=>setNavMenu(key), onMouseLeave:()=>setNavMenu(m=>m===key?null:m) })}>
         <button className="nav-tab" data-active={childActive?"1":"0"} onClick={()=>setNavMenu(o=>o===key?null:key)} style={{
@@ -24562,24 +24565,7 @@ function PublicCardDatabase() {
         }}>
           {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
         </button>
-        {open && (isMobile ? (
-          <div onClick={()=>setNavMenu(null)} style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:88}}>
-            <div onClick={e=>e.stopPropagation()} style={{width:"calc(100% - 24px)",maxWidth:380,background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,boxShadow:"0 12px 40px rgba(0,0,0,0.8)",padding:8}}>
-              <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:1,textTransform:"uppercase",padding:"6px 10px 8px"}}>{label}</div>
-              {items.map(it=>(
-                <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
-                  display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
-                  background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"none",
-                  color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:"14px 14px",fontSize:15,fontWeight:700,
-                  cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                }}>
-                  <span>{it.label}</span>
-                  {it.badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{it.badge}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
+        {open && !isMobile && (
           <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
             {items.map(it=>(
               <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
@@ -24595,13 +24581,32 @@ function PublicCardDatabase() {
               </button>
             ))}
           </div>
-        ))}
+        )}
       </div>
     );
   };
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
+      {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
+      {isMobile && navMenu && navGroupItems.current[navMenu] && (
+        <div onClick={()=>setNavMenu(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:90}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"calc(100% - 24px)",maxWidth:400,background:"#161616",border:"1px solid #2a2a2a",borderRadius:14,boxShadow:"0 16px 48px rgba(0,0,0,0.85)",padding:8}}>
+            <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:1,textTransform:"uppercase",padding:"8px 12px 10px"}}>{navGroupItems.current[navMenu].label}</div>
+            {navGroupItems.current[navMenu].items.map(it=>(
+              <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
+                background:activeTab===it.id?"rgba(232,49,122,0.14)":"transparent",border:"none",
+                color:activeTab===it.id?"#E8317A":"#eee",borderRadius:10,padding:"15px 14px",fontSize:16,fontWeight:700,
+                cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+              }}>
+                <span>{it.label}</span>
+                {it.badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:20,height:20,padding:"0 6px",fontSize:11,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{it.badge}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <style>{`
         @keyframes lockPulse { 0%{transform:scale(0.5);opacity:0} 40%{transform:scale(1.3);opacity:1} 70%{transform:scale(0.95);opacity:1} 100%{transform:scale(1);opacity:1} }
         @keyframes lockFadeOut { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
