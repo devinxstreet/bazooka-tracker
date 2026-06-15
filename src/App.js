@@ -14926,7 +14926,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0 }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -15109,7 +15109,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
@@ -22427,6 +22427,18 @@ function PublicCardDatabase() {
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
 
+  // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
+  const flipTimerRef = useRef(null);
+  const resetFlipTimer = () => {
+    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+    flipTimerRef.current = setTimeout(() => setFlippedCard(null), 6000);
+  };
+  useEffect(() => {
+    if (!flippedCard) { if (flipTimerRef.current) clearTimeout(flipTimerRef.current); return; }
+    resetFlipTimer();
+    return () => { if (flipTimerRef.current) clearTimeout(flipTimerRef.current); };
+  }, [flippedCard]);
+
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
   const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team" };
@@ -24659,7 +24671,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
                   {/* Comp button moved to card back (inside BobaCard flip) */}
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
@@ -24886,7 +24898,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
                             ))}
                           </div>
                           {user && (
