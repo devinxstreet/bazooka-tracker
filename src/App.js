@@ -22745,8 +22745,13 @@ function OnboardingModal({ user, onComplete, inp }) {
       // Reserve the handle and write it to the profile
       await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() });
       await setDoc(doc(db,"users",user.uid), { username: u }, { merge:true });
+      // Verify it actually persisted (catches silent rule denials)
+      const check = await getDoc(doc(db,"users",user.uid));
+      if (!check.exists() || check.data().username !== u) {
+        throw new Error("Username didn't save — your account may not have write permission. Check Firestore rules for the users collection.");
+      }
       setStep(2);
-    } catch(e) { console.error("claim failed:", e); alert("Couldn't claim that username — try another."); }
+    } catch(e) { console.error("claim failed:", e); alert("Couldn't save username: "+(e.message||"unknown error")); }
     setSaving(false);
   }
 
