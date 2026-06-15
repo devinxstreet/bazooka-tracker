@@ -23973,18 +23973,18 @@ function PublicCardDatabase() {
 
   // -- Render helpers --
   const tabBtn=(id,label,badge)=>(
-    <button key={id} onClick={()=>setActiveTab(id)} style={{
-      background:activeTab===id?"rgba(232,49,122,0.15)":"transparent",
-      color:activeTab===id?"#E8317A":"rgba(255,255,255,0.5)",
-      border:`1.5px solid ${activeTab===id?"#E8317A":"rgba(255,255,255,0.1)"}`,
-      borderRadius:20, padding:"7px 18px", fontSize:12, fontWeight:700,
+    <button key={id} onClick={()=>setActiveTab(id)} className="nav-tab" data-active={activeTab===id?"1":"0"} style={{
+      background:"transparent",
+      color:activeTab===id?"#fff":"rgba(255,255,255,0.5)",
+      border:"none",
+      borderBottom:`2px solid ${activeTab===id?"#E8317A":"transparent"}`,
+      padding:"12px 2px", fontSize:13.5, fontWeight:activeTab===id?800:600,
       cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", position:"relative",
-      backdropFilter:"blur(10px)",
-      transition:"all 0.2s ease",
-      boxShadow:activeTab===id?"0 0 20px rgba(232,49,122,0.3)":"none"
+      letterSpacing:0.2, transition:"color 0.15s ease, border-color 0.15s ease",
+      display:"inline-flex", alignItems:"center", gap:7,
     }}>
       {label}
-      {badge>0&&<span style={{position:"absolute",top:-7,right:-7,background:"#E8317A",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 10px rgba(232,49,122,0.8)"}}>{badge}</span>}
+      {badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{badge}</span>}
     </button>
   );
 
@@ -24026,6 +24026,10 @@ function PublicCardDatabase() {
         @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:0} 12%{opacity:1} 100%{transform:translateY(620px) rotate(720deg);opacity:0} }
         @keyframes milestonePop { 0%{transform:translateX(-50%) translateY(-30px) scale(0.8);opacity:0} 60%{transform:translateX(-50%) translateY(4px) scale(1.05);opacity:1} 100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1} }
         @keyframes wantPulse { 0%,100%{transform:scale(1);opacity:0.9} 50%{transform:scale(1.12);opacity:1} }
+        .nav-tab:hover { color:#fff !important; }
+        .nav-tab[data-active="0"]:hover { border-bottom-color: rgba(232,49,122,0.4) !important; }
+        .nav-bar::-webkit-scrollbar { height:0; display:none; }
+        .nav-bar { scrollbar-width:none; -ms-overflow-style:none; }
         @keyframes starPop { 0%{transform:scale(0) rotate(0deg);opacity:0} 35%{transform:scale(1.3) rotate(180deg);opacity:1} 100%{transform:scale(0.6) rotate(360deg);opacity:0} }
 
         /* ── RAINBOW COMPLETE — GRAND CELEBRATION ── */
@@ -24224,8 +24228,8 @@ function PublicCardDatabase() {
             </div>
           </div>
 
-          {/* Tab bar */}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingBottom:20}}>
+          {/* Tab bar — website-style nav */}
+          <div className="nav-bar" style={{display:"flex",gap:26,alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.08)",marginBottom:20,overflowX:"auto",overflowY:"hidden",WebkitOverflowScrolling:"touch"}}>
             {tabBtn("cards","\uD83C\uDCCF Cards",0)}
             {tabBtn("rainbow","\uD83C\uDF08 Rainbow",0)}
             {tabBtn("supers","\u2B50 Supers",0)}
