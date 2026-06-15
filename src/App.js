@@ -15157,21 +15157,21 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
               {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:6, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
             </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc }}>{c.power}</div>}
-              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
-                {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
-                {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰 Details{lotCount>0?` (${lotCount})`:""}</button>}
+            <div>
+              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc, marginBottom:8 }}>{c.power}{"\u26A1"}</div>}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"rgba(255,255,255,0.03)", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#999", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
+                {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
+                {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰 Details{lotCount>0?` (${lotCount})`:""}</button>}
                 {isAdmin && onImageUpload && (
-                  <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    🖼 {c.imageUrl?"Replace":"Add"} Image
+                  <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>
+                    🖼 {c.imageUrl?"Replace":"Add"}
                     <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
                   </label>
                 )}
-                {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
-                <div style={{ display:"flex", alignItems:"center", gap:3, fontSize:9, color:"rgba(255,255,255,0.45)", fontWeight:700 }}>{"\uD83D\uDD04"} flip back</div>
+                {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
               </div>
+              <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:4, fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:700, marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.06)" }}>{"\uD83D\uDD04"} tap to flip back</div>
             </div>
           </div>
         </div>
@@ -15179,28 +15179,36 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     );
   }
   return (
-    <div style={{ background:isOwned?"#0a1a0a":"#111111", border:`1.5px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
-      <div style={{ fontSize:14, fontWeight:900, color:isOwned?"#4ade80":"#F0F0F0", lineHeight:1.2 }}>{c.hero}</div>
-      <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
-        <span style={{ fontSize:10, color:"#555", fontWeight:700 }}>#{c.cardNum}</span>
-        {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-        {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
-        {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
+    <div style={{ aspectRatio:"3/4", background:isOwned?"#0a1a0a":"#111111", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+      {/* "Image coming soon" art placeholder — fills the card-art area */}
+      <div style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
+        <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
+        <div style={{ fontSize:9, fontWeight:800, color:"rgba(255,255,255,0.4)", letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+        {c.power ? <div style={{ position:"absolute", top:8, right:10, fontSize:13, fontWeight:900, color:wc }}>{c.power}⚡</div> : null}
+        {isOwned && <div style={{ position:"absolute", top:6, left:8, fontSize:15 }}>{"\u2705"}</div>}
+        {isAdmin && onImageUpload && (
+          <label onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:8, background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.35)", color:"#4ade80", borderRadius:6, padding:"2px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            🖼 Add Image
+            <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
+          </label>
+        )}
       </div>
-      {(c.inspiredBy||c.athlete) && <div style={{ fontSize:11, color:"#888", marginTop:2 }}>🏅 Inspired by <strong style={{ color:"#AAAAAA" }}>{c.inspiredBy||c.athlete}</strong></div>}
-      {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:4, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
-        {c.power ? <div style={{ fontSize:16, fontWeight:900, color:wc }}>{c.power}</div> : <div/>}
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
-          {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰{lotCount>0?` ${lotCount}`:""}</button>}
-          {isAdmin && onImageUpload && (
-            <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              🖼 Add Image
-              <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
-            </label>
-          )}
-          {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
+      {/* Card info */}
+      <div style={{ flex:"0 0 auto", padding:"8px 10px", display:"flex", flexDirection:"column", gap:5 }}>
+        <div style={{ fontSize:13, fontWeight:900, color:isOwned?"#4ade80":"#F0F0F0", lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
+        <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
+          <span style={{ fontSize:9, color:"#555", fontWeight:700 }}>#{c.cardNum}</span>
+          {c.weapon && <span style={{ fontSize:9, color:wc, background:wc+"22", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.weapon}</span>}
+          {c.treatment && <span style={{ fontSize:9, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 5px" }}>{c.treatment}</span>}
+          {c.notation && <span style={{ fontSize:9, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.notation}</span>}
+        </div>
+        {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"1px 6px", fontSize:9, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:1 }}>
+          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
+            {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰{lotCount>0?` ${lotCount}`:""}</button>}
+            {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
+          </div>
           <QtyControls/>
         </div>
       </div>
@@ -24742,14 +24750,15 @@ function PublicCardDatabase() {
               </button>
             )}
             {user&&(
-              <div style={{position:"relative"}} onMouseLeave={()=>setProfileMenuOpen(false)}>
+              <div style={{position:"relative"}} onMouseEnter={()=>setProfileMenuOpen(true)} onMouseLeave={()=>setProfileMenuOpen(false)}>
                 <button onClick={()=>setProfileMenuOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center"}}>
                   {(myPhotoURL||user.photoURL)
                     ? <img src={myPhotoURL||user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",border:"2px solid #E8317A"}}/>
                     : <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:900,color:"#fff",border:"2px solid #E8317A"}}>{(myUsername||user.displayName||user.email||"?").charAt(myUsername?1:0).toUpperCase()}</div>}
                 </button>
                 {profileMenuOpen&&(
-                  <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:200,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:600}}>
+                  <div style={{position:"absolute",top:"100%",right:0,minWidth:200,paddingTop:10,zIndex:600}}>
+                  <div style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6}}>
                     <div style={{padding:"8px 12px 10px",borderBottom:"1px solid #222",marginBottom:4}}>
                       <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
                       <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
@@ -24771,6 +24780,7 @@ function PublicCardDatabase() {
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Sign out</button>
                     </div>
+                  </div>
                   </div>
                 )}
               </div>
