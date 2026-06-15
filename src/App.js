@@ -24562,15 +24562,30 @@ function PublicCardDatabase() {
         }}>
           {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
         </button>
-        {open && (
-          <div style={isMobile
-            ? {position:"fixed",top:96,left:12,right:12,maxWidth:360,margin:"0 auto",background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}
-            : {position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
+        {open && (isMobile ? (
+          <div onClick={()=>setNavMenu(null)} style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:88}}>
+            <div onClick={e=>e.stopPropagation()} style={{width:"calc(100% - 24px)",maxWidth:380,background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,boxShadow:"0 12px 40px rgba(0,0,0,0.8)",padding:8}}>
+              <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:1,textTransform:"uppercase",padding:"6px 10px 8px"}}>{label}</div>
+              {items.map(it=>(
+                <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
+                  background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"none",
+                  color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:"14px 14px",fontSize:15,fontWeight:700,
+                  cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+                }}>
+                  <span>{it.label}</span>
+                  {it.badge>0&&<span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{it.badge}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid #2a2a2a",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
             {items.map(it=>(
               <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
                 display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
                 background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"none",
-                color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:isMobile?"12px 14px":"9px 12px",fontSize:isMobile?14:13,fontWeight:700,
+                color:activeTab===it.id?"#E8317A":"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,
                 cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"background 0.12s",
               }}
                 onMouseEnter={e=>{if(activeTab!==it.id)e.currentTarget.style.background="rgba(255,255,255,0.05)";}}
@@ -24580,7 +24595,7 @@ function PublicCardDatabase() {
               </button>
             ))}
           </div>
-        )}
+        ))}
       </div>
     );
   };
