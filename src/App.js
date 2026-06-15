@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 
 // Pre-fetch BoJax card images for loading screen — runs once at module load
 const LOADING_CARD_IMAGES = { urls: [], loaded: false };
@@ -21720,6 +21720,15 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
 }
 
 function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto, WEAPON_COLORS={}}) {
+  const [keepPhoto, setKeepPhoto] = useState(true);
+  const [acqMethod, setAcqMethod] = useState("break");
+  const [acqCost, setAcqCost] = useState("");
+  const [acqNotes, setAcqNotes] = useState("");
+  const [savingScan, setSavingScan] = useState(false);
+  // Reset acquisition fields whenever a new card is matched
+  useEffect(() => {
+    if (photoScan?.status === "matched") { setKeepPhoto(true); setAcqMethod("break"); setAcqCost(""); setAcqNotes(""); }
+  }, [photoScan?.card?.id, photoScan?.status]);
   if (!scanModal) return null;
   return (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:9997,display:"flex",flexDirection:"column"}}>
@@ -21781,11 +21790,37 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                       <div style={{fontSize:20,fontWeight:900,color:wc,marginTop:6}}>{c.power}{"\u26A1"}</div>
                     </div>
                   </div>
+                  {/* Keep photo toggle */}
+                  {photoScan.scanPhoto && (
+                    <div onClick={()=>setKeepPhoto(k=>!k)} style={{display:"flex",alignItems:"center",gap:12,background:keepPhoto?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.03)",border:`1px solid ${keepPhoto?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"10px 12px",marginBottom:12,cursor:"pointer"}}>
+                      <img src={photoScan.scanPhoto} alt="" style={{width:44,height:59,objectFit:"cover",borderRadius:7,flexShrink:0}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:800,color:keepPhoto?"#4ade80":"#ccc"}}>📸 Keep this photo</div>
+                        <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>Saves your actual card pic — list it later without re-shooting</div>
+                      </div>
+                      <div style={{width:44,height:26,borderRadius:13,background:keepPhoto?"#4ade80":"rgba(255,255,255,0.15)",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                        <div style={{position:"absolute",top:3,left:keepPhoto?21:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                      </div>
+                    </div>
+                  )}
+                  {/* Acquisition info */}
+                  <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>How'd you get it?</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                      {LOT_METHODS.map(m=>(
+                        <button key={m.v} onClick={()=>setAcqMethod(m.v)} style={{background:acqMethod===m.v?"rgba(232,49,122,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${acqMethod===m.v?"#E8317A":"rgba(255,255,255,0.1)"}`,color:acqMethod===m.v?"#E8317A":"#aaa",borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{m.l}</button>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <input value={acqCost} onChange={e=>setAcqCost(e.target.value)} type="number" step="0.01" placeholder="Cost (optional)" style={{...inp,flex:1,fontSize:13}}/>
+                      <input value={acqNotes} onChange={e=>setAcqNotes(e.target.value)} placeholder="Notes (optional)" style={{...inp,flex:1.4,fontSize:13}}/>
+                    </div>
+                  </div>
                   <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
                     <button onClick={()=>setScanQty(q=>Math.max(1,q-1))} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>{"\u2212"}</button>
                     <span style={{fontSize:20,fontWeight:900,minWidth:40,textAlign:"center"}}>{scanQty}</span>
                     <button onClick={()=>setScanQty(q=>q+1)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#F0F0F0",borderRadius:8,width:36,height:36,fontSize:20,cursor:"pointer",fontFamily:"inherit"}}>+</button>
-                    <button onClick={()=>confirmScan(c,scanQty)} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)"}}>{"\u2705 Add"}{scanQty}</button>
+                    <button disabled={savingScan} onClick={async()=>{ setSavingScan(true); await confirmScan(c,scanQty,{ keepPhoto, scanPhoto:photoScan.scanPhoto, method:acqMethod, cost:acqCost, notes:acqNotes }); setSavingScan(false); }} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:10,padding:"10px 0",fontSize:14,fontWeight:900,cursor:savingScan?"wait":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(74,222,128,0.4)",opacity:savingScan?0.7:1}}>{savingScan?"Saving…":`\u2705 Add ${scanQty>1?scanQty:""}`}</button>
                   </div>
                   <button onClick={()=>setPhotoScan(null)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"8px 0",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Scan different card</button>
                 </div>
@@ -21803,7 +21838,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                   {photoScan.candidates.map(c=>{
                     const wc=WEAPON_COLORS[c.weapon]||"#888";
                     return (
-                      <button key={c.id} onClick={()=>{ setPhotoScan({status:"matched",card:c,detected:photoScan.detected}); setScanQty(1); }}
+                      <button key={c.id} onClick={()=>{ setPhotoScan({status:"matched",card:c,detected:photoScan.detected,scanPhoto:photoScan.scanPhoto}); setScanQty(1); }}
                         style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${wc}55`,borderRadius:12,overflow:"hidden",cursor:"pointer",padding:0,fontFamily:"inherit",textAlign:"left",transition:"transform 0.15s,border-color 0.15s"}}
                         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.borderColor=wc;}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=wc+"55";}}>
@@ -23267,6 +23302,14 @@ function PublicCardDatabase() {
   const [listPayment,  setListPayment]  = useState(""); // seller payment info
   const [listPhotos,    setListPhotos]    = useState([]); // {url} uploaded photos of the actual card
   const [listUploading, setListUploading] = useState(false);
+  const [listPhotoAutofilled, setListPhotoAutofilled] = useState(false);
+  // When the list modal opens, auto-fill with the saved scan photo for that card (most recent lot that has one)
+  useEffect(() => {
+    if (!listModal) { setListPhotoAutofilled(false); return; }
+    const cardLots = lots.filter(l => l.cardId===listModal.id && l.photoUrl);
+    const saved = cardLots.length ? cardLots[cardLots.length-1].photoUrl : "";
+    if (saved) { setListPhotos([{ url: saved }]); setListPhotoAutofilled(true); }
+  }, [listModal]); // eslint-disable-line
   const [paymentPopup,  setPaymentPopup]  = useState(null);
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
@@ -23743,7 +23786,7 @@ function PublicCardDatabase() {
     setPhotoScan({status:"scanning"});
     try {
       // Build full-card image + a zoomed bottom-left corner crop (where the tiny card number lives)
-      const { full, corner } = await new Promise((res,rej) => {
+      const { full, corner, display } = await new Promise((res,rej) => {
         const img=new Image(), url=URL.createObjectURL(file);
         img.onload=()=>{
           URL.revokeObjectURL(url);
@@ -23760,7 +23803,13 @@ function PublicCardDatabase() {
           const ctx=cc.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
           ctx.drawImage(img, sx,sy,cropW,cropH, 0,0,cw,ch);
           const cornerB64=cc.toDataURL("image/jpeg",0.92).split(",")[1];
-          res({ full:fullB64, corner:cornerB64 });
+          // Compressed display copy (for saving to collection / marketplace) — max 700px, modest quality
+          const DMAX=700, dscale=Math.min(1,DMAX/Math.max(img.width,img.height));
+          const dw=Math.round(img.width*dscale), dh=Math.round(img.height*dscale);
+          const dc=document.createElement("canvas"); dc.width=dw; dc.height=dh;
+          dc.getContext("2d").drawImage(img,0,0,dw,dh);
+          const displayDataUrl=dc.toDataURL("image/jpeg",0.8);
+          res({ full:fullB64, corner:cornerB64, display:displayDataUrl });
         };
         img.onerror=rej; img.src=url;
       });
@@ -23816,7 +23865,7 @@ function PublicCardDatabase() {
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
       if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
-      if(match){ setPhotoScan({status:"matched",card:match,detected:data}); setScanQty(1); return; }
+      if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
 
       // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
       let pool = heroCards.length ? heroCards : cards;
@@ -23832,18 +23881,39 @@ function PublicCardDatabase() {
       }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
 
       const candidates=scored.slice(0,8).map(x=>x.card);
-      if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data}); return; }
+      if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data,scanPhoto:display}); return; }
 
       setPhotoScan({status:"nomatch",identified:data});
     } catch(e){setPhotoScan({status:"error",message:e.message});}
     finally { scanInFlight.current = false; }
   }
-  async function confirmScan(card,qty) {
+  async function confirmScan(card,qty,opts={}) {
     if(!user){setSigningIn(true);return;}
     const next={...owned,[card.id]:(owned[card.id]||0)+qty};
     setOwned(next);
     await setDoc(doc(db,"boba_owned",user.uid),next);
-    setScanSession(prev=>[{card,qty,addedAt:new Date().toISOString()},...prev]);
+
+    // Optionally upload the scan photo to Storage
+    let photoUrl = "";
+    if (opts.keepPhoto && opts.scanPhoto) {
+      try {
+        const sref = ref(storage, `scan_photos/${user.uid}/${card.id}_${uid()}.jpg`);
+        await uploadString(sref, opts.scanPhoto, "data_url");
+        photoUrl = await getDownloadURL(sref);
+      } catch(e) { console.error("scan photo upload failed:", e); }
+    }
+
+    // Log acquisition as a lot (one per copy), carrying cost/method/notes + the saved photo
+    const cost = opts.cost!==undefined && opts.cost!=="" ? parseFloat(opts.cost) : null;
+    const newLots = [];
+    for (let i=0;i<qty;i++) {
+      newLots.push({ id: uid(), cardId: card.id, cost, value:null, method: opts.method||"break", date: new Date().toISOString().split("T")[0], notes: opts.notes||"", photoUrl });
+    }
+    const mergedLots = [...lots, ...newLots];
+    setLots(mergedLots);
+    try { await setDoc(doc(db,"boba_lots",user.uid), { lots: mergedLots }); } catch(e){ console.error("save scan lots failed:", e); }
+
+    setScanSession(prev=>[{card,qty,addedAt:new Date().toISOString(),photoUrl},...prev]);
     setPhotoScan(null); setScanQty(1);
   }
 
@@ -24643,7 +24713,7 @@ function PublicCardDatabase() {
             {/* Required real-card photos */}
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:listPhotos.length?"#4ade80":"#FBBF24",marginBottom:6}}>
-                {listPhotos.length?`📸 ${listPhotos.length} photo${listPhotos.length>1?"s":""} added`:"📸 Photos required — add a pic of your actual card"}
+                {listPhotos.length?`📸 ${listPhotos.length} photo${listPhotos.length>1?"s":""} added${listPhotoAutofilled?" · auto-filled from your scan ✨":""}`:"📸 Photos required — add a pic of your actual card"}
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 {listPhotos.map((p,i)=>(
