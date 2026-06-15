@@ -22063,6 +22063,116 @@ function RainbowCelebration({ fx, onDone }) {
   );
 }
 
+// ── PUBLIC HOMEPAGE ── the front door at bazookadash.com ──────────────────────
+function PublicHomepage() {
+  const [cardCount, setCardCount] = useState(null);
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem("boba_checklist_cache_v3");
+      if (r) { const { cards } = JSON.parse(r); if (cards?.length) setCardCount(cards.length); }
+    } catch(e) {}
+    (async () => {
+      try {
+        const res = await fetch("/cards-data.json");
+        if (res.ok) { const all = await res.json(); if (Array.isArray(all)) setCardCount(all.length); }
+      } catch(e) {}
+    })();
+  }, []);
+
+  const go = (path) => { window.location.href = path; };
+
+  const features = [
+    { icon:"🃏", title:"Full Card Database", desc:"Browse every BoBA card across all sets — heroes, treatments, weapons, and power levels. Search and filter to find exactly what you're hunting." },
+    { icon:"📸", title:"Scan to Collect", desc:"Snap a photo of any card and add it to your collection instantly. No manual entry — point, shoot, done." },
+    { icon:"🌈", title:"Rainbow Tracking", desc:"Chase complete rainbows. See exactly which variants you own and which you're still missing, with live progress bars." },
+    { icon:"⭐", title:"Super Foil & 1/1 Hunts", desc:"Track community Super Foil and Secret 1/1 hits. See what's been claimed and what's still out there waiting." },
+    { icon:"💎", title:"Your Collection, Your Way", desc:"Mark cards owned, build want lists, and watch your collection value grow. Keep cards private or share with friends." },
+    { icon:"🤝", title:"Trade & Connect", desc:"List cards for sale or trade, add collector friends, and see each other's collections. Built for the community." },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", overflowX:"hidden" }}>
+      <style>{`
+        @keyframes homeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+        @keyframes homeGlow { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
+        @keyframes homeFadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes homeGrad { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+        .home-feat:hover { transform:translateY(-4px); border-color:rgba(232,49,122,0.5)!important; }
+        .home-cta:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(232,49,122,0.5)!important; }
+        .home-cta2:hover { border-color:#E8317A!important; color:#fff!important; }
+      `}</style>
+
+      {/* Ambient glow background */}
+      <div style={{ position:"fixed", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,49,122,0.18), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(123,47,247,0.12), transparent 70%)" }}/>
+
+      {/* Nav bar */}
+      <div style={{ position:"relative", zIndex:2, maxWidth:1200, margin:"0 auto", padding:"20px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:42, width:"auto", filter:"drop-shadow(0 2px 10px rgba(232,49,122,0.4))" }}/>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={()=>go("/cards")} className="home-cta2" style={{ background:"transparent", color:"rgba(255,255,255,0.7)", border:"1.5px solid rgba(255,255,255,0.15)", borderRadius:24, padding:"9px 20px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>Browse Cards</button>
+        </div>
+      </div>
+
+      {/* HERO */}
+      <div style={{ position:"relative", zIndex:2, maxWidth:1000, margin:"0 auto", padding:"60px 24px 40px", textAlign:"center" }}>
+        <div style={{ animation:"homeFadeUp 0.7s ease both" }}>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:"clamp(90px,16vw,150px)", width:"auto", margin:"0 auto 28px", display:"block", animation:"homeFloat 5s ease-in-out infinite", filter:"drop-shadow(0 8px 30px rgba(232,49,122,0.45))" }}/>
+        </div>
+        <h1 style={{ fontSize:"clamp(34px,6vw,68px)", fontWeight:900, lineHeight:1.05, margin:"0 0 20px", letterSpacing:"-1px", animation:"homeFadeUp 0.7s ease 0.1s both" }}>
+          The home for every<br/>
+          <span style={{ background:"linear-gradient(90deg,#E8317A,#FBBF24,#A855F7,#E8317A)", backgroundSize:"200% auto", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text", animation:"homeGrad 4s linear infinite" }}>BoBA card you collect</span>
+        </h1>
+        <p style={{ fontSize:"clamp(15px,2.5vw,20px)", color:"rgba(255,255,255,0.6)", maxWidth:620, margin:"0 auto 36px", lineHeight:1.6, animation:"homeFadeUp 0.7s ease 0.2s both" }}>
+          Browse the complete Bo Jackson Battle Arena database, track your collection, chase rainbows, and scan cards straight into your vault — all in one place.
+        </p>
+        <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap", animation:"homeFadeUp 0.7s ease 0.3s both" }}>
+          <button onClick={()=>go("/cards")} className="home-cta" style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:30, padding:"16px 38px", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 24px rgba(232,49,122,0.4)", transition:"all 0.2s" }}>🃏 Browse the Database</button>
+          <button onClick={()=>go("/cards")} className="home-cta2" style={{ background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.8)", border:"1.5px solid rgba(255,255,255,0.18)", borderRadius:30, padding:"16px 38px", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>Start Your Collection</button>
+        </div>
+        {cardCount && (
+          <div style={{ marginTop:32, fontSize:13, color:"rgba(255,255,255,0.35)", letterSpacing:1, animation:"homeFadeUp 0.7s ease 0.4s both" }}>
+            <span style={{ color:"#E8317A", fontWeight:900, fontSize:18 }}>{cardCount.toLocaleString()}</span> cards catalogued and counting
+          </div>
+        )}
+      </div>
+
+      {/* FEATURES */}
+      <div style={{ position:"relative", zIndex:2, maxWidth:1100, margin:"0 auto", padding:"40px 24px 60px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:18 }}>
+          {features.map((f,i)=>(
+            <div key={i} className="home-feat" style={{ background:"rgba(255,255,255,0.03)", border:"1.5px solid rgba(255,255,255,0.07)", borderRadius:18, padding:"26px 24px", backdropFilter:"blur(10px)", transition:"all 0.25s", cursor:"default" }}>
+              <div style={{ fontSize:34, marginBottom:14 }}>{f.icon}</div>
+              <div style={{ fontSize:18, fontWeight:800, marginBottom:8, color:"#fff" }}>{f.title}</div>
+              <div style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.6 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA BAND */}
+      <div style={{ position:"relative", zIndex:2, maxWidth:900, margin:"0 auto 60px", padding:"0 24px" }}>
+        <div style={{ background:"linear-gradient(135deg, rgba(232,49,122,0.15), rgba(123,47,247,0.12))", border:"1.5px solid rgba(232,49,122,0.25)", borderRadius:24, padding:"48px 32px", textAlign:"center", backdropFilter:"blur(10px)" }}>
+          <div style={{ fontSize:"clamp(24px,4vw,38px)", fontWeight:900, marginBottom:14 }}>Ready to track your vault?</div>
+          <div style={{ fontSize:16, color:"rgba(255,255,255,0.55)", marginBottom:28, maxWidth:480, margin:"0 auto 28px", lineHeight:1.6 }}>Jump in, sign in with Google, and start marking the cards you own. It's free.</div>
+          <button onClick={()=>go("/cards")} className="home-cta" style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:30, padding:"16px 42px", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 24px rgba(232,49,122,0.4)", transition:"all 0.2s" }}>Enter the Vault →</button>
+        </div>
+      </div>
+
+      {/* FOOTER */}
+      <div style={{ position:"relative", zIndex:2, borderTop:"1px solid rgba(255,255,255,0.06)", padding:"32px 24px", textAlign:"center" }}>
+        <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:30, width:"auto", opacity:0.5, marginBottom:14 }}/>
+        <div style={{ display:"flex", gap:20, justifyContent:"center", flexWrap:"wrap", marginBottom:16 }}>
+          <a href="/cards" style={{ color:"rgba(255,255,255,0.5)", fontSize:13, textDecoration:"none" }}>Card Database</a>
+          <a href="/cards#wants" style={{ color:"rgba(255,255,255,0.5)", fontSize:13, textDecoration:"none" }}>Want List</a>
+          <a href="/sell" style={{ color:"rgba(255,255,255,0.5)", fontSize:13, textDecoration:"none" }}>Sell a Card</a>
+        </div>
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.25)" }}>© {new Date().getFullYear()} Bazooka Breaks · Bo Jackson Battle Arena Collector Database</div>
+        <a href="/dashboard" style={{ display:"inline-block", marginTop:10, color:"rgba(255,255,255,0.15)", fontSize:11, textDecoration:"none" }}>Team Login</a>
+      </div>
+    </div>
+  );
+}
+
 // ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
 function PublicCardDatabase() {
   // -- Core state --
@@ -27182,6 +27292,13 @@ export default function App() {
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
+  // Homepage at root — the public front door
+  if (window.location.pathname === "/" || window.location.pathname === "") return <PublicHomepage />;
+
+  // Any unknown path that isn't the dashboard → send to homepage
+  if (window.location.pathname !== "/dashboard") return <PublicHomepage />;
+
+  // /dashboard → internal team app (auth-gated below)
   // Auth gate -- only for the main app
   if (!authReady) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#111111", fontFamily:"'Trebuchet MS',sans-serif", fontSize:18, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
 
