@@ -1,5 +1,5 @@
 /* eslint-disable */
-/* Bazooka Vault — signups paused until June 18 */
+/* Bazooka Vault — access limited to @bazookabreaks.com until June 18 */
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
@@ -22207,6 +22207,32 @@ function RainbowCelebration({ fx, onDone }) {
 }
 
 // ── PUBLIC HOMEPAGE ── the front door at bazookadash.com ──────────────────────
+function ComingSoon() {
+  return (
+    <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"fixed", inset:0, pointerEvents:"none", background:"radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,49,122,0.18), transparent 70%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(123,47,247,0.12), transparent 70%)" }}/>
+      <div style={{ position:"relative", zIndex:2, textAlign:"center", maxWidth:540 }}>
+        <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:"clamp(80px,14vw,130px)", width:"auto", margin:"0 auto 32px", display:"block", filter:"drop-shadow(0 8px 30px rgba(232,49,122,0.45))" }}/>
+        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.12)", border:"1px solid rgba(232,49,122,0.35)", borderRadius:30, padding:"6px 16px", marginBottom:24 }}>
+          <span style={{ width:8, height:8, borderRadius:"50%", background:"#E8317A", boxShadow:"0 0 8px #E8317A" }}/>
+          <span style={{ fontSize:12, fontWeight:900, color:"#E8317A", letterSpacing:1.5 }}>LAUNCHING SOON</span>
+        </div>
+        <h1 style={{ fontSize:"clamp(30px,6vw,52px)", fontWeight:900, lineHeight:1.1, margin:"0 0 18px", letterSpacing:"-1px" }}>
+          Available <span style={{ background:"linear-gradient(90deg,#E8317A,#FBBF24,#A855F7)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>June 18th</span>
+        </h1>
+        <p style={{ fontSize:"clamp(15px,2.5vw,18px)", color:"rgba(255,255,255,0.6)", lineHeight:1.6, margin:"0 0 36px" }}>
+          We're putting the finishing touches on the ultimate BoBA card vault. The full database, collection tracker, and marketplace open to everyone on June 18th. Catch us live until then.
+        </p>
+        <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap", marginBottom:28 }}>
+          <a href="https://www.whatnot.com/user/bazookavault" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:8, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", borderRadius:30, padding:"13px 28px", fontSize:14, fontWeight:800, boxShadow:"0 4px 24px rgba(232,49,122,0.4)" }}>📺 Bazooka Vault</a>
+          <a href="https://www.whatnot.com/user/bazookabreaks" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.85)", border:"1.5px solid rgba(255,255,255,0.18)", borderRadius:30, padding:"13px 28px", fontSize:14, fontWeight:800 }}>📺 Bazooka Breaks</a>
+        </div>
+        <a href="/" style={{ fontSize:13, color:"rgba(255,255,255,0.4)", textDecoration:"none", fontWeight:600 }}>← Back to home</a>
+      </div>
+    </div>
+  );
+}
+
 function PublicHomepage() {
   const [cardCount, setCardCount] = useState(null);
   const heroVideoRef = useRef(null);
@@ -23349,10 +23375,11 @@ function PublicCardDatabase() {
         try {
           const uref = doc(db,"users",u.uid);
           const usnap = await getDoc(uref);
-          // --- New sign-up pause (flip SIGNUPS_PAUSED to false to re-open) ---
-          const SIGNUPS_PAUSED = true;
-          if (SIGNUPS_PAUSED && !usnap.exists()) {
-            alert("New sign-ups are paused right now — we're putting some finishing touches on things. Please check back on June 18th. Thanks for your patience!");
+          // --- Access pause: only @bazookabreaks.com team until June 18 (flip ACCESS_PAUSED to false to re-open) ---
+          const ACCESS_PAUSED = true;
+          const isTeam = (u.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+          if (ACCESS_PAUSED && !isTeam) {
+            alert("We're putting some finishing touches on things and aren't quite open yet — please check back on June 18th. Thanks for your patience!");
             await signOut(auth);
             return;
           }
@@ -28640,6 +28667,18 @@ export default function App() {
 
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
   const _path = window.location.pathname;
+
+  // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
+  const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
+  const _isTeam = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/sell","/chases","/showcase"];
+  if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
+    return <ComingSoon />;
+  }
+  // While auth is still resolving, hold gated pages so we don't flash the wall at team members
+  if (ACCESS_PAUSED && !authReady && _gatedPaths.includes(_path)) {
+    return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#08000a", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
+  }
   if (typeof document !== "undefined") {
     const titles = { "/":"Bazooka — BoBA Card Collector Database", "/cards":"Card Database — Bazooka", "/sell":"Sell a Card — Bazooka", "/deck":"Deck Builder — Bazooka", "/playbook":"Playbook — Bazooka", "/chases":"Chase Tracker — Bazooka", "/dashboard":"Team Dashboard — Bazooka" };
     document.title = titles[_path] || "Bazooka — BoBA Card Collector Database";
