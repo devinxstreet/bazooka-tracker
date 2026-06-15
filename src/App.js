@@ -24758,6 +24758,10 @@ function PublicCardDatabase() {
       {/* Sticky website-style nav */}
       <div style={{position:"sticky",top:0,zIndex:500,background:"rgba(8,0,10,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
         <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"0 12px":"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:isMobile?8:16}}>
+          {/* Always-visible logo (brand stays on screen while scrolling) */}
+          <a href="/" style={{display:"flex",alignItems:"center",flexShrink:0,textDecoration:"none",marginRight:isMobile?4:8}}>
+            <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:isMobile?26:34,width:"auto",objectFit:"contain",display:"block",filter:"drop-shadow(0 2px 8px rgba(232,49,122,0.4))"}}/>
+          </a>
           {/* Left: primary nav */}
           <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
             {navItem("cards","Card Database",0)}
