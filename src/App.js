@@ -23259,6 +23259,10 @@ function PublicCardDatabase() {
   // -- Scan --
   const [scanModal,     setScanModal]     = useState(false);
   const [importModal,   setImportModal]   = useState(false);
+  const [missingCardsModal, setMissingCardsModal] = useState(false);
+  const [missingCards,  setMissingCards]  = useState([]);
+  const [userMissing,   setUserMissing]   = useState([]); // this collector's own unmatched imports
+  const [userMissingModal, setUserMissingModal] = useState(false);
   const [importRows,    setImportRows]    = useState(null); // parsed+matched rows for preview
   const [importing,     setImporting]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
@@ -23533,6 +23537,7 @@ function PublicCardDatabase() {
           setWantList(wSnap.exists() ? wSnap.data() : {});
           setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
+          try { const umSnap = await getDoc(doc(db,"user_missing",u.uid)); setUserMissing(umSnap.exists() && Array.isArray(umSnap.data().cards) ? umSnap.data().cards : []); } catch(e){}
           try {
             const revSnap = await getDocs(query(collection(db,"boba_reviews"), where("buyerUid","==",u.uid)));
             setMyReviews(revSnap.docs.map(d=>({...d.data(),id:d.id})));
@@ -23542,7 +23547,7 @@ function PublicCardDatabase() {
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false;
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
       }
     });
   }, []);
@@ -23799,12 +23804,31 @@ function PublicCardDatabase() {
         const rows = parseCSV(e.target.result);
         if (rows.length < 2) { alert("That file looks empty. Make sure it has a header row and at least one card."); return; }
         const hdr = rows[0];
+        // Set column is required — without it, cards from different sets can match incorrectly
+        const hasSet = hdr.some(h => h.toLowerCase().trim() === "set");
+        if (!hasSet) { alert("Your CSV is missing a \"Set\" column. The Set is required so we match the right card (the same hero can exist in multiple sets). Please add a \"Set\" column with each card's set name, then try again. You can download our template for the correct format."); return; }
         const parsed = rows.slice(1).map(r => matchImportRow(r, hdr)).filter(Boolean);
         if (!parsed.length) { alert("Couldn't read any cards from that file. Check that the columns match the template."); return; }
+        // Flag rows missing a set value so the user can fix them
+        const missingSetCount = parsed.filter(r => !r.csv.setName).length;
+        if (missingSetCount === parsed.length) { alert("None of your cards have a Set filled in. The Set is required to match cards correctly. Please fill in the Set column for each card and try again."); return; }
         setImportRows(parsed);
       } catch(err) { console.error(err); alert("Couldn't read that CSV. Try the template format."); }
     };
     reader.readAsText(file);
+  }
+
+  async function loadMissingCards() {
+    try {
+      const snap = await getDocs(collection(db,"missing_cards"));
+      const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+        .sort((a,b)=>(b.lastRequestedAt||"").localeCompare(a.lastRequestedAt||""));
+      setMissingCards(rows);
+    } catch(e) { console.error("load missing cards failed:", e); setMissingCards([]); }
+  }
+  async function dismissMissingCard(id) {
+    try { await deleteDoc(doc(db,"missing_cards",id)); setMissingCards(prev=>prev.filter(m=>m.id!==id)); }
+    catch(e) { console.error("dismiss missing failed:", e); }
   }
 
   async function runImport() {
@@ -23828,7 +23852,35 @@ function PublicCardDatabase() {
       const mergedLots = [...lots, ...newLots];
       setLots(mergedLots);
       try { await setDoc(doc(db,"boba_lots",user.uid), { lots: mergedLots }); } catch(e){}
-      showToast(`Imported ${matched.length} card${matched.length!==1?"s":""} into your collection!`);
+
+      // Log unmatched cards so admins know what to add to the database
+      const unmatched = importRows.filter(r => !r.match);
+      if (unmatched.length) {
+        // Per-user list so the collector can see what didn't import (merged with any prior unmatched)
+        const unmatchedClean = unmatched.map(r => ({ hero:r.csv.hero||"", setName:r.csv.setName||"", cardNum:r.csv.cardNum||"", treatment:r.csv.parallel||"", weapon:r.csv.weapon||"", power:r.csv.power||"", qty:r.csv.qty||1 }));
+        const dedupKey = c => [c.hero,c.setName,c.cardNum,c.treatment,c.weapon].join("|").toLowerCase();
+        const existingKeys = new Set(userMissing.map(dedupKey));
+        const mergedMissing = [...userMissing, ...unmatchedClean.filter(c => !existingKeys.has(dedupKey(c)))];
+        setUserMissing(mergedMissing);
+        try { await setDoc(doc(db,"user_missing",user.uid), { cards: mergedMissing }); } catch(e){}
+        // Admin-wide log
+        try {
+          const batch = writeBatch(db);
+          unmatched.forEach(r => {
+            const c = r.csv;
+            const key = ["miss", (c.hero||""), (c.setName||""), (c.cardNum||""), (c.parallel||""), (c.weapon||"")].join("|").replace(/[^a-zA-Z0-9|]/g,"_").slice(0,180);
+            const ref2 = doc(db,"missing_cards",key);
+            batch.set(ref2, {
+              hero:c.hero||"", setName:c.setName||"", cardNum:c.cardNum||"", treatment:c.parallel||"", weapon:c.weapon||"", power:c.power||"",
+              requestedBy: arrayUnion(user.email||user.uid),
+              lastRequestedAt: new Date().toISOString(),
+            }, { merge:true });
+          });
+          await batch.commit();
+        } catch(e) { console.error("log missing cards failed:", e); }
+      }
+
+      showToast(`Imported ${matched.length} card${matched.length!==1?"s":""}${unmatched.length?` · ${unmatched.length} not in database yet`:""}!`);
       setImportModal(false); setImportRows(null);
     } catch(e) { console.error("import failed:", e); alert("Import failed. Please try again."); }
     setImporting(false);
@@ -23836,8 +23888,10 @@ function PublicCardDatabase() {
 
   function downloadImportTemplate() {
     const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value"];
-    const example = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500"];
-    const csv = headers.join(",") + "\n" + example.join(",") + "\n";
+    // Set is REQUIRED — the same hero can appear in multiple sets
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500"];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500"];
+    const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download="bazooka-collection-template.csv"; a.click();
@@ -24839,6 +24893,66 @@ function PublicCardDatabase() {
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
+      {userMissingModal && (
+        <div onClick={()=>setUserMissingModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(600px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>⏳ Pending Cards</div>
+              <button onClick={()=>setUserMissingModal(false)} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:18}}>These cards from your import aren't in our database yet, so they're not in your collection. We've flagged them for our team to add — once they're in, you can add them to your collection. Thanks for your patience!</div>
+            {userMissing.length===0 ? (
+              <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,0.4)"}}>
+                <div style={{fontSize:36,marginBottom:10}}>✅</div>
+                <div style={{fontSize:14,fontWeight:700}}>Nothing pending — all your imports matched.</div>
+              </div>
+            ) : (
+              <>
+                {userMissing.map((m,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
+                  </div>
+                ))}
+                <button onClick={async()=>{ if(window.confirm("Clear your pending list? This just removes them from this list — it won't affect your collection.")){ setUserMissing([]); try{ await setDoc(doc(db,"user_missing",user.uid),{cards:[]}); }catch(e){} } }} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>Clear pending list</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {missingCardsModal && (
+        <div onClick={()=>setMissingCardsModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>🗂️ Missing Cards</div>
+              <button onClick={()=>setMissingCardsModal(false)} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:18}}>Cards collectors tried to import but aren't in the database yet. Add these to your set data, then dismiss them here. {missingCards.length>0 && <span style={{color:"#FBBF24",fontWeight:700}}>{missingCards.length} to add.</span>}</div>
+            {missingCards.length===0 ? (
+              <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,0.4)"}}>
+                <div style={{fontSize:36,marginBottom:10}}>✅</div>
+                <div style={{fontSize:14,fontWeight:700}}>All caught up — nothing missing.</div>
+              </div>
+            ) : (
+              <div>
+                {missingCards.map(m=>(
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.02)",border:"1px solid #2a2a2a",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#7B9CFF",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                      {Array.isArray(m.requestedBy)&&m.requestedBy.length>0 && <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>Requested by {m.requestedBy.length} collector{m.requestedBy.length!==1?"s":""}</div>}
+                    </div>
+                    <button onClick={()=>dismissMissingCard(m.id)} title="Mark as added / dismiss" style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {importModal && (
         <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
@@ -24846,7 +24960,8 @@ function PublicCardDatabase() {
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>Import Your Collection</div>
               <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
             </div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:18}}>Already track your collection somewhere else? Export it as a CSV and drop it in here — we'll match your cards automatically. Or download our template, fill it out, and import.</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:12}}>Already track your collection somewhere else? Export it as a CSV and drop it in here — we'll match your cards automatically. Or download our template, fill it out, and import.</div>
+            <div style={{fontSize:12,color:"#FBBF24",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 12px",marginBottom:18,lineHeight:1.5}}>⚠️ <strong>The "Set" column is required.</strong> The same hero can appear in multiple sets, so we need the set name to match the right card. Make sure every card has its set filled in before importing.</div>
 
             {!importRows ? (
               <>
@@ -24859,7 +24974,7 @@ function PublicCardDatabase() {
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Template columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, <span style={{color:"#FBBF24",fontWeight:700}}>Set (required)</span>, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
               </>
             ) : (()=>{
               const matched = importRows.filter(r=>r.match);
@@ -25151,6 +25266,8 @@ function PublicCardDatabase() {
                     </div>
                     {[
                       {label:"✏️ Edit Profile",act:()=>setEditProfileOpen(true)},
+                      ...(userMissing.length>0 ? [{label:"⏳ Pending Cards",badge:userMissing.length,act:()=>setUserMissingModal(true)}] : []),
+                      ...((user?.email||"").toLowerCase().endsWith("@bazookabreaks.com") ? [{label:"🗂️ Missing Cards",act:()=>{ setMissingCardsModal(true); loadMissingCards(); }}] : []),
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
