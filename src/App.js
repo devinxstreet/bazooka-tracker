@@ -23525,6 +23525,12 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {"\uD83D\uDCF7 Scan"}</button>
+                  {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
+                    <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
+                      title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
+                      style={{background:"transparent",color:"rgba(255,255,255,0.4)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      {"\u2B07 cards-data.json"}</button>
+                  )}
                   <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>
                 </>
               ):(
