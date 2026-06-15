@@ -1,0 +1,13 @@
+{
+  "name": "Bazooka — BoBA Collector Database",
+  "short_name": "Bazooka",
+  "description": "Browse, track, and scan your Bo Jackson Battle Arena card collection.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08000a",
+  "theme_color": "#08000a",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
