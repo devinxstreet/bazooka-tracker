@@ -4137,7 +4137,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, userRole, streams=[], onSaveStream, onDeleteStream, productUsage=[], onSaveProductUsage, shipments=[], recapOnly=false, cardsOnly=false, skuPrices={}, onUpsertBuyers, cardPools=[], imcFormUrl="", onSaveImcFormUrl, plannedStreams=[], csvImports=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
-  const userName       = user?.displayName?.split(" ")[0] || "";
+  const userName       = user?.displayName || "";
   const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
   const [windowWidth,  setWindowWidth]  = useState(window.innerWidth);
   useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
@@ -4518,9 +4518,19 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         </div>
         ) : (
         <div style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>
-            {breaker} · <span style={{ color:"#555", fontWeight:400 }}>{date||"Select a date"}</span>
-          </div>
+          {!breaker ? (
+            <div style={{ marginBottom:10 }}>
+              <label style={{ ...S.lbl, color:"#FBBF24" }}>Who are you? (select your name to save)</label>
+              <select value={breaker} onChange={e=>setBreaker(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+                <option value="">— Select your name —</option>
+                {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:4 }}>
+              {breaker} · <span style={{ color:"#555", fontWeight:400 }}>{date||"Select a date"}</span>
+            </div>
+          )}
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <TextInput label="Date" type="date" value={date} onChange={setDate}/>
             <div>
@@ -5182,7 +5192,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         <span style={{ fontSize:11, color:mmColor, fontWeight:800 }}>{(rate*100).toFixed(0)}% rate</span>
                       </div>
                     )}
-                    {[
+                    {canSeeFinancials && [
                       { l:"Gross",       v:rc.gross,          c:"#F0F0F0" },
                       { l:"Split Base",  v:rc.splitBase,      c:"#888" },
                       { l:"IMC (70%)",   v:rc.imcNet,         c:"#7B9CFF" },
@@ -5205,10 +5215,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       {(parseFloat(recap.tips)||0)>0&&<div style={{ fontSize:10, color:"#FBBF24", marginTop:3 }}>incl. ${parseFloat(recap.tips).toFixed(2)} tips</div>}
                       {(parseFloat(recap.salesBonus)||0)>0&&<div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>+ ${parseFloat(recap.salesBonus).toFixed(2)} bonus</div>}
                     </div>
+                    {canSeeFinancials && (
                     <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid #1a1a1a", paddingTop:8 }}>
                       <span style={{ fontSize:11, color:"#888" }}>True Net</span>
                       <span style={{ fontSize:14, fontWeight:900, color:"#A78BFA" }}>${rc.bazTrueNet.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                     </div>
+                    )}
                   </div>
                 )}
               </div>
