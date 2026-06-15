@@ -14926,7 +14926,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0 }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -15125,6 +15125,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#555", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
                 {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
+                {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰 Details{lotCount>0?` (${lotCount})`:""}</button>}
                 {isAdmin && onImageUpload && (
                   <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:5, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                     🖼 {c.imageUrl?"Replace":"Add"} Image
@@ -22268,6 +22269,119 @@ function PublicHomepage() {
 }
 
 // ── PUBLIC BOBA CARD ── Dedicated card component for /cards page ──────────────
+const LOT_METHODS = [
+  { v:"purchased", l:"💵 Purchased" },
+  { v:"break",     l:"📦 Hit in a Break" },
+  { v:"pull",      l:"🎴 Pack Pull" },
+  { v:"trade",     l:"🔄 Trade" },
+  { v:"gift",      l:"🎁 Gift" },
+  { v:"other",     l:"❓ Other" },
+];
+
+function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
+  const blank = { cost:"", value:"", method:"purchased", date:new Date().toISOString().split("T")[0], notes:"" };
+  const [draft, setDraft] = useState(blank);
+  const [editId, setEditId] = useState(null);
+
+  function commit() {
+    const data = {
+      cost: draft.cost==="" ? null : parseFloat(draft.cost),
+      value: draft.value==="" ? null : parseFloat(draft.value),
+      method: draft.method, date: draft.date, notes: draft.notes.trim(),
+    };
+    if (editId) { onUpdate(editId, data); } else { onAdd(card.id, data); }
+    setDraft(blank); setEditId(null);
+  }
+  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"" }); }
+
+  const totalCost = lots.reduce((s,l)=>s+(l.cost||0),0);
+  const totalVal  = lots.reduce((s,l)=>s+(l.value||0),0);
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10002, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid #2a2a2a", borderRadius:16, width:"min(460px,100%)", maxHeight:"86vh", overflowY:"auto", padding:"20px 22px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+          <div>
+            <div style={{ fontSize:11, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{card.hero}</div>
+            <div style={{ fontSize:11, color:"#777" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#888", fontSize:22, cursor:"pointer", lineHeight:1 }}>×</button>
+        </div>
+
+        {lots.length>0 && (
+          <div style={{ display:"flex", gap:10, margin:"12px 0 4px" }}>
+            <div style={{ flex:1, background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.2)", borderRadius:8, padding:"8px 10px" }}>
+              <div style={{ fontSize:9, color:"#888", fontWeight:700, textTransform:"uppercase" }}>Total Cost</div>
+              <div style={{ fontSize:18, fontWeight:900, color:"#E8317A" }}>${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+            </div>
+            <div style={{ flex:1, background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, padding:"8px 10px" }}>
+              <div style={{ fontSize:9, color:"#888", fontWeight:700, textTransform:"uppercase" }}>Total Value</div>
+              <div style={{ fontSize:18, fontWeight:900, color:"#4ade80" }}>${totalVal.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Existing copies */}
+        {lots.length>0 && (
+          <div style={{ margin:"12px 0" }}>
+            <div style={{ fontSize:11, color:"#666", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
+            {lots.map((l,i)=>(
+              <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, color:"#ddd", fontWeight:700 }}>
+                    {LOT_METHODS.find(m=>m.v===l.method)?.l || l.method}
+                    {l.cost!=null && <span style={{ color:"#E8317A" }}> · ${l.cost}</span>}
+                    {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
+                  </div>
+                  <div style={{ fontSize:10, color:"#666" }}>{l.date}{l.notes?` · ${l.notes}`:""}</div>
+                </div>
+                <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid #333", color:"#888", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
+                <button onClick={()=>onRemove(l.id)} style={{ background:"none", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add / edit form */}
+        <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 14px", marginTop:8 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:"#fff", marginBottom:10 }}>{editId?"Edit copy":"+ Add a copy"}</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+            {LOT_METHODS.map(m=>(
+              <button key={m.v} onClick={()=>setDraft({...draft,method:m.v})} style={{ background:draft.method===m.v?"rgba(232,49,122,0.18)":"transparent", color:draft.method===m.v?"#E8317A":"#888", border:`1px solid ${draft.method===m.v?"#E8317A":"#333"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{m.l}</button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Cost paid ($)</div>
+              <input type="number" inputMode="decimal" value={draft.cost} onChange={e=>setDraft({...draft,cost:e.target.value})} placeholder={draft.method==="purchased"||draft.method==="break"||draft.method==="pull"?"0.00":"—"} style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Est. value ($)</div>
+              <input type="number" inputMode="decimal" value={draft.value} onChange={e=>setDraft({...draft,value:e.target.value})} placeholder="0.00" style={{...inp,width:"100%"}}/>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Date</div>
+              <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})} style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:2 }}>
+              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Notes (optional)</div>
+              <input value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="e.g. from John's break" style={{...inp,width:"100%"}}/>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={commit} style={{ flex:1, background:"linear-gradient(135deg,#E8317A,#FBBF24)", border:"none", color:"#fff", borderRadius:8, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{editId?"Save changes":"Add copy"}</button>
+            {editId && <button onClick={()=>{setEditId(null);setDraft(blank);}} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:8, padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>}
+          </div>
+        </div>
+        <div style={{ fontSize:10, color:"#555", marginTop:12, textAlign:"center" }}>Adding cost & value helps build BoBA's live comp data 📊</div>
+      </div>
+    </div>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
@@ -22275,6 +22389,8 @@ function PublicCardDatabase() {
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
   const [privateCards,  setPrivateCards]  = useState({});
+  const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
+  const [lotModal,      setLotModal]      = useState(null); // { card } when open
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
   // -- UI state persistence (per browser session) --
@@ -22613,21 +22729,23 @@ function PublicCardDatabase() {
           }, { merge:true });
         } catch(e) { console.error("user record failed:", e); }
         try {
-          const [ownSnap, wSnap, prvSnap] = await Promise.all([
+          const [ownSnap, wSnap, prvSnap, lotSnap] = await Promise.all([
             getDoc(doc(db,"boba_owned",u.uid)),
             getDoc(doc(db,"boba_wants",u.uid)),
             getDoc(doc(db,"boba_private",u.uid)),
+            getDoc(doc(db,"boba_lots",u.uid)),
           ]);
           setOwned(ownSnap.exists() ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
           setWantList(wSnap.exists() ? wSnap.data() : {});
           setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
+          setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
         } catch (e) {
-          console.error("Collection load failed (check Firestore rules for boba_owned/wants/private):", e);
+          console.error("Collection load failed (check Firestore rules for boba_owned/wants/private/lots):", e);
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({});
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]);
       }
     });
   }, []);
@@ -22794,6 +22912,23 @@ function PublicCardDatabase() {
     setPrivateCards(next);
     await setDoc(doc(db,"boba_private",user.uid), next);
   }
+  // -- Lot (per-copy cost/value) tracking --
+  async function saveLots(nextLots) {
+    setLots(nextLots);
+    if (!user) return;
+    try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("save lots failed:", e); }
+  }
+  function addLot(cardId, data) {
+    const lot = { id: uid(), cardId, cost: data.cost??null, value: data.value??null, method: data.method||"purchased", date: data.date||new Date().toISOString().split("T")[0], notes: data.notes||"" };
+    saveLots([...lots, lot]);
+  }
+  function updateLot(lotId, data) {
+    saveLots(lots.map(l => l.id===lotId ? { ...l, ...data } : l));
+  }
+  function removeLot(lotId) {
+    saveLots(lots.filter(l => l.id!==lotId));
+  }
+  function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
   function signInGoogle() {
     const provider = new GoogleAuthProvider();
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -23585,6 +23720,7 @@ function PublicCardDatabase() {
 
       {/* ── CARD FX OVERLAY ── */}
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
+      {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
@@ -24411,24 +24547,43 @@ function PublicCardDatabase() {
         {activeTab==="cards"&&(
           <>
             {user && cards.length>0 && (()=>{
-              const pct = cards.length>0 ? (totalOwned/cards.length*100) : 0;
-              const pctR = Math.round(pct*10)/10;
+              // Next-milestone framing so the bar always feels close & moving
+              const MILES = [10,25,50,100,150,200,300,500,750,1000,1500,2000,3000,5000];
+              const nextMile = MILES.find(m => m > totalOwned) || (Math.ceil(totalOwned/1000)*1000 + 1000);
+              const prevMile = [...MILES].reverse().find(m => m <= totalOwned) || 0;
+              const span = nextMile - prevMile;
+              const intoSpan = totalOwned - prevMile;
+              const milePct = span>0 ? (intoSpan/span*100) : 0;
+              // Collector tier by count
+              const TIERS = [[0,"Rookie","#7B9CFF"],[25,"Collector","#4ade80"],[100,"Veteran","#FBBF24"],[300,"Elite","#E8317A"],[750,"Legend","#A855F7"],[1500,"Hall of Fame","#FFD700"]];
+              const tier = [...TIERS].reverse().find(t => totalOwned >= t[0]) || TIERS[0];
+              const toNext = nextMile - totalOwned;
               return (
-                <div style={{background:"linear-gradient(135deg, rgba(232,49,122,0.10), rgba(123,47,247,0.08))",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:"16px 20px",marginBottom:16,backdropFilter:"blur(10px)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:10,flexWrap:"wrap",gap:8}}>
+                <div style={{background:"linear-gradient(135deg, rgba(232,49,122,0.10), rgba(123,47,247,0.08))",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:"18px 22px",marginBottom:16,backdropFilter:"blur(10px)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,flexWrap:"wrap",gap:10}}>
                     <div>
-                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Your Collection</div>
-                      <div style={{fontSize:26,fontWeight:900,color:"#fff",lineHeight:1.1,marginTop:3}}>
-                        {totalOwned.toLocaleString()} <span style={{fontSize:15,color:"rgba(255,255,255,0.4)",fontWeight:700}}>/ {cards.length.toLocaleString()} cards</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                        <span style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase"}}>Your Collection</span>
+                        <span style={{fontSize:10,fontWeight:800,color:tier[2],background:`${tier[2]}1a`,border:`1px solid ${tier[2]}44`,borderRadius:20,padding:"2px 10px",letterSpacing:0.5}}>{tier[1]}</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                        <span style={{fontSize:44,fontWeight:900,color:"#fff",lineHeight:1,textShadow:"0 0 30px rgba(232,49,122,0.4)"}}>{totalOwned.toLocaleString()}</span>
+                        <span style={{fontSize:15,color:"rgba(255,255,255,0.45)",fontWeight:700}}>card{totalOwned===1?"":"s"}</span>
                       </div>
                     </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:30,fontWeight:900,color:"#E8317A",lineHeight:1,textShadow:"0 0 20px rgba(232,49,122,0.5)"}}>{pctR}%</div>
-                      {collectionValue>0 && <div style={{fontSize:12,color:"#4ade80",fontWeight:700,marginTop:4}}>~${collectionValue.toLocaleString(undefined,{maximumFractionDigits:0})} est. value</div>}
-                    </div>
+                    {collectionValue>0 && (
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Est. Value</div>
+                        <div style={{fontSize:26,fontWeight:900,color:"#4ade80",lineHeight:1.1,marginTop:3,textShadow:"0 0 20px rgba(74,222,128,0.4)"}}>${collectionValue.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:600}}>Next goal: {nextMile.toLocaleString()} cards</span>
+                    <span style={{fontSize:11,color:"#FBBF24",fontWeight:800}}>{toNext.toLocaleString()} to go</span>
                   </div>
                   <div style={{height:10,background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",position:"relative"}}>
-                    <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:"linear-gradient(90deg,#E8317A,#FBBF24)",borderRadius:6,transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)",boxShadow:"0 0 12px rgba(232,49,122,0.6)"}}/>
+                    <div style={{height:"100%",width:`${Math.min(milePct,100)}%`,background:"linear-gradient(90deg,#E8317A,#FBBF24)",borderRadius:6,transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)",boxShadow:"0 0 12px rgba(232,49,122,0.6)"}}/>
                   </div>
                 </div>
               );
@@ -24766,7 +24921,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
                 ))}
               </div>
             )}
