@@ -22247,14 +22247,15 @@ function PublicHomepage() {
         </video>
         {/* Medium overlay so hero text pops */}
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(8,0,10,0.55) 0%, rgba(8,0,10,0.45) 40%, rgba(8,0,10,0.85) 85%, #08000a 100%)", pointerEvents:"none" }}/>
-        {/* Tap-to-unmute control */}
-        <button onClick={toggleVideoSound} title={videoMuted?"Tap for sound":"Mute"}
-          style={{ position:"absolute", bottom:20, right:20, zIndex:3, display:"flex", alignItems:"center", gap:8, background:"rgba(8,0,10,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:30, padding:videoMuted?"8px 16px":"8px", height:38, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, backdropFilter:"blur(10px)", transition:"all 0.2s" }}
-          onMouseEnter={e=>{e.currentTarget.style.borderColor="#E8317A";}}
-          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.2)";}}>
-          {videoMuted ? <>🔇 <span>Tap for sound</span></> : <>🔊</>}
-        </button>
       </div>
+
+      {/* Tap-to-unmute control — top-level so it sits above the hero */}
+      <button onClick={toggleVideoSound} title={videoMuted?"Tap for sound":"Mute"}
+        style={{ position:"absolute", top:80, right:24, zIndex:50, display:"flex", alignItems:"center", gap:8, background:"rgba(8,0,10,0.65)", border:"1px solid rgba(232,49,122,0.5)", color:"#fff", borderRadius:30, padding:videoMuted?"9px 18px":"9px", height:40, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:800, backdropFilter:"blur(10px)", boxShadow:"0 4px 20px rgba(232,49,122,0.25)", transition:"all 0.2s" }}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor="#E8317A";e.currentTarget.style.transform="translateY(-1px)";}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.5)";e.currentTarget.style.transform="";}}>
+        {videoMuted ? <>🔊 <span>Tap for sound</span></> : <>🔇 <span>Mute</span></>}
+      </button>
 
       {/* Nav bar */}
       <div style={{ position:"relative", zIndex:2, maxWidth:1200, margin:"0 auto", padding:"20px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -22899,8 +22900,10 @@ function Leaderboard({ user, marketSales=[] }) {
     return () => { alive = false; };
   }, [marketSales]);
 
-  const ranked = (rows||[]).filter(r => (r[cat]||0) > 0).sort((a,b)=>(b[cat]||0)-(a[cat]||0)).slice(0,100);
+  const ranked = (rows||[]).filter(r => (r[cat]||0) > 0).sort((a,b)=>(b[cat]||0)-(a[cat]||0));
+  const top = ranked.slice(0,100);
   const myRank = user ? ranked.findIndex(r=>r.uid===user.uid) : -1;
+  const myRow = user ? (rows||[]).find(r=>r.uid===user.uid) : null;
   const medal = (i)=> i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`;
 
   return (
@@ -22917,11 +22920,11 @@ function Leaderboard({ user, marketSales=[] }) {
 
       {!rows ? (
         <div style={{ textAlign:"center", padding:60, color:"#666" }}>Loading rankings…</div>
-      ) : ranked.length===0 ? (
+      ) : top.length===0 ? (
         <div style={{ textAlign:"center", padding:60, color:"#666" }}>No rankings yet in this category. Be the first!</div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {ranked.map((r,i)=>{
+          {top.map((r,i)=>{
             const isMe = user && r.uid===user.uid;
             const tier = lbTier(r.collectionCount);
             return (
@@ -22940,8 +22943,17 @@ function Leaderboard({ user, marketSales=[] }) {
           })}
         </div>
       )}
-      {user && myRank===-1 && rows && (
-        <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#666" }}>You're not ranked in this category yet — start collecting to climb on.</div>
+      {/* Your standing — always shown when signed in */}
+      {user && rows && (
+        myRank>=0 && myRank>=100 ? (
+          <div style={{ marginTop:14, display:"flex", alignItems:"center", gap:12, background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.4)", borderRadius:12, padding:"10px 14px" }}>
+            <div style={{ width:30, textAlign:"center", fontSize:14, fontWeight:900, color:"#E8317A" }}>{myRank+1}</div>
+            <div style={{ flex:1, fontSize:14, fontWeight:800, color:"#fff" }}>{myRow?.name||"You"} <span style={{color:"#E8317A",fontSize:11,marginLeft:6}}>YOU</span></div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#E8317A" }}>{(myRow?.[cat]||0).toLocaleString()}</div>
+          </div>
+        ) : myRank===-1 ? (
+          <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#666" }}>You're not ranked in this category yet — start collecting to climb on. 🚀</div>
+        ) : null
       )}
     </div>
   );
