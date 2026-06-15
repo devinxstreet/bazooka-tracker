@@ -15069,16 +15069,16 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   function animate() {
     const cur = currentTilt.current, tgt = targetTilt.current;
     cur.x += (tgt.x - cur.x) * 0.1; cur.y += (tgt.y - cur.y) * 0.1;
-    if (cardRef.current && !isFlipped) cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`;
+    if (cardRef.current && !isFlipped) { cardRef.current.style.transition = "box-shadow 0.2s ease"; cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`; }
     if (Math.abs(tgt.x-cur.x)>0.05||Math.abs(tgt.y-cur.y)>0.05||isHovering.current) { animRef.current = requestAnimationFrame(animate); }
-    else { animRef.current = null; cur.x = 0; cur.y = 0; if(cardRef.current && !isFlipped) cardRef.current.style.transform = ""; }
+    else { animRef.current = null; cur.x = 0; cur.y = 0; if(cardRef.current && !isFlipped) { cardRef.current.style.transition = ""; cardRef.current.style.transform = ""; } }
   }
   function handleClick() {
     if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
     currentTilt.current = { x:0, y:0 }; targetTilt.current = { x:0, y:0 };
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
-    if (cardRef.current) cardRef.current.style.transform = "";
+    if (cardRef.current) { cardRef.current.style.transition = ""; cardRef.current.style.transform = ""; }
     isHovering.current = false;
     setFlippedCard(!isFlipped ? c.id : null);
   }
@@ -15099,7 +15099,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   if (c.imageUrl) {
     return (
       <div className="boba-card-hover" style={{ aspectRatio:"3/4" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
-        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:isFlipped?"transform 0.45s cubic-bezier(0.4,0,0.2,1)":"box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":undefined, borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
+        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":"perspective(600px) rotateY(0deg)", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
