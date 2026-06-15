@@ -10,8 +10,7 @@ import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage
 // Until June 18, only @bazookabreaks.com team + these specific emails can get in.
 // Add any individual emails you want to grant early access to (lowercase).
 const EARLY_ACCESS_EMAILS = [
-  // "jeff@example.com",
-  // "tester@gmail.com",
+  "christopher.e.ohara@gmail.com",
 ];
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
