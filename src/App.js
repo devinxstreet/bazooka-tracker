@@ -22388,6 +22388,39 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
   );
 }
 
+function ReviewModal({ sale, onSubmit, onClose, inp }) {
+  const [stars, setStars] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [text, setText] = useState("");
+  if (!sale) return null;
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10005, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(6px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid #2a2a2a", borderRadius:18, width:"min(420px,100%)", padding:"24px 26px" }}>
+        <div style={{ fontSize:11, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:4 }}>Rate your seller</div>
+        <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:2 }}>{sale.sellerName||"Seller"}</div>
+        <div style={{ fontSize:12, color:"#777", marginBottom:18 }}>{sale.cardName}{sale.price?` · $${Number(sale.price).toFixed(2)}`:""}</div>
+
+        <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:16 }}>
+          {[1,2,3,4,5].map(n=>(
+            <button key={n} onMouseEnter={()=>setHover(n)} onMouseLeave={()=>setHover(0)} onClick={()=>setStars(n)}
+              style={{ background:"none", border:"none", cursor:"pointer", fontSize:38, lineHeight:1, padding:0, filter:(hover||stars)>=n?"none":"grayscale(1) opacity(0.35)", transform:(hover||stars)>=n?"scale(1.1)":"scale(1)", transition:"transform 0.1s" }}>⭐</button>
+          ))}
+        </div>
+        <div style={{ textAlign:"center", fontSize:12, color:"#888", marginBottom:16, minHeight:16 }}>
+          {["","Poor","Fair","Good","Great","Excellent"][hover||stars] || "Tap a star to rate"}
+        </div>
+
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Add a review (optional) — how was the transaction?" rows={3} maxLength={600} style={{...inp, width:"100%", resize:"none", marginBottom:14 }}/>
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={()=>stars>0 && onSubmit(sale, stars, text)} disabled={stars===0}
+            style={{ flex:1, background:stars>0?"linear-gradient(135deg,#E8317A,#FBBF24)":"#2a2a2a", border:"none", color:stars>0?"#fff":"#666", borderRadius:10, padding:"11px", fontSize:14, fontWeight:800, cursor:stars>0?"pointer":"not-allowed", fontFamily:"inherit" }}>Submit Review</button>
+          <button onClick={onClose} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:10, padding:"11px 18px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Later</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SellerBadge({ uid, name, marketSales=[], inline=true }) {
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState(null); // { collectionCount, deals, rating, reviewCount }
@@ -22457,6 +22490,8 @@ function PublicCardDatabase() {
   const [owned,         setOwned]         = useState({});
   const [privateCards,  setPrivateCards]  = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
+  const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
+  const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   const [signingIn,     setSigningIn]     = useState(false);
@@ -22821,12 +22856,16 @@ function PublicCardDatabase() {
           setWantList(wSnap.exists() ? wSnap.data() : {});
           setPrivateCards(prvSnap.exists() ? prvSnap.data() : {});
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
+          try {
+            const revSnap = await getDocs(query(collection(db,"boba_reviews"), where("buyerUid","==",u.uid)));
+            setMyReviews(revSnap.docs.map(d=>({...d.data(),id:d.id})));
+          } catch(re) { console.error("reviews load failed:", re); }
         } catch (e) {
           console.error("Collection load failed (check Firestore rules for boba_owned/wants/private/lots):", e);
           setOwnedDocId(u.uid);
         }
       } else {
-        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]);
+        setOwned({}); setOwnedDocId(null); setWantList({}); setPrivateCards({}); setLots([]); setMyReviews([]);
       }
     });
   }, []);
@@ -23010,6 +23049,28 @@ function PublicCardDatabase() {
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+  // -- Reviews (buyer rates seller, tied to a completed sale) --
+  const reviewedSaleIds = new Set(myReviews.map(r=>r.saleId));
+  async function submitReview(sale, stars, text) {
+    if (!user || !sale) return;
+    const revId = `${sale.id}_${user.uid}`; // one review per sale per buyer
+    const review = {
+      id: revId, saleId: sale.id,
+      sellerUid: sale.sellerUid, sellerName: sale.sellerName||"",
+      buyerUid: user.uid, buyerName: user.displayName||user.email||"",
+      cardName: sale.cardName||"", stars: Math.max(1,Math.min(5,stars)),
+      text: (text||"").trim().slice(0,600),
+      createdAt: new Date().toISOString(),
+    };
+    try {
+      await setDoc(doc(db,"boba_reviews",revId), review);
+      setMyReviews(prev => [...prev.filter(r=>r.id!==revId), review]);
+      setReviewModal(null);
+      showToast("Thanks for your review!");
+    } catch(e) { console.error("submit review failed:", e); alert("Could not submit review — please try again."); }
+  }
+  // Completed sales where THIS user was the buyer and hasn't reviewed yet
+  const pendingReviews = marketSales.filter(s => s.buyerUid===user?.uid && s.sellerUid && s.sellerUid!==user?.uid && !reviewedSaleIds.has(s.id));
   function signInGoogle() {
     const provider = new GoogleAuthProvider();
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -23817,6 +23878,7 @@ function PublicCardDatabase() {
       {/* ── CARD FX OVERLAY ── */}
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
+      {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
           <div style={{background:"linear-gradient(135deg,#E8317A,#FBBF24)",borderRadius:14,padding:"14px 28px",boxShadow:"0 8px 40px rgba(232,49,122,0.6)",textAlign:"center",border:"2px solid rgba(255,255,255,0.3)"}}>
@@ -25094,6 +25156,23 @@ function PublicCardDatabase() {
         {/* MESSAGES TAB */}
         {/* MESSAGES TAB - always mounted so thread listener stays active */}
         <div style={{maxWidth:800,margin:"0 auto",display:activeTab==="messages"?"block":"none"}}>
+            {pendingReviews.length>0 && (
+              <div style={{ background:"linear-gradient(135deg, rgba(232,49,122,0.12), rgba(251,191,36,0.08))", border:"1px solid rgba(232,49,122,0.25)", borderRadius:14, padding:"14px 18px", marginBottom:16 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:"#fff", marginBottom:4 }}>⭐ Rate your recent {pendingReviews.length===1?"purchase":"purchases"}</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>Help the community by reviewing sellers you've bought from. It keeps the marketplace trustworthy.</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {pendingReviews.slice(0,4).map(s=>(
+                    <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, background:"rgba(0,0,0,0.25)", borderRadius:10, padding:"8px 12px" }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#eee", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.cardName}</div>
+                        <div style={{ fontSize:11, color:"#888" }}>from {s.sellerName||"seller"}{s.price?` · $${Number(s.price).toFixed(2)}`:""}</div>
+                      </div>
+                      <button onClick={()=>setReviewModal({sale:s})} style={{ background:"linear-gradient(135deg,#E8317A,#FBBF24)", border:"none", color:"#fff", borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>Rate seller</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <MessagesTab
               user={user}
               activeThread={activeThread}
