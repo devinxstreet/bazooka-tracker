@@ -20921,7 +20921,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                             <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.isOBO?"Offers only":l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
                           </div>
                           <div style={{textAlign:"right"}}>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by {l.sellerName}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by <SellerBadge uid={l.sellerUid} name={l.sellerName} marketSales={marketSales}/></div>
                             {l.offerCount>0&&<div style={{fontSize:10,color:"#FBBF24"}}>{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
                           </div>
                         </div>
@@ -22388,6 +22388,67 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
   );
 }
 
+function SellerBadge({ uid, name, marketSales=[], inline=true }) {
+  const [open, setOpen] = useState(false);
+  const [stats, setStats] = useState(null); // { collectionCount, deals, rating, reviewCount }
+  const [loading, setLoading] = useState(false);
+
+  async function loadStats() {
+    if (stats || loading || !uid) return;
+    setLoading(true);
+    try {
+      const [ownSnap, revSnap] = await Promise.all([
+        getDoc(doc(db,"boba_owned",uid)),
+        getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
+      ]);
+      const owned = ownSnap.exists() ? ownSnap.data() : {};
+      const collectionCount = Object.values(owned).reduce((s,q)=>s+(q||1),0);
+      const deals = marketSales.filter(s => s.sellerUid===uid || s.buyerUid===uid).length;
+      const reviews = revSnap.docs.map(d=>d.data());
+      const reviewCount = reviews.length;
+      const rating = reviewCount>0 ? reviews.reduce((s,r)=>s+(r.stars||0),0)/reviewCount : null;
+      setStats({ collectionCount, deals, rating, reviewCount });
+    } catch(e) { console.error("seller stats failed:", e); setStats({ collectionCount:0, deals:0, rating:null, reviewCount:0 }); }
+    setLoading(false);
+  }
+
+  return (
+    <span style={{ position:"relative", display:"inline-block" }}
+      onMouseEnter={()=>{ setOpen(true); loadStats(); }}
+      onMouseLeave={()=>setOpen(false)}
+      onClick={e=>{ e.stopPropagation(); setOpen(o=>!o); loadStats(); }}>
+      <span style={{ color:"#7B9CFF", fontWeight:700, cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted", textUnderlineOffset:2 }}>{name||"Collector"}</span>
+      {open && (
+        <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:210, background:"#141414", border:"1px solid #2a2a2a", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
+          <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:10 }}>{name||"Collector"}</div>
+          {!stats ? (
+            <div style={{ fontSize:12, color:"#666" }}>Loading…</div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:"#888" }}>Cards in collection</span>
+                <span style={{ fontSize:13, fontWeight:800, color:"#4ade80" }}>{stats.collectionCount.toLocaleString()}</span>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:"#888" }}>Deals done</span>
+                <span style={{ fontSize:13, fontWeight:800, color:"#7B9CFF" }}>{stats.deals.toLocaleString()}</span>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:"#888" }}>Seller rating</span>
+                {stats.rating!=null ? (
+                  <span style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>{stats.rating.toFixed(1)} ⭐ <span style={{ color:"#666", fontWeight:600, fontSize:11 }}>· {stats.reviewCount}</span></span>
+                ) : (
+                  <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.3)", borderRadius:20, padding:"2px 8px" }}>New collector</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function PublicCardDatabase() {
   // -- Core state --
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
@@ -22576,6 +22637,8 @@ function PublicCardDatabase() {
   const [listType,      setListType]      = useState("sale"); // sale|trade|either
   const [listNotes,     setListNotes]     = useState("");
   const [listPayment,  setListPayment]  = useState(""); // seller payment info
+  const [listPhotos,    setListPhotos]    = useState([]); // {url} uploaded photos of the actual card
+  const [listUploading, setListUploading] = useState(false);
   const [paymentPopup,  setPaymentPopup]  = useState(null);
   const [offerModal,    setOfferModal]    = useState(null); // listing being offered on
   const [offerAmt,      setOfferAmt]      = useState("");
@@ -23169,12 +23232,26 @@ function PublicCardDatabase() {
   }
 
   // -- Marketplace --
+  async function uploadListingPhoto(file) {
+    if (!user || !file) return;
+    setListUploading(true);
+    try {
+      const path = `marketplace_photos/${user.uid}/${uid()}_${(file.name||"photo").replace(/[^a-zA-Z0-9.]/g,"_")}`;
+      const sref = ref(storage, path);
+      await uploadBytes(sref, file);
+      const url = await getDownloadURL(sref);
+      setListPhotos(prev => [...prev, { url }]);
+    } catch(e) { console.error("photo upload failed:", e); alert("Photo upload failed — please try again."); }
+    setListUploading(false);
+  }
   async function createListing() {
     if(!user||!listModal)return;
-    if(listType!=="offer"&&!listPrice)return;
+    // Trust & safety: require at least one real photo, and a price for any sale-type listing
+    if(listPhotos.length===0){ alert("Please add at least one photo of your actual card before listing."); return; }
+    if(listType!=="offer"&&listType!=="trade"&&(!listPrice||parseFloat(listPrice)<=0)){ alert("Please set an asking price to list this card for sale."); return; }
     const id=uid();
     const card=listModal;
-    await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,paymentInfo:listPayment,status:"active",createdAt:new Date().toISOString(),offerCount:0});
+    await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,sellerPhotos:listPhotos.map(p=>p.url),setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,paymentInfo:listPayment,status:"active",createdAt:new Date().toISOString(),offerCount:0});
     // Notify users who have this card on their want list
     try {
       const wantSnaps = await getDocs(collection(db,"boba_wants"));
@@ -23194,7 +23271,7 @@ function PublicCardDatabase() {
       });
       await Promise.all(notifBatch);
     } catch(e) { console.error("Want notification error:", e); }
-    setListModal(null); setListPrice(""); setListNotes(""); setListPayment(""); setListType("sale");
+    setListModal(null); setListPrice(""); setListNotes(""); setListPayment(""); setListType("sale"); setListPhotos([]);
   }
   async function removeListing(id) {
     if(!window.confirm("Remove this listing?"))return;
@@ -23797,6 +23874,24 @@ function PublicCardDatabase() {
               </div>
             )}
             <textarea value={listNotes} onChange={e=>setListNotes(e.target.value)} placeholder="Notes (condition, trades wanted, etc.)" rows={2} style={{...inp,width:"100%",marginBottom:10,resize:"none"}}/>
+            {/* Required real-card photos */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:listPhotos.length?"#4ade80":"#FBBF24",marginBottom:6}}>
+                {listPhotos.length?`📸 ${listPhotos.length} photo${listPhotos.length>1?"s":""} added`:"📸 Photos required — add a pic of your actual card"}
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                {listPhotos.map((p,i)=>(
+                  <div key={i} style={{position:"relative",width:54,height:72,borderRadius:6,overflow:"hidden",border:"1px solid #2a2a2a"}}>
+                    <img src={p.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    <button onClick={()=>setListPhotos(prev=>prev.filter((_,j)=>j!==i))} style={{position:"absolute",top:0,right:0,background:"rgba(0,0,0,0.7)",border:"none",color:"#E8317A",fontSize:14,width:18,height:18,cursor:"pointer",lineHeight:1,padding:0}}>×</button>
+                  </div>
+                ))}
+                <label style={{width:54,height:72,borderRadius:6,border:"1.5px dashed rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:listUploading?"wait":"pointer",fontSize:20,color:"rgba(255,255,255,0.4)"}}>
+                  {listUploading?"…":"+"}
+                  <input type="file" accept="image/*" style={{display:"none"}} disabled={listUploading} onChange={e=>{const f=e.target.files?.[0]; if(f)uploadListingPhoto(f); e.target.value="";}}/>
+                </label>
+              </div>
+            </div>
                 <input value={listPayment} onChange={e=>setListPayment(e.target.value)} placeholder="Payment info (e.g. Venmo @handle, PayPal friends, Cash App $tag)" style={{...inp,width:"100%",marginBottom:16,boxSizing:"border-box",fontSize:12}}/>
             <div style={{display:"flex",gap:10}}>
               <button onClick={createListing} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#000",border:"none",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(74,222,128,0.3)"}}>List Card</button>
