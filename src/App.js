@@ -22207,6 +22207,35 @@ function RainbowCelebration({ fx, onDone }) {
 }
 
 // ── PUBLIC HOMEPAGE ── the front door at bazookadash.com ──────────────────────
+function BackToTop() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShow(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive:true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  if (!show) return null;
+  return (
+    <button
+      onClick={() => window.scrollTo({ top:0, behavior:"smooth" })}
+      title="Back to top"
+      style={{
+        position:"fixed", bottom:24, right:24, zIndex:900,
+        width:48, height:48, borderRadius:"50%",
+        background:"linear-gradient(135deg,#E8317A,#7B2FF7)",
+        border:"none", color:"#fff", fontSize:20, cursor:"pointer",
+        boxShadow:"0 6px 24px rgba(232,49,122,0.45)",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        transition:"transform 0.15s, opacity 0.2s",
+      }}
+      onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px)"}
+      onMouseLeave={e=>e.currentTarget.style.transform=""}>
+      ↑
+    </button>
+  );
+}
+
 function ComingSoon() {
   return (
     <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, position:"relative", overflow:"hidden" }}>
@@ -24505,6 +24534,7 @@ function PublicCardDatabase() {
       {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
+      <BackToTop />
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {milestone && (
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:10001,pointerEvents:"none",animation:"milestonePop 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
