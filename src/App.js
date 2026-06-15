@@ -15086,7 +15086,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const QtyControls = () => (
     <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
       <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>{"\u2212"}</button>
-      <span style={{ fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#555", minWidth:16, textAlign:"center" }}>{qty}</span>
+      <input
+        type="number" inputMode="numeric" min="0" value={qty}
+        onClick={e=>{e.stopPropagation(); e.target.select();}}
+        onChange={e=>{ const v=parseInt(e.target.value,10); setOwnedQty(c.id, isNaN(v)?0:Math.max(0,v)); }}
+        style={{ width:38, height:22, fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#888", textAlign:"center", background:"#1a1a1a", border:"1px solid #333", borderRadius:5, fontFamily:"inherit", padding:0, MozAppearance:"textfield" }}
+      />
       <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid #333", color:"#888", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
     </div>
   );
