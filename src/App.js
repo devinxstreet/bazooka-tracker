@@ -1,5 +1,5 @@
 /* eslint-disable */
-/* Bazooka Vault — build marker 2026-06-15-b (commit test) */
+/* Bazooka Vault — signups paused until June 18 */
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
@@ -23349,6 +23349,13 @@ function PublicCardDatabase() {
         try {
           const uref = doc(db,"users",u.uid);
           const usnap = await getDoc(uref);
+          // --- New sign-up pause (flip SIGNUPS_PAUSED to false to re-open) ---
+          const SIGNUPS_PAUSED = true;
+          if (SIGNUPS_PAUSED && !usnap.exists()) {
+            alert("New sign-ups are paused right now — we're putting some finishing touches on things. Please check back on June 18th. Thanks for your patience!");
+            await signOut(auth);
+            return;
+          }
           await setDoc(uref, {
             email: u.email || "",
             displayName: u.displayName || "",
