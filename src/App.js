@@ -22237,6 +22237,30 @@ function PublicHomepage() {
         )}
       </div>
 
+      {/* WHATNOT LIVE BANNER */}
+      <div style={{ position:"relative", zIndex:2, maxWidth:1000, margin:"0 auto", padding:"0 24px" }}>
+        <div style={{ background:"linear-gradient(135deg, rgba(232,49,122,0.14), rgba(123,47,247,0.12))", border:"1px solid rgba(232,49,122,0.3)", borderRadius:22, padding:"30px 28px", textAlign:"center", animation:"homeFadeUp 0.7s ease 0.5s both", position:"relative", overflow:"hidden" }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:30, padding:"5px 14px", marginBottom:16 }}>
+            <span style={{ width:8, height:8, borderRadius:"50%", background:"#EF4444", boxShadow:"0 0 8px #EF4444", animation:"homeGlow 1.4s ease-in-out infinite" }}/>
+            <span style={{ fontSize:11, fontWeight:900, color:"#EF4444", letterSpacing:1.5 }}>LIVE ON WHATNOT</span>
+          </div>
+          <div style={{ fontSize:"clamp(22px,3.5vw,30px)", fontWeight:900, color:"#fff", marginBottom:10 }}>Catch us live, rip with the crew</div>
+          <div style={{ fontSize:"clamp(14px,2vw,16px)", color:"rgba(255,255,255,0.6)", maxWidth:560, margin:"0 auto 24px", lineHeight:1.6 }}>
+            Live breaks, giveaways, and the best energy in the hobby. Join the Bazooka community on Whatnot and be part of the action.
+          </div>
+          <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
+            <a href="https://www.whatnot.com/user/bazookavault" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:10, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", borderRadius:30, padding:"14px 30px", fontSize:15, fontWeight:800, boxShadow:"0 4px 24px rgba(232,49,122,0.4)", transition:"transform 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
+              📺 Bazooka Vault
+            </a>
+            <a href="https://www.whatnot.com/user/bazookabreaks" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", display:"inline-flex", alignItems:"center", gap:10, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", borderRadius:30, padding:"14px 30px", fontSize:15, fontWeight:800, boxShadow:"0 4px 24px rgba(232,49,122,0.4)", transition:"transform 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
+              📺 Bazooka Breaks
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* FEATURES */}
       <div style={{ position:"relative", zIndex:2, maxWidth:1100, margin:"0 auto", padding:"40px 24px 60px" }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:18 }}>
@@ -22423,7 +22447,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
 
 function SellerBadge({ uid, name, marketSales=[], inline=true }) {
   const [open, setOpen] = useState(false);
-  const [stats, setStats] = useState(null); // { collectionCount, deals, rating, reviewCount }
+  const [stats, setStats] = useState(null); // { collectionCount, deals, rating, reviewCount, reviews }
   const [loading, setLoading] = useState(false);
 
   async function loadStats() {
@@ -22437,13 +22461,15 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
       const owned = ownSnap.exists() ? ownSnap.data() : {};
       const collectionCount = Object.values(owned).reduce((s,q)=>s+(q||1),0);
       const deals = marketSales.filter(s => s.sellerUid===uid || s.buyerUid===uid).length;
-      const reviews = revSnap.docs.map(d=>d.data());
+      const reviews = revSnap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
       const reviewCount = reviews.length;
       const rating = reviewCount>0 ? reviews.reduce((s,r)=>s+(r.stars||0),0)/reviewCount : null;
-      setStats({ collectionCount, deals, rating, reviewCount });
-    } catch(e) { console.error("seller stats failed:", e); setStats({ collectionCount:0, deals:0, rating:null, reviewCount:0 }); }
+      setStats({ collectionCount, deals, rating, reviewCount, reviews });
+    } catch(e) { console.error("seller stats failed:", e); setStats({ collectionCount:0, deals:0, rating:null, reviewCount:0, reviews:[] }); }
     setLoading(false);
   }
+
+  const written = stats ? stats.reviews.filter(r=>r.text && r.text.trim()) : [];
 
   return (
     <span style={{ position:"relative", display:"inline-block" }}
@@ -22452,7 +22478,7 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
       onClick={e=>{ e.stopPropagation(); setOpen(o=>!o); loadStats(); }}>
       <span style={{ color:"#7B9CFF", fontWeight:700, cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted", textUnderlineOffset:2 }}>{name||"Collector"}</span>
       {open && (
-        <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:210, background:"#141414", border:"1px solid #2a2a2a", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:250, maxHeight:340, overflowY:"auto", background:"#141414", border:"1px solid #2a2a2a", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
           <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:10 }}>{name||"Collector"}</div>
           {!stats ? (
             <div style={{ fontSize:12, color:"#666" }}>Loading…</div>
@@ -22474,6 +22500,23 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
                   <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.3)", borderRadius:20, padding:"2px 8px" }}>New collector</span>
                 )}
               </div>
+              {written.length>0 && (
+                <div style={{ marginTop:6, borderTop:"1px solid #2a2a2a", paddingTop:10 }}>
+                  <div style={{ fontSize:10, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Recent reviews</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {written.slice(0,6).map((r,i)=>(
+                      <div key={i} style={{ background:"#1a1a1a", borderRadius:8, padding:"8px 10px" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                          <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700 }}>{"⭐".repeat(r.stars||0)}</span>
+                          <span style={{ fontSize:9, color:"#555" }}>{(r.createdAt||"").split("T")[0]}</span>
+                        </div>
+                        <div style={{ fontSize:11, color:"#bbb", lineHeight:1.4 }}>{r.text}</div>
+                        <div style={{ fontSize:9, color:"#555", marginTop:3 }}>— {r.buyerName||"buyer"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
