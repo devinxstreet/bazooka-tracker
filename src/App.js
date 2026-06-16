@@ -11,6 +11,7 @@ import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage
 // Add any individual emails you want to grant early access to (lowercase).
 const EARLY_ACCESS_EMAILS = [
   "christopher.e.ohara@gmail.com",
+  "sydxelyse@icloud.com",
 ];
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
