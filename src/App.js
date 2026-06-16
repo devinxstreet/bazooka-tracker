@@ -463,7 +463,7 @@ function GlobalStyles() {
       .boba-card-flip:hover { transform: rotateY(180deg); }
       .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
-      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; }
+      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; transform: scale(1.1); }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
 
       /* Mobile */
@@ -15155,7 +15155,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":"perspective(600px) rotateY(0deg)", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {onEnlarge && <button onClick={e=>{e.stopPropagation();onEnlarge(c);}} title="View larger" className="card-enlarge-btn" style={{ position:"absolute", top:6, right:6, zIndex:6, width:28, height:28, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:0, lineHeight:1, opacity:0, transition:"opacity 0.15s" }}>🔍</button>}
+            {onEnlarge && <button onClick={e=>{e.stopPropagation();onEnlarge(c);}} title="View larger" className="card-enlarge-btn" style={{ position:"absolute", top:6, right:6, zIndex:6, width:30, height:30, borderRadius:8, background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:0, lineHeight:1, opacity:0.55, transition:"opacity 0.15s, transform 0.15s" }}>🔍</button>}
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -24953,7 +24953,7 @@ function PublicCardDatabase() {
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
-      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; }
+      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; transform: scale(1.1); }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
