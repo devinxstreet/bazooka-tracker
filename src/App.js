@@ -24204,6 +24204,24 @@ function PublicCardDatabase() {
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
       if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
+      // Number + close-name combo: the strongest real-world signal. If the card NUMBER matches and the
+      // hero name is *close* (OCR misreads a letter or two), trust it — even when the same number repeats
+      // across sets, because the name disambiguates. e.g. AI read "Hauburst #BBF-80" → "Haliburst #BBF-80".
+      if(!match&&iNum&&iHero){
+        const numMatches=cards.filter(c=>normNum(c.cardNum)===iNum);
+        if(numMatches.length===1){
+          // number is globally unique — a close-ish name confirms it (loose tolerance since number corroborates)
+          const c=numMatches[0], a=clean(c.hero), b=clean(iHero);
+          const dist=lev(a,b), tol=Math.max(2,Math.floor(Math.max(a.length,b.length)*0.35));
+          if(a.includes(b)||b.includes(a)||dist<=tol) match=c;
+        } else if(numMatches.length>1){
+          // number repeats across sets — pick the one whose hero name is closest, if clearly close
+          const scored=numMatches.map(c=>({c,d:lev(clean(c.hero),clean(iHero))})).sort((x,y)=>x.d-y.d);
+          const best=scored[0], tol=Math.max(2,Math.floor(clean(best.c.hero).length*0.35));
+          if(best.d<=tol && (scored.length<2 || scored[1].d>best.d)) match=best.c;
+        }
+      }
+
       if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
 
       // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
