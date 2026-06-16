@@ -23511,6 +23511,7 @@ function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
+  const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -25403,42 +25404,74 @@ function PublicCardDatabase() {
         const cards = fanDeck.cards||[];
         const n = cards.length;
         const mid = (n-1)/2;
-        // arc geometry: spread angle scales down as the hand gets bigger
-        const spread = Math.min(60, Math.max(18, 70 - n*0.6)); // total degrees
-        const step = n>1 ? spread/(n-1) : 0;
+        // Fan geometry: spread WIDE left-to-right. Cards overlap horizontally,
+        // each rotated a little, arcing up at the edges.
+        const totalArc = Math.min(150, 20 + n*4); // total degrees across the whole fan
+        const stepAng = n>1 ? totalArc/(n-1) : 0;
+        // horizontal spacing so the fan spans the screen width
+        const spanPx = Math.min(typeof window!=="undefined"?window.innerWidth*0.82:1100, 90 + n*28);
+        const stepX = n>1 ? spanPx/(n-1) : 0;
+        const cardImg = (c,big)=> c.imageUrl
+          ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:10,textAlign:"center"}}><div style={{fontSize:big?15:13,fontWeight:800,color:PUBLIC_WEAPON_COLORS[c.weapon]||"#888"}}>{c.hero}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{c.treatment}</div><div style={{fontSize:18,fontWeight:900,color:PUBLIC_WEAPON_COLORS[c.weapon]||"#888",marginTop:8}}>{c.power}</div></div>;
         return (
-          <div onClick={()=>setFanDeck(null)} style={{position:"fixed",inset:0,zIndex:11200,background:"radial-gradient(ellipse at center, rgba(20,8,18,0.97), rgba(0,0,0,0.98))",backdropFilter:"blur(14px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
-            <div style={{position:"absolute",top:24,left:0,right:0,textAlign:"center",pointerEvents:"none"}}>
-              <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{fanDeck.name}</div>
-              <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",marginTop:3}}>{n} card{n!==1?"s":""} · hover to lift · click anywhere to close</div>
+          <div style={{position:"fixed",inset:0,zIndex:11200,background:"radial-gradient(ellipse at center, rgba(20,8,18,0.98), rgba(0,0,0,0.99))",backdropFilter:"blur(14px)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {/* Header */}
+            <div style={{flexShrink:0,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+              <div>
+                <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{fanDeck.name}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:2}}>{n} card{n!==1?"s":""}{fanMode==="fan"?" · hover to lift":""}</div>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <div style={{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:24,padding:3}}>
+                  <button onClick={()=>setFanMode("grid")} style={{background:fanMode==="grid"?"rgba(255,255,255,0.15)":"transparent",border:"none",color:fanMode==="grid"?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>▦ Grid</button>
+                  <button onClick={()=>setFanMode("fan")} style={{background:fanMode==="fan"?"rgba(255,255,255,0.15)":"transparent",border:"none",color:fanMode==="fan"?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖐 Fan</button>
+                </div>
+                <button onClick={()=>{setFanDeck(null);setFanMode("grid");}} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:24,width:40,height:40,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+              </div>
             </div>
-            <div style={{position:"relative",width:"100%",height:"70vh",display:"flex",alignItems:"flex-end",justifyContent:"center",marginTop:40}}>
-              {cards.map((c,i)=>{
-                const angle = (i-mid)*step;
-                const lift = Math.abs(i-mid); // outer cards sit slightly lower (arc)
-                const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
-                return (
-                  <div key={i} className="fan-card" onClick={e=>e.stopPropagation()}
-                    style={{
-                      position:"absolute", bottom:0,
-                      width:"clamp(140px,20vw,230px)", aspectRatio:"3/4",
-                      transformOrigin:"bottom center",
-                      transform:`rotate(${angle}deg) translateY(${lift*8}px)`,
-                      transition:"transform 0.28s cubic-bezier(0.34,1.3,0.5,1), filter 0.2s",
-                      zIndex: 100+i,
-                      borderRadius:14, overflow:"hidden",
-                      boxShadow:"0 12px 40px rgba(0,0,0,0.6)",
-                      border:`2px solid ${wc}55`,
-                      background:"#111", cursor:"pointer"
-                    }}>
-                    {c.imageUrl
-                      ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-                      : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:10,textAlign:"center"}}><div style={{fontSize:15,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{c.treatment}</div><div style={{fontSize:18,fontWeight:900,color:wc,marginTop:8}}>{c.power}</div></div>}
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={()=>setFanDeck(null)} style={{position:"absolute",bottom:30,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:24,padding:"11px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+            {/* Body */}
+            {fanMode==="grid" ? (
+              <div style={{flex:1,minHeight:0,overflowY:"auto",padding:"8px 24px 32px"}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:16,maxWidth:1400,margin:"0 auto"}}>
+                  {cards.map((c,i)=>{const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";return(
+                    <div key={i} style={{aspectRatio:"3/4",borderRadius:12,overflow:"hidden",border:`2px solid ${wc}55`,background:"#111",boxShadow:"0 8px 24px rgba(0,0,0,0.5)",transition:"transform 0.15s",cursor:"default"}}
+                      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-6px) scale(1.03)";e.currentTarget.style.borderColor=wc;}}
+                      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.borderColor=wc+"55";}}>
+                      {cardImg(c,true)}
+                    </div>
+                  );})}
+                </div>
+              </div>
+            ) : (
+              <div style={{flex:1,minHeight:0,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <div style={{position:"relative",width:"100%",height:"100%"}}>
+                  {cards.map((c,i)=>{
+                    const angle=(i-mid)*stepAng;
+                    const x=(i-mid)*stepX;
+                    const yArc=Math.pow(Math.abs(i-mid),1.5)*2.2; // edges arc downward
+                    const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={i} className="fan-card" onClick={e=>e.stopPropagation()}
+                        onMouseEnter={e=>{e.currentTarget.style.transform=`translate(-50%,-50%) translateX(${x}px) translateY(${yArc-70}px) rotate(0deg) scale(1.15)`;e.currentTarget.style.zIndex="999";}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform=`translate(-50%,-50%) translateX(${x}px) translateY(${yArc}px) rotate(${angle}deg)`;e.currentTarget.style.zIndex=String(100+i);}}
+                        style={{
+                          position:"absolute", top:"50%", left:"50%",
+                          width:"clamp(120px,15vw,200px)", aspectRatio:"3/4",
+                          transformOrigin:"center bottom",
+                          transform:`translate(-50%,-50%) translateX(${x}px) translateY(${yArc}px) rotate(${angle}deg)`,
+                          transition:"transform 0.3s cubic-bezier(0.34,1.2,0.5,1), filter 0.2s",
+                          zIndex:100+i, borderRadius:13, overflow:"hidden",
+                          boxShadow:"0 12px 40px rgba(0,0,0,0.6)", border:`2px solid ${wc}55`,
+                          background:"#111", cursor:"pointer"
+                        }}>
+                        {cardImg(c)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -25474,7 +25507,7 @@ function PublicCardDatabase() {
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
-        .fan-card:hover { transform: translateY(-60px) scale(1.18) rotate(0deg) !important; z-index: 999 !important; filter: brightness(1.1); box-shadow: 0 24px 70px rgba(0,0,0,0.8) !important; }
+        .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
