@@ -14483,6 +14483,53 @@ function PublicPlaybookBuilder() {
   const [pbCards, setPbCards] = useState([]);
   const [pbSearch, setPbSearch] = useState("");
   const [pbSort, setPbSort] = useState("name");
+  const [pbName, setPbName] = useState("My Playbook");
+  const [user, setUser] = useState(null);
+  const [savedPlaybooks, setSavedPlaybooks] = useState([]);
+  const [pbLoadId, setPbLoadId] = useState(null);
+  const [pbSaving, setPbSaving] = useState(false);
+  const [pbSaved, setPbSaved] = useState(false);
+
+  useEffect(() => onAuthStateChanged(auth, u => setUser(u)), []);
+  useEffect(() => {
+    if (!user) { setSavedPlaybooks([]); return; }
+    const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
+      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    }, e=>console.error("load playbooks failed:", e));
+    return unsub;
+  }, [user]);
+
+  async function savePlaybook() {
+    if (!pbName.trim() || pbCards.length === 0) { alert("Name your playbook and add at least one card before saving."); return; }
+    if (!user) { alert("Please sign in to save your playbook."); return; }
+    setPbSaving(true);
+    const id = pbLoadId || `pb_${Date.now()}`;
+    const plays = pbCards.filter(e=>e.type==="play").length;
+    const bonus = pbCards.filter(e=>e.type==="bonus").length;
+    try {
+      await setDoc(doc(db,"boba_playbooks",id), {
+        id, userId: user.uid, name: pbName.trim(),
+        entries: pbCards, playCount: plays, bonusCount: bonus,
+        savedAt: new Date().toISOString(),
+      }, { merge:true });
+      setPbLoadId(id);
+      setPbSaved(true); setTimeout(()=>setPbSaved(false), 1800);
+    } catch(e) {
+      console.error("save playbook failed:", e);
+      alert("Couldn't save your playbook: " + (e?.message || e) + "\n\nIf this mentions permissions, the Firestore rules for boba_playbooks need to be published.");
+    } finally { setPbSaving(false); }
+  }
+  async function deletePlaybook(id) {
+    if (!window.confirm("Delete this playbook?")) return;
+    try { await deleteDoc(doc(db,"boba_playbooks",id)); } catch(e){ alert("Delete failed: "+(e?.message||e)); return; }
+    if (pbLoadId === id) { setPbLoadId(null); setPbName("My Playbook"); setPbCards([]); }
+  }
+  function loadPlaybook(pb) {
+    setPbLoadId(pb.id); setPbName(pb.name||"My Playbook"); setPbCards(pb.entries||[]);
+  }
+  function newPlaybook() {
+    setPbLoadId(null); setPbName("My Playbook"); setPbCards([]);
+  }
 
   useEffect(() => {
     async function load() {
@@ -14541,8 +14588,24 @@ function PublicPlaybookBuilder() {
           <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{"\uD83D\uDCD6 Playbook Builder"}</div>
           <span style={{ fontSize:12, color:playFull?"#E8317A":"#4ade80", fontWeight:700 }}>{playCount}/{PUBLIC_PLAY_LIMIT} plays</span>
           {bonusCount>0 && <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>· {bonusCount} BPL</span>}
-          <span style={{ fontSize:11, color:"#555", marginLeft:"auto" }}>Log in to save playbooks</span>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+            <input value={pbName} onChange={e=>setPbName(e.target.value)} placeholder="Playbook name" style={{ ...S.inp, width:150, padding:"6px 10px", fontSize:12 }}/>
+            <button onClick={savePlaybook} disabled={pbSaving||pbCards.length===0} style={{ background:pbSaved?"#0a2a0a":"#0a1a0a", border:`1px solid ${pbSaved?"#4ade80":"#4ade8044"}`, color:"#4ade80", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:pbCards.length===0?"not-allowed":"pointer", fontFamily:"inherit", opacity:pbCards.length===0?0.4:1, whiteSpace:"nowrap" }}>
+              {pbSaving?"Saving...":pbSaved?"✓ Saved":"💾 Save"}</button>
+            <button onClick={newPlaybook} style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#888", borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>+ New</button>
+          </div>
         </div>
+        {savedPlaybooks.length > 0 && (
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14, marginTop:-6 }}>
+            <span style={{ fontSize:11, color:"#555", fontWeight:700, alignSelf:"center" }}>Saved:</span>
+            {savedPlaybooks.map(p=>(
+              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+                <button onClick={()=>loadPlaybook(p)} style={{ background:"none", border:"none", color:pbLoadId===p.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{p.name} <span style={{ color:"#555", fontWeight:400 }}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
+                <button onClick={()=>deletePlaybook(p.id)} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) clamp(260px,28%,340px)", gap:14, alignItems:"start" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -21515,7 +21578,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab }) {
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -21598,6 +21661,26 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
                 <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
               </div>
+              {saveDeckTab && (
+                <div style={{marginBottom:14}}>
+                  <input value={deckName} onChange={e=>setDeckName(e.target.value)} placeholder="Deck name" style={{...inp,width:"100%",marginBottom:8,fontSize:12,padding:"7px 10px"}}/>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={saveDeckTab} disabled={deckSaving||deckCards.length===0} style={{flex:1,background:deckSaved?"#0a2a0a":"#0a1a0a",border:`1px solid ${deckSaved?"#4ade80":"#4ade8044"}`,color:"#4ade80",borderRadius:8,padding:"8px 0",fontSize:12,fontWeight:700,cursor:deckCards.length===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:deckCards.length===0?0.4:1}}>
+                      {deckSaving?"Saving...":deckSaved?"✓ Saved":"💾 Save Deck"}</button>
+                    <button onClick={newDeckTab} style={{background:"transparent",border:"1px solid #2a2a2a",color:"#888",borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+                  </div>
+                  {savedDecks.length>0 && (
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
+                      {savedDecks.map(d=>(
+                        <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
+                          <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"#555",fontWeight:400}}>({d.cardCount})</span></button>
+                          <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {isAM&&inDeck.length>0&&(
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Treatment Unlocks</div>
@@ -23444,6 +23527,35 @@ function PublicCardDatabase() {
   const [deckCards,     setDeckCards]     = useState([]);
   const [deckName,      setDeckName]      = useState("My Deck");
   const [deckType,      setDeckType]      = useState("none");
+  const [savedDecks,    setSavedDecks]    = useState([]);
+  const [deckLoadId,    setDeckLoadId]    = useState(null);
+  const [deckSaving,    setDeckSaving]    = useState(false);
+  const [deckSaved,     setDeckSaved]     = useState(false);
+  useEffect(() => {
+    if (!user) { setSavedDecks([]); return; }
+    const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
+      setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    }, e=>console.error("load decks failed:", e));
+    return unsub;
+  }, [user]);
+  async function saveDeckTab() {
+    if (!deckName.trim() || deckCards.length === 0) { alert("Name your deck and add at least one card before saving."); return; }
+    if (!user) { setSigningIn(true); return; }
+    setDeckSaving(true);
+    const id = deckLoadId || `deck_${Date.now()}`;
+    try {
+      await setDoc(doc(db,"boba_decks",id), { id, userId: user.uid, name: deckName.trim(), cardIds: deckCards, cardCount: deckCards.length, deckType, savedAt: new Date().toISOString() }, { merge:true });
+      setDeckLoadId(id); setDeckSaved(true); setTimeout(()=>setDeckSaved(false), 1800);
+    } catch(e) { console.error("save deck failed:", e); alert("Couldn't save your deck: " + (e?.message || e)); }
+    finally { setDeckSaving(false); }
+  }
+  async function deleteDeckTab(id) {
+    if (!window.confirm("Delete this deck?")) return;
+    try { await deleteDoc(doc(db,"boba_decks",id)); } catch(e){ alert("Delete failed: "+(e?.message||e)); return; }
+    if (deckLoadId === id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
+  }
+  function loadDeckTab(d) { setDeckLoadId(d.id); setDeckName(d.name||"My Deck"); setDeckCards(d.cardIds||[]); setDeckType(d.deckType||"none"); }
+  function newDeckTab() { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
   const [deckSearch,    setDeckSearch]    = useState("");
   const [deckFilterW,   setDeckFilterW]   = useState("");
   const [deckFilterP,   setDeckFilterP]   = useState(new Set());
@@ -26628,6 +26740,8 @@ function PublicCardDatabase() {
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
+            savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab}
           />
         )}
 
