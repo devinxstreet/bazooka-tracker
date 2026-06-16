@@ -14188,6 +14188,34 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 const PUBLIC_WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444", Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"#E5E7EB", Alt:"#FFFFFF", Super:"#F59E0B" };
 const PUBLIC_DECK_SIZE = 60;
 const PUBLIC_PLAY_LIMIT = 30;
+
+// ── BoBA Checklist-Format Events ──────────────────────────────────────────────
+// Event-specific builds. Each event pairs a hero-deck format (e.g. SPEC) with a
+// curated Checklist of legal Plays for the Playbook. The Plays restriction is
+// wired into the Playbook builder; the deck format defaults the hero deck.
+const BOBA_EVENTS = {
+  vegasbaby: {
+    name: "Vegas Baby",
+    color: "#F59E0B",
+    deckFormat: "spec", // hero deck plays in SPEC Playmaker
+    tagline: "Big moments. Big risks. Big payouts.",
+    region: "Official Regional — winner earns a direct entry card to the BoBA World Championships.",
+    description: "Las Vegas is all about taking chances. This format is built around coin flips, dice rolls, swingy momentum shifts, and high-risk/high-reward gameplay. Played in SPEC Playmaker, every roll matters — decision-making and planning still count, but knowing WHEN to take a risk matters just as much. Fast, explosive, unpredictable, and entertaining start to finish.",
+    rules: [
+      "Played in SPEC Playmaker (hero deck: 160 power ceiling, no floor)",
+      "Playbook may ONLY use Plays from the Vegas Baby Checklist",
+      "Standard playbook limits apply (max 30 Plays, unlimited Bonus Plays)",
+      "Curated for variance, momentum, and calculated risk",
+    ],
+    // The curated legal Plays for this event (from the official checklist).
+    plays: [
+      "1/6 For 15","3rd Time Charm","3rd Time Charm HTD","4 New Plays Baby!","Add Firepower","All or Nothing","Back From The Dumps","Big Swinger","Big Win Energy","Bigger Steel Roll","Blind Substitution","Blind Substitution HTD","C'mon 6","Change The Future","Cheap Trick","Cloudy With A Chance Of Hot Dogs","Coin Gambit","Comeback Season","Comeback Time","Consolation Combo","Crystal Ball","Cursed Coin","Cursed Coin HTD","Deck Burn","Deep In The Playbook","Delayed Recovery","Dice Duel","Dice Trap","Dicey Discard","Discard Flip","Discard Or 10","Dog Gone Flip","Dog Gone Streak","Double Down","Double or Nothin'","Double-Edged Flip","Emergency Shutdown","Even Money","Even Odds","Feast Or Famine","Fire Roll","Firework","Flip & Glow","Flip Ya For 2 Plays","Forced Retreat","Forced Retreat HTD","Four-Flip Frenzy","Gambler's Feast","Good Fortune","Good Guess","Greedy Gamble","Ha! Gotcha","Heads I Win, Tails You Lose","Heads I Win, Tails You Lose HTD","Heads-Up!","Heads-Up! HTD","Heavy Swing","Hex Flipper","High Fastball","High Stakes Pump-Up","Hollow Bat","Hollow Bat HTD","Hot Dog Flip Out","Ice Blast","Ice Roll","Indestructible","Indestructible HTD","It's Gonna Cost Ya","Jump Ball","Last Chance","Last-Minute Re-Org","Last-Minute Re-Org HTD","Leave It To Chance","Leave It To Fate","Line Drive","Loan Sharked","Loan Sharked HTD","Luck Of The Draw","Lucky 7","Lucky Bounce","Lucky Discard","Lucky Gum","Lucky Shot","Make Up Call","Make Up Meal","Might Of The Underdog","Momentum Meal","Money Line","Nasty Or Nada","Nasty Or Nada HTD","One-And-One","One-And-One HTD","Only Upside","Only Upside HTD","Over Under","Over Under HTD","Pay The Price","Play Re-Order","Please Be Low","Power Pick","Pre-Game Ritual","Press Your Luck","Protein Bar","Pulling The Plug","Pulling The Plug HTD","Risky Draw","Risky Reload","Roll For 30","Roll Some Plays","Sack Streak","Scrappy Flip","Shooters Shoot","Shooters Shoot HTD","Steel Flipper","Steel Helmet","Steel Smash","Streaky","Super Lucky","Three Strikes You're Out","Toss And Trade","Trade-Up","Victory Dinner","Wildcard Wager","Win The Toss","Worth The Risk?","Worth The Risk? HTD","Vegas Baby",
+    ],
+    bonusPlays: [
+      "A Hard Bargain","A Game Of War","Big Spender Bonus","Bonus Recovery","Bull Market","Bundle Deal","Called Shot","Clean Slate","Competitive Disadvantage","Copy Cat","Fair Trade","Hero's Resolve","Lineup Randomizer","Lunch Table","Play Reset","Plays or Dogs","Pre-Game Spy","Risky Recovery","Roll And Hope","Roller Dogs","Sacrifice it All to Win","Sweet Relish","Tear a page","The Heroes Favorite Hot Dogs","Turn The Tide","Win or Weiners",
+    ],
+  },
+};
 const PUBLIC_DBS_CAP = 1000;
 
 // --- PUBLIC DECK BUILDER (no auth required) --------------------
@@ -21471,6 +21499,10 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
 }
 
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab }) {
+  const [pbEvent, setPbEvent] = useState("");
+  const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
+  const evtPlaySet = evt ? new Set([...(evt.plays||[]), ...(evt.bonusPlays||[])].map(s=>s.toLowerCase().trim())) : null;
+  const inEvent = c => !evtPlaySet || evtPlaySet.has((c.hero||"").toLowerCase().trim());
   const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
   const pbEntryIds=new Set(pbCards.map(e=>e.id));
   const playCount=pbCards.filter(e=>e.type==="play").length;
@@ -21481,12 +21513,18 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
   const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
-  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"start"}}>
               <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
+                  <select value={pbEvent} onChange={e=>setPbEvent(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbEvent?"#F59E0B":"rgba(255,255,255,0.4)"}}>
+                    <option value="">All Plays (no event)</option>
+                    <optgroup label="── Events ──">
+                      {Object.entries(BOBA_EVENTS).map(([k,ev])=><option key={k} value={k}>🎲 {ev.name}</option>)}
+                    </optgroup>
+                  </select>
                   <select value={pbSort} onChange={e=>setPbSort(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
                     <option value="name">{"Name A\u2192Z"}</option>
                     <option value="dbs_desc">{"DBS High\u2192Low"}</option>
@@ -21494,6 +21532,18 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   </select>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
+                {evt && (
+                  <div style={{background:`${evt.color}10`,border:`1px solid ${evt.color}40`,borderRadius:12,padding:"12px 14px"}}>
+                    <div style={{fontSize:14,fontWeight:900,color:evt.color,display:"flex",alignItems:"center",gap:6}}>🎲 {evt.name} <span style={{fontSize:9,fontWeight:700,background:`${evt.color}22`,borderRadius:4,padding:"2px 6px"}}>CHECKLIST EVENT</span></div>
+                    <div style={{fontSize:11.5,color:evt.color,fontWeight:700,fontStyle:"italic",margin:"4px 0 7px"}}>{evt.tagline}</div>
+                    <div style={{fontSize:11.5,color:"rgba(255,255,255,0.6)",lineHeight:1.55,marginBottom:9}}>{evt.description}</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:9}}>
+                      {evt.rules.map((r,i)=>(<span key={i} style={{fontSize:11.5,color:"rgba(255,255,255,0.6)",display:"flex",alignItems:"flex-start",gap:6}}><span style={{color:evt.color}}>•</span>{r}</span>))}
+                    </div>
+                    <div style={{fontSize:11,color:evt.color,background:`${evt.color}14`,borderRadius:6,padding:"7px 10px",fontWeight:600,lineHeight:1.45}}>🏆 {evt.region}</div>
+                    <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8}}>Only the {(evt.plays||[]).length + (evt.bonusPlays||[]).length} Plays on the {evt.name} Checklist are shown below.</div>
+                  </div>
+                )}
                 <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:isMobile?"55vh":"calc(100vh - 300px)",overflowY:"auto"}}>
                   {pbAvail.map((c,i)=>{
                     const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
@@ -21610,7 +21660,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
   const deckSet = new Set(deckCards);
   const inDeck = cards.filter(c=>deckSet.has(c.id));
-  const isSpec = deckType==="spec", isAM = deckType==="apexmadness";
+  const isSpec = deckType==="spec"||deckType==="vegasbaby", isAM = deckType==="apexmadness";
   const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
@@ -21687,6 +21737,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <option value="spec">{"Spec Deck (\u2264160)"}</option>
                   <option value="apex">Apex Deck</option>
                   <option value="apexmadness">Apex Madness</option>
+                  <optgroup label="── Events ──">
+                    <option value="vegasbaby">🎲 Vegas Baby (SPEC)</option>
+                  </optgroup>
                 </select>
                 <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
                   <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
@@ -21706,6 +21759,20 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
               {(()=>{
+                if(deckType==="vegasbaby"){
+                  const ev=BOBA_EVENTS.vegasbaby;
+                  return (
+                    <div style={{background:`${ev.color}10`,border:`1px solid ${ev.color}40`,borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{fontSize:13,fontWeight:900,color:ev.color,display:"flex",alignItems:"center",gap:6}}>🎲 {ev.name} <span style={{fontSize:9,fontWeight:700,background:`${ev.color}22`,color:ev.color,borderRadius:4,padding:"2px 6px"}}>EVENT · SPEC</span></div>
+                      <div style={{fontSize:11,color:ev.color,fontWeight:700,fontStyle:"italic",margin:"4px 0 7px"}}>{ev.tagline}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",lineHeight:1.5,marginBottom:8}}>{ev.description}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px",marginBottom:8}}>
+                        {ev.rules.map((r,i)=>(<span key={i} style={{fontSize:11,color:"rgba(255,255,255,0.55)",display:"flex",alignItems:"center",gap:5}}><span style={{color:ev.color}}>•</span>{r}</span>))}
+                      </div>
+                      <div style={{fontSize:10.5,color:ev.color,background:`${ev.color}14`,borderRadius:6,padding:"6px 9px",fontWeight:600,lineHeight:1.4}}>🏆 {ev.region}</div>
+                    </div>
+                  );
+                }
                 const fmt = {
                   none:{c:"rgba(255,255,255,0.5)",icon:"📋",title:"No Restrictions",rules:["Up to 60 cards","No duplicate cards","Max 6 cards at any power level"]},
                   spec:{c:"#FBBF24",icon:"🛡️",title:"Spec Deck",rules:["Up to 60 cards","Power ceiling: 160 max (no cards above 160)","No power floor — go as low as you want","Max 6 cards at any power level"]},
@@ -25216,7 +25283,7 @@ function PublicCardDatabase() {
   // -- Deck logic --
   const deckSet=new Set(deckCards);
   const inDeck=cards.filter(c=>deckSet.has(c.id));
-  const isSpec=deckType==="spec",isAM=deckType==="apexmadness";
+  const isSpec=deckType==="spec"||deckType==="vegasbaby",isAM=deckType==="apexmadness";
   const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys=new Set(inDeck.map(dupKey));
   const powerCount={};inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
