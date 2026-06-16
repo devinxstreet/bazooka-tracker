@@ -23173,6 +23173,19 @@ function PublicCardDatabase() {
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
+  const isCardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  async function uploadCardImagePublic(card, file) {
+    try {
+      const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
+      const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
+      await uploadBytes(r2, file);
+      const url = await getDownloadURL(r2);
+      await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
+      setCards(prev => prev.map(c => c.id===card.id ? {...c, imageUrl:url} : c));
+      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+      showToast("Image added!");
+    } catch(e) { alert("Upload failed: "+e.message); }
+  }
   const [owned,         setOwned]         = useState({});
   const [publicCards,   setPublicCards]   = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
@@ -26277,7 +26290,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -26501,7 +26514,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
                             ))}
                           </div>
                           {user && (
@@ -26543,7 +26556,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
                 ))}
               </div>
             )}
