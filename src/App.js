@@ -14312,7 +14312,7 @@ function PublicDeckBuilder() {
 
   const weapons = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const heroes  = [...new Set(cards.map(c=>c.hero).filter(Boolean))].sort();
-  const powers  = [...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
+  const powers  = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
 
   const available = cards.filter(c => {
     if (deckSet.has(c.id)) return false;
@@ -14385,7 +14385,7 @@ function PublicDeckBuilder() {
             </div>
             {/* Multi-select power chips */}
             <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-              {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
+              {[...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
                 const sel = deckFilterPowers.has(p);
                 const over = (isSpec||isApexMadness) && parseFloat(p)>160;
                 return (
@@ -19920,7 +19920,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           return true;
         }).sort((a,b) => (parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-        const deckPowers   = [...new Set(cardPool.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
+        const deckPowers   = [...new Set(cardPool.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
         const deckSets     = [...new Set(cardPool.map(c=>c.setName).filter(Boolean))].sort();
         const deckTreats   = [...new Set(cardPool.map(c=>c.treatment).filter(Boolean))].sort();
         const deckHeroes   = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
