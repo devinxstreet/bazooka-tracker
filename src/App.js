@@ -21599,7 +21599,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck }) {
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -21772,7 +21772,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{deckName}</div>
-                <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {inDeck.length>0 && <button onClick={()=>setFanDeck({name:deckName,cards:inDeck})} title="Fan through your hand" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖐 Fan</button>}
+                  <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
+                </div>
               </div>
               {saveDeckTab && (
                 <div style={{marginBottom:14}}>
@@ -21787,6 +21790,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       {savedDecks.map(d=>(
                         <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
                           <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"#555",fontWeight:400}}>({d.cardCount})</span></button>
+                          <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length) setFanDeck({name:d.name,cards:objs}); }} title="Fan through this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>🖐</button>
                           <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
@@ -23506,6 +23510,7 @@ function Leaderboard({ user, marketSales=[] }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
+  const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -25380,6 +25385,49 @@ function PublicCardDatabase() {
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
+      {fanDeck && (()=>{
+        const cards = fanDeck.cards||[];
+        const n = cards.length;
+        const mid = (n-1)/2;
+        // arc geometry: spread angle scales down as the hand gets bigger
+        const spread = Math.min(60, Math.max(18, 70 - n*0.6)); // total degrees
+        const step = n>1 ? spread/(n-1) : 0;
+        return (
+          <div onClick={()=>setFanDeck(null)} style={{position:"fixed",inset:0,zIndex:11200,background:"radial-gradient(ellipse at center, rgba(20,8,18,0.97), rgba(0,0,0,0.98))",backdropFilter:"blur(14px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:24,left:0,right:0,textAlign:"center",pointerEvents:"none"}}>
+              <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{fanDeck.name}</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",marginTop:3}}>{n} card{n!==1?"s":""} · hover to lift · click anywhere to close</div>
+            </div>
+            <div style={{position:"relative",width:"100%",height:"70vh",display:"flex",alignItems:"flex-end",justifyContent:"center",marginTop:40}}>
+              {cards.map((c,i)=>{
+                const angle = (i-mid)*step;
+                const lift = Math.abs(i-mid); // outer cards sit slightly lower (arc)
+                const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                return (
+                  <div key={i} className="fan-card" onClick={e=>e.stopPropagation()}
+                    style={{
+                      position:"absolute", bottom:0,
+                      width:"clamp(140px,20vw,230px)", aspectRatio:"3/4",
+                      transformOrigin:"bottom center",
+                      transform:`rotate(${angle}deg) translateY(${lift*8}px)`,
+                      transition:"transform 0.28s cubic-bezier(0.34,1.3,0.5,1), filter 0.2s",
+                      zIndex: 100+i,
+                      borderRadius:14, overflow:"hidden",
+                      boxShadow:"0 12px 40px rgba(0,0,0,0.6)",
+                      border:`2px solid ${wc}55`,
+                      background:"#111", cursor:"pointer"
+                    }}>
+                    {c.imageUrl
+                      ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                      : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:10,textAlign:"center"}}><div style={{fontSize:15,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{c.treatment}</div><div style={{fontSize:18,fontWeight:900,color:wc,marginTop:8}}>{c.power}</div></div>}
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={()=>setFanDeck(null)} style={{position:"absolute",bottom:30,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:24,padding:"11px 28px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+          </div>
+        );
+      })()}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
       {isMobile && navMenu && navGroupItems.current[navMenu] && (
@@ -25412,6 +25460,7 @@ function PublicCardDatabase() {
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
+        .fan-card:hover { transform: translateY(-60px) scale(1.18) rotate(0deg) !important; z-index: 999 !important; filter: brightness(1.1); box-shadow: 0 24px 70px rgba(0,0,0,0.8) !important; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
@@ -27036,7 +27085,7 @@ function PublicCardDatabase() {
             cards={cards} owned={owned} inp={inp}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
-            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck}
           />
         )}
 
