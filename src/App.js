@@ -21515,8 +21515,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
-            <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"start"}}>
-              <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0}}>
+            <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
+              <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
                   <select value={pbEvent} onChange={e=>setPbEvent(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbEvent?"#F59E0B":"rgba(255,255,255,0.4)"}}>
@@ -21544,33 +21544,39 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8}}>Only the {(evt.plays||[]).length + (evt.bonusPlays||[]).length} Plays on the {evt.name} Checklist are shown below.</div>
                   </div>
                 )}
-                <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:isMobile?"55vh":"calc(100vh - 300px)",overflowY:"auto"}}>
-                  {pbAvail.map((c,i)=>{
-                    const wc=WEAPON_COLORS[c.weapon]||"#444",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
+                  {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
+                  <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+                  {pbAvail.map((c)=>{
+                    const wc=WEAPON_COLORS[c.weapon]||"#A855F7",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                    const playable=isPlay(c), bonus=isBonus(c);
+                    const blocked=(playable&&(playFull||wouldExceed))||(bonus&&wouldExceed);
+                    const addIt=()=>{ if(blocked)return; if(playable)setPbCards(p=>[...p,{id:c.id,type:"play"}]); else if(bonus)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); };
                     return (
-                      <div key={c.id} style={{borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px"}}>
-                          {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}</div>
-                            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:2,fontSize:10}}>
-                              <span style={{color:"rgba(255,255,255,0.3)"}}>#{c.cardNum}</span>
-                              {c.playCost!==undefined&&c.playCost!==""&&<span style={{color:"#FBBF24",fontWeight:700}}>Cost: {c.playCost}</span>}
-                              {c.dbs!==undefined&&<span style={{color:"#A855F7",fontWeight:700}}>DBS: {c.dbs}</span>}
-                            </div>
-                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",fontStyle:"italic",lineHeight:1.4}}>{c.playAbility}</div>}
-                          </div>
-                          <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-                            {isPlay(c)&&<button onClick={()=>{if(!playFull&&!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"play"}]);}} disabled={playFull||wouldExceed} style={{background:playFull||wouldExceed?"rgba(255,255,255,0.03)":"rgba(232,49,122,0.15)",border:`1px solid ${playFull||wouldExceed?"rgba(255,255,255,0.08)":"rgba(232,49,122,0.4)"}`,color:playFull||wouldExceed?"rgba(255,255,255,0.2)":"#E8317A",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:playFull||wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ Play</button>}
-                            {isBonus(c)&&<button onClick={()=>{if(!wouldExceed)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]);}} disabled={wouldExceed} style={{background:wouldExceed?"rgba(255,255,255,0.03)":"rgba(123,156,255,0.15)",border:`1px solid ${wouldExceed?"rgba(255,255,255,0.08)":"rgba(123,156,255,0.4)"}`,color:wouldExceed?"rgba(255,255,255,0.2)":"#7B9CFF",borderRadius:8,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:wouldExceed?"not-allowed":"pointer",fontFamily:"inherit"}}>+ BPL</button>}
+                      <div key={c.id} onClick={addIt} title={blocked?(playFull?"Play limit reached":"DBS cap reached"):`Add ${c.hero}`}
+                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,border:`1.5px solid ${blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,background:"#111",transition:"transform 0.15s ease, border-color 0.15s ease"}}
+                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";}}>
+                        {c.imageUrl
+                          ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{bonus?"Bonus Play":"Play"}</div></div>}
+                        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.1) 40%, transparent 62%)",pointerEvents:"none"}}/>
+                        <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"7px 8px",pointerEvents:"none"}}>
+                          <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.hero}</div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,gap:4}}>
+                            {c.playCost!==undefined&&c.playCost!==""?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}
+                            {c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:11,fontWeight:900,color:"#C084FC",textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.dbs}</span>}
                           </div>
                         </div>
+                        <div style={{position:"absolute",top:6,left:6,fontSize:8,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:4,padding:"2px 6px",pointerEvents:"none"}}>{bonus?"BPL":"PLAY"}</div>
+                        {!blocked&&<div className="deck-add-badge" style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(74,222,128,0.95)",color:"#000",fontSize:24,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}>+</div>}
                       </div>
                     );
                   })}
+                  </div>}
                 </div>
               </div>
-              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
+              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
                 {savePbTab && (
                   <div style={{marginBottom:14}}>
@@ -26049,8 +26055,8 @@ function PublicCardDatabase() {
               {id:"1of1",label:"💎 Secret 1/1s",badge:0},
               {id:"wants",label:"🎯 Want List",badge:Object.keys(wantList).length},
             ])}
-            {navGroup("play","Gameplay",[
-              {id:"deck",label:"⚔️ Deck Builder",badge:0},
+            {navGroup("play","Deck Builder",[
+              {id:"deck",label:"⚔️ Hero Deck",badge:0},
               {id:"playbook",label:"📖 Playbook",badge:0},
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
