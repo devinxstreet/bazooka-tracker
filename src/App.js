@@ -21498,7 +21498,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
   );
 }
 
-function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab }) {
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const [pbEvent, setPbEvent] = useState("");
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
   const evtPlaySet = evt ? new Set([...(evt.plays||[]), ...(evt.bonusPlays||[])].map(s=>s.toLowerCase().trim())) : null;
@@ -21513,6 +21513,19 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
   const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
   const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
+  // Playbook coach — live, contextual guidance
+  const pbCoach=(()=>{
+    const tips=[];
+    if(pbResolved.length===0) return [{t:"info",m:"Add plays to start building. Tips will appear here as your playbook takes shape."}];
+    if(playFull) tips.push({t:"good",m:`Play limit reached — ${PUBLIC_PLAY_LIMIT} plays locked in. 🎉`});
+    else tips.push({t:"info",m:`${PUBLIC_PLAY_LIMIT-playCount} play slot${PUBLIC_PLAY_LIMIT-playCount===1?"":"s"} left (Bonus Plays are unlimited).`});
+    if(dbsOver) tips.push({t:"warn",m:`Over the DBS cap by ${Math.round(totalDbs-PUBLIC_DBS_CAP)} — remove a high-DBS play to get legal.`});
+    else if(dbsPct>80) tips.push({t:"warn",m:`DBS budget ${Math.round(dbsPct)}% used — ${Math.round(dbsLeft)} left, getting tight.`});
+    else if(pbResolved.length>0) tips.push({t:"info",m:`DBS budget: ${Math.round(totalDbs)}/${PUBLIC_DBS_CAP} used, ${Math.round(dbsLeft)} remaining.`});
+    if(evt) tips.push({t:"info",m:`Building for ${evt.name} — only checklist plays can be added.`});
+    if(bonusCount===0&&playCount>5) tips.push({t:"info",m:"No Bonus Plays yet — they're unlimited and add flexibility."});
+    return tips.slice(0,5);
+  })();
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
@@ -21576,8 +21589,14 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   </div>}
                 </div>
               </div>
-              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
+              <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                  <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{pbName||"Playbook"}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {pbResolved.length>0 && setFanDeck && <button onClick={()=>{setFanMode&&setFanMode("grid");setFanDeck({name:pbName||"Playbook",cards:pbResolved.map(e=>e.card)});}} title="Expand to view your playbook" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⛶ Expand</button>}
+                    <span style={{fontSize:12,fontWeight:800,color:playFull?"#E8317A":"#4ade80",background:playFull?"rgba(232,49,122,0.1)":"rgba(74,222,128,0.1)",borderRadius:20,padding:"3px 11px"}}>{playCount}/{PUBLIC_PLAY_LIMIT}</span>
+                  </div>
+                </div>
                 {savePbTab && (
                   <div style={{marginBottom:14}}>
                     <input value={pbName} onChange={e=>setPbName(e.target.value)} placeholder="Playbook name" style={{...inp,width:"100%",marginBottom:8,fontSize:12,padding:"7px 10px"}}/>
@@ -21598,11 +21617,11 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     )}
                   </div>
                 )}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                  {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
-                    <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
-                      <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
-                      <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>{l}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                  {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus Plays",v:bonusCount,c:"#7B9CFF"},{l:"Total DBS",v:Math.round(totalDbs),c:dbsOver?"#E8317A":"#C084FC"},{l:"Total Cards",v:pbResolved.length,c:"#FBBF24"}].map(({l,v,c})=>(
+                    <div key={l} style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"11px 12px"}}>
+                      <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:"-0.5px",lineHeight:1}}>{v}</div>
+                      <div style={{fontSize:9.5,color:"rgba(255,255,255,0.35)",marginTop:5,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600}}>{l}</div>
                     </div>
                   ))}
                 </div>
@@ -21622,32 +21641,44 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   </div>
                   <div style={{fontSize:10,color:dbsOver?"#E8317A":dbsLeft<100?"#FBBF24":"rgba(255,255,255,0.3)",fontWeight:dbsOver?700:400}}>{dbsOver?`\u26A0\uFE0F Over by ${Math.round(totalDbs-PUBLIC_DBS_CAP)}`:`${Math.round(dbsLeft)} remaining`}</div>
                 </div>
+                {pbCoach.length>0 && (
+                  <div style={{margin:"16px 0",background:"rgba(168,85,247,0.05)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"13px 14px"}}>
+                    <div style={{fontSize:10,color:"#C084FC",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🧠 Coach</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {pbCoach.map((tip,i)=>{const col=tip.t==="warn"?"#FBBF24":tip.t==="good"?"#4ade80":"rgba(255,255,255,0.55)";const icon=tip.t==="warn"?"⚠️":tip.t==="good"?"✓":"💡";return(
+                        <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:11.5,lineHeight:1.45,color:col}}><span style={{flexShrink:0}}>{icon}</span><span>{tip.m}</span></div>
+                      );})}
+                    </div>
+                  </div>
+                )}
                 {pbResolved.length>0&&(
-                  <div style={{marginTop:12}}>
-                    {[{type:"play",label:"\u2694\uFE0F Plays",color:"#E8317A"},{type:"bonus",label:"\u2B50 Bonus",color:"#7B9CFF"}].map(({type,label,color})=>{
+                  <div style={{marginTop:4}}>
+                    {[{type:"play",label:"\u2694\uFE0F Plays",color:"#E8317A"},{type:"bonus",label:"\u2B50 Bonus Plays",color:"#7B9CFF"}].map(({type,label,color})=>{
                       const entries=pbResolved.filter(e=>e.type===type);
                       if(!entries.length)return null;
                       return (
-                        <div key={type} style={{marginBottom:8}}>
-                          <div style={{fontSize:10,color:color,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label} ({entries.length})</div>
-                          {entries.map((e,i)=>{
-                            const c=e.card;
-                            return (
-                              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                                <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",width:16,textAlign:"center"}}>{type==="play"?i+1:`B${i+1}`}</span>
-                                {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:24,height:32,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:11,fontWeight:700,color:color}}>{c.hero}</div>
-                                  {c.dbs&&<div style={{fontSize:10,color:"#A855F7"}}>DBS: {c.dbs}</div>}
+                        <div key={type} style={{marginBottom:12}}>
+                          <div style={{fontSize:10,color:color,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{label} ({entries.length})</div>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(46px,1fr))",gap:5}}>
+                            {entries.map((e,i)=>{
+                              const c=e.card;
+                              return (
+                                <div key={i} title={`${c.hero}${c.dbs?` · DBS ${c.dbs}`:""} — click to remove`} onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}}
+                                  style={{position:"relative",aspectRatio:"3/4",borderRadius:5,overflow:"hidden",border:`1px solid ${color}55`,background:"#111",cursor:"pointer"}}
+                                  onMouseEnter={ev=>{ev.currentTarget.style.borderColor=color;const x=ev.currentTarget.querySelector(".pb-rm");if(x)x.style.opacity="1";}}
+                                  onMouseLeave={ev=>{ev.currentTarget.style.borderColor=color+"55";const x=ev.currentTarget.querySelector(".pb-rm");if(x)x.style.opacity="0";}}>
+                                  {c.imageUrl
+                                    ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                                    : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:700,color:color,padding:2,textAlign:"center"}}>{c.hero}</div>}
+                                  <div className="pb-rm" style={{position:"absolute",inset:0,background:"rgba(232,49,122,0.6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16,fontWeight:900,opacity:0,transition:"opacity 0.15s"}}>×</div>
                                 </div>
-                                <button onClick={()=>{const arr=pbCards.filter(x=>x.type===type);const target=arr[i];const gi=pbCards.indexOf(target);const a=[...pbCards];a.splice(gi,1);setPbCards(a);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:16,padding:"2px 4px",flexShrink:0}}>{"\u00D7"}</button>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
-                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>{"\u2715 Clear"}</button>
+                    <button onClick={()=>{if(window.confirm("Clear playbook?"))setPbCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.4)",borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>{"\u2715 Clear Playbook"}</button>
                   </div>
                 )}
               </div>
@@ -27218,7 +27249,7 @@ function PublicCardDatabase() {
             inp={inp} isMobile={isMobile}
             pbName={pbName} setPbName={setPbName} setPbCards={setPbCards}
             savedPlaybooks={savedPlaybooks} pbSaving={pbSaving} pbSaved={pbSaved} pbLoadId={pbLoadId}
-            savePbTab={savePbTab} deletePbTab={deletePbTab} loadPbTab={loadPbTab} newPbTab={newPbTab}
+            savePbTab={savePbTab} deletePbTab={deletePbTab} loadPbTab={loadPbTab} newPbTab={newPbTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
           />
         )}
 
