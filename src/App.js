@@ -463,7 +463,6 @@ function GlobalStyles() {
       .boba-card-flip:hover { transform: rotateY(180deg); }
       .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
-      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; transform: scale(1.1); }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
 
       /* Mobile */
@@ -14979,7 +14978,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity, onEnlarge }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -15155,7 +15154,6 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":"perspective(600px) rotateY(0deg)", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {onEnlarge && <button onClick={e=>{e.stopPropagation();onEnlarge(c);}} title="View larger" className="card-enlarge-btn" style={{ position:"absolute", top:6, right:6, zIndex:6, width:30, height:30, borderRadius:8, background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", fontSize:15, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:0, lineHeight:1, opacity:0.55, transition:"opacity 0.15s, transform 0.15s" }}>🔍</button>}
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -23179,7 +23177,6 @@ function Leaderboard({ user, marketSales=[] }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
-  const [enlargedCard, setEnlargedCard] = useState(null);
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -24918,18 +24915,6 @@ function PublicCardDatabase() {
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
-      {enlargedCard && (
-        <div onClick={()=>setEnlargedCard(null)} style={{position:"fixed",inset:0,zIndex:11100,background:"rgba(0,0,0,0.9)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"zoom-out"}}>
-          <button onClick={()=>setEnlargedCard(null)} style={{position:"absolute",top:20,right:24,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:22,width:42,height:42,borderRadius:"50%",cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
-          <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,maxWidth:"100%",maxHeight:"100%"}}>
-            {enlargedCard.imageUrl && <img src={enlargedCard.imageUrl} alt={enlargedCard.hero} style={{maxWidth:"min(520px,90vw)",maxHeight:"78vh",objectFit:"contain",borderRadius:14,boxShadow:"0 20px 80px rgba(0,0,0,0.7)",border:"1px solid rgba(255,255,255,0.1)"}}/>}
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{enlargedCard.hero}{enlargedCard.weapon?<span style={{color:PUBLIC_WEAPON_COLORS[enlargedCard.weapon]||"#888"}}> · {enlargedCard.weapon}</span>:""}</div>
-              <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:3}}>{[enlargedCard.treatment,enlargedCard.power?`${enlargedCard.power}⚡`:"",enlargedCard.cardNum?`#${enlargedCard.cardNum}`:"",enlargedCard.setName].filter(Boolean).join(" · ")}</div>
-            </div>
-          </div>
-        </div>
-      )}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
       {isMobile && navMenu && navGroupItems.current[navMenu] && (
@@ -24961,7 +24946,6 @@ function PublicCardDatabase() {
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
-      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; transform: scale(1.1); }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
@@ -26275,7 +26259,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} onEnlarge={!isMobile?(card=>setEnlargedCard(card)):null}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -26499,7 +26483,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} onEnlarge={!isMobile?(card=>setEnlargedCard(card)):null}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
                             ))}
                           </div>
                           {user && (
