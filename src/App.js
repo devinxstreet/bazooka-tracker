@@ -463,6 +463,7 @@ function GlobalStyles() {
       .boba-card-flip:hover { transform: rotateY(180deg); }
       .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
 
       /* Mobile */
@@ -14978,7 +14979,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity, onEnlarge }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const qty = ownedQty || 0;
@@ -15154,6 +15155,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":"perspective(600px) rotateY(0deg)", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            {onEnlarge && <button onClick={e=>{e.stopPropagation();onEnlarge(c);}} title="View larger" className="card-enlarge-btn" style={{ position:"absolute", top:6, right:6, zIndex:6, width:28, height:28, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:0, lineHeight:1, opacity:0, transition:"opacity 0.15s" }}>🔍</button>}
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -21775,14 +21777,6 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                   <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
                 </div>
-                <div style={{marginTop:14,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:14,padding:"13px 16px"}}>
-                  <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",letterSpacing:0.5,marginBottom:8}}>📸 For the best results</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>💡</span><span>Use good lighting and avoid glare on the card</span></div>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🎯</span><span>Fill the frame with the card and hold steady — blurry shots read poorly</span></div>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🔢</span><span>Keep the card number (bottom corner) visible for the best match</span></div>
-                  </div>
-                </div>
                 <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
             )}
@@ -23177,25 +23171,11 @@ function Leaderboard({ user, marketSales=[] }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
-  const [showWelcome, setShowWelcome] = useState(()=>{ try { return !localStorage.getItem("boba_welcomed_v1"); } catch(e){ return false; } });
-  const dismissWelcome = () => { try { localStorage.setItem("boba_welcomed_v1","1"); } catch(e){} setShowWelcome(false); };
+  const [enlargedCard, setEnlargedCard] = useState(null);
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
-  const isCardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
-  async function uploadCardImagePublic(card, file) {
-    try {
-      const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
-      const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
-      await uploadBytes(r2, file);
-      const url = await getDownloadURL(r2);
-      await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
-      setCards(prev => prev.map(c => c.id===card.id ? {...c, imageUrl:url} : c));
-      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
-      showToast("Image added!");
-    } catch(e) { alert("Upload failed: "+e.message); }
-  }
   const [owned,         setOwned]         = useState({});
   const [publicCards,   setPublicCards]   = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
@@ -23789,25 +23769,6 @@ function PublicCardDatabase() {
   }, []);
 
   // -- Helpers --
-  // For a pending (unmatched) card, find likely matches already in the database.
-  function findPendingSuggestions(m) {
-    const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
-    if (!m.hero) return [];
-    const heroN = norm(m.hero);
-    const candidates = cards.filter(c => {
-      const ch = norm(c.hero);
-      return ch === heroN || ch.includes(heroN) || heroN.includes(ch);
-    });
-    const scored = candidates.map(c => {
-      let score = 1;
-      if (m.treatment && norm(c.treatment) === norm(m.treatment)) score += 2;
-      if (m.weapon && norm(c.weapon) === norm(m.weapon)) score += 2;
-      if (m.power && String(c.power) === String(m.power)) score += 1;
-      return { c, score };
-    }).sort((a,b) => b.score - a.score);
-    return scored.filter(s => s.score >= 3).slice(0, 3).map(s => s.c);
-  }
-
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -24211,24 +24172,6 @@ function PublicCardDatabase() {
 
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
       if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
-
-      // Number + close-name combo: the strongest real-world signal. If the card NUMBER matches and the
-      // hero name is *close* (OCR misreads a letter or two), trust it — even when the same number repeats
-      // across sets, because the name disambiguates. e.g. AI read "Hauburst #BBF-80" → "Haliburst #BBF-80".
-      if(!match&&iNum&&iHero){
-        const numMatches=cards.filter(c=>normNum(c.cardNum)===iNum);
-        if(numMatches.length===1){
-          // number is globally unique — a close-ish name confirms it (loose tolerance since number corroborates)
-          const c=numMatches[0], a=clean(c.hero), b=clean(iHero);
-          const dist=lev(a,b), tol=Math.max(2,Math.floor(Math.max(a.length,b.length)*0.35));
-          if(a.includes(b)||b.includes(a)||dist<=tol) match=c;
-        } else if(numMatches.length>1){
-          // number repeats across sets — pick the one whose hero name is closest, if clearly close
-          const scored=numMatches.map(c=>({c,d:lev(clean(c.hero),clean(iHero))})).sort((x,y)=>x.d-y.d);
-          const best=scored[0], tol=Math.max(2,Math.floor(clean(best.c.hero).length*0.35));
-          if(best.d<=tol && (scored.length<2 || scored[1].d>best.d)) match=best.c;
-        }
-      }
 
       if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
 
@@ -24952,29 +24895,15 @@ function PublicCardDatabase() {
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
-      {showWelcome && (
-        <div onClick={dismissWelcome} style={{position:"fixed",inset:0,zIndex:11050,background:"rgba(5,0,8,0.82)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(160deg,#14060f,#0c0c14)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:22,width:"min(440px,100%)",padding:"32px 26px 26px",textAlign:"center",boxShadow:"0 20px 70px rgba(232,49,122,0.25)"}}>
-            <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:54,width:"auto",margin:"0 auto 18px",display:"block",filter:"drop-shadow(0 6px 22px rgba(232,49,122,0.45))"}}/>
-            <div style={{fontSize:23,fontWeight:900,color:"#fff",marginBottom:6}}>Welcome to the Vault 👋</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,0.55)",lineHeight:1.6,marginBottom:22}}>The home for every Bo Jackson Battle Arena card. Here's how to start your collection:</div>
-            <div style={{textAlign:"left",display:"flex",flexDirection:"column",gap:14,marginBottom:24}}>
-              {[
-                {e:"🔍",t:"Find your cards",d:"Search by hero, card #, or treatment — or filter by set, weapon, and power."},
-                {e:"📸",t:"Or scan to add",d:"Snap a photo of any card and we'll identify it and add it for you."},
-                {e:"✅",t:"Tap to mark owned",d:"Tap any card to add it to your collection and track what you've got."},
-                {e:"🔒",t:"Private by default",d:"Your collection is just for you — make cards public anytime to show them off."},
-              ].map((s,i)=>(
-                <div key={i} style={{display:"flex",gap:13,alignItems:"flex-start"}}>
-                  <div style={{fontSize:22,flexShrink:0,lineHeight:1.2}}>{s.e}</div>
-                  <div>
-                    <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{s.t}</div>
-                    <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>{s.d}</div>
-                  </div>
-                </div>
-              ))}
+      {enlargedCard && (
+        <div onClick={()=>setEnlargedCard(null)} style={{position:"fixed",inset:0,zIndex:11100,background:"rgba(0,0,0,0.9)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"zoom-out"}}>
+          <button onClick={()=>setEnlargedCard(null)} style={{position:"absolute",top:20,right:24,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:22,width:42,height:42,borderRadius:"50%",cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,maxWidth:"100%",maxHeight:"100%"}}>
+            {enlargedCard.imageUrl && <img src={enlargedCard.imageUrl} alt={enlargedCard.hero} style={{maxWidth:"min(520px,90vw)",maxHeight:"78vh",objectFit:"contain",borderRadius:14,boxShadow:"0 20px 80px rgba(0,0,0,0.7)",border:"1px solid rgba(255,255,255,0.1)"}}/>}
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{enlargedCard.hero}{enlargedCard.weapon?<span style={{color:PUBLIC_WEAPON_COLORS[enlargedCard.weapon]||"#888"}}> · {enlargedCard.weapon}</span>:""}</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:3}}>{[enlargedCard.treatment,enlargedCard.power?`${enlargedCard.power}⚡`:"",enlargedCard.cardNum?`#${enlargedCard.cardNum}`:"",enlargedCard.setName].filter(Boolean).join(" · ")}</div>
             </div>
-            <button onClick={dismissWelcome} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:26,padding:"14px 0",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>Let's go 🚀</button>
           </div>
         </div>
       )}
@@ -25009,6 +24938,7 @@ function PublicCardDatabase() {
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+      .boba-card-hover:hover .card-enlarge-btn { opacity: 1; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
@@ -25063,8 +24993,6 @@ function PublicCardDatabase() {
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
-      <button onClick={()=>setShowWelcome(true)} title="How it works" aria-label="How it works"
-        style={{position:"fixed",bottom:24,left:24,zIndex:10000,width:44,height:44,borderRadius:"50%",background:"rgba(20,8,18,0.85)",border:"1px solid rgba(232,49,122,0.45)",color:"#E8317A",fontSize:20,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 18px rgba(0,0,0,0.4)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>?</button>
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {userMissingModal && (
         <div onClick={()=>setUserMissingModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
@@ -25081,40 +25009,15 @@ function PublicCardDatabase() {
               </div>
             ) : (
               <>
-                {userMissing.map((m,i)=>{
-                  const suggestions = findPendingSuggestions(m);
-                  return (
-                  <div key={i} style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
-                    <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
-                        <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
-                      </div>
-                      {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
+                {userMissing.map((m,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
                     </div>
-                    {suggestions.length>0 && (
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-                        <div style={{fontSize:11,color:"#4ade80",fontWeight:800,marginBottom:6}}>✨ Did you mean one of these? (in our database)</div>
-                        {suggestions.map(sc=>(
-                          <div key={sc.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sc.hero}{sc.weapon?` · ${sc.weapon}`:""}</div>
-                              <div style={{fontSize:10,color:"rgba(255,255,255,0.45)"}}>{[sc.treatment,sc.power?`${sc.power}⚡`:"",sc.cardNum?`#${sc.cardNum}`:"",sc.setName].filter(Boolean).join(" · ")}</div>
-                            </div>
-                            <button onClick={async()=>{
-                              if (!owned[sc.id]) await toggleOwned(sc.id);
-                              const remaining = userMissing.filter((_,idx)=>idx!==i);
-                              setUserMissing(remaining);
-                              try { await setDoc(doc(db,"user_missing",user.uid),{cards:remaining}); } catch(e){}
-                              showToast(`Added ${sc.hero} to your collection!`);
-                            }} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>+ Add this</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
                   </div>
-                  );
-                })}
+                ))}
                 <button onClick={async()=>{ if(window.confirm("Clear your pending list? This just removes them from this list — it won't affect your collection.")){ setUserMissing([]); try{ await setDoc(doc(db,"user_missing",user.uid),{cards:[]}); }catch(e){} } }} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>Clear pending list</button>
               </>
             )}
@@ -25443,6 +25346,9 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
+                  <button onClick={()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }} title="Refresh"
+                    style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
+                    {"\uD83D\uDD04"}</button>
                   <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
@@ -25517,7 +25423,6 @@ function PublicCardDatabase() {
                       <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
                     </div>
                     {[
-                      {label:"❓ How it works",act:()=>setShowWelcome(true)},
                       {label:"✏️ Edit Profile",act:()=>setEditProfileOpen(true)},
                       ...(userMissing.length>0 ? [{label:"⏳ Pending Cards",badge:userMissing.length,act:()=>setUserMissingModal(true)}] : []),
                       ...((user?.email||"").toLowerCase().endsWith("@bazookabreaks.com") ? [{label:"🗂️ Missing Cards",act:()=>{ setMissingCardsModal(true); loadMissingCards(); }}] : []),
@@ -26347,7 +26252,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} onEnlarge={!isMobile?(card=>setEnlargedCard(card)):null}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -26397,9 +26302,7 @@ function PublicCardDatabase() {
             {cards.length>0 && filtered.length===0 && (
               <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.4)"}}>
                 <div style={{fontSize:32,marginBottom:12}}>🔍</div>
-                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>No cards match your filters</div>
-                <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",marginBottom:18,maxWidth:320,marginLeft:"auto",marginRight:"auto",lineHeight:1.5}}>Try a different search, or clear your filters to see all {cards.length.toLocaleString()} cards.</div>
-                <button onClick={()=>{setSearch("");setFilterSet("");setFilterTreat("");setFilterWeapon("");setFilterPower(new Set());setFilterOwned("all");setPage(1);}} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:22,padding:"11px 26px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.35)"}}>Clear all filters</button>
+                <div style={{fontSize:14,fontWeight:700}}>No cards match your filters</div>
               </div>
             )}
             {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
@@ -26573,7 +26476,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} onEnlarge={!isMobile?(card=>setEnlargedCard(card)):null}/>
                             ))}
                           </div>
                           {user && (
@@ -26615,7 +26518,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={isCardAdmin} onImageUpload={isCardAdmin?uploadCardImagePublic:null}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
                 ))}
               </div>
             )}
@@ -27716,7 +27619,7 @@ function PublicSellPage() {
 
         {/* Header */}
         <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:20, textAlign:"center", border:"1px solid #1a1a1a" }}>
-          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:"clamp(54px,10vw,84px)", width:"auto", marginBottom:8, filter:"drop-shadow(0 6px 22px rgba(232,49,122,0.4))" }}/>
+          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
           <div style={{ fontSize:13, color:"#555", fontStyle:"italic", marginBottom:12 }}>Bo Jackson Battle Arena · Sell Your Cards</div>
           <div style={{ fontSize:14, color:"#AAAAAA", lineHeight:1.7 }}>Fill out the form below with your cards and we'll send you an offer. No obligation — you can accept, decline, or counter.</div>
         </div>
@@ -29462,7 +29365,7 @@ export default function App() {
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
   const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
   const _isTeam = hasEarlyAccess(user?.email);
-  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/chases","/showcase"];
+  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/sell","/chases","/showcase"];
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
