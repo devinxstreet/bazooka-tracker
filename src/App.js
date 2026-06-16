@@ -21604,6 +21604,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
+  const [deckPage, setDeckPage] = useState(1);
+  const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
   const deckSet = new Set(deckCards);
   const inDeck = cards.filter(c=>deckSet.has(c.id));
@@ -21672,9 +21674,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+  const deckVisible = deckAvail.slice(0, deckPage*DECK_PAGE_SIZE);
+  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckType]);
   return (
-          <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"start"}}>
-            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0}}>
+          <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
@@ -21708,10 +21712,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div className="deck-pb-cardlist" style={{maxHeight:isMobile?"58vh":"calc(100vh - 320px)",overflowY:"auto",paddingRight:4}}>
+              <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-                  {deckAvail.map((c)=>{
+                  {deckVisible.map((c)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444",isOwned=owned&&owned[c.id];
                     return (
                       <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:`Add ${c.hero}`}
@@ -21741,9 +21745,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   })}
                   </div>
                 }
+                {deckVisible.length<deckAvail.length && (
+                  <button onClick={()=>setDeckPage(p=>p+1)} style={{width:"100%",marginTop:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"11px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Load more ({deckAvail.length-deckVisible.length} more)</button>
+                )}
               </div>
             </div>
-            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
+            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{deckName}</div>
                 <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
@@ -29356,6 +29363,9 @@ export default function App() {
   // Always-on listeners — needed by dashboard and multiple tabs
   useEffect(() => {
     if (!user) return;
+    // Hard guard: never attempt to load internal/financial data for non-team emails.
+    // (Firestore rules also block this server-side; this prevents the attempt + console errors.)
+    if (!(user.email||"").toLowerCase().trim().endsWith("@bazookabreaks.com")) return;
     const INV_CACHE = "bz_inventory_v1";
     const BRK_CACHE = "bz_breaks_v1";
     const STR_CACHE = "bz_streams_v1";
@@ -29785,7 +29795,9 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   // Block anyone not on the team
-  if (!userRole) return (
+  const _dashEmail = (user?.email || "").toLowerCase().trim();
+  const _isTeamEmail = _dashEmail.endsWith("@bazookabreaks.com");
+  if (!_isTeamEmail || !userRole) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#000", fontFamily:"'Trebuchet MS',sans-serif", flexDirection:"column", gap:16, padding:24, textAlign:"center" }}>
       <div style={{ fontSize:32 }}>🚫</div>
       <div style={{ fontSize:18, fontWeight:800, color:"#E8317A" }}>Access Denied</div>
