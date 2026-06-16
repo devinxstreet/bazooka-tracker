@@ -22850,6 +22850,10 @@ function PublicHomepage() {
 
   return (
     <div style={{ position:"relative", minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", overflowX:"hidden" }}>
+      <div style={{ position:"relative", zIndex:50, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", padding:"11px 18px", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexWrap:"wrap" }}>
+        <span style={{ fontSize:14, fontWeight:700, color:"#fff" }}>🚧 We're building the best collector's tool BoBA has ever seen.</span>
+        <a href="https://bazookavault.com" style={{ fontSize:13, fontWeight:800, color:"#fff", background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:20, padding:"5px 14px", textDecoration:"none", whiteSpace:"nowrap" }}>Visit the current collector's database → bazookavault.com</a>
+      </div>
       <style>{`
         @keyframes homeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
         @keyframes homeGlow { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
