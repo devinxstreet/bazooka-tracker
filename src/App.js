@@ -23169,6 +23169,8 @@ function Leaderboard({ user, marketSales=[] }) {
 function PublicCardDatabase() {
   // -- Core state --
   const [toast, setToast] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(()=>{ try { return !localStorage.getItem("boba_welcomed_v1"); } catch(e){ return false; } });
+  const dismissWelcome = () => { try { localStorage.setItem("boba_welcomed_v1","1"); } catch(e){} setShowWelcome(false); };
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -24924,6 +24926,32 @@ function PublicCardDatabase() {
 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"#F0F0F0",fontFamily:"'Trebuchet MS',sans-serif"}}>
+      {showWelcome && (
+        <div onClick={dismissWelcome} style={{position:"fixed",inset:0,zIndex:11050,background:"rgba(5,0,8,0.82)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(160deg,#14060f,#0c0c14)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:22,width:"min(440px,100%)",padding:"32px 26px 26px",textAlign:"center",boxShadow:"0 20px 70px rgba(232,49,122,0.25)"}}>
+            <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:54,width:"auto",margin:"0 auto 18px",display:"block",filter:"drop-shadow(0 6px 22px rgba(232,49,122,0.45))"}}/>
+            <div style={{fontSize:23,fontWeight:900,color:"#fff",marginBottom:6}}>Welcome to the Vault 👋</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,0.55)",lineHeight:1.6,marginBottom:22}}>The home for every Bo Jackson Battle Arena card. Here's how to start your collection:</div>
+            <div style={{textAlign:"left",display:"flex",flexDirection:"column",gap:14,marginBottom:24}}>
+              {[
+                {e:"🔍",t:"Find your cards",d:"Search by hero, card #, or treatment — or filter by set, weapon, and power."},
+                {e:"📸",t:"Or scan to add",d:"Snap a photo of any card and we'll identify it and add it for you."},
+                {e:"✅",t:"Tap to mark owned",d:"Tap any card to add it to your collection and track what you've got."},
+                {e:"🔒",t:"Private by default",d:"Your collection is just for you — make cards public anytime to show them off."},
+              ].map((s,i)=>(
+                <div key={i} style={{display:"flex",gap:13,alignItems:"flex-start"}}>
+                  <div style={{fontSize:22,flexShrink:0,lineHeight:1.2}}>{s.e}</div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{s.t}</div>
+                    <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={dismissWelcome} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:26,padding:"14px 0",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>Let's go 🚀</button>
+          </div>
+        </div>
+      )}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
       {isMobile && navMenu && navGroupItems.current[navMenu] && (
@@ -25009,6 +25037,8 @@ function PublicCardDatabase() {
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
+      <button onClick={()=>setShowWelcome(true)} title="How it works" aria-label="How it works"
+        style={{position:"fixed",bottom:24,left:24,zIndex:10000,width:44,height:44,borderRadius:"50%",background:"rgba(20,8,18,0.85)",border:"1px solid rgba(232,49,122,0.45)",color:"#E8317A",fontSize:20,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 18px rgba(0,0,0,0.4)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>?</button>
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {userMissingModal && (
         <div onClick={()=>setUserMissingModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
@@ -25461,6 +25491,7 @@ function PublicCardDatabase() {
                       <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
                     </div>
                     {[
+                      {label:"❓ How it works",act:()=>setShowWelcome(true)},
                       {label:"✏️ Edit Profile",act:()=>setEditProfileOpen(true)},
                       ...(userMissing.length>0 ? [{label:"⏳ Pending Cards",badge:userMissing.length,act:()=>setUserMissingModal(true)}] : []),
                       ...((user?.email||"").toLowerCase().endsWith("@bazookabreaks.com") ? [{label:"🗂️ Missing Cards",act:()=>{ setMissingCardsModal(true); loadMissingCards(); }}] : []),
