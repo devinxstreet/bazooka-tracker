@@ -21708,27 +21708,38 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div className="deck-pb-cardlist" style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,overflow:"hidden",maxHeight:isMobile?"55vh":"calc(100vh - 340px)",overflowY:"auto",backdropFilter:"blur(10px)"}}>
+              <div className="deck-pb-cardlist" style={{maxHeight:isMobile?"58vh":"calc(100vh - 320px)",overflowY:"auto",paddingRight:4}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
-                  deckAvail.map((c,i)=>{
-                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444";
+                  <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+                  {deckAvail.map((c)=>{
+                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444",isOwned=owned&&owned[c.id];
                     return (
-                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}}
-                        style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",background:i%2===0?"transparent":"rgba(255,255,255,0.01)",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.35,transition:"background 0.12s"}}
-                        title={!ok?reason:""}
-                        onMouseEnter={e=>{if(ok)e.currentTarget.style.background="rgba(232,49,122,0.05)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.01)";}}>
-                        {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:32,height:43,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{c.hero}{owned&&owned[c.id]?<span title="In your collection" style={{marginLeft:6,fontSize:9,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:4,padding:"1px 5px",fontWeight:700,verticalAlign:"middle"}}>{String.fromCharCode(10003)} Owned</span>:""}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:1}}>{c.treatment} · #{c.cardNum}</div>
-                          {!ok&&<div style={{fontSize:10,color:"#E8317A",marginTop:1}}>{reason}</div>}
+                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:`Add ${c.hero}`}
+                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"#111",transition:"transform 0.15s ease, border-color 0.15s ease"}}
+                        onMouseEnter={e=>{if(ok){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
+                        {c.imageUrl
+                          ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{c.treatment}</div></div>}
+                        {/* gradient + info overlay */}
+                        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.1) 38%, transparent 60%)",pointerEvents:"none"}}/>
+                        <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"7px 8px",pointerEvents:"none"}}>
+                          <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.hero}</div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2}}>
+                            <span style={{fontSize:9,color:"rgba(255,255,255,0.6)"}}>#{c.cardNum}</span>
+                            <span style={{fontSize:13,fontWeight:900,color:wc,textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.power}</span>
+                          </div>
                         </div>
-                        <div style={{fontSize:16,fontWeight:900,color:ok?wc:"rgba(255,255,255,0.2)",flexShrink:0}}>{c.power}</div>
-                        {ok&&<div style={{fontSize:18,color:"#4ade80",flexShrink:0}}>+</div>}
+                        {/* top badges */}
+                        {c.weapon&&<div style={{position:"absolute",top:6,left:6,fontSize:8,fontWeight:800,color:"#fff",background:wc+"cc",borderRadius:4,padding:"2px 6px",pointerEvents:"none"}}>{c.weapon}</div>}
+                        {isOwned&&<div style={{position:"absolute",top:6,right:6,fontSize:11,pointerEvents:"none",filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.8))"}}>{String.fromCharCode(9989)}</div>}
+                        {/* add affordance on hover */}
+                        {ok&&<div className="deck-add-badge" style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(74,222,128,0.95)",color:"#000",fontSize:24,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}>+</div>}
+                        {!ok&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:9,fontWeight:700,color:"#fff",background:"rgba(232,49,122,0.85)",borderRadius:6,padding:"3px 8px",textAlign:"center",maxWidth:"85%",pointerEvents:"none"}}>{reason}</div>}
                       </div>
                     );
-                  })
+                  })}
+                  </div>
                 }
               </div>
             </div>
@@ -25299,6 +25310,7 @@ function PublicCardDatabase() {
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+        .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
         .pub-card-grid > *:nth-child(2n){animation-delay:0.05s}
         .pub-card-grid > *:nth-child(3n){animation-delay:0.1s}
