@@ -21840,7 +21840,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{deckName}</div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  {inDeck.length>0 && <button onClick={()=>setFanDeck({name:deckName,cards:inDeck})} title="Fan through your hand" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖐 Fan</button>}
+                  {inDeck.length>0 && <button onClick={()=>{setFanMode("grid");setFanDeck({name:deckName,cards:inDeck});}} title="Expand to view your deck" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⛶ Expand</button>}
                   <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
                 </div>
               </div>
@@ -21857,7 +21857,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       {savedDecks.map(d=>(
                         <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
                           <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"#555",fontWeight:400}}>({d.cardCount})</span></button>
-                          <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length) setFanDeck({name:d.name,cards:objs}); }} title="Fan through this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>🖐</button>
+                          <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length){ setFanMode("grid"); setFanDeck({name:d.name,cards:objs}); } }} title="Expand to view this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>⛶</button>
                           <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
