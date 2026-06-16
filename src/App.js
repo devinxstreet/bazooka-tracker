@@ -21629,7 +21629,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     // format-specific
     if(isAM){
       const treatments=[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))];
-      treatments.forEach(t=>{ const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10) tips.push({t:"info",m:`${t}: ${core}/10 core cards toward unlocking an apex.`}); });
+      treatments.forEach(t=>{ const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&(cc.treatment||"").toLowerCase()===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
       if(treatments.length===0) tips.push({t:"info",m:"Apex Madness: build 10 core cards (115–160) of a treatment to unlock its apex card."});
     }
     if(isSpec){ const over=inDeck.filter(c=>(parseFloat(c.power)||0)>160).length; if(over>0) tips.push({t:"warn",m:`${over} card(s) over 160 power — not legal in a Spec deck.`}); }
@@ -21641,6 +21641,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     // size
     if(inDeck.length===DECK_SIZE) tips.push({t:"good",m:"Deck is full at 60 cards. 🎉"});
     else if(remaining<=10) tips.push({t:"info",m:`${remaining} slots left to reach 60.`});
+    // collection-aware availability
+    if(owned && inDeck.length<DECK_SIZE){
+      const ownedAvail = cards.filter(c=>!deckSet.has(c.id)&&owned[c.id]&&(()=>{const t=(c.treatment||"").toLowerCase();return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount";})()).length;
+      if(ownedAvail===0 && inDeck.length>0) tips.push({t:"info",m:"You've used every eligible card from your collection in this deck."});
+      else if(ownedAvail>0) tips.push({t:"info",m:`${ownedAvail} more card${ownedAvail===1?"":"s"} from your collection available to add.`});
+    }
     if(tips.length===0) tips.push({t:"good",m:"Looking clean — no issues with your deck so far."});
     return tips.slice(0,5);
   })();
@@ -21653,7 +21659,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     }
     return needs.slice(0,4);
   })();
-  const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); };
+  const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); if(user&&owned){ const hasOwned = cards.some(c=>!deckSet.has(c.id)&&(c.treatment||"").toLowerCase()===(n.t||"").toLowerCase()&&n.p&&n.p.includes(String(c.power||""))&&owned[c.id]); if(hasOwned) setDeckOwnedOnly(true); } };
   const deckAvail = cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
     if(deckOwnedOnly && !(owned && owned[c.id])) return false;
@@ -21726,10 +21732,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 }
               </div>
             </div>
-            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{"\u2694\uFE0F"}{deckName}</div>
-                <span style={{fontSize:12,fontWeight:700,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24"}}>{inDeck.length}/{DECK_SIZE}</span>
+            <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{deckName}</div>
+                <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
               </div>
               {saveDeckTab && (
                 <div style={{marginBottom:14}}>
@@ -21752,32 +21758,32 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 </div>
               )}
               {inDeck.length>0 && (
-                <div style={{marginBottom:14}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                    {[{l:"Total Power",v:Math.round(dbTotalPower).toLocaleString(),c:"#E8317A"},{l:"Avg Power",v:dbAvgPower,c:"#FBBF24"},{l:"Heroes",v:dbHeroes,c:"#7B9CFF"},{l:"Cards",v:`${inDeck.length}/${DECK_SIZE}`,c:inDeck.length===DECK_SIZE?"#4ade80":"#888"}].map(({l,v,c})=>(
-                      <div key={l} style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
-                        <div style={{fontSize:17,fontWeight:900,color:c}}>{v}</div>
-                        <div style={{fontSize:9,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:0.5}}>{l}</div>
+                <div style={{marginBottom:16}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                    {[{l:"Total Power",v:Math.round(dbTotalPower).toLocaleString(),c:"#E8317A"},{l:"Avg Power",v:dbAvgPower,c:"#FBBF24"},{l:"Heroes",v:dbHeroes,c:"#7B9CFF"},{l:"Cards",v:`${inDeck.length}/${DECK_SIZE}`,c:inDeck.length===DECK_SIZE?"#4ade80":"#E8E8E8"}].map(({l,v,c})=>(
+                      <div key={l} style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"11px 12px"}}>
+                        <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:"-0.5px",lineHeight:1}}>{v}</div>
+                        <div style={{fontSize:9.5,color:"rgba(255,255,255,0.35)",marginTop:5,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600}}>{l}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Power Curve</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:9}}>Power Curve</div>
                   <div style={{display:"flex",alignItems:"flex-end",gap:5,height:54,marginBottom:12,padding:"0 2px"}}>
                     {dbPowerCurve.map(([label,n])=>(
-                      <div key={label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                        <div style={{fontSize:9,color:n>0?"#FBBF24":"#444",fontWeight:700}}>{n||""}</div>
-                        <div style={{width:"100%",height:`${Math.max(3,(n/dbMaxCurve)*38)}px`,background:n>0?"linear-gradient(180deg,#E8317A,#7B2FF7)":"#1a1a1a",borderRadius:3,transition:"height 0.3s"}}/>
-                        <div style={{fontSize:7.5,color:"#555",textAlign:"center",whiteSpace:"nowrap"}}>{label}</div>
+                      <div key={label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <div style={{fontSize:9.5,color:n>0?"#FBBF24":"#3a3a3a",fontWeight:800}}>{n||"·"}</div>
+                        <div style={{width:"100%",height:`${Math.max(4,(n/dbMaxCurve)*40)}px`,background:n>0?"#E8317A":"#1c1c1c",borderRadius:"4px 4px 2px 2px",transition:"height 0.3s ease"}}/>
+                        <div style={{fontSize:8,color:"rgba(255,255,255,0.3)",textAlign:"center",whiteSpace:"nowrap",fontWeight:600}}>{label}</div>
                       </div>
                     ))}
                   </div>
                   {dbWeaponBreak.length>0 && (
-                    <div>
-                      <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Weapons</div>
+                    <div style={{marginTop:16}}>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:9}}>Weapons</div>
                       {dbWeaponBreak.map(([w,cnt])=>{const wc=WEAPON_COLORS[w]||"#444";const pct=Math.round(cnt/inDeck.length*100);return(
-                        <div key={w} style={{marginBottom:5}}>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:10,color:wc,fontWeight:700}}>{w}</span><span style={{fontSize:10,color:"#555"}}>{cnt} ({pct}%)</span></div>
-                          <div style={{height:4,background:"#1a1a1a",borderRadius:2}}><div style={{width:`${pct}%`,height:"100%",background:wc,borderRadius:2}}/></div>
+                        <div key={w} style={{marginBottom:8}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:wc,fontWeight:700}}>{w}</span><span style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",fontWeight:600}}>{cnt} · {pct}%</span></div>
+                          <div style={{height:5,background:"rgba(255,255,255,0.05)",borderRadius:3}}><div style={{width:`${pct}%`,height:"100%",background:wc,borderRadius:3,transition:"width 0.3s ease"}}/></div>
                         </div>
                       );})}
                     </div>
@@ -21785,8 +21791,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 </div>
               )}
               {dbCoach.length>0 && (
-                <div style={{marginBottom:14,background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 12px"}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🧠 Coach</div>
+                <div style={{marginBottom:16,background:"rgba(168,85,247,0.05)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"13px 14px"}}>
+                  <div style={{fontSize:10,color:"#C084FC",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>🧠 Coach</div>
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
                     {dbCoach.map((tip,i)=>{ const col=tip.t==="warn"?"#FBBF24":tip.t==="good"?"#4ade80":"rgba(255,255,255,0.55)"; const icon=tip.t==="warn"?"⚠️":tip.t==="good"?"✓":"💡"; return (
                       <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:11.5,lineHeight:1.45,color:col}}>
@@ -21805,7 +21811,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               )}
               {isAM&&inDeck.length>0&&(
                 <div style={{marginBottom:14}}>
-                  <div style={{fontSize:10,color:"#A855F7",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Treatment Unlocks</div>
+                  <div style={{fontSize:10,color:"#C084FC",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:9}}>Treatment Unlocks</div>
                   {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
                     const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
                     return (
