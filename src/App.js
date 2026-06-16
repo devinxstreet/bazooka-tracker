@@ -24442,6 +24442,20 @@ function PublicCardDatabase() {
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+  const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  async function handleCardImageUpload(card, file) {
+    if (!card || !file) return;
+    try {
+      const fsId = card.fsId || card.id;
+      const safe = `${card.setName||"set"}_${card.cardNum||"x"}_${card.treatment||"t"}`.replace(/[^a-zA-Z0-9_]/g,"_");
+      const storageRef2 = ref(storage, `boba_cards/manual/${safe}.png`);
+      await uploadBytes(storageRef2, file);
+      const url = await getDownloadURL(storageRef2);
+      await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
+      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+      setToast("✅ Image uploaded — refresh to see it everywhere");
+    } catch(e) { alert("Upload failed: "+(e?.message||e)); }
+  }
   // -- Reviews (buyer rates seller, tied to a completed sale) --
   const reviewedSaleIds = new Set(myReviews.map(r=>r.saleId));
   async function submitReview(sale, stars, text) {
@@ -26796,7 +26810,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -27020,7 +27034,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
                             ))}
                           </div>
                           {user && (
@@ -27062,7 +27076,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
                 ))}
               </div>
             )}
