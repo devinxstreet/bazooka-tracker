@@ -26371,7 +26371,9 @@ function PublicCardDatabase() {
             {cards.length>0 && filtered.length===0 && (
               <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.4)"}}>
                 <div style={{fontSize:32,marginBottom:12}}>🔍</div>
-                <div style={{fontSize:14,fontWeight:700}}>No cards match your filters</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#F0F0F0",marginBottom:6}}>No cards match your filters</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",marginBottom:18,maxWidth:320,marginLeft:"auto",marginRight:"auto",lineHeight:1.5}}>Try a different search, or clear your filters to see all {cards.length.toLocaleString()} cards.</div>
+                <button onClick={()=>{setSearch("");setFilterSet("");setFilterTreat("");setFilterWeapon("");setFilterPower(new Set());setFilterOwned("all");setPage(1);}} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:22,padding:"11px 26px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.35)"}}>Clear all filters</button>
               </div>
             )}
             {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
