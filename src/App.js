@@ -23766,6 +23766,25 @@ function PublicCardDatabase() {
   }, []);
 
   // -- Helpers --
+  // For a pending (unmatched) card, find likely matches already in the database.
+  function findPendingSuggestions(m) {
+    const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
+    if (!m.hero) return [];
+    const heroN = norm(m.hero);
+    const candidates = cards.filter(c => {
+      const ch = norm(c.hero);
+      return ch === heroN || ch.includes(heroN) || heroN.includes(ch);
+    });
+    const scored = candidates.map(c => {
+      let score = 1;
+      if (m.treatment && norm(c.treatment) === norm(m.treatment)) score += 2;
+      if (m.weapon && norm(c.weapon) === norm(m.weapon)) score += 2;
+      if (m.power && String(c.power) === String(m.power)) score += 1;
+      return { c, score };
+    }).sort((a,b) => b.score - a.score);
+    return scored.filter(s => s.score >= 3).slice(0, 3).map(s => s.c);
+  }
+
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -24993,15 +25012,40 @@ function PublicCardDatabase() {
               </div>
             ) : (
               <>
-                {userMissing.map((m,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
-                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                {userMissing.map((m,i)=>{
+                  const suggestions = findPendingSuggestions(m);
+                  return (
+                  <div key={i} style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
                     </div>
-                    {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
+                    {suggestions.length>0 && (
+                      <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+                        <div style={{fontSize:11,color:"#4ade80",fontWeight:800,marginBottom:6}}>✨ Did you mean one of these? (in our database)</div>
+                        {suggestions.map(sc=>(
+                          <div key={sc.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:12,fontWeight:700,color:"#F0F0F0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sc.hero}{sc.weapon?` · ${sc.weapon}`:""}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.45)"}}>{[sc.treatment,sc.power?`${sc.power}⚡`:"",sc.cardNum?`#${sc.cardNum}`:"",sc.setName].filter(Boolean).join(" · ")}</div>
+                            </div>
+                            <button onClick={async()=>{
+                              if (!owned[sc.id]) await toggleOwned(sc.id);
+                              const remaining = userMissing.filter((_,idx)=>idx!==i);
+                              setUserMissing(remaining);
+                              try { await setDoc(doc(db,"user_missing",user.uid),{cards:remaining}); } catch(e){}
+                              showToast(`Added ${sc.hero} to your collection!`);
+                            }} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>+ Add this</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
                 <button onClick={async()=>{ if(window.confirm("Clear your pending list? This just removes them from this list — it won't affect your collection.")){ setUserMissing([]); try{ await setDoc(doc(db,"user_missing",user.uid),{cards:[]}); }catch(e){} } }} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.4)",borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>Clear pending list</button>
               </>
             )}
