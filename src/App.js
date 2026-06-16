@@ -29644,7 +29644,13 @@ export default function App() {
     if (!user) return;
     // Hard guard: never attempt to load internal/financial data for non-team emails.
     // (Firestore rules also block this server-side; this prevents the attempt + console errors.)
-    if (!(user.email||"").toLowerCase().trim().endsWith("@bazookabreaks.com")) return;
+    if (!(user.email||"").toLowerCase().trim().endsWith("@bazookabreaks.com")) {
+      // Wipe any locally-cached financial data so a non-team user can't view a stale copy.
+      try {
+        ["bz_inventory_v1","bz_breaks_v1","bz_streams_v1"].forEach(k=>localStorage.removeItem(k));
+      } catch(e) {}
+      return;
+    }
     const INV_CACHE = "bz_inventory_v1";
     const BRK_CACHE = "bz_breaks_v1";
     const STR_CACHE = "bz_streams_v1";
