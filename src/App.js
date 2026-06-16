@@ -27644,7 +27644,7 @@ function PublicSellPage() {
 
         {/* Header */}
         <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:20, textAlign:"center", border:"1px solid #1a1a1a" }}>
-          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:"clamp(54px,10vw,84px)", width:"auto", marginBottom:8, filter:"drop-shadow(0 6px 22px rgba(232,49,122,0.4))" }}/>
           <div style={{ fontSize:13, color:"#555", fontStyle:"italic", marginBottom:12 }}>Bo Jackson Battle Arena · Sell Your Cards</div>
           <div style={{ fontSize:14, color:"#AAAAAA", lineHeight:1.7 }}>Fill out the form below with your cards and we'll send you an offer. No obligation — you can accept, decline, or counter.</div>
         </div>
@@ -29390,7 +29390,7 @@ export default function App() {
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
   const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
   const _isTeam = hasEarlyAccess(user?.email);
-  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/sell","/chases","/showcase"];
+  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/chases","/showcase"];
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
