@@ -25473,7 +25473,7 @@ function PublicCardDatabase() {
         const mid = (n-1)/2;
         // Fan geometry: spread WIDE left-to-right. Cards overlap horizontally,
         // each rotated a little, arcing up at the edges.
-        const totalArc = Math.min(150, 20 + n*4); // total degrees across the whole fan
+        const totalArc = Math.min(38, 8 + n*0.9); // total degrees — gentle, readable arc
         const stepAng = n>1 ? totalArc/(n-1) : 0;
         // horizontal spacing so the fan spans the screen width
         const spanPx = Math.min(typeof window!=="undefined"?window.innerWidth*0.82:1100, 90 + n*28);
@@ -25516,7 +25516,7 @@ function PublicCardDatabase() {
                   {cards.map((c,i)=>{
                     const angle=(i-mid)*stepAng;
                     const x=(i-mid)*stepX;
-                    const yArc=Math.pow(Math.abs(i-mid),1.5)*2.2; // edges arc downward
+                    const yArc=Math.pow(Math.abs(i-mid),2)*0.35; // gentle arc, edges dip slightly
                     const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
                     return (
                       <div key={i} className="fan-card" onClick={e=>e.stopPropagation()}
