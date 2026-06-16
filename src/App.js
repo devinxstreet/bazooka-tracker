@@ -2,7 +2,7 @@
 /* Bazooka Vault — access limited to @bazookabreaks.com until June 18 */
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { auth, db, googleProvider, storage } from "./firebase";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 
@@ -24463,6 +24463,81 @@ function PublicCardDatabase() {
     }).catch(console.error);
   }, []);
 
+  // --- Email/password auth ---
+  const [authMode, setAuthMode] = useState("signin"); // signin | signup | reset
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authErr, setAuthErr] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMsg, setAuthMsg] = useState("");
+  function authErrMsg(code){
+    const m = {
+      "auth/invalid-email":"That doesn't look like a valid email.",
+      "auth/user-not-found":"No account with that email. Try signing up instead.",
+      "auth/wrong-password":"Incorrect password. Try again or reset it.",
+      "auth/invalid-credential":"Email or password is incorrect.",
+      "auth/email-already-in-use":"An account already exists with that email. Try signing in.",
+      "auth/weak-password":"Password should be at least 6 characters.",
+      "auth/too-many-requests":"Too many attempts. Wait a moment and try again.",
+      "auth/operation-not-allowed":"Email sign-in isn't enabled yet. Contact support.",
+    };
+    return m[code] || "Something went wrong. Please try again.";
+  }
+  async function handleEmailAuth() {
+    setAuthErr(""); setAuthMsg("");
+    const email = authEmail.trim().toLowerCase();
+    if (!email) { setAuthErr("Enter your email."); return; }
+    if (authMode === "reset") {
+      setAuthBusy(true);
+      try { await sendPasswordResetEmail(auth, email); setAuthMsg("Password reset email sent! Check your inbox."); }
+      catch(e){ setAuthErr(authErrMsg(e.code)); }
+      finally { setAuthBusy(false); }
+      return;
+    }
+    if (!authPass || authPass.length < 6) { setAuthErr("Password must be at least 6 characters."); return; }
+    setAuthBusy(true);
+    try {
+      if (authMode === "signup") {
+        const cred = await createUserWithEmailAndPassword(auth, email, authPass);
+        if (authName.trim()) { try { await updateProfile(cred.user, { displayName: authName.trim() }); } catch(e){} }
+      } else {
+        await signInWithEmailAndPassword(auth, email, authPass);
+      }
+      setSigningIn(false); setAuthEmail(""); setAuthPass(""); setAuthName("");
+    } catch(e){ setAuthErr(authErrMsg(e.code)); }
+    finally { setAuthBusy(false); }
+  }
+  // --- Passwordless magic-link ---
+  async function sendMagicLink() {
+    setAuthErr(""); setAuthMsg("");
+    const email = authEmail.trim().toLowerCase();
+    if (!email) { setAuthErr("Enter your email to get a sign-in link."); return; }
+    setAuthBusy(true);
+    try {
+      await sendSignInLinkToEmail(auth, email, { url: window.location.origin + window.location.pathname, handleCodeInApp: true });
+      try { window.localStorage.setItem("bz_emailForSignIn", email); } catch(e){}
+      setAuthMsg("Check your email — we sent you a sign-in link!");
+    } catch(e){ setAuthErr(authErrMsg(e.code)); }
+    finally { setAuthBusy(false); }
+  }
+  // Complete magic-link sign-in when the user returns via the emailed link
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+    let email = "";
+    try { email = window.localStorage.getItem("bz_emailForSignIn") || ""; } catch(e){}
+    if (!email) { email = window.prompt("Confirm your email to finish signing in:") || ""; }
+    if (!email) return;
+    signInWithEmailLink(auth, email.trim().toLowerCase(), window.location.href)
+      .then(() => {
+        try { window.localStorage.removeItem("bz_emailForSignIn"); } catch(e){}
+        setSigningIn(false);
+        // clean the magic-link params out of the URL
+        try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e){}
+      })
+      .catch(e => { console.error("magic link sign-in failed:", e); });
+  }, []);
+
   // -- Scan --
   async function scanCardPhoto(file) {
     if (scanInFlight.current) return; // prevent overlapping scans when scanning back-to-back
@@ -25601,6 +25676,28 @@ function PublicCardDatabase() {
               onMouseLeave={e=>{e.target.style.transform="";e.target.style.boxShadow="0 8px 32px rgba(232,49,122,0.4)";}}>
               Sign in with Google
             </button>
+            <div style={{display:"flex",alignItems:"center",gap:10,margin:"18px 0"}}>
+              <div style={{flex:1,height:1,background:"rgba(255,255,255,0.1)"}}/>
+              <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:700}}>OR</span>
+              <div style={{flex:1,height:1,background:"rgba(255,255,255,0.1)"}}/>
+            </div>
+            {authMode==="signup" && (
+              <input value={authName} onChange={e=>setAuthName(e.target.value)} placeholder="Display name (optional)" style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:"12px 14px",fontSize:14,color:"#fff",fontFamily:"inherit",marginBottom:10,outline:"none",boxSizing:"border-box"}}/>
+            )}
+            <input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" autoComplete="email" style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:"12px 14px",fontSize:14,color:"#fff",fontFamily:"inherit",marginBottom:10,outline:"none",boxSizing:"border-box"}}/>
+            {authMode!=="reset" && authMode!=="magic" && (
+              <input type="password" value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")handleEmailAuth();}} placeholder="Password" autoComplete={authMode==="signup"?"new-password":"current-password"} style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:"12px 14px",fontSize:14,color:"#fff",fontFamily:"inherit",marginBottom:10,outline:"none",boxSizing:"border-box"}}/>
+            )}
+            {authErr && <div style={{fontSize:12,color:"#f87171",marginBottom:10,textAlign:"left"}}>{authErr}</div>}
+            {authMsg && <div style={{fontSize:12,color:"#4ade80",marginBottom:10,textAlign:"left"}}>{authMsg}</div>}
+            <button onClick={authMode==="magic"?sendMagicLink:handleEmailAuth} disabled={authBusy} style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:800,cursor:authBusy?"wait":"pointer",fontFamily:"inherit",marginBottom:12}}>
+              {authBusy?"Please wait…":authMode==="signup"?"Create Account":authMode==="reset"?"Send Reset Link":authMode==="magic"?"Email me a sign-in link":"Sign In"}</button>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",lineHeight:1.8}}>
+              {authMode==="signin" && <>New here? <span onClick={()=>{setAuthMode("signup");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Create an account</span><br/><span onClick={()=>{setAuthMode("magic");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>Email me a sign-in link instead</span> · <span onClick={()=>{setAuthMode("reset");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>Forgot password?</span></>}
+              {authMode==="signup" && <>Already have an account? <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Sign in</span></>}
+              {authMode==="reset" && <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>}
+              {authMode==="magic" && <><span style={{color:"rgba(255,255,255,0.5)"}}>We'll email you a link — click it to sign in, no password needed.</span><br/><span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span></>}
+            </div>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:16,lineHeight:1.5}}>
               By signing in, you agree to our <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"#E8317A",fontWeight:700,textDecoration:"none"}}>Privacy Policy</a>.
             </div>
