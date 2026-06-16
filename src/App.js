@@ -21469,7 +21469,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
   );
 }
 
-function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile }) {
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab }) {
   const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
   const pbEntryIds=new Set(pbCards.map(e=>e.id));
   const playCount=pbCards.filter(e=>e.type==="play").length;
@@ -21521,6 +21521,26 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
               </div>
               <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:18,backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(260px,28%,340px)",flexShrink:0}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#F0F0F0",marginBottom:14}}>{"\uD83D\uDCD6 Playbook"}</div>
+                {savePbTab && (
+                  <div style={{marginBottom:14}}>
+                    <input value={pbName} onChange={e=>setPbName(e.target.value)} placeholder="Playbook name" style={{...inp,width:"100%",marginBottom:8,fontSize:12,padding:"7px 10px"}}/>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={savePbTab} disabled={pbSaving||pbCards.length===0} style={{flex:1,background:pbSaved?"#0a2a0a":"#0a1a0a",border:`1px solid ${pbSaved?"#4ade80":"#4ade8044"}`,color:"#4ade80",borderRadius:8,padding:"8px 0",fontSize:12,fontWeight:700,cursor:pbCards.length===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:pbCards.length===0?0.4:1}}>
+                        {pbSaving?"Saving...":pbSaved?"✓ Saved":"💾 Save"}</button>
+                      <button onClick={newPbTab} style={{background:"transparent",border:"1px solid #2a2a2a",color:"#888",borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+                    </div>
+                    {savedPlaybooks.length>0 && (
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
+                        {savedPlaybooks.map(p=>(
+                          <div key={p.id} style={{display:"flex",alignItems:"center",gap:3,background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
+                            <button onClick={()=>loadPbTab(p)} style={{background:"none",border:"none",color:pbLoadId===p.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{p.name} <span style={{color:"#555",fontWeight:400}}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
+                            <button onClick={()=>deletePbTab(p.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                   {[{l:"Plays",v:`${playCount}/${PUBLIC_PLAY_LIMIT}`,c:playFull?"#E8317A":"#4ade80"},{l:"Bonus",v:bonusCount,c:"#7B9CFF"}].map(({l,v,c})=>(
                     <div key={l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid rgba(255,255,255,0.05)"}}>
@@ -21589,6 +21609,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
+  const dbTotalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
+  const dbAvgPower = inDeck.length>0 ? Math.round(dbTotalPower/inDeck.length) : 0;
+  const dbHeroes = new Set(inDeck.map(c=>(c.hero||"").toLowerCase()).filter(Boolean)).size;
+  const dbWeaponBreak = (()=>{ const m={}; inDeck.forEach(c=>{ if(c.weapon) m[c.weapon]=(m[c.weapon]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); })();
+  const dbPowerCurve = (()=>{ const buckets=[["≤95",0],["100-130",0],["135-160",0],["165-200",0],["200+",0]]; inDeck.forEach(c=>{const p=parseFloat(c.power)||0; if(p<=95)buckets[0][1]++; else if(p<=130)buckets[1][1]++; else if(p<=160)buckets[2][1]++; else if(p<=200)buckets[3][1]++; else buckets[4][1]++;}); return buckets; })();
+  const dbMaxCurve = Math.max(1, ...dbPowerCurve.map(b=>b[1]));
   const treatCore={}, treatApex={};
   if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
   const deckAvail = cards.filter(c=>{
@@ -21677,6 +21703,39 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {inDeck.length>0 && (
+                <div style={{marginBottom:14}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    {[{l:"Total Power",v:Math.round(dbTotalPower).toLocaleString(),c:"#E8317A"},{l:"Avg Power",v:dbAvgPower,c:"#FBBF24"},{l:"Heroes",v:dbHeroes,c:"#7B9CFF"},{l:"Cards",v:`${inDeck.length}/${DECK_SIZE}`,c:inDeck.length===DECK_SIZE?"#4ade80":"#888"}].map(({l,v,c})=>(
+                      <div key={l} style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:17,fontWeight:900,color:c}}>{v}</div>
+                        <div style={{fontSize:9,color:"#555",marginTop:2,textTransform:"uppercase",letterSpacing:0.5}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Power Curve</div>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:5,height:54,marginBottom:12,padding:"0 2px"}}>
+                    {dbPowerCurve.map(([label,n])=>(
+                      <div key={label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                        <div style={{fontSize:9,color:n>0?"#FBBF24":"#444",fontWeight:700}}>{n||""}</div>
+                        <div style={{width:"100%",height:`${Math.max(3,(n/dbMaxCurve)*38)}px`,background:n>0?"linear-gradient(180deg,#E8317A,#7B2FF7)":"#1a1a1a",borderRadius:3,transition:"height 0.3s"}}/>
+                        <div style={{fontSize:7.5,color:"#555",textAlign:"center",whiteSpace:"nowrap"}}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {dbWeaponBreak.length>0 && (
+                    <div>
+                      <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Weapons</div>
+                      {dbWeaponBreak.map(([w,cnt])=>{const wc=WEAPON_COLORS[w]||"#444";const pct=Math.round(cnt/inDeck.length*100);return(
+                        <div key={w} style={{marginBottom:5}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:10,color:wc,fontWeight:700}}>{w}</span><span style={{fontSize:10,color:"#555"}}>{cnt} ({pct}%)</span></div>
+                          <div style={{height:4,background:"#1a1a1a",borderRadius:2}}><div style={{width:`${pct}%`,height:"100%",background:wc,borderRadius:2}}/></div>
+                        </div>
+                      );})}
                     </div>
                   )}
                 </div>
@@ -23489,6 +23548,38 @@ function PublicCardDatabase() {
   const [pbCards,       setPbCards]       = useState([]);
   const [pbSearch,      setPbSearch]      = useState("");
   const [pbSort,        setPbSort]        = useState("name");
+  const [pbName,        setPbName]        = useState("My Playbook");
+  const [savedPlaybooks,setSavedPlaybooks]= useState([]);
+  const [pbLoadId,      setPbLoadId]      = useState(null);
+  const [pbSaving,      setPbSaving]      = useState(false);
+  const [pbSaved,       setPbSaved]       = useState(false);
+  useEffect(() => {
+    if (!user) { setSavedPlaybooks([]); return; }
+    const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
+      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    }, e=>console.error("load playbooks failed:", e));
+    return unsub;
+  }, [user]);
+  async function savePbTab() {
+    if (!pbName.trim() || pbCards.length === 0) { alert("Name your playbook and add at least one card before saving."); return; }
+    if (!user) { setSigningIn(true); return; }
+    setPbSaving(true);
+    const id = pbLoadId || `pb_${Date.now()}`;
+    const plays = pbCards.filter(e=>e.type==="play").length;
+    const bonus = pbCards.filter(e=>e.type==="bonus").length;
+    try {
+      await setDoc(doc(db,"boba_playbooks",id), { id, userId: user.uid, name: pbName.trim(), entries: pbCards, playCount: plays, bonusCount: bonus, savedAt: new Date().toISOString() }, { merge:true });
+      setPbLoadId(id); setPbSaved(true); setTimeout(()=>setPbSaved(false), 1800);
+    } catch(e) { console.error("save playbook failed:", e); alert("Couldn't save your playbook: " + (e?.message || e)); }
+    finally { setPbSaving(false); }
+  }
+  async function deletePbTab(id) {
+    if (!window.confirm("Delete this playbook?")) return;
+    try { await deleteDoc(doc(db,"boba_playbooks",id)); } catch(e){ alert("Delete failed: "+(e?.message||e)); return; }
+    if (pbLoadId === id) { setPbLoadId(null); setPbName("My Playbook"); setPbCards([]); }
+  }
+  function loadPbTab(p) { setPbLoadId(p.id); setPbName(p.name||"My Playbook"); setPbCards(p.entries||[]); }
+  function newPbTab() { setPbLoadId(null); setPbName("My Playbook"); setPbCards([]); }
 
   // -- Scan --
   const [scanModal,     setScanModal]     = useState(false);
@@ -26752,6 +26843,9 @@ function PublicCardDatabase() {
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
             setSigningIn={setSigningIn} cards={cards} owned={owned}
             inp={inp} isMobile={isMobile}
+            pbName={pbName} setPbName={setPbName} setPbCards={setPbCards}
+            savedPlaybooks={savedPlaybooks} pbSaving={pbSaving} pbSaved={pbSaved} pbLoadId={pbLoadId}
+            savePbTab={savePbTab} deletePbTab={deletePbTab} loadPbTab={loadPbTab} newPbTab={newPbTab}
           />
         )}
 
