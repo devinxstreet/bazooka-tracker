@@ -21775,6 +21775,14 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                   <div style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Tap to scan a card</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Opens your camera -- identify any BoBA card instantly</div>
                 </div>
+                <div style={{marginTop:14,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:14,padding:"13px 16px"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",letterSpacing:0.5,marginBottom:8}}>📸 For the best results</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>💡</span><span>Use good lighting and avoid glare on the card</span></div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🎯</span><span>Fill the frame with the card and hold steady — blurry shots read poorly</span></div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🔢</span><span>Keep the card number (bottom corner) visible for the best match</span></div>
+                  </div>
+                </div>
                 <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
             )}
