@@ -15211,8 +15211,9 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 
   if (c.imageUrl) {
     return (
-      <div className="boba-card-hover" style={{ aspectRatio:"3/4" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
-        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.45s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease", transform:isFlipped?"perspective(600px) rotateY(180deg)":"perspective(600px) rotateY(0deg)", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
+      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
+        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
+         <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
@@ -15255,6 +15256,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:4, fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:700, marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.06)" }}>{"\uD83D\uDD04"} tap to flip back</div>
             </div>
           </div>
+         </div>
         </div>
       </div>
     );
