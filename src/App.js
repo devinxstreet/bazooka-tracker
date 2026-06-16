@@ -30074,7 +30074,7 @@ export default function App() {
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
   const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
   const _isTeam = hasEarlyAccess(user?.email);
-  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/sell","/chases","/showcase"];
+  const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/chases","/showcase"];
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
