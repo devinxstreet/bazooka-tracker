@@ -24166,6 +24166,21 @@ function PublicCardDatabase() {
         if(!match&&iWeap&&iPow){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap&&String(c.power||"").replace(/[^0-9]/g,"")===iPow);if(cands.length===1)match=cands[0];}
         // 7. Hero + weapon, single candidate
         if(!match&&iWeap){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
+        // Weapon->power correlation: when hero+weapon yields several candidates (card number unreadable),
+        // the weapon usually pins a power level. Narrow by power, then treatment, to resolve to one card.
+        if(!match&&iWeap){
+          const wCands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap);
+          if(wCands.length>1){
+            let narrow = iPow ? wCands.filter(c=>String(c.power||"").replace(/[^0-9]/g,"")===iPow) : wCands;
+            if(narrow.length===0) narrow = wCands;
+            if(iTreat){ const t=narrow.filter(c=>c.treatment?.toLowerCase()===iTreat); if(t.length) narrow=t; }
+            if(narrow.length===1) match=narrow[0];
+            else if(narrow.length>1){
+              const sig=new Set(narrow.map(c=>`${(c.treatment||"").toLowerCase()}|${c.power}`));
+              if(sig.size===1) match=narrow[0];
+            }
+          }
+        }
         // 8. Hero has only one card total
         if(!match&&heroCards.length===1) match=heroCards[0];
       }
