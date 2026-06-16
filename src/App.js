@@ -21704,8 +21704,26 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 </div>
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
+              {(()=>{
+                const fmt = {
+                  none:{c:"rgba(255,255,255,0.5)",icon:"📋",title:"No Restrictions",rules:["Up to 60 cards","No duplicate cards","Max 6 cards at any power level"]},
+                  spec:{c:"#FBBF24",icon:"🛡️",title:"Spec Deck",rules:["Up to 60 cards","Power ceiling: 160 max (no cards above 160)","No power floor — go as low as you want","Max 6 cards at any power level"]},
+                  apex:{c:"#A855F7",icon:"⚡",title:"Apex Deck",rules:["Up to 60 cards","No power cap — cards can go as high as you want","Max 6 cards at any power level"]},
+                  apexmadness:{c:"#E8317A",icon:"🔥",title:"Apex Madness",rules:["Core cards = power 115–160","Apex cards = power above 160","Need 10 core cards of a treatment before adding an apex of it","Max 1 apex card per treatment","Up to 60 cards, max 6 at any power level"]},
+                }[deckType] || {};
+                return (
+                  <div style={{background:`${fmt.c}11`,border:`1px solid ${fmt.c}33`,borderRadius:10,padding:"10px 13px"}}>
+                    <div style={{fontSize:11.5,fontWeight:800,color:fmt.c,marginBottom:6,display:"flex",alignItems:"center",gap:6}}>{fmt.icon} {fmt.title} — rules</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
+                      {fmt.rules.map((r,i)=>(
+                        <span key={i} style={{fontSize:11,color:"rgba(255,255,255,0.55)",display:"flex",alignItems:"center",gap:5}}><span style={{color:fmt.c}}>•</span>{r}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {[...new Set(cards.map(c=>c.power).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
+                {[...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
                   const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
                   return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
                     style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" \u26A0":""}</button>;
