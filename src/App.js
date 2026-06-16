@@ -21868,7 +21868,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               {inDeck.length>0 && (
                 <div style={{marginBottom:16}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-                    {[{l:"Total Power",v:Math.round(dbTotalPower).toLocaleString(),c:"#E8317A"},{l:"Avg Power",v:dbAvgPower,c:"#FBBF24"},{l:"Heroes",v:dbHeroes,c:"#7B9CFF"},{l:"Cards",v:`${inDeck.length}/${DECK_SIZE}`,c:inDeck.length===DECK_SIZE?"#4ade80":"#E8E8E8"}].map(({l,v,c})=>(
+                    {[{l:"Total Power",v:Math.round(dbTotalPower).toLocaleString(),c:"#E8317A"},{l:"Avg Power",v:dbAvgPower,c:"#FBBF24"},{l:"Unique Heroes",v:dbHeroes,c:"#7B9CFF"},{l:"Cards",v:`${inDeck.length}/${DECK_SIZE}`,c:inDeck.length===DECK_SIZE?"#4ade80":"#E8E8E8"}].map(({l,v,c})=>(
                       <div key={l} style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"11px 12px"}}>
                         <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:"-0.5px",lineHeight:1}}>{v}</div>
                         <div style={{fontSize:9.5,color:"rgba(255,255,255,0.35)",marginTop:5,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600}}>{l}</div>
