@@ -17196,6 +17196,8 @@ function CardSetImporter({ userRole }) {
     setProgress({ done:0, total:imgFiles.length, label:"Loading card index from Firestore..." });
     const snap = await getDocs(collection(db,"boba_checklist"));
     const allCards = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    // RESUME: skip cards that already have an image so re-runs don't re-scan/re-pay.
+    const alreadyImaged = new Set(allCards.filter(c => c.imageUrl && String(c.imageUrl).startsWith("http")).map(c => c.fsId));
 
     // Build a fast lookup: cardNum → cards (all cards)
     const byCardNum = {};
@@ -17218,7 +17220,7 @@ function CardSetImporter({ userRole }) {
     setProgress({ done:0, total:imgFiles.length, label:`Uploading ${imgFiles.length} images (20 at a time)...` });
 
     // Process in parallel batches of 20
-    const PARALLEL = 20;
+    const PARALLEL = 4; // lower for Vision API rate limits (every image is scanned)
     let done = 0;
 
     function fuzzyScore(treatment, folderName) {
@@ -17232,7 +17234,64 @@ function CardSetImporter({ userRole }) {
       return overlap.length / Math.max(fk.length, 1);
     }
 
+    async function visionMatch(file) {
+      try {
+        const base64 = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+              const MAX = 1400;
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.round(img.width * scale);
+              canvas.height = Math.round(img.height * scale);
+              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+              res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+            };
+            img.onerror = rej;
+            img.src = ev.target.result;
+          };
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+        const resp = await fetch("/api/scan-card", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg" })
+        });
+        if (!resp.ok) return null;
+        const v = await resp.json();
+        if (!v || (!v.cardNum && !v.hero)) return null;
+        const vNum = String(v.cardNum||"").toLowerCase().replace(/[\s-]/g,"");
+        const vHero = (v.hero||"").trim().toLowerCase();
+        const vWeapon = (v.weapon||"").trim().toLowerCase();
+        const vPower = String(v.power||"");
+        const firstWord = s => (s||"").toLowerCase().trim().split(" ")[0];
+        // 1. card# + hero (strongest)
+        if (vNum && vHero) { const c = allCards.find(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum && firstWord(c.hero)===firstWord(vHero)); if (c) return c; }
+        // 2. card# alone — but only if unique, or disambiguate by power
+        if (vNum) { const m = allCards.filter(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum); if (m.length===1) return m[0]; if (m.length>1 && vPower) { const byp = m.find(c=>String(c.power||"")===vPower); if (byp) return byp; } }
+        // 3. hero + weapon + power (when number unreadable)
+        if (vHero && vWeapon && vPower) { const m = allCards.filter(c => firstWord(c.hero)===firstWord(vHero) && (c.weapon||"").toLowerCase()===vWeapon && String(c.power||"")===vPower); if (m.length===1) return m[0]; }
+        return null;
+      } catch(e) { return null; }
+    }
+
     async function uploadOne(item) {
+      // VISION-FIRST: these filenames have no real card numbers, so read the card itself.
+      let card = await visionMatch(item.file);
+      if (card && alreadyImaged.has(card.fsId)) { written++; return; } // already has image — resume
+      if (card) {
+        try {
+          const ext = (item.file.name.split(".").pop()||"png").toLowerCase();
+          const storageRef2 = ref(storage, `boba_cards/${card.fsId}.${ext}`);
+          await uploadBytes(storageRef2, item.file);
+          const url = await getDownloadURL(storageRef2);
+          await setDoc(doc(db,"boba_checklist",card.fsId), { imageUrl:url }, {merge:true});
+          written++;
+        } catch(e) { errs.push(`${item.file.name}: ${e.message}`); skipped++; }
+        return;
+      }
       const numKey = String(item.cardNum).toLowerCase().replace(/-/g,"");
       const numStripped = numKey.replace(/^[a-z]+/,"");
       // Handle RD→R mismatch: RD528 strips to 528, but Firestore may have R528
@@ -17261,7 +17320,6 @@ function CardSetImporter({ userRole }) {
         }
       }
 
-      let card;
       if (manualTreatment) {
         const treatLookup = byTreatment[manualTreatment.toLowerCase()] || {};
         let matches = treatLookup[numKey] || treatLookup[numStripped] || treatLookup[numAltPrefix] || [];
@@ -17298,45 +17356,6 @@ function CardSetImporter({ userRole }) {
             }, null)?.card || matches[0];
       }
 
-      if (!card) {
-        // VISION FALLBACK: filename had no usable card number — read it off the image.
-        try {
-          const base64 = await new Promise((res, rej) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const img = new Image();
-              img.onload = () => {
-                const MAX = 1200;
-                const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-                const canvas = document.createElement("canvas");
-                canvas.width = Math.round(img.width * scale);
-                canvas.height = Math.round(img.height * scale);
-                canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-                res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
-              };
-              img.onerror = rej;
-              img.src = ev.target.result;
-            };
-            reader.onerror = rej;
-            reader.readAsDataURL(item.file);
-          });
-          const resp = await fetch("/api/scan-card", {
-            method:"POST", headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg" })
-          });
-          const vdata = await resp.json();
-          if (vdata && (vdata.cardNum || vdata.hero)) {
-            const vNum = String(vdata.cardNum||"").toLowerCase().replace(/[\s-]/g,"");
-            const vHero = (vdata.hero||"").trim().toLowerCase();
-            const vWeapon = (vdata.weapon||"").trim().toLowerCase();
-            const vPower = String(vdata.power||"");
-            // match by card# + hero, then card# alone, then hero+weapon(+power)
-            if (vNum && vHero) card = allCards.find(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum && (c.hero||"").toLowerCase().split(" ")[0]===vHero.split(" ")[0]);
-            if (!card && vNum) { const m = allCards.filter(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum); if (m.length===1) card=m[0]; else if (m.length>1 && vPower) card=m.find(c=>String(c.power||"")===vPower)||m[0]; }
-            if (!card && vHero && vWeapon) { const m = allCards.filter(c => (c.hero||"").toLowerCase().split(" ")[0]===vHero.split(" ")[0] && (c.weapon||"").toLowerCase()===vWeapon); if (m.length===1) card=m[0]; else if (m.length>1 && vPower) card=m.find(c=>String(c.power||"")===vPower); }
-          }
-        } catch(ve) { /* vision failed, fall through to skip */ }
-      }
       if (!card) {
         const treatLookupKeys = manualTreatment ? Object.keys(byTreatment[manualTreatment.toLowerCase()]||{}) : [];
         const treatCount = treatLookupKeys.length;
