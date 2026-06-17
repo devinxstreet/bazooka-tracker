@@ -28297,8 +28297,8 @@ function PublicSellPage() {
   }
 
   const S2 = {
-    inp: { background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 14px", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" },
-    lbl: { fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 },
+    inp: { background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, color:"#F0F0F0", padding:"12px 15px", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s" },
+    lbl: { fontSize:10.5, fontWeight:800, color:"rgba(255,255,255,0.45)", textTransform:"uppercase", letterSpacing:1.2, display:"block", marginBottom:7 },
   };
 
   if (submitted) return (
@@ -28318,19 +28318,20 @@ function PublicSellPage() {
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", padding:"24px 16px" }}>
+    <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 90% 50% at 50% 0%, rgba(232,49,122,0.12), transparent 60%), radial-gradient(ellipse 70% 50% at 80% 30%, rgba(123,47,247,0.1), transparent 60%), #08000a", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", padding:"40px 16px 60px" }}>
       <div style={{ maxWidth:680, margin:"0 auto" }}>
 
         {/* Header */}
-        <div style={{ background:"#0a0a0a", borderRadius:16, padding:"28px 32px", marginBottom:20, textAlign:"center", border:"1px solid #1a1a1a" }}>
-          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:6 }}>BAZOOKA</div>
-          <div style={{ fontSize:13, color:"#555", fontStyle:"italic", marginBottom:12 }}>Bo Jackson Battle Arena · Sell Your Cards</div>
-          <div style={{ fontSize:14, color:"#AAAAAA", lineHeight:1.7 }}>Fill out the form below with your cards and we'll send you an offer. No obligation — you can accept, decline, or counter.</div>
+        <div style={{ position:"relative", background:"linear-gradient(160deg, rgba(232,49,122,0.08), rgba(123,47,247,0.05) 60%, rgba(255,255,255,0.02))", borderRadius:24, padding:"40px 32px 34px", marginBottom:24, textAlign:"center", border:"1px solid rgba(232,49,122,0.18)", overflow:"hidden", boxShadow:"0 20px 60px rgba(232,49,122,0.12)" }}>
+          <div style={{ position:"absolute", top:-60, left:"50%", transform:"translateX(-50%)", width:300, height:120, background:"radial-gradient(ellipse, rgba(232,49,122,0.35), transparent 70%)", pointerEvents:"none" }}/>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ position:"relative", height:"clamp(52px,9vw,76px)", width:"auto", maxWidth:"82vw", objectFit:"contain", display:"block", margin:"0 auto 14px", filter:"drop-shadow(0 4px 20px rgba(232,49,122,0.45))" }}/>
+          <div style={{ position:"relative", fontSize:12, fontWeight:800, color:"#E8317A", letterSpacing:2.5, textTransform:"uppercase", marginBottom:14 }}>Bo Jackson Battle Arena · Sell Your Cards</div>
+          <div style={{ position:"relative", fontSize:15, color:"#C8C8C8", lineHeight:1.7, maxWidth:480, margin:"0 auto" }}>Fill out the form below with your cards and we'll send you an offer. <span style={{color:"#fff",fontWeight:700}}>No obligation</span> — you can accept, decline, or counter.</div>
         </div>
 
         {/* Seller info */}
-        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px", marginBottom:16 }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0", marginBottom:16 }}>Your Info</div>
+        <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, padding:"24px 26px", marginBottom:16, backdropFilter:"blur(8px)" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#fff", marginBottom:18, display:"flex", alignItems:"center", gap:8 }}>{String.fromCodePoint(0x1F464)} Your Info</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
             <div>
               <label style={S2.lbl}>Name / Username *</label>
@@ -28357,9 +28358,9 @@ function PublicSellPage() {
         </div>
 
         {/* Card list */}
-        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"20px 24px", marginBottom:16 }}>
+        <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, padding:"24px 26px", marginBottom:16, backdropFilter:"blur(8px)" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#F0F0F0" }}>Your Cards</div>
+            <div style={{ fontSize:15, fontWeight:800, color:"#fff", display:"flex", alignItems:"center", gap:8 }}>{String.fromCodePoint(0x1F0CF)} Your Cards</div>
             <div style={{ fontSize:11, color:"#555" }}>Search by hero name, card #, or treatment</div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"3fr 1fr 1fr auto", gap:8, marginBottom:8 }}>
@@ -28424,14 +28425,14 @@ function PublicSellPage() {
         </div>
 
         {/* Notes */}
-        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 24px", marginBottom:16 }}>
+        <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, padding:"20px 26px", marginBottom:16, backdropFilter:"blur(8px)" }}>
           <label style={S2.lbl}>Condition Notes (optional)</label>
           <textarea value={seller.notes||""} onChange={e=>setSeller(p=>({...p,notes:e.target.value}))} placeholder="Any condition notes, damage, or anything else we should know about..." rows={3}
             style={{ ...S2.inp, resize:"vertical", lineHeight:1.5 }}/>
         </div>
 
         {/* Photo Upload */}
-        <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:12, padding:"16px 24px", marginBottom:16 }}>
+        <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, padding:"20px 26px", marginBottom:16, backdropFilter:"blur(8px)" }}>
           <label style={S2.lbl}>📸 Lot Photos (optional but recommended)</label>
           <div style={{ fontSize:13, color:"#555", marginBottom:12 }}>Take a photo of your lot spread out so we can see the cards. Helps us make a faster and more accurate offer.</div>
           {/* Upload button */}
@@ -28463,7 +28464,9 @@ function PublicSellPage() {
         {error && <div style={{ background:"#1a0a0a", border:"1px solid #E8317A44", borderRadius:8, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#E8317A" }}>{error}</div>}
 
         <button onClick={handleSubmit} disabled={submitting}
-          style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:submitting?"not-allowed":"pointer", fontFamily:"inherit", opacity:submitting?0.7:1 }}>
+          style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:14, padding:"19px 0", fontSize:18, fontWeight:900, cursor:submitting?"not-allowed":"pointer", fontFamily:"inherit", opacity:submitting?0.7:1, boxShadow:"0 12px 40px rgba(232,49,122,0.4)", transition:"transform 0.2s, box-shadow 0.2s", letterSpacing:0.3 }}
+          onMouseEnter={e=>{if(!submitting){e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 18px 52px rgba(232,49,122,0.55)";}}}
+          onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 12px 40px rgba(232,49,122,0.4)";}}>
           {submitting ? (uploadProgress > 0 ? `Uploading photos... ${uploadProgress}%` : "Submitting...") : "🎯 Submit My Cards for an Offer"}
         </button>
 
