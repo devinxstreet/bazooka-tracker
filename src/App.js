@@ -15341,12 +15341,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               {(()=>{
                 const bio=getPlayerNote(c.hero);
                 if(!bio||(!bio.team&&!bio.notes)) return null;
-                const longBio = bio.notes && bio.notes.length > 120;
+                const longBio = bio.notes && bio.notes.length > 60;
                 return (
                   <div style={{ marginTop:6, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:7, padding:"7px 9px", position:"relative" }}
                     onMouseEnter={()=>longBio&&setBioOpen(true)} onMouseLeave={()=>setBioOpen(false)}>
                     {bio.team && <div style={{ fontSize:10, fontWeight:700, color:"#7B9CFF", marginBottom:bio.notes?4:0 }}>🏟️ {bio.team}</div>}
-                    {bio.notes && <div style={{ fontSize:10, color:"#999", lineHeight:1.45, display:"-webkit-box", WebkitLineClamp:4, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{bio.notes}</div>}
+                    {bio.notes && <div style={{ fontSize:10, color:"#999", lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:1, WebkitBoxOrient:"vertical", overflow:"hidden", textOverflow:"ellipsis" }}>{bio.notes}</div>}
                     {longBio && <div onClick={e=>{e.stopPropagation();setBioOpen(o=>!o);}} style={{ fontSize:9, color:wc, fontWeight:700, marginTop:4, cursor:"pointer", display:"flex", alignItems:"center", gap:3 }}>📖 {bioOpen?"Close":"Read full bio"}</div>}
                     {bioOpen && longBio && (
                       <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", left:-4, right:-4, bottom:"calc(100% + 6px)", zIndex:100, background:"rgba(12,12,16,0.98)", border:`1.5px solid ${wc}66`, borderRadius:10, padding:"12px 13px", boxShadow:"0 12px 40px rgba(0,0,0,0.7)", backdropFilter:"blur(8px)" }}>
