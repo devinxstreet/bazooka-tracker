@@ -14279,9 +14279,9 @@ function PublicDeckBuilder() {
     setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]);
   }
 
-  useEffect(() => {
-    async function load() {
-      const CACHE_KEY = "boba_checklist_cache_v3";
+  const loadCardsFromDB = async (force) => {
+    const CACHE_KEY = "boba_checklist_cache_v3";
+    if (!force) {
       try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (raw) {
@@ -14289,13 +14289,17 @@ function PublicDeckBuilder() {
           if (Date.now() - ts < 5*60*1000 && cc?.length > 0) { setCards(cc.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; })); setLoading(false); return; }
         }
       } catch(e) {}
-      const snap = await getDocs(collection(db, "boba_checklist"));
-      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
-      setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; }));
-      setLoading(false);
     }
-    load();
+    setLoading(true);
+    const snap = await getDocs(collection(db, "boba_checklist"));
+    const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
+    setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; }));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadCardsFromDB(false);
   }, []);
 
   const deckSet = new Set(deckCards);
@@ -17414,8 +17418,8 @@ function CardSetImporter({ userRole }) {
       {/* ── Image import ── */}
       {mode==="images" && (
         <>
-          <div style={{ fontSize:11, color:"#FBBF24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"9px 12px", marginBottom:10, lineHeight:1.5 }}>
-            ⚠️ This matches images by the <strong>card number in the FILENAME</strong> (e.g. a file named "TBJ-G.webp"). If your filenames don't contain real card numbers (e.g. "page-0001" or "set1-1"), this won't match them. For images where the card number is only printed on the card art, use <strong style={{color:"#4ade80"}}>🔍 Scan &amp; Import Images</strong> in the Card Database instead — it reads the number off the image.
+          <div style={{ fontSize:11, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:8, padding:"9px 12px", marginBottom:10, lineHeight:1.5 }}>
+            ✅ <strong>Smart matching is ON.</strong> This first tries to match by the card number in the filename. If the filename doesn't have a real card number (e.g. "page-0001" or "set1-1"), it automatically <strong>reads the card number off the image itself</strong> and matches that. So just drop your images and hit Upload — it handles both cases. (Image-reading is slower, so a big batch with no filename numbers will take a while.)
           </div>
           <div style={{ fontSize:12, color:"#555", lineHeight:1.8 }}>
             In Finder, <strong style={{ color:"#F0F0F0" }}>select all your image folders</strong> at once (Cmd+A or Cmd+click each one), then <strong style={{ color:"#E8317A" }}>drag them all onto the box below</strong>. All folders load in one go. Uploads 20 at a time.
@@ -18806,6 +18810,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     e.target.value="";
                   }} style={{ display:"none" }}/>
               </label>
+            )}
+            {isAdmin && (
+              <button title="Force-reload all cards from the database (use after importing images)" onClick={async()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} setLoading(true); const snap=await getDocs(collection(db,"boba_checklist")); const sorted=snap.docs.map(d=>d.data()).sort((a,b)=>{const n1=parseFloat(a.cardNum),n2=parseFloat(b.cardNum); if(!isNaN(n1)&&!isNaN(n2))return n1-n2; return String(a.cardNum).localeCompare(String(b.cardNum));}); setCards(sorted); setLoading(false); try{localStorage.setItem("boba_checklist_cache_v3",JSON.stringify({cards:sorted,ts:Date.now()}));}catch(e){} }} style={{ background:"#1A1A2E", color:"#60A5FA", border:"1px solid #60A5FA44", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>🔄 Refresh</button>
             )}
             {/* Camera scan -- opens modal on click */}
             <button title="Scan cards into your collection"
