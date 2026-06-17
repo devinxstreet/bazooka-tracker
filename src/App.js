@@ -24083,7 +24083,6 @@ function PublicCardDatabase() {
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
-  const [cardView, setCardView] = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -24132,6 +24131,7 @@ function PublicCardDatabase() {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
+  const [cardView,      setCardView]      = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
   const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -26220,6 +26220,18 @@ function PublicCardDatabase() {
         const sportEmoji={"MLB":"⚾","NFL":"🏈","NBA":"🏀","WNBA":"🏀","NHL":"🏒","PGA":"⛳","WTA":"🎾","ATP":"🎾","Boxing":"🥊","MMA":"🥊","MLS":"⚽","USMNT":"⚽","USWNT":"⚽","Music":"🎤","Acting":"🎬"};
         const emoji = sport ? (sport.split(/[\/\s]/).map(s=>sportEmoji[s]).find(Boolean)||"🏅") : "🏅";
         const sku = SKU_MAP[c.treatment]; const skuLabel = sku && SKU_LABEL[sku];
+        const isSecret1of1 = c.notation === "Secret 1/1";
+        const isSuper = (c.weapon||"").toUpperCase() === "SUPER";
+        const is1of1 = isSecret1of1 || isSuper;
+        const claim1of1 = isSecret1of1
+          ? (oneOfOneClaims||[]).find(cl => cl.cardId === c.id || cl.id === c.id)
+          : isSuper
+            ? (superClaims||[]).find(cl => cl.cardId === c.id || cl.id === c.id)
+            : null;
+        const claimVerified = claim1of1 && claim1of1.status === "verified";
+        const claimPending = claim1of1 && claim1of1.status === "pending";
+        const oneOfOneLabel = isSuper ? "⭐ Super 1/1" : "💎 Secret 1/1";
+        const claimerName = claim1of1 ? (claim1of1.submitterName || claim1of1.userName || "Anonymous") : "";
         return (
           <div onClick={()=>setExpandedCard(null)} style={{ position:"fixed", inset:0, zIndex:12000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
@@ -26252,6 +26264,28 @@ function PublicCardDatabase() {
                   {c.notation && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{c.notation}</span>}
                   {c.variation && <span style={{ fontSize:12, color:"#888", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{c.variation}</span>}
                 </div>
+                {is1of1 && (
+                  <div style={{ background: claimVerified ? "rgba(147,51,234,0.12)" : "rgba(74,222,128,0.08)", border:`1.5px solid ${claimVerified ? "#9333EA" : claimPending ? "#FBBF24" : "#4ade80"}66`, borderRadius:12, padding:"14px 16px" }}>
+                    <div style={{ fontSize:11, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase", color:"#9333EA", marginBottom:8 }}>{oneOfOneLabel} · One of One</div>
+                    {claimVerified ? (
+                      <>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#c084fc", marginBottom:4 }}>🏆 Claimed</div>
+                        <div style={{ fontSize:13, color:"#ddd" }}>Pulled by <strong style={{ color:"#fff" }}>{claimerName}</strong>{claim1of1.dateHit?` · ${claim1of1.dateHit}`:""}</div>
+                        {claim1of1.story && <div style={{ fontSize:12, color:"#999", marginTop:8, lineHeight:1.5, fontStyle:"italic" }}>"{claim1of1.story}"</div>}
+                      </>
+                    ) : claimPending ? (
+                      <>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#FBBF24", marginBottom:4 }}>⏳ Claim Pending</div>
+                        <div style={{ fontSize:13, color:"#bbb" }}>Someone reported hitting this — verification in progress.</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#4ade80", marginBottom:4 }}>🔓 Unclaimed</div>
+                        <div style={{ fontSize:13, color:"#bbb" }}>This one-of-one hasn't been hit yet. Could be out there waiting…</div>
+                      </>
+                    )}
+                  </div>
+                )}
                 {bio && (bio.team||bio.notes) && (
                   <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"12px 14px" }}>
                     {bio.team && <div style={{ fontSize:13, fontWeight:800, color:"#7B9CFF", marginBottom:6 }}>🏟️ {bio.team}</div>}
