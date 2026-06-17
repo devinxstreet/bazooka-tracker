@@ -15561,7 +15561,7 @@ const PLAYER_NOTES = {
   "Furnest":           { player:"Earnest Byner",        team:"Cleveland Browns / Washington Redskins", notes:"Famous for The Fumble — one of the most heartbreaking moments in Browns history. Redeemed himself with a Super Bowl ring in Washington. The ultimate redemption story.", lines:["\"The Fumble broke Cleveland's heart. The Super Bowl ring healed it.\"","\"Greatest redemption story in NFL history — from The Fumble to a championship\""] },
   "Hot Rod":           { player:"Rodney Hampton",       team:"NY Giants", notes:"Two-time Pro Bowl back for the Giants in the early 90s. Carried New York's run game when they needed it most. Underrated workhorse of the NFC.", lines:["\"New York's workhorse back in the early 90s — reliable every single week\""] },
   "Golden Bullet":     { player:"Matthew Golden",       team:"Houston Texans", notes:"Young receiver coming into his own in Houston's offensive system. Part of the next generation of Texans weapons.", lines:["\"The next piece of Houston's offensive puzzle\""] },
-  "Billiard":          { player:"Dalton Hilliard",      team:"New Orleans Saints", notes:"Two-time Pro Bowl back for New Orleans. Led the Saints in rushing for multiple seasons. One of the more underrated Saints backs in history.", lines:["\"Two-time Pro Bowler who gave New Orleans a reliable ground game\""] },
+  "Billiard":          { player:"Dalton Hilliard",      team:"New Orleans Saints", notes:"Pro Bowl back famous for his massive, powerful thighs — he let his legs do the talking, squatting serious weight to power through tacklers. A New Orleans legend who led the Saints in rushing for multiple seasons (18 TDs in 1989). At LSU he became the Tigers' all-time career rushing leader and broke Herschel Walker's NCAA freshman scoring records — all from a 5'8\" frame people said was too small.", lines:["\"Those thighs were a weapon — he squatted his way through the SEC\"","\"LSU's all-time leading rusher and an NFL Pro Bowler\"","\"Broke Herschel Walker's freshman records as a true freshman at LSU\""] },
   "Ruptillian":        { player:"Mark Rypien",          team:"Washington Redskins", notes:"Super Bowl XXVI MVP. Led Washington to their third Super Bowl with a dominant performance. Often overlooked in the conversation about Washington QBs despite being a champion.", lines:["\"Super Bowl MVP who somehow still gets overlooked in the Washington QB conversation\"","\"Led Washington to their last championship — that matters\""] },
   "Flippa":            { player:"Flipper Anderson",     team:"LA Rams", notes:"Set the single-game receiving record with 336 yards in 1989 — a record that stood for decades. Had some of the most electrifying individual performances in NFL history.", lines:["\"336 yards in ONE GAME. Single-game receiving record.\"","\"The most yards anyone has ever caught in a single NFL game — Flipper Anderson did that\""] },
   "Slaughterhouse":    { player:"Webster Slaughter",    team:"Cleveland Browns", notes:"Speedster receiver who gave Cleveland a deep threat in the late 80s. Paired with Reggie Langhorne to give Bernie Kosar weapons on the outside.", lines:["\"Cleveland's deep threat in the Bernie Kosar era\""] },
@@ -24131,6 +24131,7 @@ function PublicCardDatabase() {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
+  const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
@@ -25064,10 +25065,17 @@ function PublicCardDatabase() {
         if(!resp.ok) return null;
         const v = await resp.json();
         if(!v||(!v.cardNum&&!v.hero)) return null;
-        const vNum=norm(v.cardNum), vHero=(v.hero||"").toLowerCase().trim(), vWeapon=(v.weapon||"").toLowerCase().trim(), vPower=String(v.power||"");
-        if(vNum&&vHero){ const c=pool.find(c=>norm(c.cardNum)===vNum&&firstWord(c.hero)===firstWord(vHero)); if(c) return c; }
-        if(vNum){ const m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1&&vPower){ const b=m.find(c=>String(c.power||"")===vPower); if(b) return b; } }
-        if(vHero&&vWeapon&&vPower){ const m=pool.filter(c=>firstWord(c.hero)===firstWord(vHero)&&(c.weapon||"").toLowerCase()===vWeapon&&String(c.power||"")===vPower); if(m.length===1) return m[0]; }
+        const vNum=norm(v.cardNum), vHero=(v.hero||"").toLowerCase().trim(), vWeapon=(v.weapon||"").toLowerCase().trim(), vTreat=(v.treatment||"").toLowerCase().trim(), vPower=String(v.power||"");
+        const heroOk=(c)=>{ const h=(c.hero||"").toLowerCase().trim(); return h===vHero || firstWord(h)===firstWord(vHero) || h.replace(/\s/g,"")===vHero.replace(/\s/g,""); };
+        const wOk=(c)=>!vWeapon||(c.weapon||"").toLowerCase()===vWeapon;
+        const tOk=(c)=>!vTreat||(c.treatment||"").toLowerCase()===vTreat||(c.treatment||"").toLowerCase().includes(vTreat)||vTreat.includes((c.treatment||"").toLowerCase());
+        const pOk=(c)=>!vPower||String(c.power||"")===vPower;
+        // 1. card# + hero + weapon (strongest — distinguishes same-number cards like Joe Cool 275 vs Skyline S75)
+        if(vNum&&vHero){ const m=pool.filter(c=>norm(c.cardNum)===vNum&&heroOk(c)); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=w.filter(tOk); if(wt.length===1) return wt[0]; const wtp=wt.filter(pOk); if(wtp.length===1) return wtp[0]; if(wtp.length>1) return wtp[0]; } }
+        // 2. card# + weapon + treatment (no clear hero, but element/finish narrows it)
+        if(vNum){ let m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=(w.length?w:m).filter(tOk); if(wt.length===1) return wt[0]; const wtp=(wt.length?wt:w.length?w:m).filter(pOk); if(wtp.length===1) return wtp[0]; /* still ambiguous — refuse rather than guess wrong */ if(vHero){ const h=(wtp.length?wtp:m).filter(heroOk); if(h.length===1) return h[0]; } return null; } }
+        // 3. hero + weapon + power (number unreadable)
+        if(vHero&&vWeapon&&vPower){ const m=pool.filter(c=>heroOk(c)&&wOk(c)&&pOk(c)); if(m.length===1) return m[0]; }
         return null;
       } catch(e){ return null; }
     }
@@ -25836,6 +25844,7 @@ function PublicCardDatabase() {
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     if(filterOwned==="missing" &&  owned[c.id])  return false;
+    if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
     return true;
@@ -27608,6 +27617,9 @@ function PublicCardDatabase() {
                     <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
                   ))}
                 </div>
+              )}
+              {_cardAdmin && (
+                <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
