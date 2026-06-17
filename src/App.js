@@ -24502,10 +24502,21 @@ function PublicCardDatabase() {
         if (serverTs > cacheTs) needFresh = true;
       } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
       if (!needFresh) { setLoading(false); return; }
-      // 1. LIVE snapshot from Storage first — this is regenerated on every import, so it's current.
+      // When we KNOW the data changed (version newer than cache), read Firestore DIRECTLY —
+      // the Storage snapshot is CDN-cached (up to 5 min) and can be stale right after an import.
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+        if (all.length>0) {
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      // Fallback: cache-busted Storage snapshot (the ?v= defeats the CDN cache).
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
-        const r2 = await fetch(url);
+        const r2 = await fetch(url + (url.includes("?")?"&":"?") + "v=" + Date.now());
         const all = await r2.json();
         if (Array.isArray(all) && all.length>0) {
           setCards(all); setLoading(false);
@@ -24513,7 +24524,7 @@ function PublicCardDatabase() {
           return;
         }
       } catch(e) {}
-      // 2. Repo static file fallback (may be older).
+      // Last resort: repo static file (oldest).
       try {
         const r = await fetch("/cards-data.json");
         if (r.ok) {
@@ -24525,12 +24536,7 @@ function PublicCardDatabase() {
           }
         }
       } catch(e) {}
-      try {
-        const snap = await getDocs(collection(db,"boba_checklist"));
-        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-        setCards(all); setLoading(false);
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-      } catch(e) { setLoading(false); }
+      setLoading(false);
     })();
   }, []);
   // -- Auth + owned + wants + private --
