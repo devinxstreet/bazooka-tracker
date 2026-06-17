@@ -17844,7 +17844,13 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     try {
     _setImgScanProgress({ current:0, total:fileList.length, status:"Starting image scan..." });
 
-    let matched = 0, skipped = 0;
+    let matched = 0, skipped = 0, alreadyDone = 0;
+    const skippedFiles = []; // collect names of unmatched files for a report
+    // RESUME SUPPORT: cards that already have an image are skipped so a re-run
+    // continues where it left off (and doesn't re-pay for Vision calls).
+    const alreadyImaged = new Set(
+      cards.filter(c => c.imageUrl && String(c.imageUrl).startsWith("http")).map(c => c.id)
+    );
 
     // -- Matching helpers --------------------------------------
     function normNum(n) { return String(n||"").replace(/[\s\-]/g,"").toLowerCase(); }
@@ -17884,9 +17890,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       return sorted[idx] || null;
     }
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      _setImgScanProgress({ current:i, total:fileList.length, status:`Scanning ${file.name} (${i+1}/${fileList.length})...` });
+    const PARALLEL = 8; // process 8 images at a time — much faster than one-by-one
+    let processed = 0;
+    async function processFile(file, i) {
 
       try {
         // -- Step 1: Try filename matching first (free, instant, reliable) --
@@ -17979,8 +17985,10 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           }
         }
 
-        if (!match) { skipped++; console.log(`No match: ${file.name}`); _setImgScanProgress(p=>({...p, status:`No match for ${file.name} - skipping`})); continue; }
+        if (!match) { skipped++; skippedFiles.push(file.name); console.log(`No match: ${file.name}`); processed++; _setImgScanProgress({ current:processed, total:fileList.length, status:`No match for ${file.name} (${processed}/${fileList.length})` }); return; }
 
+        // RESUME: if this card already has an image, skip re-uploading it.
+        if (alreadyImaged.has(match.id)) { alreadyDone++; processed++; _setImgScanProgress({ current:processed, total:fileList.length, status:`⏭ Already done: ${match.hero} #${match.cardNum} (${processed}/${fileList.length})` }); return; }
         // Upload original file (not re-compressed)
         const imgBlob = new Blob([await file.arrayBuffer()], { type: file.type || "image/webp" });
         const ext = file.name.split(".").pop() || "webp";
@@ -17988,18 +17996,37 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         await uploadBytes(storageRef, imgBlob);
         const imageUrl = await getDownloadURL(storageRef);
         await setDoc(doc(db,"boba_checklist",match.id), { imageUrl }, { merge:true });
-        matched++;
+        matched++; processed++;
+        _setImgScanProgress({ current:processed, total:fileList.length, status:`✅ ${match.hero} #${match.cardNum} — ${matched} matched, ${skipped} skipped (${processed}/${fileList.length})` });
         console.log(`\u2705 ${file.name} \u2192 ${match.hero} #${match.cardNum} (${match.setName})`);
 
       } catch(e) {
         console.error(`Error scanning ${file.name}:`, e);
-        _setImgScanProgress(p=>({...p, status:`Error on ${file.name}: ${e.message}`}));
-        skipped++;
+        skipped++; processed++; skippedFiles.push(file.name + " (error: " + e.message + ")");
+        _setImgScanProgress({ current:processed, total:fileList.length, status:`Error on ${file.name} (${processed}/${fileList.length})` });
       }
     }
 
-    _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`\u2705 Done! Matched ${matched}, skipped ${skipped}` });
-    setTimeout(() => _setImgScanProgress(null), 5000);
+    // Run in parallel batches of PARALLEL
+    for (let i = 0; i < fileList.length; i += PARALLEL) {
+      const batch = fileList.slice(i, i + PARALLEL);
+      await Promise.all(batch.map((f, j) => processFile(f, i + j)));
+    }
+
+    // Build a downloadable report of unmatched files so you know what to retry
+    if (skippedFiles.length) {
+      try {
+        const blob = new Blob([`Unmatched / errored files (${skippedFiles.length}):\n\n` + skippedFiles.join("\n")], { type:"text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `unmatched-images-${new Date().toISOString().slice(0,10)}.txt`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      } catch(e) { console.error("Could not generate skip report:", e); }
+    }
+
+    _setImgScanProgress({ current:fileList.length, total:fileList.length, status:`✅ Done! ${matched} matched, ${skipped} unmatched${skippedFiles.length?` — skip-list downloaded`:``}` });
+    setTimeout(() => _setImgScanProgress(null), 8000);
     } catch(err) { _setImgScanProgress({ current:0, total:0, status:"Error: " + err.message }); console.error("Import error:", err); }
     try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e) {}
   }  // - closes scanImagesForCards
