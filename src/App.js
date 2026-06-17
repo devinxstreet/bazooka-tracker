@@ -25528,7 +25528,7 @@ function PublicCardDatabase() {
             <div style={{flexShrink:0,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
               <div>
                 <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{fanDeck.name}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:2}}>{n} card{n!==1?"s":""}{fanMode==="fan"?" · hover to lift":""}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:2}}>{n} card{n!==1?"s":""}{fanMode==="fan"?(isMobile?" · tap to lift":" · hover to lift"):""}</div>
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <div style={{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:24,padding:3}}>
@@ -25550,6 +25550,23 @@ function PublicCardDatabase() {
                     </div>
                   );})}
                 </div>
+              </div>
+            ) : isMobile ? (
+              <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginBottom:10}}>← swipe through your hand →</div>
+                <div className="fan-scroll" style={{display:"flex",overflowX:"auto",overflowY:"hidden",width:"100%",padding:"40px 50vw 40px 8vw",WebkitOverflowScrolling:"touch",scrollSnapType:"x proximity"}}>
+                  {cards.map((c,i)=>{
+                    const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                    return (
+                      <div key={i} onClick={e=>{e.stopPropagation();const el=e.currentTarget;const lifted=el.getAttribute("data-lift")==="1";document.querySelectorAll(".fan-mcard").forEach(x=>{x.style.transform="";x.style.zIndex="";x.setAttribute("data-lift","0");});if(!lifted){el.style.transform="translateY(-34px) scale(1.12)";el.style.zIndex="999";el.setAttribute("data-lift","1");}}}
+                        className="fan-mcard" data-lift="0"
+                        style={{flexShrink:0,width:"min(58vw,260px)",aspectRatio:"3/4",marginLeft:i===0?0:"-34vw",borderRadius:14,overflow:"hidden",border:`2px solid ${wc}77`,background:"#111",boxShadow:"0 10px 30px rgba(0,0,0,0.7)",transition:"transform 0.25s cubic-bezier(0.34,1.2,0.5,1)",scrollSnapAlign:"center",position:"relative"}}>
+                        {cardImg(c,true)}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:10}}>tap a card to lift it</div>
               </div>
             ) : (
               <div style={{flex:1,minHeight:0,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
