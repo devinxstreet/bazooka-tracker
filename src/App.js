@@ -24083,6 +24083,7 @@ function PublicCardDatabase() {
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
+  const [cardView, setCardView] = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -24175,10 +24176,10 @@ function PublicCardDatabase() {
       sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
         ...prev,
         activeTab, search, filterSet, filterWeapon, filterTreat,
-        filterPower: Array.from(filterPower), filterOwned, sortBy, page,
+        filterPower: Array.from(filterPower), filterOwned, sortBy, page, cardView,
       }));
     } catch(e) {}
-  }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page]);
+  }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page, cardView]);
 
   // -- Save scroll position continuously, restore once after cards render --
   useEffect(() => {
@@ -27631,11 +27632,15 @@ function PublicCardDatabase() {
                 <option value="power">{"Power \u2193"}</option>
                 <option value="setName">Set</option>
               </select>
-              <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
+              <div style={{display:"flex",gap:0,border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
+                <button onClick={()=>setCardView("grid")} title="Card grid" style={{background:cardView==="grid"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="grid"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>▦</button>
+                <button onClick={()=>setCardView("list")} title="List view" style={{background:cardView==="list"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="list"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>☰</button>
+              </div>
+              {cardView==="grid" && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
                 <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
                 <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
                 <span style={{fontSize:18,color:"rgba(255,255,255,0.3)"}}>🃏</span>
-              </div>
+              </div>}
               {user&&(
                 <div style={{display:"flex",gap:4}}>
                   {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"]].map(([v,l])=>(
@@ -27648,6 +27653,43 @@ function PublicCardDatabase() {
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
+            {cardView==="list" ? (
+              <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{background:"rgba(255,255,255,0.03)",textAlign:"left"}}>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700,whiteSpace:"nowrap"}}>Card #</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700}}>Hero</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700}}>Treatment</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700}}>Weapon</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700}}>Notation</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700,textAlign:"right"}}>PWR</th>
+                      <th style={{padding:"10px 14px",color:"rgba(255,255,255,0.5)",fontWeight:700}}>Athlete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleCards.map(c=>{
+                      const wc = WEAPON_COLORS[c.weapon] || "#888";
+                      return (
+                        <tr key={c.id} onClick={()=>setExpandedCard(c)} style={{borderTop:"1px solid rgba(255,255,255,0.05)",cursor:"pointer"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <td style={{padding:"10px 14px",color:"#ccc",fontWeight:700,whiteSpace:"nowrap"}}>{c.cardNum}</td>
+                          <td style={{padding:"10px 14px"}}>
+                            <div style={{color:"#fff",fontWeight:700}}>{c.hero}</div>
+                            {c.inspiredBy && <div style={{color:"rgba(255,255,255,0.35)",fontSize:11}}>{c.variation||""}</div>}
+                          </td>
+                          <td style={{padding:"10px 14px",color:"rgba(255,255,255,0.6)"}}>{c.treatment||""}</td>
+                          <td style={{padding:"10px 14px"}}>{c.weapon && <span style={{color:wc,background:wc+"22",borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{c.weapon}</span>}</td>
+                          <td style={{padding:"10px 14px",color:"#FBBF24",fontWeight:700}}>{c.notation||""}</td>
+                          <td style={{padding:"10px 14px",color:"#fff",fontWeight:800,textAlign:"right"}}>{c.power||""}</td>
+                          <td style={{padding:"10px 14px",color:"rgba(255,255,255,0.7)",whiteSpace:"nowrap"}}>{c.inspiredBy||c.athlete||""}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
             <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
@@ -27692,6 +27734,7 @@ function PublicCardDatabase() {
                 </div>
               ))}
             </div>
+            )}
             {cards.length===0 && !loading && (
               <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.5)"}}>
                 <div style={{fontSize:40,marginBottom:14}}>📭</div>
