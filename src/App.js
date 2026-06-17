@@ -1234,7 +1234,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               {[
                 { l:"MagPros",       v:`$${totMagpros.toFixed(2)}`,  sub:totMagQty>0?`${totMagQty} units`:"",  c:"#7B9CFF" },
                 { l:"Packaging",     v:`$${totPack.toFixed(2)}`,     sub:totPackQty>0?`${totPackQty} units`:"", c:"#7B9CFF" },
-                { l:"Top Loaders",   v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",  c:"#7B9CFF" },
+                ...(totTopload>0?[{ l:"Top Loaders",   v:`$${totTopload.toFixed(2)}`,  sub:totTopQty>0?`${totTopQty} units`:"",  c:"#7B9CFF" }]:[]),
                 { l:"Chaser Cards",  v:`$${totChaser.toFixed(2)}`,   sub:"",                                    c:"#E8317A" },
                 { l:"Coupons Given", v:`$${totCoupons.toFixed(2)}`,  sub:"",                                    c:"#FBBF24" },
                 { l:"🟢 Zion Cases", v:totZion>0?`$${totZion.toFixed(2)}`:"--", sub:totZion>0?`~${Math.round(totZion/3)} units`:"Bazooka-only", c:"#4ade80" },
@@ -4731,8 +4731,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <div style={{ display:"contents" }}>
               {[
                 { qtyKey:"magprosQty",   dollarKey:"magpros",           label:"MagPros",             supplyKey:"supply_magpros"   },
-                { qtyKey:"packagingQty", dollarKey:"packagingMaterial", label:"Packaging Materials", supplyKey:"supply_packaging" },
-                { qtyKey:"topLoadersQty",dollarKey:"topLoaders",        label:"Top Loaders",         supplyKey:"supply_topLoaders"},
+                { qtyKey:"packagingQty", dollarKey:"packagingMaterial", label:"Packaging",           supplyKey:"supply_packaging" },
               ].map(({ qtyKey, dollarKey, label, supplyKey }) => {
                 const costPer = parseFloat(skuPrices[supplyKey]) || 0;
                 const qty     = parseInt(recap[qtyKey]) || 0;
@@ -5069,7 +5068,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
-                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack/TL)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
+                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && (parseFloat(recap.biguShipping)||0)>0 ? [{ l:"📦 Shipping reimb (50% of "+fmt(parseFloat(recap.biguShipping)||0)+")", v:"+ "+fmt((parseFloat(recap.biguShipping)||0)*0.5), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
