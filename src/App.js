@@ -15339,7 +15339,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                 );
               })()}
               {(()=>{
-                const bio=PLAYER_NOTES[c.hero];
+                const bio=getPlayerNote(c.hero);
                 if(!bio||(!bio.team&&!bio.notes)) return null;
                 const longBio = bio.notes && bio.notes.length > 120;
                 return (
@@ -15769,6 +15769,14 @@ const PLAYER_NOTES = {
   "百三十": { player:"Shohei Ohtani", team:"Los Angeles Dodgers", notes:"The greatest two-way player since Babe Ruth — and beyond. Multiple-time MVP, World Series champion, and the first-ever 50-50 season. A global icon redefining what's possible.", lines:["\"50 homers AND 50 steals — nobody has done what Ohtani does\"","\"The greatest two-way player in baseball history\""] },
 };
 
+// Case-insensitive bio lookup so spelling/caps variants (Bojax, BoJax, BOJAX) all resolve.
+const _PLAYER_NOTES_CI = {};
+for (const _k in PLAYER_NOTES) { _PLAYER_NOTES_CI[_k.toLowerCase().replace(/[^a-z0-9]/g,"")] = PLAYER_NOTES[_k]; }
+function getPlayerNote(hero) {
+  if (!hero) return null;
+  return PLAYER_NOTES[hero] || _PLAYER_NOTES_CI[String(hero).toLowerCase().replace(/[^a-z0-9]/g,"")] || null;
+}
+
 function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet, expandedHero, setExpandedHero }) {
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState("");
@@ -15819,7 +15827,7 @@ function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet,
         const isExpanded = expandedHero === hero;
         const hasCard = cards.filter(c=>c.setName===curSet&&c.hero===hero).some(c=>owned[c.id]);
         const saved = playerNotes[key];
-        const builtIn = PLAYER_NOTES[hero];
+        const builtIn = getPlayerNote(hero);
 
         return (
           <div key={hero} style={{background:"#111",border:`1px solid ${isExpanded?"#E8317A33":hasCard?"rgba(74,222,128,0.2)":"#1a1a1a"}`,borderRadius:10,overflow:"hidden"}}>
@@ -15902,7 +15910,7 @@ function BroadcasterNotes({ cards=[] }) {
   const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const curSet = activeSet || sets[0] || "";
   const allHeroes = [...new Set(cards.filter(c=>c.setName===curSet).map(c=>c.hero).filter(Boolean))].sort();
-  const heroes = search ? allHeroes.filter(h=>h.toLowerCase().includes(search.toLowerCase())||(PLAYER_NOTES[h]?.player||"").toLowerCase().includes(search.toLowerCase())) : allHeroes;
+  const heroes = search ? allHeroes.filter(h=>h.toLowerCase().includes(search.toLowerCase())||(getPlayerNote(h)?.player||"").toLowerCase().includes(search.toLowerCase())) : allHeroes;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14,paddingBottom:40}}>
@@ -15934,7 +15942,7 @@ function BroadcasterNotes({ cards=[] }) {
       {heroes.map(hero=>{
         const key = hero.replace(/[^a-zA-Z0-9]/g,"_");
         const isExpanded = expandedHero===hero;
-        const builtIn = PLAYER_NOTES[hero];
+        const builtIn = getPlayerNote(hero);
         const saved = playerNotes[key];
         const hasNotes = !!(builtIn||saved?.notes);
 
