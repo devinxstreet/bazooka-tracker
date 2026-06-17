@@ -17295,6 +17295,45 @@ function CardSetImporter({ userRole }) {
       }
 
       if (!card) {
+        // VISION FALLBACK: filename had no usable card number — read it off the image.
+        try {
+          const base64 = await new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const img = new Image();
+              img.onload = () => {
+                const MAX = 1200;
+                const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                const canvas = document.createElement("canvas");
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                res(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+              };
+              img.onerror = rej;
+              img.src = ev.target.result;
+            };
+            reader.onerror = rej;
+            reader.readAsDataURL(item.file);
+          });
+          const resp = await fetch("/api/scan-card", {
+            method:"POST", headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg" })
+          });
+          const vdata = await resp.json();
+          if (vdata && (vdata.cardNum || vdata.hero)) {
+            const vNum = String(vdata.cardNum||"").toLowerCase().replace(/[\s-]/g,"");
+            const vHero = (vdata.hero||"").trim().toLowerCase();
+            const vWeapon = (vdata.weapon||"").trim().toLowerCase();
+            const vPower = String(vdata.power||"");
+            // match by card# + hero, then card# alone, then hero+weapon(+power)
+            if (vNum && vHero) card = allCards.find(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum && (c.hero||"").toLowerCase().split(" ")[0]===vHero.split(" ")[0]);
+            if (!card && vNum) { const m = allCards.filter(c => String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,"")===vNum); if (m.length===1) card=m[0]; else if (m.length>1 && vPower) card=m.find(c=>String(c.power||"")===vPower)||m[0]; }
+            if (!card && vHero && vWeapon) { const m = allCards.filter(c => (c.hero||"").toLowerCase().split(" ")[0]===vHero.split(" ")[0] && (c.weapon||"").toLowerCase()===vWeapon); if (m.length===1) card=m[0]; else if (m.length>1 && vPower) card=m.find(c=>String(c.power||"")===vPower); }
+          }
+        } catch(ve) { /* vision failed, fall through to skip */ }
+      }
+      if (!card) {
         const treatLookupKeys = manualTreatment ? Object.keys(byTreatment[manualTreatment.toLowerCase()]||{}) : [];
         const treatCount = treatLookupKeys.length;
         const sample = treatLookupKeys.slice(0,3).join(", ");
