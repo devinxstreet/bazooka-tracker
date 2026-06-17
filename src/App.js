@@ -25046,13 +25046,14 @@ function PublicCardDatabase() {
   }
 
   // -- BULK image import, right here on /cards (admin only). Writes to the SAME data /cards reads. --
-  async function runBulkImageImport(files, setName) {
+  async function runBulkImageImport(files, setName, treatment) {
     const list = Array.from(files||[]);
     if (!list.length) return;
     const firstWord = s => (s||"").toLowerCase().trim().split(" ")[0];
     const norm = n => String(n||"").toLowerCase().replace(/[\s-]/g,"");
-    // candidate pool — scope to chosen set to avoid cross-set hero collisions
-    const pool = setName ? cards.filter(c=>c.setName===setName) : cards;
+    // candidate pool — scope to chosen set + treatment to avoid collisions and help noisy-foil reads
+    let pool = setName ? cards.filter(c=>c.setName===setName) : cards;
+    if (treatment) pool = pool.filter(c=>(c.treatment||"")===treatment);
     const alreadyImaged = new Set(cards.filter(c=>c.imageUrl&&String(c.imageUrl).startsWith("http")).map(c=>c.id));
     let matched=0, skipped=0, done=0;
     const skippedNames=[];
@@ -25076,6 +25077,16 @@ function PublicCardDatabase() {
         if(vNum){ let m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=(w.length?w:m).filter(tOk); if(wt.length===1) return wt[0]; const wtp=(wt.length?wt:w.length?w:m).filter(pOk); if(wtp.length===1) return wtp[0]; /* still ambiguous — refuse rather than guess wrong */ if(vHero){ const h=(wtp.length?wtp:m).filter(heroOk); if(h.length===1) return h[0]; } return null; } }
         // 3. hero + weapon + power (number unreadable)
         if(vHero&&vWeapon&&vPower){ const m=pool.filter(c=>heroOk(c)&&wOk(c)&&pOk(c)); if(m.length===1) return m[0]; }
+        // When set+treatment are locked, the pool is tight enough to match on a partial read:
+        const tight = !!(setName && treatment);
+        if(tight){
+          // 4. number only (pool already constrained to one set+treatment)
+          if(vNum){ const m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; }
+          // 5. hero only (foil obscured the number, but the name read)
+          if(vHero){ const m=pool.filter(heroOk); if(m.length===1) return m[0]; const mp=m.filter(pOk); if(mp.length===1) return mp[0]; }
+          // 6. power only as last resort (rarely unique, but in a tight pool it can be)
+          if(vPower){ const m=pool.filter(pOk); if(m.length===1) return m[0]; }
+        }
         return null;
       } catch(e){ return null; }
     }
@@ -26155,19 +26166,26 @@ function PublicCardDatabase() {
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {bulkImg && !bulkProg && (()=>{
         const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+        const treatPool = bulkImg.setName ? cards.filter(c=>c.setName===bulkImg.setName) : cards;
+        const treatments = [...new Set(treatPool.map(c=>c.treatment).filter(Boolean))].sort();
         return (
           <div onClick={()=>setBulkImg(null)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:24,maxWidth:460,width:"100%"}}>
               <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>🖼 Import {bulkImg.files.length} Images</div>
-              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Reads the card number off each image and matches it to a card here on /cards. Pick the target set so a hero in multiple sets lands on the right card.</div>
+              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Reads the card number off each image and matches it. For hard-to-read foils (linoleum, inverted), pick BOTH the set and treatment — that narrows it so much it can match even a partial read.</div>
               <div style={{fontSize:11,fontWeight:800,color:bulkImg.setName?"#4ade80":"#FBBF24",marginBottom:6}}>{bulkImg.setName?"✅":"⚠️"} Target Set</div>
-              <select value={bulkImg.setName} onChange={e=>setBulkImg(b=>({...b,setName:e.target.value}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:18}}>
+              <select value={bulkImg.setName} onChange={e=>setBulkImg(b=>({...b,setName:e.target.value,treatment:""}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
                 <option value="">— All sets —</option>
                 {sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
+              <div style={{fontSize:11,fontWeight:800,color:bulkImg.treatment?"#4ade80":"#888",marginBottom:6}}>{bulkImg.treatment?"✅":"○"} Treatment {bulkImg.treatment?"":"(optional — helps for noisy foils)"}</div>
+              <select value={bulkImg.treatment||""} onChange={e=>setBulkImg(b=>({...b,treatment:e.target.value}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:18}}>
+                <option value="">— Any treatment —</option>
+                {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>setBulkImg(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={()=>{ const {files,setName}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
+                <button onClick={()=>{ const {files,setName,treatment}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName,treatment||""); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.treatment?` → ${bulkImg.treatment}`:bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
               </div>
             </div>
           </div>
