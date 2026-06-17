@@ -17085,6 +17085,7 @@ function CardSetImporter({ userRole }) {
   const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup"
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
+  const [importSet, setImportSet] = useState("");       // restrict image import to this set (avoids cross-set hero collisions)
   const [folderMappings,  setFolderMappings]  = useState({});
   const [folderHeroes,    setFolderHeroes]    = useState({});
   const [manualOverrides, setManualOverrides] = useState({}); // { "folder/cardNum": "firestoreCardNum" }
@@ -17092,6 +17093,7 @@ function CardSetImporter({ userRole }) {
   const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
   const [errors,    setErrors]    = useState([]);
+  const setList = (()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){ const {cards}=JSON.parse(r); if(cards?.length){ return [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort(); } } } catch(e){} return []; })();
 
   if (!isAdmin) return <div style={{ padding:40, textAlign:"center", color:"#555" }}>Admin only.</div>;
 
@@ -17208,7 +17210,9 @@ function CardSetImporter({ userRole }) {
 
     setProgress({ done:0, total:imgFiles.length, label:"Loading card index from Firestore..." });
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const allCards = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    const allCardsRaw = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    // If a target set is chosen, only match within it (prevents cross-set hero collisions)
+    const allCards = importSet ? allCardsRaw.filter(c => c.setName === importSet) : allCardsRaw;
     // RESUME: skip cards that already have an image so re-runs don't re-scan/re-pay.
     const alreadyImaged = new Set(allCards.filter(c => c.imageUrl && String(c.imageUrl).startsWith("http")).map(c => c.fsId));
 
@@ -17531,8 +17535,16 @@ function CardSetImporter({ userRole }) {
                     );
                   })}
                 </div>
+                <div style={{ marginBottom:12, background:importSet?"rgba(74,222,128,0.06)":"rgba(251,191,36,0.06)", border:`1px solid ${importSet?"rgba(74,222,128,0.3)":"rgba(251,191,36,0.3)"}`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:importSet?"#4ade80":"#FBBF24", marginBottom:6 }}>{importSet?"✅":"⚠️"} Target Set {importSet?"":"(recommended)"}</div>
+                  <div style={{ fontSize:11, color:"#999", marginBottom:8, lineHeight:1.5 }}>Pick which set these images belong to. This restricts matching to that set so a hero that appears in multiple sets (e.g. Bojax) lands on the right card.</div>
+                  <select value={importSet} onChange={e=>setImportSet(e.target.value)} style={{ width:"100%", background:"#0d0d0d", color:"#F0F0F0", border:"1px solid #333", borderRadius:8, padding:"9px 12px", fontSize:13, fontFamily:"inherit", cursor:"pointer" }}>
+                    <option value="">— All sets (match across everything) —</option>
+                    {setList.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
                 <Btn onClick={runImageImport} disabled={importing} variant="green">
-                  {importing ? "⏳ Uploading..." : `🖼 Upload ${imgFiles.length} Images`}
+                  {importing ? "⏳ Uploading..." : `🖼 Upload ${imgFiles.length} Images${importSet?` → ${importSet}`:""}`}
                 </Btn>
               </div>
             );
@@ -27400,7 +27412,15 @@ function PublicCardDatabase() {
             })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
-              <select value={filterSet} onChange={e=>{setFilterSet(e.target.value);setFilterTreat("");setFilterWeapon("");setFilterPower(new Set());setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
+              <select value={filterSet} onChange={e=>{
+                const ns=e.target.value;
+                const scope = ns ? cards.filter(c=>c.setName===ns) : cards;
+                // keep weapon/treatment/power only if they still exist in the new set
+                if(filterWeapon && !scope.some(c=>c.weapon===filterWeapon)) setFilterWeapon("");
+                if(filterTreat && !scope.some(c=>c.treatment===filterTreat)) setFilterTreat("");
+                if(filterPower.size>0){ const avail=new Set(scope.map(c=>Number(c.power||0))); const kept=new Set([...filterPower].filter(p=>avail.has(p))); if(kept.size!==filterPower.size) setFilterPower(kept); }
+                setFilterSet(ns); setPage(1);
+              }} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
                 <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
               <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
