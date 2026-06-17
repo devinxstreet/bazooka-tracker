@@ -15134,7 +15134,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
@@ -15297,6 +15297,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (cardRef.current) { cardRef.current.style.transition = ""; cardRef.current.style.transform = ""; }
     isHovering.current = false;
+    if (onExpand) { onExpand(c); return; }
     setFlippedCard(!isFlipped ? c.id : null);
   }
 
@@ -24106,6 +24107,7 @@ function PublicCardDatabase() {
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
+  const [expandedCard,  setExpandedCard]  = useState(null); // card object shown in big modal
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -26036,6 +26038,63 @@ function PublicCardDatabase() {
         );
       })()}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
+      {expandedCard && (()=>{
+        const c = expandedCard;
+        const wc = WEAPON_COLORS[c.weapon] || "#E8317A";
+        const bio = getPlayerNote(c.hero);
+        const ath = c.inspiredBy || c.athlete;
+        const sport = ath ? athleteSport(ath) : null;
+        const sportEmoji={"MLB":"⚾","NFL":"🏈","NBA":"🏀","WNBA":"🏀","NHL":"🏒","PGA":"⛳","WTA":"🎾","ATP":"🎾","Boxing":"🥊","MMA":"🥊","MLS":"⚽","USMNT":"⚽","USWNT":"⚽","Music":"🎤","Acting":"🎬"};
+        const emoji = sport ? (sport.split(/[\/\s]/).map(s=>sportEmoji[s]).find(Boolean)||"🏅") : "🏅";
+        const sku = SKU_MAP[c.treatment]; const skuLabel = sku && SKU_LABEL[sku];
+        return (
+          <div onClick={()=>setExpandedCard(null)} style={{ position:"fixed", inset:0, zIndex:12000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+            <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
+              <button onClick={()=>setExpandedCard(null)} style={{ position:"absolute", top:14, right:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, width:34, height:34, fontSize:18, cursor:"pointer", fontFamily:"inherit", zIndex:2 }}>×</button>
+              {/* Big image */}
+              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {c.imageUrl ? (
+                  <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", maxWidth:420, borderRadius:14, boxShadow:`0 12px 50px ${wc}33`, aspectRatio:"3/4", objectFit:"cover" }}/>
+                ) : (
+                  <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"#111", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
+                    <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
+                    <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                  </div>
+                )}
+              </div>
+              {/* Info panel */}
+              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", gap:12 }}>
+                <div>
+                  <div style={{ fontSize:13, color:wc, fontWeight:700, marginBottom:2 }}>{c.setName||""}</div>
+                  <div style={{ fontSize:30, fontWeight:900, color:"#fff", lineHeight:1.05 }}>{c.hero}</div>
+                  {ath && <div style={{ fontSize:14, color:"#999", marginTop:4 }}>🏅 Inspired by <strong style={{ color:"#ccc" }}>{ath}</strong>{sport && <span style={{ display:"inline-flex", alignItems:"center", gap:3, marginLeft:8, background:"rgba(232,49,122,0.12)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:6, padding:"1px 8px", fontSize:12, fontWeight:700, color:"#E8317A" }}>{emoji} {sport}</span>}</div>}
+                </div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {c.power && <div style={{ fontSize:15, fontWeight:900, color:wc, background:wc+"18", border:`1px solid ${wc}44`, borderRadius:8, padding:"4px 12px" }}>{c.power}⚡ POWER</div>}
+                  {c.cardNum && <div style={{ fontSize:13, fontWeight:700, color:"#aaa", background:"#1a1a1a", borderRadius:8, padding:"5px 12px" }}>#{c.cardNum}</div>}
+                </div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {c.weapon && <span style={{ fontSize:12, color:wc, background:wc+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{c.weapon}</span>}
+                  {c.treatment && <span style={{ fontSize:12, color:"#bbb", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{c.treatment}</span>}
+                  {c.notation && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{c.notation}</span>}
+                  {c.variation && <span style={{ fontSize:12, color:"#888", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{c.variation}</span>}
+                </div>
+                {bio && (bio.team||bio.notes) && (
+                  <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"12px 14px" }}>
+                    {bio.team && <div style={{ fontSize:13, fontWeight:800, color:"#7B9CFF", marginBottom:6 }}>🏟️ {bio.team}</div>}
+                    {bio.notes && <div style={{ fontSize:13, color:"#bbb", lineHeight:1.6 }}>{bio.notes}</div>}
+                  </div>
+                )}
+                {skuLabel && <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:skuLabel.bg, border:`1px solid ${skuLabel.border}`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#777" }}>Found In:</span><span style={{ color:skuLabel.color }}>{skuLabel.label}</span></div>}
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:4 }}>
+                  {user && <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, minWidth:120, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Owned":"+ Add to Collection"}</button>}
+                  <button onClick={()=>toggleWant(c.id)} style={{ flex:1, minWidth:120, background:wantList[c.id]?"#1a0f00":"rgba(255,255,255,0.04)", border:`1.5px solid ${wantList[c.id]?"#FBBF24":"#333"}`, color:wantList[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{wantList[c.id]?"🎯 Wanted":"+ Want"}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* Mobile nav dropdown overlay — rendered at root so the scrolling nav can't clip it */}
       {isMobile && navMenu && navGroupItems.current[navMenu] && (
         <div onClick={()=>setNavMenu(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:90}}>
@@ -27404,7 +27463,7 @@ function PublicCardDatabase() {
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                    flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                    flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
@@ -27628,7 +27687,7 @@ function PublicCardDatabase() {
                           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                             {groupCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => (
                               <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                                flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                                flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
@@ -27671,7 +27730,7 @@ function PublicCardDatabase() {
               <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
                 {cards.filter(c=>wantList[c.id]).map(c=>(
                   <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
-                    flippedCard={flippedCard} setFlippedCard={setFlippedCard}
+                    flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
                     onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
