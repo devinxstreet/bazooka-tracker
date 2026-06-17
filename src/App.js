@@ -15141,6 +15141,14 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const qty = ownedQty || 0;
   const isWanted = !!(wantList && wantList[c.id]);
   const cardRef = useRef(null);
+  const [cardW, setCardW] = useState(200);
+  useEffect(() => {
+    if (!cardRef.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(entries => { const w = entries[0]?.contentRect?.width; if (w) setCardW(w); });
+    ro.observe(cardRef.current);
+    return () => ro.disconnect();
+  }, []);
+  const isSmallCard = cardW < 165;
   const foilRef = useRef(null);
   const glareRef = useRef(null);
   const animRef = useRef(null);
@@ -15319,14 +15327,15 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
-          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
+          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
             <div style={{ overflowY:"auto", overflowX:"hidden", flex:1, minHeight:0, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <span style={{ fontSize:10, color:"#555" }}>#{c.cardNum}</span>
                 <QtyControls/>
               </div>
-              <div style={{ fontSize:15, fontWeight:900, color:"#F0F0F0", marginBottom:4 }}>{c.hero}</div>
+              <div style={{ fontSize:isSmallCard?12:15, fontWeight:900, color:"#F0F0F0", marginBottom:4, lineHeight:1.1 }}>{c.hero}</div>
+              {!isSmallCard && <>
               <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
                 {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
                 {c.treatment && <span style={{ fontSize:10, color:"#AAAAAA", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
@@ -15365,9 +15374,10 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
               })()}
               {c.variation && <div style={{ fontSize:10, color:"#555" }}>{c.variation}</div>}
               {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:6, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"#555" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
+              </>}
             </div>
             <div>
-              {c.power && <div style={{ fontSize:22, fontWeight:900, color:wc, marginBottom:8 }}>{c.power}{"\u26A1"}</div>}
+              {c.power && <div style={{ fontSize:isSmallCard?16:22, fontWeight:900, color:wc, marginBottom:8 }}>{c.power}{"\u26A1"}</div>}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"rgba(255,255,255,0.03)", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#999", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
                 {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
