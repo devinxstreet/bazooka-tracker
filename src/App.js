@@ -17407,6 +17407,19 @@ function CardSetImporter({ userRole }) {
       setProgress({ done, total:imgFiles.length, label:`Uploading... ${folder} (${done}/${imgFiles.length})` });
     }
 
+    // Regenerate the public snapshot so /cards shows the new images immediately.
+    if (written > 0) {
+      try {
+        setProgress({ done:0, total:1, label:"Updating public card data (so images show on /cards)..." });
+        const snap2 = await getDocs(collection(db,"boba_checklist"));
+        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
+        const snapRef = ref(storage, "card_data/boba_checklist.json");
+        await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=300" });
+        setProgress(null);
+      } catch(e) { console.warn("Public snapshot write failed:", e); setProgress(null); }
+    }
+
     setImporting(false); setProgress(null); setErrors(errs);
     setResults({ written, skipped, files: [...new Set(imgFiles.map(f=>f.folder))].length });
     try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
@@ -24463,7 +24476,7 @@ function PublicCardDatabase() {
   // -- Load cards (instant from localStorage init, background refresh if stale) --
   useEffect(() => {
     const CACHE_KEY = "boba_checklist_cache_v3";
-    const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+    const CACHE_TTL = 10 * 60 * 1000; // 10 min — short so imports appear soon, but still fast within a session
     let cacheHasCards = false;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
@@ -24476,6 +24489,18 @@ function PublicCardDatabase() {
       }
     } catch(e) {}
     (async () => {
+      // 1. LIVE snapshot from Storage first — this is regenerated on every import, so it's current.
+      try {
+        const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
+        const r2 = await fetch(url);
+        const all = await r2.json();
+        if (Array.isArray(all) && all.length>0) {
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      // 2. Repo static file fallback (may be older).
       try {
         const r = await fetch("/cards-data.json");
         if (r.ok) {
