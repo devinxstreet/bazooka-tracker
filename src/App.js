@@ -24042,6 +24042,7 @@ function PublicCardDatabase() {
   const [toast, setToast] = useState(null);
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
+  const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
@@ -27373,6 +27374,11 @@ function PublicCardDatabase() {
                 <option value="power">{"Power \u2193"}</option>
                 <option value="setName">Set</option>
               </select>
+              <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
+                <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
+                <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
+                <span style={{fontSize:18,color:"rgba(255,255,255,0.3)"}}>🃏</span>
+              </div>
               {user&&(
                 <div style={{display:"flex",gap:4}}>
                   {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"]].map(([v,l])=>(
@@ -27382,7 +27388,7 @@ function PublicCardDatabase() {
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
-            <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+            <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
