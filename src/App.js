@@ -17151,6 +17151,7 @@ function CardSetImporter({ userRole }) {
         const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
         setProgress(null);
       } catch(e) { console.warn("CDN snapshot write failed:", e); setProgress(null); }
     }
@@ -17416,6 +17417,7 @@ function CardSetImporter({ userRole }) {
         const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=300" });
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
         setProgress(null);
       } catch(e) { console.warn("Public snapshot write failed:", e); setProgress(null); }
     }
@@ -24478,17 +24480,27 @@ function PublicCardDatabase() {
     const CACHE_KEY = "boba_checklist_cache_v3";
     const CACHE_TTL = 10 * 60 * 1000; // 10 min — short so imports appear soon, but still fast within a session
     let cacheHasCards = false;
+    let cacheTs = 0;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         cacheHasCards = Array.isArray(parsed.cards) && parsed.cards.length > 0;
-        // Only trust the cache early-return if it actually contains cards AND is fresh
-        if (cacheHasCards && Date.now() - parsed.ts < CACHE_TTL) { setLoading(false); return; }
-        if (cacheHasCards) setLoading(false); // stale but usable — show now, refresh below
+        cacheTs = parsed.ts || 0;
+        if (cacheHasCards) setLoading(false); // show cached immediately while we verify freshness
       }
     } catch(e) {}
+    // Cheap freshness check: read one tiny version doc. If the data was updated (import)
+    // after our cache, pull fresh; otherwise trust the cache. This makes imports appear
+    // instantly for everyone without re-reading 31k docs on every load.
     (async () => {
+      let needFresh = !cacheHasCards;
+      try {
+        const vSnap = await getDoc(doc(db,"meta","cards_version"));
+        const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
+        if (serverTs > cacheTs) needFresh = true;
+      } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
+      if (!needFresh) { setLoading(false); return; }
       // 1. LIVE snapshot from Storage first — this is regenerated on every import, so it's current.
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
@@ -24510,16 +24522,6 @@ function PublicCardDatabase() {
             try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
             return;
           }
-        }
-      } catch(e) {}
-      try {
-        const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
-        const r2 = await fetch(url);
-        const all = await r2.json();
-        if (Array.isArray(all) && all.length>0) {
-          setCards(all); setLoading(false);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-          return;
         }
       } catch(e) {}
       try {
@@ -25026,6 +25028,8 @@ function PublicCardDatabase() {
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
   const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const [bulkImg, setBulkImg] = useState(null); // {files, setName} | null
+  const [bulkProg, setBulkProg] = useState(null); // {done,total,matched,skipped,status}
   async function handleCardImageUpload(card, file) {
     if (!card || !file) return;
     try {
@@ -25038,6 +25042,71 @@ function PublicCardDatabase() {
       try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
       setToast("✅ Image uploaded — refresh to see it everywhere");
     } catch(e) { alert("Upload failed: "+(e?.message||e)); }
+  }
+
+  // -- BULK image import, right here on /cards (admin only). Writes to the SAME data /cards reads. --
+  async function runBulkImageImport(files, setName) {
+    const list = Array.from(files||[]);
+    if (!list.length) return;
+    const firstWord = s => (s||"").toLowerCase().trim().split(" ")[0];
+    const norm = n => String(n||"").toLowerCase().replace(/[\s-]/g,"");
+    // candidate pool — scope to chosen set to avoid cross-set hero collisions
+    const pool = setName ? cards.filter(c=>c.setName===setName) : cards;
+    const alreadyImaged = new Set(cards.filter(c=>c.imageUrl&&String(c.imageUrl).startsWith("http")).map(c=>c.id));
+    let matched=0, skipped=0, done=0;
+    const skippedNames=[];
+    setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
+
+    async function visionFind(file) {
+      try {
+        const base64 = await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ const MAX=1400; const sc=Math.min(1,MAX/Math.max(img.width,img.height)); const cv=document.createElement("canvas"); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc); cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height); res(cv.toDataURL("image/jpeg",0.9).split(",")[1]); }; img.onerror=rej; img.src=ev.target.result; }; rd.onerror=rej; rd.readAsDataURL(file); });
+        const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg",setName})});
+        if(!resp.ok) return null;
+        const v = await resp.json();
+        if(!v||(!v.cardNum&&!v.hero)) return null;
+        const vNum=norm(v.cardNum), vHero=(v.hero||"").toLowerCase().trim(), vWeapon=(v.weapon||"").toLowerCase().trim(), vPower=String(v.power||"");
+        if(vNum&&vHero){ const c=pool.find(c=>norm(c.cardNum)===vNum&&firstWord(c.hero)===firstWord(vHero)); if(c) return c; }
+        if(vNum){ const m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1&&vPower){ const b=m.find(c=>String(c.power||"")===vPower); if(b) return b; } }
+        if(vHero&&vWeapon&&vPower){ const m=pool.filter(c=>firstWord(c.hero)===firstWord(vHero)&&(c.weapon||"").toLowerCase()===vWeapon&&String(c.power||"")===vPower); if(m.length===1) return m[0]; }
+        return null;
+      } catch(e){ return null; }
+    }
+
+    async function one(file){
+      try {
+        const card = await visionFind(file);
+        if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
+        if(alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
+        const fsId = card.fsId || card.id;
+        const ext = (file.name.split(".").pop()||"png").toLowerCase();
+        const storageRef2 = ref(storage, `boba_cards/${fsId}.${ext}`);
+        await uploadBytes(storageRef2, file);
+        const url = await getDownloadURL(storageRef2);
+        await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
+        matched++; done++;
+        setBulkProg({done,total:list.length,matched,skipped,status:`✅ ${card.hero} #${card.cardNum} (${matched} done)`});
+      } catch(e){ skipped++; done++; skippedNames.push(file.name+" (err)"); setBulkProg({done,total:list.length,matched,skipped,status:`Error: ${file.name}`}); }
+    }
+
+    const PAR=4;
+    for(let i=0;i<list.length;i+=PAR){ await Promise.all(list.slice(i,i+PAR).map(one)); }
+
+    // Regenerate the snapshot + bump version so EVERY viewer sees it, and reload THIS page's cards now.
+    setBulkProg({done:list.length,total:list.length,matched,skipped,status:"Saving & refreshing…"});
+    try {
+      const snap2 = await getDocs(collection(db,"boba_checklist"));
+      const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
+      await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+      try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
+      try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
+      setCards(all); // <-- update THIS page immediately
+    } catch(e){ console.warn("snapshot/refresh failed",e); }
+
+    if(skippedNames.length){ try{ const b=new Blob([`Unmatched (${skippedNames.length}):\n\n`+skippedNames.join("\n")],{type:"text/plain"}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`unmatched-${new Date().toISOString().slice(0,10)}.txt`; a.click(); URL.revokeObjectURL(u);}catch(e){} }
+    setBulkProg({done:list.length,total:list.length,matched,skipped,status:`✅ Done — ${matched} imported, ${skipped} skipped`});
+    setToast(`✅ Imported ${matched} images${skipped?`, ${skipped} skipped`:""}`);
+    setTimeout(()=>setBulkProg(null), 6000);
   }
   // -- Reviews (buyer rates seller, tied to a completed sale) --
   const reviewedSaleIds = new Set(myReviews.map(r=>r.saleId));
@@ -26075,6 +26144,38 @@ function PublicCardDatabase() {
         );
       })()}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
+      {bulkImg && !bulkProg && (()=>{
+        const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+        return (
+          <div onClick={()=>setBulkImg(null)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:24,maxWidth:460,width:"100%"}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>🖼 Import {bulkImg.files.length} Images</div>
+              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Reads the card number off each image and matches it to a card here on /cards. Pick the target set so a hero in multiple sets lands on the right card.</div>
+              <div style={{fontSize:11,fontWeight:800,color:bulkImg.setName?"#4ade80":"#FBBF24",marginBottom:6}}>{bulkImg.setName?"✅":"⚠️"} Target Set</div>
+              <select value={bulkImg.setName} onChange={e=>setBulkImg(b=>({...b,setName:e.target.value}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:18}}>
+                <option value="">— All sets —</option>
+                {sets.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setBulkImg(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                <button onClick={()=>{ const {files,setName}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {bulkProg && (
+        <div style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:28,maxWidth:440,width:"100%",textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#fff",marginBottom:14}}>Importing Images…</div>
+            <div style={{height:10,background:"#0d0d0d",borderRadius:6,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:`${bulkProg.total?Math.round(bulkProg.done/bulkProg.total*100):0}%`,background:"linear-gradient(90deg,#E8317A,#4ade80)",transition:"width 0.3s"}}/>
+            </div>
+            <div style={{fontSize:13,color:"#ccc",marginBottom:6}}>{bulkProg.done} / {bulkProg.total} — <span style={{color:"#4ade80"}}>{bulkProg.matched} matched</span>{bulkProg.skipped?<span style={{color:"#FBBF24"}}>, {bulkProg.skipped} skipped</span>:null}</div>
+            <div style={{fontSize:11,color:"#777",minHeight:16,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{bulkProg.status}</div>
+          </div>
+        </div>
+      )}
       {expandedCard && (()=>{
         const c = expandedCard;
         const wc = WEAPON_COLORS[c.weapon] || "#E8317A";
@@ -26602,6 +26703,12 @@ function PublicCardDatabase() {
                     title="Share your public collection page"
                     style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\uD83D\uDD17" : "\uD83D\uDD17 Share"}</button>
+                  {_cardAdmin && (
+                    <label title="Bulk-import card images (reads card # off each image). Admin only." style={{background:"linear-gradient(135deg,rgba(123,47,247,0.2),rgba(232,49,122,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {isMobile ? "\uD83D\uDDBC" : "\uD83D\uDDBC Import Images"}
+                      <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); } e.target.value=""; }}/>
+                    </label>
+                  )}
                   {!isMobile && (user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                     <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
                       title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
