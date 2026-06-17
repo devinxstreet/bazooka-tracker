@@ -25056,6 +25056,7 @@ function PublicCardDatabase() {
     if (treatment) pool = pool.filter(c=>(c.treatment||"")===treatment);
     const alreadyImaged = new Set(cards.filter(c=>c.imageUrl&&String(c.imageUrl).startsWith("http")).map(c=>c.id));
     let matched=0, skipped=0, done=0;
+    window._bulkErrShown = false;
     const skippedNames=[];
     setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
 
@@ -25104,7 +25105,7 @@ function PublicCardDatabase() {
         await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
         matched++; done++;
         setBulkProg({done,total:list.length,matched,skipped,status:`✅ ${card.hero} #${card.cardNum} (${matched} done)`});
-      } catch(e){ skipped++; done++; skippedNames.push(file.name+" (err)"); setBulkProg({done,total:list.length,matched,skipped,status:`Error: ${file.name}`}); }
+      } catch(e){ skipped++; done++; const msg=(e&&e.code)?e.code:(e&&e.message)?e.message:String(e); skippedNames.push(file.name+" (err: "+msg+")"); setBulkProg({done,total:list.length,matched,skipped,status:`⚠️ ${msg.includes("permission")?"PERMISSION DENIED — check Firestore rules / login":"Error"}: ${file.name}`}); if(!window._bulkErrShown && msg.toLowerCase().includes("permission")){ window._bulkErrShown=true; alert("Write blocked by Firestore rules.\n\nThe import can't save images because the database is rejecting the write (permission-denied).\n\nThis usually means you're not logged in as an @bazookabreaks.com admin in THIS browser, or the security rules need updating. Error: "+msg); } }
     }
 
     const PAR=4;
