@@ -155,6 +155,51 @@ async function readCardSnapshot(bust) {
   return Array.isArray(arr) ? arr : null;
 }
 
+// ── IndexedDB cache (localStorage caps ~5MB; the 12MB card list needs IndexedDB) ──
+function _idbOpen() {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open("bazooka_cards", 1);
+      req.onupgradeneeded = () => { try { req.result.createObjectStore("kv"); } catch(e){} };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    } catch(e) { reject(e); }
+  });
+}
+async function idbGetCards() {
+  try {
+    const dbi = await _idbOpen();
+    return await new Promise((resolve) => {
+      const tx = dbi.transaction("kv", "readonly");
+      const rq = tx.objectStore("kv").get("cards_v3");
+      rq.onsuccess = () => resolve(rq.result || null);
+      rq.onerror = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+async function idbSetCards(cards, ts) {
+  try {
+    const dbi = await _idbOpen();
+    await new Promise((resolve) => {
+      const tx = dbi.transaction("kv", "readwrite");
+      tx.objectStore("kv").put({ cards, ts: ts||Date.now() }, "cards_v3");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch(e) {}
+}
+async function idbClearCards() {
+  try {
+    const dbi = await _idbOpen();
+    await new Promise((resolve) => {
+      const tx = dbi.transaction("kv", "readwrite");
+      tx.objectStore("kv").delete("cards_v3");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch(e) {}
+}
+
 const FLAT_RATE_CHANNELS = []; // no flat-rate channels currently
 const FLAT_RATE_BREAKERS = []; // all breakers use standard tiered commission
 
@@ -24576,6 +24621,61 @@ function PublicCardDatabase() {
 
   // -- Load cards (instant from localStorage init, background refresh if stale) --
   useEffect(() => {
+    const CACHE_TTL = 10 * 60 * 1000; // 10 min
+    (async () => {
+      // 1. Instant: load from IndexedDB (holds the full 12MB, unlike localStorage's 5MB cap).
+      let cacheTs = 0, cacheHasCards = false;
+      try {
+        const cached = await idbGetCards();
+        if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
+          setCards(cached.cards); setLoading(false);
+          cacheHasCards = true; cacheTs = cached.ts || 0;
+        }
+      } catch(e) {}
+      // 2. Cheap freshness check: one tiny version doc.
+      let needFresh = !cacheHasCards;
+      try {
+        const vSnap = await getDoc(doc(db,"meta","cards_version"));
+        const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
+        if (serverTs > cacheTs) needFresh = true;
+      } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
+      if (!needFresh) { setLoading(false); return; }
+      // 3. Data changed (or no cache): pull the GZIPPED snapshot (~1.5MB) and store in IndexedDB.
+      try {
+        const all = await readCardSnapshot(true);
+        if (all && all.length>0) {
+          setCards(all); setLoading(false);
+          idbSetCards(all, Date.now());
+          return;
+        }
+      } catch(e) {}
+      // Fallback: old uncompressed snapshot file (pre-gzip).
+      try {
+        const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
+        const r2 = await fetch(url + (url.includes("?")?"&":"?") + "v=" + Date.now());
+        const all = await r2.json();
+        if (Array.isArray(all) && all.length>0) {
+          setCards(all); setLoading(false);
+          idbSetCards(all, Date.now());
+          return;
+        }
+      } catch(e) {}
+      // Last resort: read Firestore directly.
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+        if (all.length>0) {
+          setCards(all); setLoading(false);
+          idbSetCards(all, Date.now());
+          return;
+        }
+      } catch(e) {}
+      setLoading(false);
+    })();
+  }, []);
+  // (legacy localStorage cache no longer used for cards — IndexedDB holds the full set)
+  useEffect(() => {
+    const _dead = () => {
     const CACHE_KEY = "boba_checklist_cache_v3";
     const CACHE_TTL = 10 * 60 * 1000; // 10 min — short so imports appear soon, but still fast within a session
     let cacheHasCards = false;
@@ -24644,6 +24744,7 @@ function PublicCardDatabase() {
       } catch(e) {}
       setLoading(false);
     })();
+    }; // end _dead (never called)
   }, []);
   // -- Auth + owned + wants + private --
   useEffect(() => {
@@ -25183,7 +25284,7 @@ function PublicCardDatabase() {
         await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
         try { await writeCardSnapshot(all, 300); } catch(e) {}
         try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
-        try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
+        try { idbSetCards(all, Date.now()); } catch(e){}
       } catch(e) {}
       setToast("🧹 Image cleared — you can add the correct one now");
     } catch(e) { alert("Clear failed: "+(e?.message||e)); }
@@ -25295,7 +25396,7 @@ function PublicCardDatabase() {
       await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
       try { await writeCardSnapshot(all, 300); } catch(e) {}
       try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
-      try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
+      try { idbSetCards(all, Date.now()); } catch(e){}
       setCards(all); // <-- update THIS page immediately
     } catch(e){ console.warn("snapshot/refresh failed",e); }
 
@@ -27012,7 +27113,7 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
-                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
+                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
                   <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
@@ -28029,7 +28130,7 @@ function PublicCardDatabase() {
                 <div style={{fontSize:40,marginBottom:14}}>📭</div>
                 <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Cards didn't load</div>
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginBottom:18,lineHeight:1.6}}>This can happen on a slow or spotty connection.</div>
-                <button onClick={()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }}
+                <button onClick={async ()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }}
                   style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
                   🔄 Reload Cards
                 </button>
