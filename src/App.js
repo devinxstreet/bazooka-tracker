@@ -2144,8 +2144,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {lightbox && (
         <div onClick={()=>setLightbox(null)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
-          <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10 }} onClick={e=>e.stopPropagation()}/>
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10 }} onClick={e=>e.stopPropagation()} onError={e=>{ e.currentTarget.style.display="none"; }}/>
+          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", fontSize:12, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"6px 14px", borderRadius:8, textDecoration:"none" }}>Open original ↗</a>
           <button onClick={()=>setLightbox(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
         </div>
       )}
