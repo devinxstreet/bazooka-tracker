@@ -15363,7 +15363,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
-            <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>
+            {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
           </div>
           <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
@@ -24232,6 +24232,8 @@ function PublicCardDatabase() {
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
   const [expandedCard,  setExpandedCard]  = useState(null); // card object shown in big modal
+  const [modalFoilView, setModalFoilView] = useState("paper"); // "paper" | "foil" for dual-treatment cards
+  useEffect(()=>{ setModalFoilView("paper"); }, [expandedCard]); // reset toggle each time a card opens
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -24794,7 +24796,7 @@ function PublicCardDatabase() {
     if (!user || !cards.length) return;
     const t = setTimeout(async () => {
       try {
-        const ownedIds = Object.keys(owned).filter(id => cards.find(c=>c.id===id));
+        const ownedIds = Object.keys(owned).filter(id => cards.find(c=>c.id===String(id).replace(/::foil$/,"")));
         const collectionCount = ownedIds.reduce((s,id)=>s+(owned[id]||1),0);
         const uniqueCount = ownedIds.length;
         const oneOfOneCount = ownedIds.filter(id => { const c=cards.find(x=>x.id===id); return c && (String(c.notation||"").includes("1/1") || String(c.cardNum||"").includes("1/1")); }).length;
@@ -24812,7 +24814,7 @@ function PublicCardDatabase() {
   // Detect collection milestones -> celebratory toast
   useEffect(() => {
     if (!user || !cards.length) return;
-    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).reduce((sum,id)=>sum+(owned[id]||1),0);
+    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===String(id).replace(/::foil$/,""))).reduce((sum,id)=>sum+(owned[id]||1),0);
     const COUNT_MILES = [10,25,50,100,150,200,250,300,400,500,750,1000];
     const pct = cards.length>0 ? (owNow/cards.length*100) : 0;
     const PCT_MILES = [10,25,50,75,90,100];
@@ -26041,8 +26043,10 @@ function PublicCardDatabase() {
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
-  const uniqueOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).length;
-  const totalOwned=Object.keys(owned).filter(id=>cards.find(c=>c.id===id)).reduce((sum,id)=>sum+(owned[id]||1),0);
+  const _baseId = (k)=> String(k).replace(/::foil$/,"");
+  const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
+  const uniqueOwned=Object.keys(owned).filter(_ownedKeyValid).length;
+  const totalOwned=Object.keys(owned).filter(_ownedKeyValid).reduce((sum,id)=>sum+(owned[id]||1),0);
   const collectionValue=(()=>{
     // Build avg sale price per cardId from marketSales
     const priceMap={};
@@ -26054,7 +26058,8 @@ function PublicCardDatabase() {
     });
     return Object.keys(owned).reduce((sum,cid)=>{
       const qty=owned[cid]||1;
-      const avg=priceMap[cid]?priceMap[cid].total/priceMap[cid].count:0;
+      const base=String(cid).replace(/::foil$/,"");
+      const avg=priceMap[base]?priceMap[base].total/priceMap[base].count:0;
       return sum+avg*qty;
     },0);
   })();
@@ -26122,6 +26127,7 @@ function PublicCardDatabase() {
           }
           @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
+          @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
         `}</style>
 
         {/* Floating cards */}
@@ -26436,6 +26442,9 @@ function PublicCardDatabase() {
         const sportEmoji={"MLB":"⚾","NFL":"🏈","NBA":"🏀","WNBA":"🏀","NHL":"🏒","PGA":"⛳","WTA":"🎾","ATP":"🎾","Boxing":"🥊","MMA":"🥊","MLS":"⚽","USMNT":"⚽","USWNT":"⚽","Music":"🎤","Acting":"🎬"};
         const emoji = sport ? (sport.split(/[\/\s]/).map(s=>sportEmoji[s]).find(Boolean)||"🏅") : "🏅";
         const sku = SKU_MAP[c.treatment]; const skuLabel = sku && SKU_LABEL[sku];
+        const _tl = (c.treatment||"").toLowerCase();
+        const isDualTreatment = _tl.includes("paper") && (_tl.includes("battlefoil")||_tl.includes("foil"));
+        const showFoil = isDualTreatment && modalFoilView === "foil";
         const isSecret1of1 = c.notation === "Secret 1/1";
         const isSuper = (c.weapon||"").toUpperCase() === "SUPER";
         const is1of1 = isSecret1of1 || isSuper;
@@ -26453,13 +26462,27 @@ function PublicCardDatabase() {
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
               <button onClick={()=>setExpandedCard(null)} style={{ position:"absolute", top:14, right:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, width:34, height:34, fontSize:18, cursor:"pointer", fontFamily:"inherit", zIndex:2 }}>×</button>
               {/* Big image */}
-              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
                 {c.imageUrl ? (
-                  <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", maxWidth:420, borderRadius:14, boxShadow:`0 12px 50px ${wc}33`, aspectRatio:"3/4", objectFit:"cover" }}/>
+                  <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
+                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
+                    {showFoil && (
+                      <>
+                        <div style={{ position:"absolute", inset:0, background:"linear-gradient(115deg, transparent 10%, rgba(255,255,255,0.25) 22%, rgba(255,220,100,0.45) 35%, rgba(100,255,180,0.4) 48%, rgba(100,200,255,0.45) 60%, rgba(200,100,255,0.42) 72%, rgba(255,100,180,0.4) 84%, transparent 95%)", backgroundSize:"250% 250%", mixBlendMode:"screen", pointerEvents:"none", animation:"foilSheen 3s linear infinite" }}/>
+                        <div style={{ position:"absolute", inset:0, background:"repeating-linear-gradient(115deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0) 3px, rgba(255,255,255,0.06) 6px)", mixBlendMode:"overlay", pointerEvents:"none" }}/>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"#111", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
                     <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
                     <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                  </div>
+                )}
+                {isDualTreatment && c.imageUrl && (
+                  <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
+                    <button onClick={()=>setModalFoilView("paper")} style={{ background:modalFoilView==="paper"?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:modalFoilView==="paper"?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📄 Paper</button>
+                    <button onClick={()=>setModalFoilView("foil")} style={{ background:modalFoilView==="foil"?"linear-gradient(135deg,#FBBF24,#E8317A)":"transparent", color:modalFoilView==="foil"?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>✨ Battlefoil</button>
                   </div>
                 )}
               </div>
@@ -26510,7 +26533,17 @@ function PublicCardDatabase() {
                 )}
                 {skuLabel && <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:skuLabel.bg, border:`1px solid ${skuLabel.border}`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#777" }}>Found In:</span><span style={{ color:skuLabel.color }}>{skuLabel.label}</span></div>}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:4 }}>
-                  {user && <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, minWidth:120, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Owned":"+ Add to Collection"}</button>}
+                  {user && (isDualTreatment ? (
+                    <div style={{ flex:1, minWidth:200, display:"flex", flexDirection:"column", gap:6 }}>
+                      <div style={{ fontSize:10, fontWeight:800, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>Add to collection — choose finish</div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Paper":"📄 Add Paper"}</button>
+                        <button onClick={()=>toggleOwned(c.id+"::foil")} style={{ flex:1, background:owned[c.id+"::foil"]?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id+"::foil"]?"#FBBF24":"#333"}`, color:owned[c.id+"::foil"]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id+"::foil"]?"✅ Battlefoil":"✨ Add Battlefoil"}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, minWidth:120, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Owned":"+ Add to Collection"}</button>
+                  ))}
                   <button onClick={()=>toggleWant(c.id)} style={{ flex:1, minWidth:120, background:wantList[c.id]?"#1a0f00":"rgba(255,255,255,0.04)", border:`1.5px solid ${wantList[c.id]?"#FBBF24":"#333"}`, color:wantList[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{wantList[c.id]?"🎯 Wanted":"+ Want"}</button>
                 </div>
               </div>
