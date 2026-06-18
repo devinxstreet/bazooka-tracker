@@ -25364,10 +25364,11 @@ function PublicCardDatabase() {
     const skippedNames=[];
     setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
 
+    const tightPool = !!(setName && treatment);
     async function visionFind(file) {
       try {
         const base64 = await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ const MAX=1400; const sc=Math.min(1,MAX/Math.max(img.width,img.height)); const cv=document.createElement("canvas"); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc); cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height); res(cv.toDataURL("image/jpeg",0.9).split(",")[1]); }; img.onerror=rej; img.src=ev.target.result; }; rd.onerror=rej; rd.readAsDataURL(file); });
-        const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg",setName})});
+        const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg",setName,heroOnly:tightPool})});
         if(!resp.ok) return null;
         const v = await resp.json();
         if(!v||(!v.cardNum&&!v.hero)) return null;
@@ -25376,22 +25377,20 @@ function PublicCardDatabase() {
         const wOk=(c)=>!vWeapon||(c.weapon||"").toLowerCase()===vWeapon;
         const tOk=(c)=>!vTreat||(c.treatment||"").toLowerCase()===vTreat||(c.treatment||"").toLowerCase().includes(vTreat)||vTreat.includes((c.treatment||"").toLowerCase());
         const pOk=(c)=>!vPower||String(c.power||"")===vPower;
+        // ── SET + TREATMENT LOCKED: hero alone identifies the card. Just read the hero banner. ──
+        if(tightPool && vHero){
+          const m = pool.filter(heroOk);
+          if(m.length===1) return m[0];
+          // multiple cards share that hero in this set+treatment → use power/number to pick
+          if(m.length>1){ const mp=m.filter(pOk); if(mp.length===1) return mp[0]; const mn=m.filter(c=>norm(c.cardNum)===vNum); if(mn.length===1) return mn[0]; return m[0]; }
+          // hero didn't match anything in the pool → fall through to number-based below
+        }
         // 1. card# + hero + weapon (strongest — distinguishes same-number cards like Joe Cool 275 vs Skyline S75)
         if(vNum&&vHero){ const m=pool.filter(c=>norm(c.cardNum)===vNum&&heroOk(c)); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=w.filter(tOk); if(wt.length===1) return wt[0]; const wtp=wt.filter(pOk); if(wtp.length===1) return wtp[0]; if(wtp.length>1) return wtp[0]; } }
         // 2. card# + weapon + treatment (no clear hero, but element/finish narrows it)
-        if(vNum){ let m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=(w.length?w:m).filter(tOk); if(wt.length===1) return wt[0]; const wtp=(wt.length?wt:w.length?w:m).filter(pOk); if(wtp.length===1) return wtp[0]; /* still ambiguous — refuse rather than guess wrong */ if(vHero){ const h=(wtp.length?wtp:m).filter(heroOk); if(h.length===1) return h[0]; } return null; } }
+        if(vNum){ let m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; if(m.length>1){ const w=m.filter(wOk); if(w.length===1) return w[0]; const wt=(w.length?w:m).filter(tOk); if(wt.length===1) return wt[0]; const wtp=(wt.length?wt:w.length?w:m).filter(pOk); if(wtp.length===1) return wtp[0]; if(vHero){ const h=(wtp.length?wtp:m).filter(heroOk); if(h.length===1) return h[0]; } return null; } }
         // 3. hero + weapon + power (number unreadable)
         if(vHero&&vWeapon&&vPower){ const m=pool.filter(c=>heroOk(c)&&wOk(c)&&pOk(c)); if(m.length===1) return m[0]; }
-        // When set+treatment are locked, the pool is tight enough to match on a partial read:
-        const tight = !!(setName && treatment);
-        if(tight){
-          // 4. number only (pool already constrained to one set+treatment)
-          if(vNum){ const m=pool.filter(c=>norm(c.cardNum)===vNum); if(m.length===1) return m[0]; }
-          // 5. hero only (foil obscured the number, but the name read)
-          if(vHero){ const m=pool.filter(heroOk); if(m.length===1) return m[0]; const mp=m.filter(pOk); if(mp.length===1) return mp[0]; }
-          // 6. power only as last resort (rarely unique, but in a tight pool it can be)
-          if(vPower){ const m=pool.filter(pOk); if(m.length===1) return m[0]; }
-        }
         return null;
       } catch(e){ return null; }
     }
@@ -26531,7 +26530,7 @@ function PublicCardDatabase() {
           <div onClick={()=>setBulkImg(null)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:24,maxWidth:460,width:"100%"}}>
               <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>🖼 Import {bulkImg.files.length} Images</div>
-              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Reads the card number off each image and matches it. For hard-to-read foils (linoleum, inverted), pick BOTH the set and treatment — that narrows it so much it can match even a partial read.</div>
+              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Pick the Set and Treatment below. When BOTH are set, the importer just reads the hero name off each card (the big easy-to-read banner) and assigns it — perfect for noisy foils like Linoleum where the card number is hard to read.</div>
               <div style={{fontSize:11,fontWeight:800,color:bulkImg.setName?"#4ade80":"#FBBF24",marginBottom:6}}>{bulkImg.setName?"✅":"⚠️"} Target Set</div>
               <select value={bulkImg.setName} onChange={e=>setBulkImg(b=>({...b,setName:e.target.value,treatment:""}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
                 <option value="">— All sets —</option>
@@ -27165,8 +27164,14 @@ function PublicCardDatabase() {
                     style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\uD83D\uDD17" : "\uD83D\uDD17 Share"}</button>
                   {_cardAdmin && (
-                    <label title="Bulk-import card images (reads card # off each image). Admin only." style={{background:"linear-gradient(135deg,rgba(123,47,247,0.2),rgba(232,49,122,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {isMobile ? "\uD83D\uDDBC" : "\uD83D\uDDBC Import Images"}
+                    <label title="Bulk-import card images — pick a whole folder. Admin only." style={{background:"linear-gradient(135deg,rgba(123,47,247,0.2),rgba(232,49,122,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {isMobile ? "\uD83D\uDDBC" : "\uD83D\uDDBC Import Folder"}
+                      <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ setBulkImg({files:f, setName:filterSet||""}); } e.target.value=""; }}/>
+                    </label>
+                  )}
+                  {_cardAdmin && (
+                    <label title="Or pick individual image files" style={{background:"rgba(123,47,247,0.12)",color:"#b794f6",border:"1px solid rgba(123,47,247,0.3)",borderRadius:12,padding:isMobile?"9px 12px":"8px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {isMobile ? "\uD83D\uDCC4" : "\uD83D\uDCC4 Files"}
                       <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); } e.target.value=""; }}/>
                     </label>
                   )}
