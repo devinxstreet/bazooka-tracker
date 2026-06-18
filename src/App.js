@@ -21816,8 +21816,8 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
 
                         {/* Starters + Bench with drag drop */}
                         <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-                          <DropZone slot="starter" label="\u2B50 Starters" color="#A855F7" members={starters} maxCount={4}/>
-                          <DropZone slot="bench" label="\uD83E\uDE91 Bench" color="#7B9CFF" members={bench} maxCount={2}/>
+                          <DropZone slot="starter" label={"\u2B50 Starters"} color="#A855F7" members={starters} maxCount={4}/>
+                          <DropZone slot="bench" label={"\uD83E\uDE91 Bench"} color="#7B9CFF" members={bench} maxCount={2}/>
                         </div>
                       </div>
 
