@@ -21645,7 +21645,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
   );
 }
 
-function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, inviteMember, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -28120,7 +28120,7 @@ function PublicCardDatabase() {
             inviteStatus={inviteStatus} setInviteStatus={setInviteStatus}
             teamInvites={teamInvites} moveTeamMember={moveTeamMember}
             deleteTeam={deleteTeam} respondTeamInvite={respondTeamInvite}
-            createTeam={createTeam} inviteMember={inviteMember}
+            createTeam={createTeam}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} friendOwned={friendOwned}
             inp={inp} inviteToTeam={inviteToTeam}
