@@ -123,6 +123,38 @@ const OFFICE_STAFF = [
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
 const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"];
+
+// ── Gzip helpers for the card snapshot (cuts ~13MB → ~1.5MB on first load) ──
+function _loadPako() {
+  return new Promise((resolve, reject) => {
+    if (window.pako) return resolve(window.pako);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js";
+    s.onload = () => resolve(window.pako);
+    s.onerror = () => reject(new Error("pako load failed"));
+    document.body.appendChild(s);
+  });
+}
+// Write the card array to Storage as gzip (boba_checklist.json.gz). Returns true on success.
+async function writeCardSnapshot(all, cacheSeconds) {
+  const pako = await _loadPako();
+  const gz = pako.gzip(JSON.stringify(all));
+  const blob = new Blob([gz], { type: "application/json" });
+  const gzRef = ref(storage, "card_data/boba_checklist.json.gz");
+  await uploadBytes(gzRef, blob, { contentType: "application/json", contentEncoding: "identity", cacheControl: `public,max-age=${cacheSeconds||300}` });
+  return true;
+}
+// Read + decompress the gz snapshot. Returns array or null.
+async function readCardSnapshot(bust) {
+  const pako = await _loadPako();
+  const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json.gz"));
+  const r = await fetch(url + (bust ? ((url.includes("?")?"&":"?") + "v=" + Date.now()) : ""));
+  const buf = new Uint8Array(await r.arrayBuffer());
+  const text = pako.ungzip(buf, { to: "string" });
+  const arr = JSON.parse(text);
+  return Array.isArray(arr) ? arr : null;
+}
+
 const FLAT_RATE_CHANNELS = []; // no flat-rate channels currently
 const FLAT_RATE_BREAKERS = []; // all breakers use standard tiered commission
 
@@ -17160,6 +17192,7 @@ function CardSetImporter({ userRole }) {
         const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+        try { await writeCardSnapshot(all, 86400); } catch(e) {}
         try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
         setProgress(null);
       } catch(e) { console.warn("CDN snapshot write failed:", e); setProgress(null); }
@@ -17426,6 +17459,7 @@ function CardSetImporter({ userRole }) {
         const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=300" });
+        try { await writeCardSnapshot(all, 300); } catch(e) {}
         try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
         setProgress(null);
       } catch(e) { console.warn("Public snapshot write failed:", e); setProgress(null); }
@@ -24564,9 +24598,16 @@ function PublicCardDatabase() {
         if (serverTs > cacheTs) needFresh = true;
       } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
       if (!needFresh) { setLoading(false); return; }
-      // Data changed (version newer than cache). Pull the regenerated snapshot file with a
-      // cache-buster — ONE fast file download, and ?v= defeats the stale CDN copy. This avoids
-      // reading 31k Firestore docs on every visitor when the version bumps.
+      // Data changed. Pull the GZIPPED snapshot first — ~1.5MB instead of ~13MB.
+      try {
+        const all = await readCardSnapshot(true);
+        if (all && all.length>0) {
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      // Fallback: old uncompressed snapshot file (pre-gzip).
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
         const r2 = await fetch(url + (url.includes("?")?"&":"?") + "v=" + Date.now());
@@ -24577,7 +24618,7 @@ function PublicCardDatabase() {
           return;
         }
       } catch(e) {}
-      // Fallback only if the snapshot is missing: read Firestore directly (slow, but correct).
+      // Last resort: read Firestore directly (slow, but correct).
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
         const all = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -25138,6 +25179,7 @@ function PublicCardDatabase() {
         const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
         await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+        try { await writeCardSnapshot(all, 300); } catch(e) {}
         try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
         try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
       } catch(e) {}
@@ -25249,6 +25291,7 @@ function PublicCardDatabase() {
       const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
       const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
       await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+      try { await writeCardSnapshot(all, 300); } catch(e) {}
       try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
       try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
       setCards(all); // <-- update THIS page immediately
@@ -26936,7 +26979,7 @@ function PublicCardDatabase() {
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
-                  <button onClick={()=>{ try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }} title="Refresh"
+                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
                   <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
