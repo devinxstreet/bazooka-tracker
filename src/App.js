@@ -15048,7 +15048,7 @@ function ShowcaseCard({ c, onClick, large }) {
       onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onClick={onClick}>
       <div ref={cardRef} style={{ width:"100%", height:"100%", borderRadius:large?16:12, overflow:"hidden", position:"relative", willChange:"transform",
         boxShadow:`0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${rarity.color}22` }}>
-        <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+        <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
         <div ref={foilRef} style={{ position:"absolute", inset:0,
           background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)",
           backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s", pointerEvents:"none" }}/>
@@ -15326,7 +15326,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-            <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -20734,7 +20734,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                             onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))}
                             style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>
                             {c.imageUrl
-                              ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                              ? <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
                               : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2, lineHeight:1.2 }}>{c.hero?.split(" ")[0]}</div>
                             }
                             <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", transition:"background 0.15s" }} className="deck-slot-hover"/>
@@ -24564,23 +24564,24 @@ function PublicCardDatabase() {
         if (serverTs > cacheTs) needFresh = true;
       } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
       if (!needFresh) { setLoading(false); return; }
-      // When we KNOW the data changed (version newer than cache), read Firestore DIRECTLY —
-      // the Storage snapshot is CDN-cached (up to 5 min) and can be stale right after an import.
-      try {
-        const snap = await getDocs(collection(db,"boba_checklist"));
-        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-        if (all.length>0) {
-          setCards(all); setLoading(false);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
-          return;
-        }
-      } catch(e) {}
-      // Fallback: cache-busted Storage snapshot (the ?v= defeats the CDN cache).
+      // Data changed (version newer than cache). Pull the regenerated snapshot file with a
+      // cache-buster — ONE fast file download, and ?v= defeats the stale CDN copy. This avoids
+      // reading 31k Firestore docs on every visitor when the version bumps.
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
         const r2 = await fetch(url + (url.includes("?")?"&":"?") + "v=" + Date.now());
         const all = await r2.json();
         if (Array.isArray(all) && all.length>0) {
+          setCards(all); setLoading(false);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      // Fallback only if the snapshot is missing: read Firestore directly (slow, but correct).
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+        if (all.length>0) {
           setCards(all); setLoading(false);
           try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
           return;
@@ -30587,6 +30588,12 @@ function BugAdmin({ user }) {
             <button onClick={()=>setStatus(b.id, b.status==="resolved"?"open":"resolved")} style={{background:"transparent",border:`1px solid ${b.status==="resolved"?"#666":"#4ade80"}`,color:b.status==="resolved"?"#888":"#4ade80",borderRadius:7,padding:"4px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{b.status==="resolved"?"Reopen":"Mark fixed"}</button>
           </div>
           <div style={{fontSize:14,color:"#fff",lineHeight:1.5,marginBottom:10,whiteSpace:"pre-wrap"}}>{b.description}</div>
+          {b.screenshotUrl && (
+            <a href={b.screenshotUrl} target="_blank" rel="noopener noreferrer" style={{display:"block",marginBottom:10}}>
+              <img src={b.screenshotUrl} alt="screenshot" style={{maxWidth:"100%",maxHeight:260,borderRadius:8,border:"1px solid rgba(255,255,255,0.12)",display:"block"}}/>
+              <span style={{fontSize:10.5,color:"#7B9CFF"}}>📸 Click to open full screenshot</span>
+            </a>
+          )}
           <div style={{fontSize:10.5,color:"#666",lineHeight:1.6,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>
             📍 {b.page||"?"} · 📱 {b.screen||"?"} · {new Date(b.createdAt).toLocaleString()}<br/>
             <span style={{color:"#444"}}>{b.userAgent}</span>
@@ -30603,14 +30610,42 @@ function BugReporter({ user }) {
   const [severity, setSeverity] = useState("annoying");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [attachShot, setAttachShot] = useState(true);
+
+  function loadHtml2Canvas() {
+    return new Promise((resolve, reject) => {
+      if (window.html2canvas) return resolve(window.html2canvas);
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      s.onload = () => resolve(window.html2canvas);
+      s.onerror = () => reject(new Error("Couldn't load screenshot library"));
+      document.body.appendChild(s);
+    });
+  }
 
   async function submit() {
     if (!desc.trim()) return;
     setSending(true);
     try {
+      // Optionally grab a screenshot of the page BEFORE we open/cover anything.
+      let screenshotUrl = null;
+      if (attachShot) {
+        try {
+          setOpen(false); // hide the modal so it isn't in the shot
+          await new Promise(r => setTimeout(r, 250));
+          const h2c = await loadHtml2Canvas();
+          const canvas = await h2c(document.body, { scale: 0.6, logging:false, useCORS:true, windowWidth: document.documentElement.clientWidth });
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          const shotRef = ref(storage, `bug_shots/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`);
+          await uploadString(shotRef, dataUrl, "data_url");
+          screenshotUrl = await getDownloadURL(shotRef);
+        } catch(e) { /* screenshot is best-effort; never block the report */ screenshotUrl = null; }
+        setOpen(true);
+      }
       const ctx = {
         description: desc.trim(),
         severity,
+        screenshotUrl,
         page: typeof window !== "undefined" ? window.location.pathname + window.location.search : "",
         url: typeof window !== "undefined" ? window.location.href : "",
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
@@ -30657,7 +30692,7 @@ function BugReporter({ user }) {
                   <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>🐛 Report a Bug</div>
                   <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",fontFamily:"inherit"}}>×</button>
                 </div>
-                <div style={{fontSize:12,color:"#999",marginBottom:14,lineHeight:1.5}}>What broke, what did you expect, and what happened instead? We auto-capture your page & device so you don't have to.</div>
+                <div style={{fontSize:12,color:"#999",marginBottom:14,lineHeight:1.5}}>What broke, what did you expect, and what happened instead? Your page & device info are captured automatically.</div>
                 <div style={{fontSize:11,fontWeight:700,color:"#888",marginBottom:6}}>How bad is it?</div>
                 <div style={{display:"flex",gap:7,marginBottom:14}}>
                   {[["minor","🟢 Minor","#4ade80"],["annoying","🟡 Annoying","#FBBF24"],["broken","🔴 Broken","#E8317A"]].map(([v,l,c])=>(
@@ -30665,7 +30700,14 @@ function BugReporter({ user }) {
                   ))}
                 </div>
                 <textarea value={desc} onChange={e=>setDesc(e.target.value)} autoFocus placeholder="e.g. I clicked a card on /cards and the back was cut off, or the buy button did nothing…" style={{width:"100%",minHeight:110,background:"#0d0d0d",color:"#fff",border:"1px solid #333",borderRadius:10,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",lineHeight:1.5}}/>
-                <button disabled={!desc.trim()||sending} onClick={submit} style={{width:"100%",marginTop:14,background:desc.trim()&&!sending?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a",border:"none",color:desc.trim()&&!sending?"#fff":"#666",borderRadius:10,padding:"13px",fontSize:14,fontWeight:900,cursor:desc.trim()&&!sending?"pointer":"not-allowed",fontFamily:"inherit"}}>{sending?"Sending…":"Send Report"}</button>
+                <label onClick={()=>setAttachShot(v=>!v)} style={{display:"flex",alignItems:"center",gap:9,marginTop:14,cursor:"pointer",padding:"10px 12px",background:attachShot?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.03)",border:`1px solid ${attachShot?"rgba(74,222,128,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:9}}>
+                  <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${attachShot?"#4ade80":"#555"}`,background:attachShot?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{attachShot&&<span style={{color:"#000",fontSize:12,fontWeight:900}}>✓</span>}</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:attachShot?"#4ade80":"#ccc"}}>📸 Attach a screenshot</div>
+                    <div style={{fontSize:11,color:"#888"}}>Snaps a picture of this page so we can see what you see</div>
+                  </div>
+                </label>
+                <button disabled={!desc.trim()||sending} onClick={submit} style={{width:"100%",marginTop:12,background:desc.trim()&&!sending?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a",border:"none",color:desc.trim()&&!sending?"#fff":"#666",borderRadius:10,padding:"13px",fontSize:14,fontWeight:900,cursor:desc.trim()&&!sending?"pointer":"not-allowed",fontFamily:"inherit"}}>{sending?(attachShot?"Capturing & sending…":"Sending…"):"Send Report"}</button>
               </>
             )}
           </div>
