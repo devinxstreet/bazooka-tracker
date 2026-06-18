@@ -24346,6 +24346,69 @@ function PublicCardDatabase() {
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
   const [cardView,      setCardView]      = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
   const [animsOn,       setAnimsOn]       = useState(savedUI.animsOn ?? true); // card add/entrance animations
+  const [listening,     setListening]     = useState(false);
+  const [tourStep,      setTourStep]      = useState(-1); // -1 = not running
+  const recognitionRef = useRef(null);
+  // Snap a spoken/typed phrase to the closest real hero name (speech often mangles stylized names).
+  function fuzzyHeroMatch(said) {
+    const raw = (said||"").toLowerCase().trim();
+    if (!raw) return null;
+    const strip = s => s.toLowerCase().replace(/[^a-z0-9]/g,"");
+    const rawS = strip(raw);
+    // unique hero names from the loaded cards
+    const heroes = Array.from(new Set(cards.map(c=>c.hero).filter(Boolean)));
+    if (!heroes.length) return null;
+    // 1. exact (ignoring punctuation/spacing)
+    for (const h of heroes) if (strip(h) === rawS) return h;
+    // 2. one fully contains the other (e.g. "show time" vs "Showtime", "jcam" vs "J-Cam")
+    let contains = heroes.filter(h => { const hs=strip(h); return hs.includes(rawS) || rawS.includes(hs); });
+    if (contains.length === 1) return contains[0];
+    if (contains.length > 1) { contains.sort((a,b)=>Math.abs(strip(a).length-rawS.length)-Math.abs(strip(b).length-rawS.length)); return contains[0]; }
+    // 3. Levenshtein edit distance — closest hero within a tolerance
+    const lev = (a,b) => {
+      const m=a.length,n=b.length; if(!m)return n; if(!n)return m;
+      let prev=Array.from({length:n+1},(_,i)=>i), cur=new Array(n+1);
+      for(let i=1;i<=m;i++){ cur[0]=i; for(let j=1;j<=n;j++){ const cost=a[i-1]===b[j-1]?0:1; cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+cost); } [prev,cur]=[cur,prev]; }
+      return prev[n];
+    };
+    let best=null, bestScore=Infinity;
+    for (const h of heroes) {
+      const hs=strip(h);
+      const d=lev(rawS,hs);
+      const norm=d/Math.max(rawS.length,hs.length); // 0 = identical, 1 = totally different
+      if(norm<bestScore){ bestScore=norm; best=h; }
+    }
+    // only accept if reasonably close (≤45% different)
+    return bestScore<=0.45 ? best : null;
+  }
+
+  function startVoiceSearch() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setToast("Voice search isn't supported in this browser — try Chrome"); return; }
+    try {
+      if (listening && recognitionRef.current) { recognitionRef.current.stop(); return; }
+      const rec = new SR();
+      rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
+      rec.onstart = () => setListening(true);
+      rec.onerror = () => { setListening(false); };
+      rec.onend = () => setListening(false);
+      rec.onresult = (e) => {
+        const said = e.results?.[0]?.[0]?.transcript || "";
+        const clean = said.replace(/[.,!?]+$/,"").trim();
+        if (clean) {
+          const hero = fuzzyHeroMatch(clean);
+          if (hero && hero.toLowerCase() !== clean.toLowerCase()) {
+            setSearch(hero); setPage(1);
+            setToast(`🎤 Heard "${clean}" → ${hero}`);
+          } else {
+            setSearch(hero || clean); setPage(1);
+          }
+        }
+      };
+      recognitionRef.current = rec;
+      rec.start();
+    } catch(err) { setListening(false); setToast("Couldn't start voice search"); }
+  }
   const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -25335,6 +25398,7 @@ function PublicCardDatabase() {
   function dismissBetaWelcome() {
     try { localStorage.setItem("bz_beta_welcomed", "1"); } catch(e){}
     setShowBetaWelcome(false);
+    try { if (!localStorage.getItem("bz_tour_done")) setTimeout(()=>setTourStep(0), 350); } catch(e){}
   }
   const [resetModal, setResetModal] = useState(false); // marketplace reset confirmation
   const [resetConfirmText, setResetConfirmText] = useState("");
@@ -26336,6 +26400,7 @@ function PublicCardDatabase() {
           @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+          @keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,49,122,0.5)} 50%{box-shadow:0 0 0 8px rgba(232,49,122,0)} }
         `}</style>
 
         {/* Floating cards */}
@@ -26582,6 +26647,37 @@ function PublicCardDatabase() {
           </div>
         </div>
       )}
+      {tourStep >= 0 && (() => {
+        const steps = [
+          { icon:"🃏", title:"Welcome to the Vault", body:"This is the home base for every BoBA card. Let's take 30 seconds to show you around — tap Next to go through it." },
+          { icon:"🔍", title:"Find any card", body:"Search by hero, card number, athlete, or treatment. Tap the 🎤 mic to search by voice — just say a hero's name and it'll find it." },
+          { icon:"🎛️", title:"Filter & sort", body:"Narrow down by set, weapon, treatment, power, or what you own. Toggle between grid and list view, and resize cards with the slider." },
+          { icon:"➕", title:"Build your collection", body:"Hover (or tap) any card and hit ➕ Add to Collection — no need to open it. Tap a card to see full details, the athlete it's based on, and finish options like Paper vs Battlefoil." },
+          { icon:"🏆", title:"Supers & Secret 1/1s", body:"The Collectibility menu tracks every Super and Secret 1/1 hit in the community — see who pulled what, and claim your own when you land one." },
+          { icon:"🤝", title:"Marketplace & decks", body:"List cards, make offers, and build decks with other collectors. Check the Marketplace and Deck Builder tabs up top whenever you're ready." },
+          { icon:"🐛", title:"You're in the beta!", body:"We're still polishing things. If anything looks broken or weird, tap 🐛 Report Bug in the corner — that's how you help us launch this right. Enjoy the Vault!" },
+        ];
+        const s = steps[tourStep];
+        const last = tourStep === steps.length-1;
+        const end = () => { try{localStorage.setItem("bz_tour_done","1");}catch(e){} setTourStep(-1); };
+        return (
+          <div style={{ position:"fixed", inset:0, zIndex:14600, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+            <div style={{ background:"linear-gradient(160deg,#1a0f1f,#120a16)", border:"1px solid rgba(232,49,122,0.35)", borderRadius:22, padding:"30px 26px", maxWidth:420, width:"100%", textAlign:"center", boxShadow:"0 24px 70px rgba(232,49,122,0.3)" }}>
+              <div style={{ fontSize:46, marginBottom:14 }}>{s.icon}</div>
+              <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:10 }}>{s.title}</div>
+              <div style={{ fontSize:14, color:"#c8c8d4", lineHeight:1.6, marginBottom:22 }}>{s.body}</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:20 }}>
+                {steps.map((_,i)=>(<div key={i} style={{ width:i===tourStep?20:7, height:7, borderRadius:4, background:i===tourStep?"#E8317A":"rgba(255,255,255,0.2)", transition:"all 0.2s" }}/>))}
+              </div>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                {tourStep>0 && <button onClick={()=>setTourStep(tourStep-1)} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:12, padding:"12px 18px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Back</button>}
+                <button onClick={()=>last?end():setTourStep(tourStep+1)} style={{ flex:1, background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:900, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 20px rgba(232,49,122,0.4)" }}>{last?"Let's go 🚀":"Next"}</button>
+              </div>
+              {!last && <button onClick={end} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginTop:14 }}>Skip tour</button>}
+            </div>
+          </div>
+        );
+      })()}
       {showBetaWelcome && (
         <div onClick={dismissBetaWelcome} style={{position:"fixed",inset:0,zIndex:14500,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(160deg,#1a0f1f,#120a16)",border:"1px solid rgba(232,49,122,0.35)",borderRadius:20,padding:"30px 26px",maxWidth:420,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(232,49,122,0.25)"}}>
@@ -27335,6 +27431,7 @@ function PublicCardDatabase() {
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
+                      {label:"🧭 App Tour",act:()=>{ setActiveTab("cards"); setTimeout(()=>setTourStep(0),100); }},
                     ].map((it,idx)=>(
                       <button key={idx} onClick={()=>{it.act();setProfileMenuOpen(false);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,background:"transparent",border:"none",color:"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
@@ -28096,6 +28193,7 @@ function PublicCardDatabase() {
             })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
+              <button onClick={startVoiceSearch} title={listening?"Listening… tap to stop":"Search by voice"} style={{ flexShrink:0, width:42, height:42, borderRadius:"50%", border:listening?"none":"1px solid rgba(232,49,122,0.4)", background:listening?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(232,49,122,0.1)", color:listening?"#fff":"#E8317A", fontSize:17, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", animation:listening?"micPulse 1.2s ease-in-out infinite":"none" }}>🎤</button>
               <select value={filterSet} onChange={e=>{
                 const ns=e.target.value;
                 const scope = ns ? cards.filter(c=>c.setName===ns) : cards;
@@ -30975,7 +31073,7 @@ function BugReporter({ user }) {
   return (
     <>
       <button onClick={()=>setOpen(true)} title="Report a bug" style={{
-        position:"fixed", bottom:18, right:18, zIndex:11500,
+        position:"fixed", bottom:18, left:18, zIndex:11500,
         background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff",
         border:"none", borderRadius:30, padding:"11px 18px", fontSize:13, fontWeight:800,
         cursor:"pointer", fontFamily:"inherit", boxShadow:"0 6px 24px rgba(232,49,122,0.45)",
