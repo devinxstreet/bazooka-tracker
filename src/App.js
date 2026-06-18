@@ -24287,6 +24287,7 @@ function PublicCardDatabase() {
   const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
   const [cardView,      setCardView]      = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
+  const [animsOn,       setAnimsOn]       = useState(savedUI.animsOn ?? true); // card add/entrance animations
   const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -24333,10 +24334,10 @@ function PublicCardDatabase() {
       sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
         ...prev,
         activeTab, search, filterSet, filterWeapon, filterTreat,
-        filterPower: Array.from(filterPower), filterOwned, sortBy, page, cardView,
+        filterPower: Array.from(filterPower), filterOwned, sortBy, page, cardView, animsOn,
       }));
     } catch(e) {}
-  }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page, cardView]);
+  }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page, cardView, animsOn]);
 
   // -- Save scroll position continuously, restore once after cards render --
   useEffect(() => {
@@ -26705,11 +26706,11 @@ function PublicCardDatabase() {
         @keyframes cardEntrance { from{opacity:0;transform:translateY(20px) scale(0.95)} to{opacity:1;transform:translateY(0) scale(1)} }
         .pub-tab:hover{background:rgba(232,49,122,0.1)!important;color:rgba(255,255,255,0.8)!important;transform:translateY(-1px)}
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
+        .pub-card-grid.no-anim > * { animation: none !important; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
-        .boba-card-hover:hover .boba-quickadd { opacity: 1; }
-        @media (hover: none) { .boba-quickadd { opacity: 1; } }
-      .boba-card-hover:hover .boba-quickadd { opacity: 1; }
+        .boba-card-hover:hover .boba-quickadd { opacity: 1 !important; }
+        @media (hover: none) { .boba-quickadd { opacity: 1 !important; } }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
@@ -26762,7 +26763,7 @@ function PublicCardDatabase() {
           />
 
       {/* ── CARD FX OVERLAY ── */}
-      {cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
+      {animsOn && cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
@@ -28054,6 +28055,7 @@ function PublicCardDatabase() {
                 <button onClick={()=>setCardView("grid")} title="Card grid" style={{background:cardView==="grid"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="grid"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>▦</button>
                 <button onClick={()=>setCardView("list")} title="List view" style={{background:cardView==="list"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="list"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>☰</button>
               </div>
+              <button onClick={()=>setAnimsOn(v=>!v)} title={animsOn?"Animations on — tap to turn off the add-card celebration & effects":"Animations off — tap to turn back on"} style={{background:animsOn?"rgba(232,49,122,0.12)":"transparent",color:animsOn?"#E8317A":"rgba(255,255,255,0.35)",border:`1.5px solid ${animsOn?"rgba(232,49,122,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{animsOn?"✨ Animations On":"✨ Animations Off"}</button>
               {cardView==="grid" && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
                 <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
                 <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
@@ -28108,7 +28110,7 @@ function PublicCardDatabase() {
                 </table>
               </div>
             ) : (
-            <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
+            <div className={animsOn?"pub-card-grid":"pub-card-grid no-anim"} style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
