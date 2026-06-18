@@ -5022,6 +5022,15 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Live commission preview */}
         {hasRecapData && (
           <div style={{ background:"#111111", border:"1px solid #2a2a2a", borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
+            {(parseInt(recap.newBuyers)||0) >= 5 && !recap.isEvent && !recap.binOnly && (recap.commissionOverride===""||recap.commissionOverride==null) && (
+              <div style={{ display:"flex", alignItems:"center", gap:10, background:"linear-gradient(135deg,rgba(74,222,128,0.15),rgba(34,197,94,0.08))", border:"1px solid rgba(74,222,128,0.45)", borderRadius:9, padding:"10px 14px", marginBottom:12 }}>
+                <span style={{ fontSize:20 }}>🌱</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:900, color:"#4ade80" }}>+5% New Buyer Bonus Applied</div>
+                  <div style={{ fontSize:11, color:"#86efac" }}>{recap.newBuyers} new buyers this stream (5+) — commission bumped +5%</div>
+                </div>
+              </div>
+            )}
             {canSeeFinancials ? (
               <>
                 {/* Row 1: top-level split */}
@@ -5083,7 +5092,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
                   { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
-                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%${(parseInt(recap.newBuyers)||0)>=5?" 🌱+5% bonus":""})`, v:fmt(rc.commAmt), c:"#4ade80" },
+                  { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#4ade80" },
                   ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
                   ...(rc.salesBonus>0?[{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+"+fmt(rc.salesBonus), c:"#A78BFA" }]:[]),
                   ...((rc.tips>0||rc.salesBonus>0)?[{ l:"Total You Earn", v:fmt(rc.commAmt+rc.tips+rc.salesBonus), c:"#4ade80" }]:[]),
@@ -15131,7 +15140,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
   const wc = WEAPON_COLORS[c.weapon] || "#444";
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
@@ -15385,6 +15394,9 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                     🖼 {c.imageUrl?"Replace":"Add"}
                     <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
                   </label>
+                )}
+                {isAdmin && onImageClear && c.imageUrl && (
+                  <button onClick={e=>{ e.stopPropagation(); if(window.confirm(`Clear the image on ${c.hero}${c.cardNum?` #${c.cardNum}`:""}? This removes the wrong image so you can add the right one.`)) onImageClear(c); }} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.35)", color:"#FBBF24", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🧹 Clear Img</button>
                 )}
                 {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#EF4444", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete</button>}
               </div>
@@ -23223,10 +23235,37 @@ function BackToTop() {
 
 function ComingSoon() {
   const [signingIn, setSigningIn] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
+  const [emailMode, setEmailMode] = useState("signup"); // signup | login
+  const [emEmail, setEmEmail] = useState("");
+  const [emPass, setEmPass] = useState("");
+  const [emName, setEmName] = useState("");
+  const [emBusy, setEmBusy] = useState(false);
+  const [emErr, setEmErr] = useState("");
   async function earlyAccessLogin() {
     setSigningIn(true);
     try { await signInWithPopup(auth, googleProvider); }
     catch { setSigningIn(false); }
+  }
+  function emErrMsg(code){
+    const m={"auth/email-already-in-use":"That email already has an account — try logging in instead.","auth/invalid-email":"That doesn't look like a valid email.","auth/weak-password":"Password must be at least 6 characters.","auth/wrong-password":"Incorrect password.","auth/user-not-found":"No account with that email — try signing up.","auth/invalid-credential":"Email or password is incorrect."};
+    return m[code]||"Something went wrong. Try again.";
+  }
+  async function submitEmail(){
+    setEmErr("");
+    const email=emEmail.trim().toLowerCase();
+    if(!email){ setEmErr("Enter your email."); return; }
+    if(!emPass||emPass.length<6){ setEmErr("Password must be at least 6 characters."); return; }
+    setEmBusy(true);
+    try {
+      if(emailMode==="signup"){
+        const cred=await createUserWithEmailAndPassword(auth,email,emPass);
+        if(emName.trim()){ try{ await updateProfile(cred.user,{displayName:emName.trim()}); }catch(e){} }
+      } else {
+        await signInWithEmailAndPassword(auth,email,emPass);
+      }
+    } catch(e){ setEmErr(emErrMsg(e.code)); }
+    finally{ setEmBusy(false); }
   }
   return (
     <div style={{ minHeight:"100vh", background:"#08000a", color:"#F0F0F0", fontFamily:"'Trebuchet MS',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, position:"relative", overflow:"hidden" }}>
@@ -23254,6 +23293,31 @@ function ComingSoon() {
             <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
             {signingIn ? "Signing in…" : "Sign in with Google"}
           </button>
+          <div style={{ marginTop:14 }}>
+            {!showEmail ? (
+              <button onClick={()=>setShowEmail(true)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textDecoration:"underline", textUnderlineOffset:3 }}>
+                Don't have Gmail? Create an account with your email →
+              </button>
+            ) : (
+              <div style={{ maxWidth:340, margin:"4px auto 0", textAlign:"left", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(232,49,122,0.25)", borderRadius:16, padding:"20px 18px" }}>
+                <div style={{ display:"flex", gap:6, marginBottom:16, background:"rgba(0,0,0,0.3)", borderRadius:10, padding:4 }}>
+                  {[["signup","Sign Up"],["login","Log In"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>{setEmailMode(v);setEmErr("");}} style={{ flex:1, background:emailMode===v?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:emailMode===v?"#fff":"rgba(255,255,255,0.5)", border:"none", borderRadius:8, padding:"9px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+                  ))}
+                </div>
+                {emailMode==="signup" && (
+                  <input value={emName} onChange={e=>setEmName(e.target.value)} placeholder="Display name" style={{ width:"100%", background:"#0d0d0d", color:"#fff", border:"1px solid #333", borderRadius:9, padding:"11px 13px", fontSize:14, fontFamily:"inherit", marginBottom:10, boxSizing:"border-box" }}/>
+                )}
+                <input value={emEmail} onChange={e=>setEmEmail(e.target.value)} type="email" placeholder="Email" style={{ width:"100%", background:"#0d0d0d", color:"#fff", border:"1px solid #333", borderRadius:9, padding:"11px 13px", fontSize:14, fontFamily:"inherit", marginBottom:10, boxSizing:"border-box" }}/>
+                <input value={emPass} onChange={e=>setEmPass(e.target.value)} type="password" placeholder="Password (6+ characters)" onKeyDown={e=>e.key==="Enter"&&submitEmail()} style={{ width:"100%", background:"#0d0d0d", color:"#fff", border:"1px solid #333", borderRadius:9, padding:"11px 13px", fontSize:14, fontFamily:"inherit", marginBottom:emErr?8:14, boxSizing:"border-box" }}/>
+                {emErr && <div style={{ fontSize:12, color:"#ff6b9d", marginBottom:12, lineHeight:1.4 }}>{emErr}</div>}
+                <button onClick={submitEmail} disabled={emBusy} style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:10, padding:"13px", fontSize:14, fontWeight:900, cursor:emBusy?"wait":"pointer", fontFamily:"inherit", boxShadow:"0 4px 18px rgba(232,49,122,0.35)" }}>
+                  {emBusy ? "Please wait…" : emailMode==="signup" ? "Create Account" : "Log In"}
+                </button>
+                <button onClick={()=>setShowEmail(false)} style={{ width:"100%", background:"none", border:"none", color:"rgba(255,255,255,0.35)", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginTop:10 }}>← Back to Google sign-in</button>
+              </div>
+            )}
+          </div>
           <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:12, lineHeight:1.5 }}>Early-access accounts only. Everyone else, see you June 18th!</div>
         </div>
       </div>
@@ -25035,6 +25099,17 @@ function PublicCardDatabase() {
   const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [bulkImg, setBulkImg] = useState(null); // {files, setName} | null
   const [bulkProg, setBulkProg] = useState(null); // {done,total,matched,skipped,status}
+  const [showBetaWelcome, setShowBetaWelcome] = useState(false);
+  useEffect(() => {
+    try { if (!localStorage.getItem("bz_beta_welcomed")) setShowBetaWelcome(true); } catch(e){}
+  }, []);
+  function dismissBetaWelcome() {
+    try { localStorage.setItem("bz_beta_welcomed", "1"); } catch(e){}
+    setShowBetaWelcome(false);
+  }
+  const [resetModal, setResetModal] = useState(false); // marketplace reset confirmation
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(null); // status string while wiping
   async function handleCardImageUpload(card, file) {
     if (!card || !file) return;
     try {
@@ -25049,7 +25124,58 @@ function PublicCardDatabase() {
     } catch(e) { alert("Upload failed: "+(e?.message||e)); }
   }
 
+  async function handleCardImageClear(card) {
+    if (!card) return;
+    try {
+      const fsId = card.fsId || card.id;
+      await setDoc(doc(db,"boba_checklist",fsId), { imageUrl: deleteField() }, { merge:true });
+      // update this page immediately
+      setCards(cs => cs.map(c => c.id===card.id ? { ...c, imageUrl:null } : c));
+      // refresh snapshot + version so it clears everywhere
+      try {
+        const snap2 = await getDocs(collection(db,"boba_checklist"));
+        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
+        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
+        try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({cards:all,ts:Date.now()})); } catch(e){}
+      } catch(e) {}
+      setToast("🧹 Image cleared — you can add the correct one now");
+    } catch(e) { alert("Clear failed: "+(e?.message||e)); }
+  }
+
   // -- BULK image import, right here on /cards (admin only). Writes to the SAME data /cards reads. --
+  // ── MARKETPLACE + MESSAGES RESET (admin, pre-launch fresh start) ──
+  // HARD ALLOWLIST: only these collections can ever be touched. Collection data
+  // (boba_owned, boba_wants, users, profiles, decks) is NOT in this list and
+  // is therefore impossible to delete here.
+  const RESET_COLLECTIONS = ["marketplace","market_offers","market_sales","market_notifs","deal_threads","negotiation_history"];
+  async function runMarketplaceReset() {
+    setResetting("Starting…");
+    let totalDeleted = 0;
+    try {
+      for (const collName of RESET_COLLECTIONS) {
+        // safety: never allow a collection-data name through, even by mistake
+        if (["boba_owned","boba_wants","users","boba_profiles","boba_decks","boba_playbooks","boba_checklist"].includes(collName)) continue;
+        setResetting(`Clearing ${collName}…`);
+        const snap = await getDocs(collection(db, collName));
+        let batch = writeBatch(db); let n = 0;
+        for (const d of snap.docs) {
+          batch.delete(doc(db, collName, d.id)); n++; totalDeleted++;
+          if (n % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+        }
+        if (n % 400 !== 0) await batch.commit();
+      }
+      setResetting(null);
+      setResetModal(false);
+      setResetConfirmText("");
+      setToast(`✅ Marketplace & messages reset — ${totalDeleted} records cleared. Collections untouched.`);
+    } catch(e) {
+      setResetting(null);
+      alert("Reset failed: " + (e?.message||e) + "\n\nNothing in collections was touched.");
+    }
+  }
+
   async function runBulkImageImport(files, setName, treatment) {
     const list = Array.from(files||[]);
     if (!list.length) return;
@@ -26168,6 +26294,55 @@ function PublicCardDatabase() {
           </div>
         );
       })()}
+      {resetModal && (
+        <div onClick={()=>!resetting&&setResetModal(false)} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1.5px solid rgba(232,49,122,0.4)",borderRadius:16,padding:26,maxWidth:480,width:"100%"}}>
+            <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:8}}>🧹 Reset Marketplace & Messages</div>
+            <div style={{fontSize:13,color:"#bbb",lineHeight:1.6,marginBottom:14}}>
+              This permanently deletes <strong style={{color:"#fff"}}>all marketplace listings, offers, sales, notifications, and deal messages</strong> for a clean launch.
+            </div>
+            <div style={{background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:9,padding:"10px 13px",marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#4ade80",marginBottom:4}}>✅ Safe — does NOT touch:</div>
+              <div style={{fontSize:11.5,color:"#9ca3af",lineHeight:1.5}}>People's collections (owned cards), want lists, profiles, decks, or accounts. Those are completely untouched.</div>
+            </div>
+            <div style={{fontSize:12,color:"#999",marginBottom:6}}>Clears: marketplace · offers · sales · notifications · deal threads · negotiation history</div>
+            {resetting ? (
+              <div style={{textAlign:"center",padding:"14px 0"}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:6}}>⏳ Resetting…</div>
+                <div style={{fontSize:12,color:"#888"}}>{resetting}</div>
+              </div>
+            ) : (
+              <>
+                <div style={{fontSize:12,color:"#bbb",marginBottom:6,marginTop:8}}>Type <strong style={{color:"#E8317A"}}>RESET</strong> to confirm:</div>
+                <input value={resetConfirmText} onChange={e=>setResetConfirmText(e.target.value)} placeholder="RESET" style={{width:"100%",background:"#0d0d0d",color:"#fff",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:14,fontFamily:"inherit",marginBottom:16,letterSpacing:2}}/>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={()=>setResetModal(false)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  <button disabled={resetConfirmText!=="RESET"} onClick={runMarketplaceReset} style={{flex:2,background:resetConfirmText==="RESET"?"linear-gradient(135deg,#E8317A,#b91c5c)":"#2a2a2a",border:"none",color:resetConfirmText==="RESET"?"#fff":"#666",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:resetConfirmText==="RESET"?"pointer":"not-allowed",fontFamily:"inherit"}}>Wipe Marketplace & Messages</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {showBetaWelcome && (
+        <div onClick={dismissBetaWelcome} style={{position:"fixed",inset:0,zIndex:14500,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(160deg,#1a0f1f,#120a16)",border:"1px solid rgba(232,49,122,0.35)",borderRadius:20,padding:"30px 26px",maxWidth:420,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(232,49,122,0.25)"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:7,background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:30,padding:"5px 14px",marginBottom:18}}>
+              <span style={{width:7,height:7,borderRadius:"50%",background:"#FBBF24",boxShadow:"0 0 8px #FBBF24"}}/>
+              <span style={{fontSize:11,fontWeight:900,color:"#FBBF24",letterSpacing:1.5}}>BETA</span>
+            </div>
+            <div style={{fontSize:23,fontWeight:900,color:"#fff",marginBottom:12,lineHeight:1.2}}>Welcome to the Vault! 🎉</div>
+            <div style={{fontSize:14,color:"#c8c8d4",lineHeight:1.6,marginBottom:10}}>
+              You're getting early access while we're still in <strong style={{color:"#FBBF24"}}>beta</strong> — which means your job is to <strong style={{color:"#fff"}}>break it</strong>.
+            </div>
+            <div style={{fontSize:14,color:"#c8c8d4",lineHeight:1.6,marginBottom:22}}>
+              See something broken, weird, slow, or just off? Hit the <strong style={{color:"#E8317A"}}>🐛 Report Bug</strong> button in the corner — it takes two seconds and helps us launch this thing right.
+            </div>
+            <button onClick={dismissBetaWelcome} style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>Let's go 🚀</button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:14}}>Thanks for helping build the home base for BoBA collectors.</div>
+          </div>
+        </div>
+      )}
       {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {bulkImg && !bulkProg && (()=>{
         const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
@@ -26775,6 +26950,11 @@ function PublicCardDatabase() {
                       <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); } e.target.value=""; }}/>
                     </label>
                   )}
+                  {_cardAdmin && (
+                    <button onClick={()=>{ setResetConfirmText(""); setResetModal(true); }} title="Pre-launch: wipe all marketplace listings, offers, sales & messages. Does NOT touch collections." style={{background:"transparent",color:"#71717a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 12px":"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {isMobile ? "\uD83E\uDDF9" : "\uD83E\uDDF9 Reset Market"}
+                    </button>
+                  )}
                   {!isMobile && (user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                     <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
                       title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
@@ -26802,6 +26982,7 @@ function PublicCardDatabase() {
           <a href="/" style={{display:"flex",alignItems:"center",flexShrink:0,textDecoration:"none",marginRight:isMobile?4:8}}>
             <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:isMobile?26:34,width:"auto",objectFit:"contain",display:"block",filter:"drop-shadow(0 2px 8px rgba(232,49,122,0.4))"}}/>
           </a>
+          <span title="This app is in beta — found a bug? Tap the 🐛 button!" style={{flexShrink:0,fontSize:isMobile?9:10,fontWeight:900,letterSpacing:1,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:6,padding:isMobile?"2px 5px":"3px 8px",marginRight:isMobile?4:8,textTransform:"uppercase"}}>Beta</span>
           {/* Left: primary nav */}
           <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
             {navItem("cards","Card Database",0)}
@@ -27729,7 +27910,7 @@ function PublicCardDatabase() {
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -27954,7 +28135,7 @@ function PublicCardDatabase() {
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                             ))}
                           </div>
                           {user && (
@@ -27996,7 +28177,7 @@ function PublicCardDatabase() {
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                 ))}
               </div>
             )}
@@ -30369,6 +30550,131 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   );
 }
 
+function BugAdmin({ user }) {
+  const [bugs, setBugs] = useState([]);
+  const [filter, setFilter] = useState("open");
+  const isAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  useEffect(() => {
+    if (!isAdmin) return;
+    const unsub = onSnapshot(collection(db,"bug_reports"), snap => {
+      setBugs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+    });
+    return ()=>unsub();
+  }, [isAdmin]);
+  async function setStatus(id, status) { try { await setDoc(doc(db,"bug_reports",id), { status }, { merge:true }); } catch(e){} }
+  if (!isAdmin) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#08000a",color:"#E8317A",fontFamily:"'Trebuchet MS',sans-serif",fontWeight:700}}>Admins only.</div>;
+  const shown = bugs.filter(b => filter==="all" ? true : (b.status||"open")===filter);
+  const sevColor = {minor:"#4ade80",annoying:"#FBBF24",broken:"#E8317A"};
+  const counts = { open: bugs.filter(b=>(b.status||"open")==="open").length, resolved: bugs.filter(b=>b.status==="resolved").length };
+  return (
+    <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#f0f0f0",fontFamily:"'Trebuchet MS',sans-serif",padding:"24px 18px",maxWidth:780,margin:"0 auto"}}>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:4}}>🐛 Bug Reports</div>
+      <div style={{fontSize:13,color:"#888",marginBottom:18}}>{counts.open} open · {counts.resolved} resolved · {bugs.length} total</div>
+      <div style={{display:"flex",gap:8,marginBottom:18}}>
+        {[["open","Open"],["resolved","Resolved"],["all","All"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setFilter(v)} style={{background:filter===v?"rgba(232,49,122,0.15)":"transparent",color:filter===v?"#E8317A":"#888",border:`1.5px solid ${filter===v?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+      {shown.length===0 && <div style={{color:"#555",textAlign:"center",padding:40}}>No {filter==="all"?"":filter} reports.</div>}
+      {shown.map(b=>(
+        <div key={b.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:11,fontWeight:800,color:sevColor[b.severity]||"#888",background:(sevColor[b.severity]||"#888")+"22",borderRadius:5,padding:"2px 9px",textTransform:"uppercase"}}>{b.severity||"?"}</span>
+              <span style={{fontSize:12,color:"#888"}}>{b.reporterName||b.reporterEmail}</span>
+              {b.status==="resolved" && <span style={{fontSize:11,color:"#4ade80"}}>✓ resolved</span>}
+            </div>
+            <button onClick={()=>setStatus(b.id, b.status==="resolved"?"open":"resolved")} style={{background:"transparent",border:`1px solid ${b.status==="resolved"?"#666":"#4ade80"}`,color:b.status==="resolved"?"#888":"#4ade80",borderRadius:7,padding:"4px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{b.status==="resolved"?"Reopen":"Mark fixed"}</button>
+          </div>
+          <div style={{fontSize:14,color:"#fff",lineHeight:1.5,marginBottom:10,whiteSpace:"pre-wrap"}}>{b.description}</div>
+          <div style={{fontSize:10.5,color:"#666",lineHeight:1.6,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>
+            📍 {b.page||"?"} · 📱 {b.screen||"?"} · {new Date(b.createdAt).toLocaleString()}<br/>
+            <span style={{color:"#444"}}>{b.userAgent}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BugReporter({ user }) {
+  const [open, setOpen] = useState(false);
+  const [desc, setDesc] = useState("");
+  const [severity, setSeverity] = useState("annoying");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function submit() {
+    if (!desc.trim()) return;
+    setSending(true);
+    try {
+      const ctx = {
+        description: desc.trim(),
+        severity,
+        page: typeof window !== "undefined" ? window.location.pathname + window.location.search : "",
+        url: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        screen: typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight}` : "",
+        platform: typeof navigator !== "undefined" ? (navigator.platform||"") : "",
+        reporterEmail: user?.email || "anonymous",
+        reporterName: user?.displayName || user?.email || "anonymous",
+        userId: user?.uid || null,
+        status: "open",
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(collection(db, "bug_reports")), ctx);
+      setSent(true);
+      setDesc("");
+      setTimeout(() => { setSent(false); setOpen(false); }, 2200);
+    } catch(e) {
+      alert("Couldn't send report: " + (e?.message||e));
+    }
+    setSending(false);
+  }
+
+  return (
+    <>
+      <button onClick={()=>setOpen(true)} title="Report a bug" style={{
+        position:"fixed", bottom:18, right:18, zIndex:11500,
+        background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff",
+        border:"none", borderRadius:30, padding:"11px 18px", fontSize:13, fontWeight:800,
+        cursor:"pointer", fontFamily:"inherit", boxShadow:"0 6px 24px rgba(232,49,122,0.45)",
+        display:"flex", alignItems:"center", gap:6
+      }}>🐛 Report Bug</button>
+
+      {open && (
+        <div onClick={()=>!sending&&setOpen(false)} style={{position:"fixed",inset:0,zIndex:12500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid rgba(232,49,122,0.3)",borderTopLeftRadius:18,borderTopRightRadius:18,padding:"22px 20px 28px",maxWidth:480,width:"100%",boxShadow:"0 -8px 40px rgba(0,0,0,0.6)"}}>
+            {sent ? (
+              <div style={{textAlign:"center",padding:"24px 0"}}>
+                <div style={{fontSize:40,marginBottom:10}}>🎯</div>
+                <div style={{fontSize:17,fontWeight:900,color:"#4ade80",marginBottom:5}}>Bug reported — thank you!</div>
+                <div style={{fontSize:12,color:"#999"}}>You're helping make the Vault better.</div>
+              </div>
+            ) : (
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>🐛 Report a Bug</div>
+                  <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+                </div>
+                <div style={{fontSize:12,color:"#999",marginBottom:14,lineHeight:1.5}}>What broke, what did you expect, and what happened instead? We auto-capture your page & device so you don't have to.</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#888",marginBottom:6}}>How bad is it?</div>
+                <div style={{display:"flex",gap:7,marginBottom:14}}>
+                  {[["minor","🟢 Minor","#4ade80"],["annoying","🟡 Annoying","#FBBF24"],["broken","🔴 Broken","#E8317A"]].map(([v,l,c])=>(
+                    <button key={v} onClick={()=>setSeverity(v)} style={{flex:1,background:severity===v?c+"22":"transparent",border:`1.5px solid ${severity===v?c:"rgba(255,255,255,0.1)"}`,color:severity===v?c:"#888",borderRadius:9,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                  ))}
+                </div>
+                <textarea value={desc} onChange={e=>setDesc(e.target.value)} autoFocus placeholder="e.g. I clicked a card on /cards and the back was cut off, or the buy button did nothing…" style={{width:"100%",minHeight:110,background:"#0d0d0d",color:"#fff",border:"1px solid #333",borderRadius:10,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",lineHeight:1.5}}/>
+                <button disabled={!desc.trim()||sending} onClick={submit} style={{width:"100%",marginTop:14,background:desc.trim()&&!sending?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a",border:"none",color:desc.trim()&&!sending?"#fff":"#666",borderRadius:10,padding:"13px",fontSize:14,fontWeight:900,cursor:desc.trim()&&!sending?"pointer":"not-allowed",fontFamily:"inherit"}}>{sending?"Sending…":"Send Report"}</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function App() {
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
@@ -30882,10 +31188,11 @@ export default function App() {
   }
 
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
+  if (window.location.pathname === "/bugs")     return <BugAdmin user={user} />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
   const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
-  if (CARD_DB_PATHS.includes(window.location.pathname)) return <PublicCardDatabase />;
+  if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
@@ -30917,6 +31224,7 @@ export default function App() {
   return (
     <div style={{ background:"#000000", minHeight:"100vh", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#F0F0F0", overflowX:"hidden" }}>
       <GlobalStyles />
+      <BugReporter user={user} />
 
       {/* Global search overlay */}
       {gOpen && (() => {
