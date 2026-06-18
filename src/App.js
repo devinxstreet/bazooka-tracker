@@ -26613,6 +26613,17 @@ function PublicCardDatabase() {
                     <button onClick={()=>setModalFoilView("foil")} style={{ background:modalFoilView==="foil"?"linear-gradient(135deg,#FBBF24,#E8317A)":"transparent", color:modalFoilView==="foil"?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>✨ Battlefoil</button>
                   </div>
                 )}
+                {_cardAdmin && (
+                  <div style={{ display:"flex", gap:8, marginTop:2 }}>
+                    <label onClick={e=>e.stopPropagation()} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.35)", color:"#4ade80", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      🖼 {c.imageUrl?"Replace Image":"Add Image"}
+                      <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f){ handleCardImageUpload(c,f); } e.target.value=""; }}/>
+                    </label>
+                    {c.imageUrl && (
+                      <button onClick={()=>{ if(window.confirm(`Clear the image on ${c.hero}${c.cardNum?` #${c.cardNum}`:""}? This removes the wrong image so you can add the right one.`)){ handleCardImageClear(c); setExpandedCard({...c, imageUrl:null}); } }} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🧹 Clear Image</button>
+                    )}
+                  </div>
+                )}
               </div>
               {/* Info panel */}
               <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", gap:12 }}>
