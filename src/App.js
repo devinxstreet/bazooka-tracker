@@ -4260,15 +4260,12 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (!breaker || !date || (canSeeFinancials && !recap.grossRevenue)) return;
     setRecapSaving(true);
     try {
-      // Only reuse existing stream ID if breaker + date + channel all match precisely
-      // This prevents same-day different-channel streams from overwriting each other
+      // Reuse an existing stream ID ONLY when explicitly editing one.
+      // A brand-new recap always gets a fresh ID, so a breaker can log two (or more)
+      // streams on the same day/channel without one overwriting the other.
       const matchingStream = editingStreamId
         ? streams.find(s => s.id === editingStreamId)
-        : streams.find(s =>
-            s.breaker === breaker &&
-            s.date === date &&
-            (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault")
-          );
+        : null;
       const streamId = matchingStream?.id || uid();
       await onSaveStream({ ...(existingStream||{}), ...recap, notes:recap.streamNotes, streamName:recap.streamName||"", id:streamId, breaker, date });
       // Log selected chaser cards out of inventory
