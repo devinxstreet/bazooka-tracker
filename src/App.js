@@ -2145,9 +2145,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {lightbox && (
         <div onClick={()=>setLightbox(null)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
-          <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10 }} onClick={e=>e.stopPropagation()} onError={e=>{ e.currentTarget.style.display="none"; }}/>
-          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", fontSize:12, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"6px 14px", borderRadius:8, textDecoration:"none" }}>Open original ↗</a>
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"zoom-out", gap:14 }}>
+          <div style={{ color:"#fff", fontSize:13, fontWeight:700 }}>📷 Photo — click anywhere to close</div>
+          <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"80vh", objectFit:"contain", borderRadius:10, border:"2px solid rgba(255,255,255,0.15)", background:"#111" }} onClick={e=>e.stopPropagation()} onError={e=>{ e.currentTarget.alt="⚠️ Image failed to load — use Open original below"; e.currentTarget.style.minWidth="300px"; e.currentTarget.style.minHeight="200px"; }}/>
+          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:13, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"8px 18px", borderRadius:8, textDecoration:"none", fontWeight:700 }}>Open original in new tab ↗</a>
           <button onClick={()=>setLightbox(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
         </div>
       )}
@@ -25395,9 +25396,33 @@ function PublicCardDatabase() {
       } catch(e){ return null; }
     }
 
+    // Match a card by pulling its card-number out of the filename, scoped to the locked pool.
+    function filenameFind(fname){
+      const base = String(fname||"").replace(/\.[a-z0-9]+$/i,"").toLowerCase(); // strip extension
+      const flat = base.replace(/[\s_-]/g,""); // "2026griffeybbf1"
+      // For each card in the pool, see if its cardNum appears in the filename.
+      // Prefer the LONGEST cardNum match so "bbf1" wins over "1".
+      let best=null, bestLen=0;
+      for(const c of pool){
+        const cn = String(c.cardNum||"").toLowerCase().replace(/[\s-]/g,""); // "bbf-1" -> "bbf1"
+        if(!cn) continue;
+        // find cn in the flattened filename, bounded so "bbf1" doesn't match inside "bbf10"
+        const idx = flat.indexOf(cn);
+        if(idx === -1) continue;
+        const after = flat[idx+cn.length]; // char right after the match
+        // if the cardNum ends in a digit, the next char must NOT be a digit (avoids bbf1 ⊂ bbf10)
+        const lastIsDigit = /[0-9]/.test(cn[cn.length-1]);
+        if(lastIsDigit && /[0-9]/.test(after||"")) continue;
+        if(cn.length > bestLen){ best=c; bestLen=cn.length; }
+      }
+      return best;
+    }
+
     async function one(file){
       try {
-        const card = await visionFind(file);
+        // Try filename FIRST — it usually contains the exact card number (e.g. "2026-Griffey-BBF-1.jpg" → BBF-1).
+        let card = filenameFind(file.name);
+        if(!card) card = await visionFind(file);
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
         if(alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
         const fsId = card.fsId || card.id;
