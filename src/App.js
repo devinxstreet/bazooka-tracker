@@ -541,6 +541,7 @@ function GlobalStyles() {
       .boba-card-flip:hover { transform: rotateY(180deg); }
       .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+      .boba-card-hover:hover .boba-quickadd { opacity: 1; }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
 
       /* Mobile */
@@ -15410,6 +15411,20 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
+            {toggleOwned && (
+              <div className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
+                style={{ position:"absolute", left:0, right:0, bottom:0, padding:isSmallCard?"6px":"9px",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:6, cursor:"pointer",
+                  background: isOwned ? "linear-gradient(transparent, rgba(74,222,128,0.32))" : "linear-gradient(transparent, rgba(0,0,0,0.55))",
+                  backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
+                  borderBottomLeftRadius:8, borderBottomRightRadius:8,
+                  opacity:0, transition:"opacity 0.18s ease", zIndex:5 }}>
+                <span style={{ fontSize:isSmallCard?11:13, fontWeight:800, color:"#fff",
+                  display:"flex", alignItems:"center", gap:5, textShadow:"0 1px 4px rgba(0,0,0,0.8)" }}>
+                  {isOwned ? "\u2705 In Collection" : "\u2795 Add to Collection"}
+                </span>
+              </div>
+            )}
           </div>
           <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
             <div style={{ overflowY:"auto", overflowX:"hidden", flex:1, minHeight:0, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
@@ -24619,59 +24634,69 @@ function PublicCardDatabase() {
     return ()=>unsub();
   }, []);
 
-  // -- Load cards (instant from localStorage init, background refresh if stale) --
+  // -- Load cards (instant, hang-proof: IndexedDB cache → gzip → plain file → Firestore) --
   useEffect(() => {
-    const CACHE_TTL = 10 * 60 * 1000; // 10 min
+    const CACHE_TTL = 10 * 60 * 1000;
+    // wrap any promise so it can never hang the load forever
+    const withTimeout = (p, ms) => Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
+    let done = false;
+    const finish = (all) => { if (done) return; done = true; if (all && all.length) setCards(all); setLoading(false); };
+
+    // Absolute safety net: if nothing resolves in 12s, try the plain file, then give up gracefully.
+    const hardStop = setTimeout(async () => {
+      if (done) return;
+      try {
+        const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
+        const r = await fetch(url + "?v=" + Date.now());
+        const all = await r.json();
+        if (Array.isArray(all) && all.length) { finish(all); return; }
+      } catch(e) {}
+      finish(null); // stop the spinner no matter what
+    }, 12000);
+
     (async () => {
-      // 1. Instant: load from IndexedDB (holds the full 12MB, unlike localStorage's 5MB cap).
+      // 1. Instant cache from IndexedDB (timeout-guarded so a blocked DB can't hang us).
       let cacheTs = 0, cacheHasCards = false;
       try {
-        const cached = await idbGetCards();
+        const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
-          setCards(cached.cards); setLoading(false);
+          setCards(cached.cards); setLoading(false); // show immediately, keep verifying below
           cacheHasCards = true; cacheTs = cached.ts || 0;
         }
       } catch(e) {}
-      // 2. Cheap freshness check: one tiny version doc.
+      // 2. Freshness check (timeout-guarded).
       let needFresh = !cacheHasCards;
       try {
-        const vSnap = await getDoc(doc(db,"meta","cards_version"));
+        const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
         const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
         if (serverTs > cacheTs) needFresh = true;
       } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
-      if (!needFresh) { setLoading(false); return; }
-      // 3. Data changed (or no cache): pull the GZIPPED snapshot (~1.5MB) and store in IndexedDB.
+      if (!needFresh) { clearTimeout(hardStop); done = true; setLoading(false); return; }
+      // 3. Gzip snapshot (timeout-guarded).
       try {
-        const all = await readCardSnapshot(true);
-        if (all && all.length>0) {
-          setCards(all); setLoading(false);
-          idbSetCards(all, Date.now());
-          return;
-        }
+        const all = await withTimeout(readCardSnapshot(true), 9000);
+        if (all && all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
       } catch(e) {}
-      // Fallback: old uncompressed snapshot file (pre-gzip).
+      // 4. Plain uncompressed file (the one that always worked).
       try {
         const url = await getDownloadURL(ref(storage, "card_data/boba_checklist.json"));
-        const r2 = await fetch(url + (url.includes("?")?"&":"?") + "v=" + Date.now());
+        const r2 = await fetch(url + "?v=" + Date.now());
         const all = await r2.json();
-        if (Array.isArray(all) && all.length>0) {
-          setCards(all); setLoading(false);
-          idbSetCards(all, Date.now());
-          return;
-        }
+        if (Array.isArray(all) && all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
       } catch(e) {}
-      // Last resort: read Firestore directly.
+      // 5. Firestore direct (last resort).
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
         const all = snap.docs.map(d=>({id:d.id,...d.data()}));
-        if (all.length>0) {
-          setCards(all); setLoading(false);
-          idbSetCards(all, Date.now());
-          return;
-        }
+        if (all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
       } catch(e) {}
-      setLoading(false);
+      clearTimeout(hardStop); finish(cacheHasCards ? null : []); // ensure spinner stops
     })();
+    return () => clearTimeout(hardStop);
+  }, []);
+  // (legacy load effect retained but never runs)
+  useEffect(() => {
+    const _dead = () => {};
   }, []);
   // (legacy localStorage cache no longer used for cards — IndexedDB holds the full set)
   useEffect(() => {
@@ -26682,6 +26707,9 @@ function PublicCardDatabase() {
         .pub-card-grid > * { animation: cardEntrance 0.4s ease both; }
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
+        .boba-card-hover:hover .boba-quickadd { opacity: 1; }
+        @media (hover: none) { .boba-quickadd { opacity: 1; } }
+      .boba-card-hover:hover .boba-quickadd { opacity: 1; }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
         @media (hover: none) { .boba-flip-pill { opacity: 0.55; transform: none; } }
