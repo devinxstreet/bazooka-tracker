@@ -736,10 +736,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {/* Lightbox overlay */}
       {lightbox && (
         <div onClick={()=>setLightbox(null)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
           <img src={lightbox} alt="Lot photo"
             style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10, boxShadow:"0 0 60px rgba(0,0,0,0.8)" }}
             onClick={e=>e.stopPropagation()}/>
+          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", fontSize:12, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"6px 14px", borderRadius:8, textDecoration:"none" }}>Open original ↗</a>
           <button onClick={()=>setLightbox(null)}
             style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
         </div>
@@ -771,7 +772,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
                       {(q.photoUrls||[]).map((url,i)=>(
                         <img key={i} src={url} alt={`Photo ${i+1}`}
-                          onClick={()=>setLightbox(url)}
+                          onClick={(e)=>{ e.stopPropagation(); try { setLightbox(url); } catch(err) { window.open(url,"_blank"); } }}
                           style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"zoom-in" }}
                           onError={e=>e.target.style.display="none"}/>
                       ))}
@@ -2254,10 +2255,10 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>
                               {(q.photoUrls||[]).map((url,i)=>(
                                 <img key={i} src={url} alt={`Lot photo ${i+1}`}
-                                  onClick={()=>setLightbox(url)}
+                                  onClick={(e)=>{ e.stopPropagation(); try { setLightbox(url); } catch(err) { window.open(url,"_blank"); } }}
                                   style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:"1px solid #2a2a2a", cursor:"zoom-in" }}/>
                               ))}
-                              <div style={{ fontSize:10, color:"#555", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""}</div>
+                              <div style={{ fontSize:10, color:"#555", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""} · click to enlarge</div>
                             </div>
                           )}
                           {/* View tracking */}
