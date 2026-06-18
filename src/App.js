@@ -1,6 +1,7 @@
 /* eslint-disable */
 /* Bazooka Vault — access limited to @bazookabreaks.com until June 18 */
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
@@ -734,16 +735,17 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* Lightbox overlay */}
-      {lightbox && (
+      {lightbox && createPortal(
         <div onClick={()=>setLightbox(null)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"zoom-out", gap:14 }}>
+          <div style={{ color:"#fff", fontSize:13, fontWeight:700 }}>📷 Photo — click anywhere to close</div>
           <img src={lightbox} alt="Lot photo"
-            style={{ maxWidth:"90vw", maxHeight:"90vh", objectFit:"contain", borderRadius:10, boxShadow:"0 0 60px rgba(0,0,0,0.8)" }}
-            onClick={e=>e.stopPropagation()}/>
-          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", fontSize:12, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"6px 14px", borderRadius:8, textDecoration:"none" }}>Open original ↗</a>
+            style={{ maxWidth:"90vw", maxHeight:"80vh", objectFit:"contain", borderRadius:10, border:"2px solid rgba(255,255,255,0.15)", background:"#111", boxShadow:"0 0 60px rgba(0,0,0,0.8)" }}
+            onClick={e=>e.stopPropagation()} onError={e=>{ e.currentTarget.alt="⚠️ Image failed to load — use Open original below"; e.currentTarget.style.minWidth="300px"; e.currentTarget.style.minHeight="200px"; }}/>
+          <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:13, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"8px 18px", borderRadius:8, textDecoration:"none", fontWeight:700 }}>Open original in new tab ↗</a>
           <button onClick={()=>setLightbox(null)}
             style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
-        </div>
+        </div>, document.body
       )}
 
       {/* -- QUOTE NOTIFICATIONS (Admin) -- */}
@@ -2143,14 +2145,14 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {lightbox && (
+      {lightbox && createPortal(
         <div onClick={()=>setLightbox(null)}
           style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"zoom-out", gap:14 }}>
           <div style={{ color:"#fff", fontSize:13, fontWeight:700 }}>📷 Photo — click anywhere to close</div>
           <img src={lightbox} alt="Lot photo" style={{ maxWidth:"90vw", maxHeight:"80vh", objectFit:"contain", borderRadius:10, border:"2px solid rgba(255,255,255,0.15)", background:"#111" }} onClick={e=>e.stopPropagation()} onError={e=>{ e.currentTarget.alt="⚠️ Image failed to load — use Open original below"; e.currentTarget.style.minWidth="300px"; e.currentTarget.style.minHeight="200px"; }}/>
           <a href={lightbox} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:13, color:"#7B9CFF", background:"rgba(0,0,0,0.6)", padding:"8px 18px", borderRadius:8, textDecoration:"none", fontWeight:700 }}>Open original in new tab ↗</a>
           <button onClick={()=>setLightbox(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:40, height:40, fontSize:20, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>✕</button>
-        </div>
+        </div>, document.body
       )}
       <div style={S.card}>
         <div style={{ display:"none" }}>
@@ -17824,6 +17826,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [claimPhoto,      setClaimPhoto]      = useState(null);
   const [claimSubmitting, setClaimSubmitting] = useState(false);
   const [claimSent,       setClaimSent]       = useState(false);
+  const [recordModal,     setRecordModal]     = useState(null); // admin: record a hit for someone
+  const [recordName,      setRecordName]      = useState("");
   const [oneOfOneClaims,  setOneOfOneClaims]  = useState([]);
   const [oneModal,        setOneModal]        = useState(null);
   const [onePhoto,        setOnePhoto]        = useState(null);
@@ -19851,6 +19855,25 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               </div>
             )}
 
+            {/* Admin: Record Hit modal (record who pulled it, no ownership needed) */}
+            {recordModal && recordModal.type==="super" && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={()=>setRecordModal(null)}>
+                <div style={{ background:"#111", border:"2px solid #F59E0B", borderRadius:20, padding:28, maxWidth:420, width:"100%" }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#F59E0B", marginBottom:4 }}>🎯 Record Super Hit</div>
+                  <div style={{ fontSize:13, color:"#888", marginBottom:18 }}>{recordModal.card.hero} #{recordModal.card.cardNum} · {recordModal.card.setName}</div>
+                  <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
+                  <input autoFocus value={recordName} onChange={e=>setRecordName(e.target.value)} placeholder="e.g. @collector_mike"
+                    style={{ width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
+                  <div style={{ display:"flex", gap:10 }}>
+                    <button onClick={async()=>{ if(!recordName.trim())return; const c=recordModal.card; try{ await setDoc(doc(db,"super_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", cardImage:c.imageUrl||null, userId:null, userName:recordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setRecordModal(null); setRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
+                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#F59E0B,#FBBF24)":"#1a1a1a", color:recordName.trim()?"#000":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
+                    <button onClick={()=>{ setRecordModal(null); setRecordName(""); }} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Admin verification queue */}
             {isAdmin && pendingClaims.length > 0 && (
               <div style={{ background: "#1a1400", border: "2px solid #F59E0B44", borderRadius: 14, padding: 20 }}>
@@ -19971,6 +19994,13 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                                 ⭐ Claim This Super
                               </button>
                             )}
+                            {/* Admin: record a hit for whoever pulled it (no ownership needed) */}
+                            {isAdmin && !isVerified && (
+                              <button onClick={() => { setRecordModal({ card: c, type: "super" }); setRecordName(""); }}
+                                style={{ width: "100%", marginTop: myOwned&&!isVerified&&!isPending?6:0, background: "rgba(245,158,11,0.12)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 8, padding: "7px 0", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                                🎯 {isPending ? "Verify / Record Hit" : "Record Hit (Admin)"}
+                              </button>
+                            )}
                             {!c.imageUrl && (
                               <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>{c.hero} #{c.cardNum}</div>
                             )}
@@ -20039,6 +20069,25 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+            {/* Admin: Record 1/1 Hit modal */}
+            {recordModal && recordModal.type==="oneof1" && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={()=>setRecordModal(null)}>
+                <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:420, width:"100%" }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#C084FC", marginBottom:4 }}>🎯 Record 1/1 Hit</div>
+                  <div style={{ fontSize:13, color:"#888", marginBottom:18 }}>{recordModal.card.hero} #{recordModal.card.cardNum} · {recordModal.card.treatment}</div>
+                  <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
+                  <input autoFocus value={recordName} onChange={e=>setRecordName(e.target.value)} placeholder="e.g. @collector_mike"
+                    style={{ width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
+                  <div style={{ display:"flex", gap:10 }}>
+                    <button onClick={async()=>{ if(!recordName.trim())return; const c=recordModal.card; try{ await setDoc(doc(db,"oneof1_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", treatment:c.treatment||"", cardImage:c.imageUrl||null, userId:null, submitterName:recordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", dateHit:new Date().toLocaleDateString(), createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setRecordModal(null); setRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
+                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#9333EA,#C084FC)":"#1a1a1a", color:recordName.trim()?"#fff":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
+                    <button onClick={()=>{ setRecordModal(null); setRecordName(""); }} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Claim modal */}
             {oneModal && (
@@ -20213,6 +20262,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               <button onClick={()=>{ setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
                                 style={{ width:"100%", background:"linear-gradient(135deg,#9333EA,#C084FC)", color:"#000", border:"none", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
                                 💎 Claim This 1/1
+                              </button>
+                            )}
+                            {isAdmin && !isVerified && (
+                              <button onClick={()=>{ setRecordModal({ card:c, type:"oneof1" }); setRecordName(""); }}
+                                style={{ width:"100%", marginTop:(user&&myOwned&&!isVerified&&!isPending)?6:0, background:"rgba(147,51,234,0.12)", color:"#C084FC", border:"1px solid rgba(147,51,234,0.4)", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                🎯 {isPending ? "Verify / Record Hit" : "Record Hit (Admin)"}
                               </button>
                             )}
                           </div>
