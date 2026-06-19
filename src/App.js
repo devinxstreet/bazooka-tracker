@@ -24399,7 +24399,7 @@ function Leaderboard({ user, marketSales=[] }) {
   );
 }
 
-function PublicCardDatabase() {
+function PublicCardDatabase({ swancity = false } = {}) {
   // -- Core state --
   const [toast, setToast] = useState(null);
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
@@ -24428,7 +24428,7 @@ function PublicCardDatabase() {
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
   const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -24485,6 +24485,7 @@ function PublicCardDatabase() {
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
   const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
   useEffect(() => {
+    if (swancity) return; // swancity stays on /swancity, tabs don't rewrite the URL
     const target = TAB_PATHS[activeTab] || "/cards";
     if (window.location.pathname !== target) {
       window.history.pushState({ tab: activeTab }, "", target);
@@ -27553,6 +27554,10 @@ function PublicCardDatabase() {
           <span title="This app is in beta — found a bug? Tap the 🐛 button!" style={{flexShrink:0,fontSize:isMobile?9:10,fontWeight:900,letterSpacing:1,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:6,padding:isMobile?"2px 5px":"3px 8px",marginRight:isMobile?4:8,textTransform:"uppercase"}}>Beta</span>
           {/* Left: primary nav */}
           <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
+            {swancity ? (<>
+              {navItem("supers","⭐ Supers",0)}
+              {navItem("1of1","💎 Secret 1/1s",0)}
+            </>) : (<>
             {navItem("cards","Card Database",0)}
             {navGroup("collect","Collectibility",[
               {id:"rainbow",label:"🌈 Rainbow Progress",badge:0},
@@ -27567,6 +27572,7 @@ function PublicCardDatabase() {
             ])}
             {navItem("market","Marketplace",wantNotifs.length)}
             {navItem("leaderboard","Leaderboard",0)}
+            </>)}
           </div>
 
           {/* Right: messages + profile */}
@@ -27966,7 +27972,7 @@ function PublicCardDatabase() {
                               </>}
                               {isP && <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {!isV&&!isP && <div style={{ fontSize:10, fontWeight:700, color:"#C084FC", marginBottom:6, letterSpacing:0.5 }}>💎 Available</div>}
-                              {user && owned?.[c.id] && !isV && !isP && (
+                              {((swancity && !isV && !isP) || (user && owned?.[c.id] && !isV && !isP)) && (
                                 <button onClick={()=>{ setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
                                   style={{ width:"100%", background:"linear-gradient(135deg,#7C3AED,#A855F7)", color:"#fff", border:"none", borderRadius:8, padding:"7px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
                                   💎 Claim This 1/1
@@ -28008,7 +28014,7 @@ function PublicCardDatabase() {
           const recentSupers = superClaims.filter(cl => cl.status === "verified").sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0)).slice(0,12);
 
           async function submitClaim(card, photoBase64) {
-            if (!user) { setSigningIn(true); return; }
+            if (!user && !swancity) { setSigningIn(true); return; }
             setClaimSubmitting(true);
             try {
               const storageRef2 = ref(storage, `super_claims/${card.id}_${Date.now()}.jpg`);
@@ -28021,7 +28027,7 @@ function PublicCardDatabase() {
               await setDoc(doc(db, "super_claims", card.id), {
                 cardId: card.id, cardName: card.hero, cardNum: card.cardNum,
                 setName: card.setName || "", cardImage: card.imageUrl || null,
-                userId: adminClaimMode ? null : user.uid, userName: adminClaimMode ? (claimName||"Anonymous") : (user.displayName || user.email),
+                userId: adminClaimMode ? null : (user?.uid || null), userName: adminClaimMode ? (claimName||"Anonymous") : (user?.displayName || user?.email || claimName || "Anonymous"),
                 submitterName: claimName || "Anonymous", story: claimStory || "", dateHit: claimDate || "",
                 photoUrl, status: adminClaimMode ? "verified" : "pending",
                 ...(adminClaimMode ? { recordedByAdmin: user?.displayName || user?.email || "Admin", reviewedAt: new Date().toISOString() } : {}),
@@ -28277,13 +28283,13 @@ function PublicCardDatabase() {
                               {isPending&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:6}}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {!isVerified&&!isPending&&<div style={{fontSize:10,fontWeight:700,color:"#FBBF24",marginBottom:6,letterSpacing:0.5}}>⭐ Available</div>}
                               {isDenied&&myClaim&&<div style={{fontSize:10,color:"#E8317A",marginBottom:6}}>❌ Denied{claim.denialReason?`: ${claim.denialReason}`:""}</div>}
-                              {user&&myOwned&&!isVerified&&!isPending&&(
-                                <button onClick={()=>{setClaimModal(c);setClaimPhoto(null);setClaimSent(false);}}
+                              {((swancity && !isVerified && !isPending) || (user&&myOwned&&!isVerified&&!isPending)) && (
+                                <button onClick={()=>{setClaimModal(c);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");}}
                                   style={{width:"100%",background:"linear-gradient(135deg,#F59E0B,#FBBF24)",color:"#000",border:"none",borderRadius:8,padding:"6px 0",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(245,158,11,0.3)"}}>
                                   ⭐ Claim This Super
                                 </button>
                               )}
-                              {!user&&!isVerified&&!isPending&&(
+                              {!swancity && !user&&!isVerified&&!isPending&&(
                                 <button onClick={()=>setSigningIn(true)}
                                   style={{width:"100%",background:"rgba(245,158,11,0.1)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8,padding:"6px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                                   Sign in to claim
@@ -31815,6 +31821,8 @@ export default function App() {
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/bugs")     return <BugAdmin user={user} />;
   if (window.location.pathname === "/playbook") return <PublicPlaybookBuilder />;
+  // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
+  if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
   const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
