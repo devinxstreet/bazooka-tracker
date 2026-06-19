@@ -24796,7 +24796,7 @@ function PublicCardDatabase() {
 
   // -- Load cards (instant, hang-proof: IndexedDB cache → gzip → plain file → Firestore) --
   useEffect(() => {
-    const CACHE_TTL = 10 * 60 * 1000;
+    const CACHE_TTL = 30 * 60 * 1000;
     // wrap any promise so it can never hang the load forever
     const withTimeout = (p, ms) => Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
     let done = false;
@@ -24824,13 +24824,30 @@ function PublicCardDatabase() {
           cacheHasCards = true; cacheTs = cached.ts || 0;
         }
       } catch(e) {}
-      // 2. Freshness check (timeout-guarded).
+      // 2. Freshness check (timeout-guarded). If we have cache, trust it for the session and
+      // only re-fetch when it's clearly old — the cache already shows instantly above, so we
+      // never block the user on a re-download.
       let needFresh = !cacheHasCards;
-      try {
-        const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
-        const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
-        if (serverTs > cacheTs) needFresh = true;
-      } catch(e) { if (Date.now() - cacheTs > CACHE_TTL) needFresh = true; }
+      if (cacheHasCards) {
+        // Cache is showing. Only refresh in the background if it's older than the TTL.
+        if (Date.now() - cacheTs > CACHE_TTL) {
+          try {
+            const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
+            const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
+            if (serverTs > cacheTs) needFresh = true;
+          } catch(e) {}
+        }
+        // We already showed cards from cache; stop the spinner now regardless.
+        clearTimeout(hardStop);
+        if (!needFresh) { done = true; setLoading(false); return; }
+        done = false; // allow the background refresh below to update silently
+      } else {
+        try {
+          const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
+          const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
+          if (serverTs > cacheTs) needFresh = true;
+        } catch(e) { needFresh = true; }
+      }
       if (!needFresh) { clearTimeout(hardStop); done = true; setLoading(false); return; }
       // 3. Gzip snapshot (timeout-guarded).
       try {
