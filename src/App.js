@@ -24443,78 +24443,10 @@ function PublicCardDatabase() {
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
   const [cardView,      setCardView]      = useState(savedUI.cardView ?? "grid"); // "grid" | "list"
   const [animsOn,       setAnimsOn]       = useState(savedUI.animsOn ?? true); // card add/entrance animations
-  const [listening,     setListening]     = useState(false);
   const [tourStep,      setTourStep]      = useState(-1); // -1 = not running
   const [superRecord,   setSuperRecord]   = useState(null); // admin: manually record a super/1of1 hit {card,type}
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [superRecordName, setSuperRecordName] = useState("");
-  const recognitionRef = useRef(null);
-  // Snap a spoken/typed phrase to the closest real hero name (speech often mangles stylized names).
-  function fuzzyHeroMatch(said) {
-    const raw = (said||"").toLowerCase().trim();
-    if (!raw) return null;
-    const strip = s => s.toLowerCase().replace(/[^a-z0-9]/g,"");
-    const rawS = strip(raw);
-    // unique hero names from the loaded cards
-    const heroes = Array.from(new Set(cards.map(c=>c.hero).filter(Boolean)));
-    if (!heroes.length) return null;
-    // 1. exact (ignoring punctuation/spacing)
-    for (const h of heroes) if (strip(h) === rawS) return h;
-    // 2. one fully contains the other (e.g. "show time" vs "Showtime", "jcam" vs "J-Cam")
-    let contains = heroes.filter(h => { const hs=strip(h); return hs.includes(rawS) || rawS.includes(hs); });
-    if (contains.length === 1) return contains[0];
-    if (contains.length > 1) { contains.sort((a,b)=>Math.abs(strip(a).length-rawS.length)-Math.abs(strip(b).length-rawS.length)); return contains[0]; }
-    // 3. Levenshtein edit distance — closest hero within a tolerance
-    const lev = (a,b) => {
-      const m=a.length,n=b.length; if(!m)return n; if(!n)return m;
-      let prev=Array.from({length:n+1},(_,i)=>i), cur=new Array(n+1);
-      for(let i=1;i<=m;i++){ cur[0]=i; for(let j=1;j<=n;j++){ const cost=a[i-1]===b[j-1]?0:1; cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+cost); } [prev,cur]=[cur,prev]; }
-      return prev[n];
-    };
-    let best=null, bestScore=Infinity;
-    for (const h of heroes) {
-      const hs=strip(h);
-      const d=lev(rawS,hs);
-      const norm=d/Math.max(rawS.length,hs.length); // 0 = identical, 1 = totally different
-      if(norm<bestScore){ bestScore=norm; best=h; }
-    }
-    // only accept if reasonably close (≤45% different)
-    return bestScore<=0.45 ? best : null;
-  }
-
-  function startVoiceSearch() {
-    let SR = null;
-    try { SR = window.SpeechRecognition || window.webkitSpeechRecognition; } catch(e) {}
-    if (!SR) { showToast("Voice search isn't supported here — try Chrome"); return; }
-    try {
-      if (listening && recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e){} setListening(false); return; }
-      const rec = new SR();
-      rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
-      rec.onstart = () => { try { setListening(true); } catch(e){} };
-      rec.onerror = () => { try { setListening(false); } catch(e){} };
-      rec.onend = () => { try { setListening(false); } catch(e){} };
-      rec.onresult = (e) => {
-        try {
-          let said = "";
-          try {
-            // grab the best transcript across all results/alternatives
-            for (let i=0;i<e.results.length;i++){ const r=e.results[i]; if(r&&r[0]&&r[0].transcript){ said += r[0].transcript+" "; } }
-          } catch(err) { said = e?.results?.[0]?.[0]?.transcript || ""; }
-          const clean = said.replace(/[.,!?]+$/,"").trim();
-          if (!clean) { showToast("🎤 Didn't catch that — try again"); return; }
-          let hero = null;
-          try { hero = fuzzyHeroMatch(clean); } catch(err) { hero = null; }
-          const finalTerm = hero || clean;
-          setSearch(finalTerm);
-          setPage(1);
-          if (hero && hero.toLowerCase() !== clean.toLowerCase()) showToast(`🎤 "${clean}" → searching ${hero}`);
-          else showToast(`🎤 Searching "${finalTerm}"`);
-        } catch(err) { /* never let a voice result crash the app */ }
-      };
-      recognitionRef.current = rec;
-      rec.start();
-    } catch(err) { setListening(false); setToast("Couldn't start voice search"); }
-  }
   const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -26537,7 +26469,6 @@ function PublicCardDatabase() {
           @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
-          @keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,49,122,0.5)} 50%{box-shadow:0 0 0 8px rgba(232,49,122,0)} }
         `}</style>
 
         {/* Floating cards */}
@@ -26804,7 +26735,7 @@ function PublicCardDatabase() {
       {tourStep >= 0 && (() => {
         const steps = [
           { icon:"🃏", title:"Welcome to the Vault", body:"This is the home base for every BoBA card. Let's take 30 seconds to show you around — tap Next to go through it." },
-          { icon:"🔍", title:"Find any card", body:"Search by hero, card number, athlete, or treatment. Tap the 🎤 mic to search by voice — just say a hero's name and it'll find it." },
+          { icon:"🔍", title:"Find any card", body:"Search by hero, card number, athlete, or treatment to find any card instantly." },
           { icon:"🎛️", title:"Filter & sort", body:"Narrow down by set, weapon, treatment, power, or what you own. Toggle between grid and list view, and resize cards with the slider." },
           { icon:"➕", title:"Build your collection", body:"Hover (or tap) any card and hit ➕ Add to Collection — no need to open it. Tap a card to see full details, the athlete it's based on, and finish options like Paper vs Battlefoil." },
           { icon:"🏆", title:"Supers & Secret 1/1s", body:"The Collectibility menu tracks every Super and Secret 1/1 hit in the community — see who pulled what, and claim your own when you land one." },
@@ -28358,7 +28289,6 @@ function PublicCardDatabase() {
             })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
-              <button onClick={startVoiceSearch} title={listening?"Listening… tap to stop":"Search by voice"} style={{ flexShrink:0, width:42, height:42, borderRadius:"50%", border:listening?"none":"1px solid rgba(232,49,122,0.4)", background:listening?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(232,49,122,0.1)", color:listening?"#fff":"#E8317A", fontSize:17, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", animation:listening?"micPulse 1.2s ease-in-out infinite":"none" }}>🎤</button>
               <select value={filterSet} onChange={e=>{
                 const ns=e.target.value;
                 const scope = ns ? cards.filter(c=>c.setName===ns) : cards;
