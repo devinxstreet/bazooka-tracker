@@ -22323,7 +22323,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, computeDeckProgress }) {
   const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -22404,6 +22404,43 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   return (
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
+              {user && deckProgress && (() => {
+                const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
+                const done = deckProgress.have >= deckProgress.need;
+                const weapons = Array.from(new Set(cards.map(c=>c.weapon).filter(Boolean))).sort();
+                const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
+                const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
+                return (
+                  <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                      <div style={{fontSize:13,fontWeight:900,color:done?"#4ade80":"#fff",display:"flex",alignItems:"center",gap:7}}>
+                        {done ? "✅ You can build a complete" : "🎯 Progress to a complete"} {goalLabel?`${goalLabel} `:""}deck
+                      </div>
+                      <div style={{fontSize:13,fontWeight:900,color:done?"#4ade80":"#E8317A"}}>{deckProgress.have} / {deckProgress.need}</div>
+                    </div>
+                    <div style={{height:10,background:"rgba(0,0,0,0.4)",borderRadius:6,overflow:"hidden",marginBottom:10}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:done?"linear-gradient(90deg,#4ade80,#22c55e)":"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:6,transition:"width 0.4s"}}/>
+                    </div>
+                    <div style={{fontSize:11,color:"#999",marginBottom:10,lineHeight:1.5}}>
+                      {done
+                        ? `You own enough unique cards to fill a 60-card${goalLabel?` ${goalLabel}`:""} deck (max 6 per power level). 🎉`
+                        : `You need ${deckProgress.need-deckProgress.have} more eligible card${deckProgress.need-deckProgress.have!==1?"s":""}. Counts unique cards you own, max 6 per power level${goalLabel?`, ${goalLabel} only`:""}.`}
+                    </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:11,color:"#777",fontWeight:700}}>Goal:</span>
+                      <select value={deckGoalW} onChange={e=>setDeckGoalW(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
+                        <option value="">Any weapon</option>
+                        {weapons.map(w=><option key={w} value={w}>{w} only</option>)}
+                      </select>
+                      <select value={deckGoalT} onChange={e=>setDeckGoalT(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
+                        <option value="">Any treatment</option>
+                        {treatments.map(t=><option key={t} value={t}>{t} only</option>)}
+                      </select>
+                      {(deckGoalW||deckGoalT) && <button onClick={()=>{setDeckGoalW("");setDeckGoalT("");}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
@@ -26387,6 +26424,36 @@ function PublicCardDatabase() {
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
+  // -- "How close am I to a deck?" — from OWNED cards, with optional weapon/treatment filter --
+  function computeDeckProgress(weaponFilter, treatmentFilter) {
+    const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
+    // owned, eligible cards matching the chosen filters
+    const ownedCards = cards.filter(c => {
+      if(!owned[c.id] && !owned[c.id+"::foil"]) return false;
+      if(isPlayCard(c)) return false;
+      if(weaponFilter && c.weapon !== weaponFilter) return false;
+      if(treatmentFilter && c.treatment !== treatmentFilter) return false;
+      return true;
+    });
+    // dedupe (no duplicate hero|variation|power|weapon) and cap 6 per power level
+    const seen = new Set(); const perPower = {}; const usable = [];
+    // higher power first so the "best" 6 at each level get counted
+    ownedCards.sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+    for(const c of ownedCards){
+      const k = dupKey(c);
+      if(seen.has(k)) continue;
+      const p = String(c.power||"0");
+      if((perPower[p]||0) >= 6) continue; // cap 6 per power level
+      seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
+      if(usable.length >= DECK_SIZE) break;
+    }
+    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length };
+  }
+  const [deckGoalW, setDeckGoalW] = useState("");
+  const [deckGoalT, setDeckGoalT] = useState("");
+  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT);
+
+
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
   if(loading) {
@@ -28652,6 +28719,7 @@ function PublicCardDatabase() {
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} computeDeckProgress={computeDeckProgress}
           />
         )}
 
