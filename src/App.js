@@ -15125,7 +15125,7 @@ function ShowcaseCard({ c, onClick, large }) {
     if (!rect) return;
     const x = (e.clientX-rect.left)/rect.width, y = (e.clientY-rect.top)/rect.height;
     targetTilt.current = { x:(y-0.5)*28, y:(x-0.5)*-28 };
-    if (foilRef.current) { foilRef.current.style.backgroundPosition=`${x*100}% ${y*100}%`; foilRef.current.style.opacity="1"; }
+    if (foilRef.current) { foilRef.current.style.setProperty("--foilpos",`${x*100}% ${y*100}%`); foilRef.current.style.opacity="1"; }
     if (glareRef.current) { glareRef.current.style.background=`radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity="1"; }
     startAnimation();
   }
@@ -15377,7 +15377,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
       } else if (isMetallicFoil) {
         drawMetallicFoil(x, y);
       } else {
-        if (foilRef.current) { foilRef.current.style.backgroundPosition = `${x*100}% ${y*100}%`; foilRef.current.style.opacity = "1"; }
+        if (foilRef.current) { foilRef.current.style.setProperty("--foilpos",`${x*100}% ${y*100}%`); foilRef.current.style.opacity = "1"; }
         if (glareRef.current) { glareRef.current.style.background = `radial-gradient(ellipse at ${x*100}% ${y*100}%, rgba(255,255,255,0.22) 0%, transparent 60%)`; glareRef.current.style.opacity = "1"; }
       }
     }
@@ -15431,7 +15431,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
+            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}>
+              {/* screen layer — pops on dark areas */}
+              <div style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 18%, rgba(255,255,255,0.18) 28%, rgba(255,220,100,0.28) 38%, rgba(100,255,200,0.30) 48%, rgba(100,200,255,0.32) 58%, rgba(200,100,255,0.28) 68%, rgba(255,100,150,0.26) 78%, transparent 86%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen" }}/>
+              {/* overlay layer — pops on light areas (so pale cards still shimmer) */}
+              <div style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 18%, rgba(180,140,0,0.35) 38%, rgba(0,140,90,0.38) 48%, rgba(0,90,180,0.40) 58%, rgba(120,0,180,0.36) 68%, rgba(200,0,90,0.34) 78%, transparent 86%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"overlay" }}/>
+            </div>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -27002,12 +27007,36 @@ function PublicCardDatabase() {
                     <div style={{ flex:1, minWidth:200, display:"flex", flexDirection:"column", gap:6 }}>
                       <div style={{ fontSize:10, fontWeight:800, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>Add to collection — choose finish</div>
                       <div style={{ display:"flex", gap:6 }}>
-                        <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Paper":"📄 Add Paper"}</button>
-                        <button onClick={()=>toggleOwned(c.id+"::foil")} style={{ flex:1, background:owned[c.id+"::foil"]?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id+"::foil"]?"#FBBF24":"#333"}`, color:owned[c.id+"::foil"]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id+"::foil"]?"✅ Battlefoil":"✨ Add Battlefoil"}</button>
+                        {owned[c.id] ? (
+                          <div style={{ flex:1, display:"flex", alignItems:"center", background:"rgba(74,222,128,0.15)", border:"1.5px solid #4ade80", borderRadius:10, overflow:"hidden" }}>
+                            <button onClick={()=>setOwnedQty(c.id,Math.max(0,(owned[c.id]||1)-1))} style={{ background:"transparent",border:"none",color:"#4ade80",fontSize:18,fontWeight:900,cursor:"pointer",padding:"8px 12px",fontFamily:"inherit",lineHeight:1 }}>−</button>
+                            <div style={{ flex:1,textAlign:"center",color:"#4ade80",fontSize:12,fontWeight:800 }}>📄{owned[c.id]>1?` ×${owned[c.id]}`:""}</div>
+                            <button onClick={()=>setOwnedQty(c.id,(owned[c.id]||1)+1)} style={{ background:"transparent",border:"none",color:"#4ade80",fontSize:18,fontWeight:900,cursor:"pointer",padding:"8px 12px",fontFamily:"inherit",lineHeight:1 }}>+</button>
+                          </div>
+                        ) : (
+                          <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📄 Add Paper</button>
+                        )}
+                        {owned[c.id+"::foil"] ? (
+                          <div style={{ flex:1, display:"flex", alignItems:"center", background:"rgba(251,191,36,0.15)", border:"1.5px solid #FBBF24", borderRadius:10, overflow:"hidden" }}>
+                            <button onClick={()=>setOwnedQty(c.id+"::foil",Math.max(0,(owned[c.id+"::foil"]||1)-1))} style={{ background:"transparent",border:"none",color:"#FBBF24",fontSize:18,fontWeight:900,cursor:"pointer",padding:"8px 12px",fontFamily:"inherit",lineHeight:1 }}>−</button>
+                            <div style={{ flex:1,textAlign:"center",color:"#FBBF24",fontSize:12,fontWeight:800 }}>✨{owned[c.id+"::foil"]>1?` ×${owned[c.id+"::foil"]}`:""}</div>
+                            <button onClick={()=>setOwnedQty(c.id+"::foil",(owned[c.id+"::foil"]||1)+1)} style={{ background:"transparent",border:"none",color:"#FBBF24",fontSize:18,fontWeight:900,cursor:"pointer",padding:"8px 12px",fontFamily:"inherit",lineHeight:1 }}>+</button>
+                          </div>
+                        ) : (
+                          <button onClick={()=>toggleOwned(c.id+"::foil")} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>✨ Add Battlefoil</button>
+                        )}
                       </div>
                     </div>
                   ) : (
-                    <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, minWidth:120, background:owned[c.id]?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${owned[c.id]?"#4ade80":"#333"}`, color:owned[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{owned[c.id]?"✅ Owned":"+ Add to Collection"}</button>
+                    owned[c.id] ? (
+                      <div style={{ flex:1, minWidth:120, display:"flex", alignItems:"center", justifyContent:"center", gap:0, background:"rgba(74,222,128,0.15)", border:"1.5px solid #4ade80", borderRadius:10, overflow:"hidden" }}>
+                        <button onClick={()=>setOwnedQty(c.id, Math.max(0,(owned[c.id]||1)-1))} title="Remove one" style={{ background:"transparent", border:"none", color:"#4ade80", fontSize:20, fontWeight:900, cursor:"pointer", padding:"8px 16px", fontFamily:"inherit", lineHeight:1 }}>−</button>
+                        <div style={{ flex:1, textAlign:"center", color:"#4ade80", fontSize:13, fontWeight:800 }}>{owned[c.id]>1?`✅ Owned ×${owned[c.id]}`:"✅ Owned"}</div>
+                        <button onClick={()=>setOwnedQty(c.id,(owned[c.id]||1)+1)} title="Add another copy" style={{ background:"transparent", border:"none", color:"#4ade80", fontSize:20, fontWeight:900, cursor:"pointer", padding:"8px 16px", fontFamily:"inherit", lineHeight:1 }}>+</button>
+                      </div>
+                    ) : (
+                      <button onClick={()=>toggleOwned(c.id)} style={{ flex:1, minWidth:120, background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ Add to Collection</button>
+                    )
                   ))}
                   <button onClick={()=>toggleWant(c.id)} style={{ flex:1, minWidth:120, background:wantList[c.id]?"#1a0f00":"rgba(255,255,255,0.04)", border:`1.5px solid ${wantList[c.id]?"#FBBF24":"#333"}`, color:wantList[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{wantList[c.id]?"🎯 Wanted":"+ Want"}</button>
                 </div>
