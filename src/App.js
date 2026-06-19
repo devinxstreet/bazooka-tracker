@@ -15431,12 +15431,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}>
-              {/* screen layer — pops on dark areas */}
-              <div style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 18%, rgba(255,255,255,0.18) 28%, rgba(255,220,100,0.28) 38%, rgba(100,255,200,0.30) 48%, rgba(100,200,255,0.32) 58%, rgba(200,100,255,0.28) 68%, rgba(255,100,150,0.26) 78%, transparent 86%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen" }}/>
-              {/* overlay layer — pops on light areas (so pale cards still shimmer) */}
-              <div style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 18%, rgba(180,140,0,0.35) 38%, rgba(0,140,90,0.38) 48%, rgba(0,90,180,0.40) 58%, rgba(120,0,180,0.36) 68%, rgba(200,0,90,0.34) 78%, transparent 86%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"overlay" }}/>
-            </div>}
+            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -28608,7 +28603,7 @@ function PublicCardDatabase() {
             // secondary breakdown tags
             const bySecondary = {};
             gcards.forEach(c => {
-              const s = rainbowGroupBy === "hero" ? (c.setName || "Unknown") : rainbowGroupBy === "treatmentWeapon" ? (c.setName || "Unknown") : (c.hero || "Unknown");
+              const s = c.setName || "Unknown";
               if(!bySecondary[s]) bySecondary[s] = { total:0, owned:0 };
               bySecondary[s].total++;
               if(owned[c.id]) bySecondary[s].owned++;
