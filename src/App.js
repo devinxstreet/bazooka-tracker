@@ -13,6 +13,7 @@ import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage
 const EARLY_ACCESS_EMAILS = [
   "christopher.e.ohara@gmail.com",
   "sydxelyse@icloud.com",
+  "matthewjessell@gmail.com",
 ];
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
@@ -124,6 +125,14 @@ const OFFICE_STAFF = [
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
 const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"];
+
+// Canonical weapon names — collapse case/punctuation dupes (ALT==Alt, FIRE==Fire, etc.)
+const WEAPON_CANON = { alt:"Alt", fire:"Fire", glow:"Glow", gum:"Gum", hex:"Hex", ice:"Ice", steel:"Steel", super:"Super", brawl:"Brawl", cyber:"Cyber", medal:"Medal", metallic:"Metallic" };
+function canonWeapon(w) {
+  if (!w) return w;
+  const k = String(w).trim().toLowerCase();
+  return WEAPON_CANON[k] || (String(w).trim().charAt(0).toUpperCase() + String(w).trim().slice(1).toLowerCase());
+}
 
 // ── Gzip helpers for the card snapshot (cuts ~13MB → ~1.5MB on first load) ──
 function _loadPako() {
@@ -2670,7 +2679,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                   <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
                                     <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                                     {hits.map(c=>{
-                                      const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                                      const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                                       const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
                                       return (
                                         <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
@@ -2723,7 +2732,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
                               <div style={{padding:"4px 10px",fontSize:10,color:"#555",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                               {hits.map(c=>{
-                                const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                                const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                                 const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
                                 return (
                                   <div key={c.id} onMouseDown={()=>{ upd(r.id,"name",label); if(c.mktValue||c.marketValue) upd(r.id,"mktVal",String(c.mktValue||c.marketValue||"")); setAcOpen(null); }}
@@ -2870,7 +2879,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).sort((a,b)=>{const s=h=>h.toLowerCase()===raw?0:h.toLowerCase().startsWith(terms[0])?1:2;return s(a.hero||"")-s(b.hero||"");}).slice(0,10);
                                 if(!hits.length)return null;
                                 return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:260,overflowY:"auto"}}>
-                                  {hits.map(c=>{const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return(
+                                  {hits.map(c=>{const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return(
                                     <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
                                       style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
                                       <div style={{flex:1,minWidth:0}}>
@@ -5174,7 +5183,6 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                 {[
-                  { l:"Bazooka Net (30%)", v:fmt(rc.bazNet),   c:"#E8317A" },
                   { l:`Your Commission (${(rc.rate*100).toFixed(0)}%)`, v:fmt(rc.commAmt), c:"#4ade80" },
                   ...(rc.tips>0?[{ l:"Tips (yours, 100%)", v:fmt(rc.tips), c:"#FBBF24" }]:[]),
                   ...(rc.salesBonus>0?[{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+"+fmt(rc.salesBonus), c:"#A78BFA" }]:[]),
@@ -14431,7 +14439,7 @@ function PublicDeckBuilder() {
     return { ok:true };
   }
 
-  const weapons = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
+  const weapons = [...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))].sort();
   const heroes  = [...new Set(cards.map(c=>c.hero).filter(Boolean))].sort();
   const powers  = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
 
@@ -14523,7 +14531,7 @@ function PublicDeckBuilder() {
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
               {available.map((c,i)=>{
                 const { ok, reason } = canAdd(c);
-                const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                const wc = PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                 return (
                   <div key={c.id} onClick={()=>{ if(ok) setDeckCards(p=>[...p,c.id]); }}
                     style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
@@ -14586,7 +14594,7 @@ function PublicDeckBuilder() {
                 </select>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
-                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
+                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
               </div>
               {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button>}
             </div>
@@ -14741,7 +14749,7 @@ function PublicPlaybookBuilder() {
             </div>
             <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
               {available.map((c,i)=>{
-                const wc = PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                const wc = PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                 const wouldExceedPlay = (parseFloat(c.dbs)||0)>0 && totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
                 const wouldExceedBpl  = wouldExceedPlay;
                 return (
@@ -15091,7 +15099,7 @@ function BobaShowcase({ uid }) {
 }
 
 function ShowcaseCard({ c, onClick, large }) {
-  const wc = SHOWCASE_WEAPON_COLORS[c.weapon] || "#444";
+  const wc = SHOWCASE_WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   const rarity = getRarity(c);
   const cardRef  = useRef(null);
   const foilRef  = useRef(null);
@@ -15224,7 +15232,7 @@ function athleteSport(name) {
 }
 
 function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
-  const wc = WEAPON_COLORS[c.weapon] || "#444";
+  const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
   const qty = ownedQty || 0;
@@ -15261,6 +15269,9 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // Pixel/cyber sparkle foil for Helmet Icon cards
   const isPixelFoil    = treatment.includes("helmet icon");
   const isMetallicFoil = treatment.includes("metallic") || treatment.includes("inspired ink metallic");
+  // Base / paper cards have NO foil shine — only true foil treatments shimmer
+  const _isPaperBase = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
+  const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil/.test(treatment);
   const pixelRef = useRef(null);
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
@@ -15410,37 +15421,34 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
+            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
-            {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
             {toggleOwned && (
               isOwned ? (
-                <div className="boba-quickadd" onClick={e=>e.stopPropagation()}
-                  style={{ position:"absolute", bottom:7, left:7, zIndex:6, display:"flex", alignItems:"center", gap:0,
-                    background:"rgba(74,222,128,0.92)", borderRadius:20, overflow:"hidden",
-                    boxShadow:"0 2px 8px rgba(0,0,0,0.5)", fontFamily:"inherit" }}>
-                  <button onClick={e=>{ e.stopPropagation(); const q=(ownedQty||1)-1; if(q<=0){ toggleOwned(c.id); } else { setOwnedQty&&setOwnedQty(c.id,q); } onCardActivity&&onCardActivity(); }}
-                    title={ownedQty>1?"Remove one":"Remove from collection"}
-                    style={{ background:"transparent", border:"none", color:"#062b13", fontSize:isSmallCard?13:15, fontWeight:900, cursor:"pointer", padding:isSmallCard?"3px 7px":"4px 9px", fontFamily:"inherit", lineHeight:1 }}>−</button>
-                  <span style={{ color:"#062b13", fontSize:isSmallCard?10:12, fontWeight:900, padding:"0 2px", minWidth:isSmallCard?24:30, textAlign:"center" }}>✓{(ownedQty||1)>1?` ×${ownedQty}`:""}</span>
-                  <button onClick={e=>{ e.stopPropagation(); setOwnedQty&&setOwnedQty(c.id,(ownedQty||1)+1); onCardActivity&&onCardActivity(); }}
-                    title="Add another copy"
-                    style={{ background:"transparent", border:"none", color:"#062b13", fontSize:isSmallCard?13:15, fontWeight:900, cursor:"pointer", padding:isSmallCard?"3px 7px":"4px 9px", fontFamily:"inherit", lineHeight:1 }}>+</button>
-                </div>
+                <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); setOwnedQty&&setOwnedQty(c.id,(ownedQty||1)+1); onCardActivity&&onCardActivity(); }}
+                  title={`Owned${(ownedQty||1)>1?` ×${ownedQty}`:""} — tap to add another copy`}
+                  style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
+                    width:isSmallCard?22:26, height:isSmallCard?22:26, borderRadius:"50%",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    background:"rgba(74,222,128,0.95)", color:"#062b13", border:"none",
+                    fontSize:isSmallCard?10:11, fontWeight:900, fontFamily:"inherit",
+                    boxShadow:"0 2px 6px rgba(0,0,0,0.5)", lineHeight:1 }}>
+                  {(ownedQty||1)>1?ownedQty:"✓"}
+                </button>
               ) : (
                 <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
                   title="Add to your collection"
-                  style={{ position:"absolute", bottom:7, left:7, zIndex:6, cursor:"pointer",
-                    display:"flex", alignItems:"center", gap:4,
-                    background:"rgba(0,0,0,0.72)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.5)",
-                    borderRadius:20, padding:isSmallCard?"4px 8px":"5px 11px",
-                    fontSize:isSmallCard?10:12, fontWeight:900, fontFamily:"inherit",
-                    backdropFilter:"blur(4px)", WebkitBackdropFilter:"blur(4px)",
-                    boxShadow:"0 2px 8px rgba(0,0,0,0.5)" }}>
-                  + Add
+                  style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
+                    width:isSmallCard?22:26, height:isSmallCard?22:26, borderRadius:"50%",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    background:"rgba(0,0,0,0.6)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.6)",
+                    fontSize:isSmallCard?14:16, fontWeight:700, fontFamily:"inherit",
+                    backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
+                    boxShadow:"0 2px 6px rgba(0,0,0,0.5)", lineHeight:1 }}>
+                  +
                 </button>
               )
             )}
@@ -20429,7 +20437,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                   {haveList.sort((a,b)=>(owned[b.id]||0)-(owned[a.id]||0)).map(c=>{
-                    const wc2 = WEAPON_COLORS[c.weapon]||"#444";
+                    const wc2 = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     return (
                       <div key={c.id} style={{ background:"#0a1a0a", border:"1px solid #4ade8022", borderRadius:8, padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <div>
@@ -20703,7 +20711,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       {Object.keys(owned).length === 0 ? "No owned cards -- mark cards as owned in the Checklist first" : "No cards match your filters"}
                     </div>
                   ) : available.map((c,i) => {
-                    const wc = WEAPON_COLORS[c.weapon]||"#444";
+                    const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     const full = inDeck.length >= DECK_SIZE;
                     return (
                       (() => {
@@ -20894,7 +20902,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       return Array.from({ length: DECK_SIZE }).map((_,i) => {
                         const c = sorted[i];
                       if (c) {
-                        const wc = WEAPON_COLORS[c.weapon]||"#444";
+                        const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                         return (
                           <div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`}
                             onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))}
@@ -21043,7 +21051,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     </div>
                   ) : available.map((c,i) => {
                     const isOwned = ownedSet.has(c.id);
-                    const wc = WEAPON_COLORS[c.weapon]||"#444";
+                    const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     return (
                       <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px" }}>
@@ -21149,7 +21157,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         </div>
                         {pbResolved.filter(e=>e.type==="play").map((e,i) => {
                           const c = e.card;
-                          const wc = WEAPON_COLORS[c.weapon]||"#444";
+                          const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                           return (
                             <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}>
                               <div style={{ fontSize:12, color:"#333", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>
@@ -21902,7 +21910,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           <div>
                             <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[c.weapon]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
                               {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
                             </div>
                           </div>
@@ -22113,7 +22121,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                       <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:12}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,maxHeight:500,overflowY:"auto"}}>
                         {friendCards.map(c=>{
-                          const wc=WEAPON_COLORS[c.weapon]||"#444";
+                          const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                           return (
                             <div key={c.id} style={{background:"rgba(0,0,0,0.4)",border:`1px solid ${wc}22`,borderRadius:12,padding:10,backdropFilter:"blur(4px)"}}>
                               {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,marginBottom:6}}/>}
@@ -22198,7 +22206,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {pbAvail.map((c)=>{
-                    const wc=WEAPON_COLORS[c.weapon]||"#A855F7",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                    const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#A855F7",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
                     const playable=isPlay(c), bonus=isBonus(c);
                     const blocked=(playable&&(playFull||wouldExceed))||(bonus&&wouldExceed);
                     const addIt=()=>{ if(blocked)return; if(playable)setPbCards(p=>[...p,{id:c.id,type:"play"}]); else if(bonus)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); };
@@ -22324,7 +22332,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
 }
 
 function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, computeDeckProgress }) {
-  const weapons    = [...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort();
+  const weapons    = [...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))].sort();
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
@@ -22408,7 +22416,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
-                const weapons = Array.from(new Set(cards.map(c=>c.weapon).filter(Boolean))).sort();
+                const weapons = Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))).sort();
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
@@ -22551,7 +22559,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
-                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[c.weapon]||"#444",isOwned=owned&&owned[c.id];
+                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
                     return (
                       <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:`Add ${c.hero}`}
                         style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"#111",transition:"transform 0.15s ease, border-color 0.15s ease"}}
@@ -22688,7 +22696,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:12}}>
                 {Array.from({length:DECK_SIZE}).map((_,i)=>{
                   const c=inDeck[i];
-                  if(c){const wc=WEAPON_COLORS[c.weapon]||"#444";return(<div key={i} title={`${c.hero} ${c.power} — click to remove`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{position:"relative",aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"#111"}} onMouseEnter={ev=>{ev.currentTarget.style.borderColor=wc;const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="1";}} onMouseLeave={ev=>{ev.currentTarget.style.borderColor=wc+"33";const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="0";}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}<div className="deck-rm" style={{position:"absolute",inset:0,background:"rgba(232,49,122,0.6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:18,fontWeight:900,opacity:0,transition:"opacity 0.15s"}}>×</div></div>);}
+                  if(c){const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return(<div key={i} title={`${c.hero} ${c.power} — click to remove`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{position:"relative",aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"#111"}} onMouseEnter={ev=>{ev.currentTarget.style.borderColor=wc;const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="1";}} onMouseLeave={ev=>{ev.currentTarget.style.borderColor=wc+"33";const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="0";}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}<div className="deck-rm" style={{position:"absolute",inset:0,background:"rgba(232,49,122,0.6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:18,fontWeight:900,opacity:0,transition:"opacity 0.15s"}}>×</div></div>);}
                   return <div key={i} style={{aspectRatio:"3/4",borderRadius:4,border:"1px dashed rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.01)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"rgba(255,255,255,0.1)",fontWeight:700}}>{i+1}</span></div>;
                 })}
               </div>
@@ -22954,7 +22962,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
               </div>
             )}
             {photoScan?.status==="matched"&&photoScan.card&&(()=>{
-              const c=photoScan.card,wc=WEAPON_COLORS[c.weapon]||"#888";
+              const c=photoScan.card,wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#888";
               return (
                 <div style={{background:`linear-gradient(135deg,rgba(10,26,10,0.8),rgba(0,0,0,0.8))`,border:`1.5px solid rgba(74,222,128,0.3)`,borderRadius:20,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
                   <div style={{display:"flex",gap:14,marginBottom:16}}>
@@ -23013,7 +23021,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,marginBottom:16}}>
                   {photoScan.candidates.map(c=>{
-                    const wc=WEAPON_COLORS[c.weapon]||"#888";
+                    const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#888";
                     return (
                       <button key={c.id} onClick={()=>{ setPhotoScan({status:"matched",card:c,detected:photoScan.detected,scanPhoto:photoScan.scanPhoto}); setScanQty(1); }}
                         style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${wc}55`,borderRadius:12,overflow:"hidden",cursor:"pointer",padding:0,fontFamily:"inherit",textAlign:"left",transition:"transform 0.15s,border-color 0.15s"}}
@@ -23077,7 +23085,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
 function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, listings}) {
   if (!compCard) return null;
   const c = compCard;
-  const wc = WEAPON_COLORS[c.weapon]||"#444";
+  const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
   const exactSales = marketSales.filter(s=>s.cardId===c.id);
   const nearSales = marketSales.filter(s=>s.cardId!==c.id&&(
   (s.cardName===c.hero&&s.cardTreatment===c.treatment)||
@@ -26398,7 +26406,7 @@ function PublicCardDatabase() {
 
   const filtered = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
-    if(filterWeapon && c.weapon!==filterWeapon)  return false;
+    if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     if(filterOwned==="missing" &&  owned[c.id])  return false;
@@ -26455,7 +26463,7 @@ function PublicCardDatabase() {
   }
   const deckAvail=cards.filter(c=>{
     if(deckSet.has(c.id))return false;
-    if(deckFilterW&&c.weapon!==deckFilterW)return false;
+    if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
     if(deckFilterS&&c.setName!==deckFilterS)return false;
     if(deckFilterT&&c.treatment!==deckFilterT)return false;
@@ -26473,7 +26481,7 @@ function PublicCardDatabase() {
     const ownedCards = cards.filter(c => {
       if(!owned[c.id] && !owned[c.id+"::foil"]) return false;
       if(isPlayCard(c)) return false;
-      if(weaponFilter && c.weapon !== weaponFilter) return false;
+      if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
       if(specCap && (parseFloat(c.power||0) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
@@ -26667,7 +26675,7 @@ function PublicCardDatabase() {
         const stepX = n>1 ? spanPx/(n-1) : 0;
         const cardImg = (c,big)=> c.imageUrl
           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:10,textAlign:"center"}}><div style={{fontSize:big?15:13,fontWeight:800,color:PUBLIC_WEAPON_COLORS[c.weapon]||"#888"}}>{c.hero}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{c.treatment}</div><div style={{fontSize:18,fontWeight:900,color:PUBLIC_WEAPON_COLORS[c.weapon]||"#888",marginTop:8}}>{c.power}</div></div>;
+          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:10,textAlign:"center"}}><div style={{fontSize:big?15:13,fontWeight:800,color:PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#888"}}>{c.hero}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{c.treatment}</div><div style={{fontSize:18,fontWeight:900,color:PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#888",marginTop:8}}>{c.power}</div></div>;
         return (
           <div style={{position:"fixed",inset:0,zIndex:11200,background:"radial-gradient(ellipse at center, rgba(20,8,18,0.98), rgba(0,0,0,0.99))",backdropFilter:"blur(14px)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {/* Header */}
@@ -26688,7 +26696,7 @@ function PublicCardDatabase() {
             {fanMode==="grid" ? (
               <div style={{flex:1,minHeight:0,overflowY:"auto",padding:"8px 24px 32px"}}>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:16,maxWidth:1400,margin:"0 auto"}}>
-                  {cards.map((c,i)=>{const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";return(
+                  {cards.map((c,i)=>{const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return(
                     <div key={i} style={{aspectRatio:"3/4",borderRadius:12,overflow:"hidden",border:`2px solid ${wc}55`,background:"#111",boxShadow:"0 8px 24px rgba(0,0,0,0.5)",transition:"transform 0.15s",cursor:"default"}}
                       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-6px) scale(1.03)";e.currentTarget.style.borderColor=wc;}}
                       onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.borderColor=wc+"55";}}>
@@ -26702,7 +26710,7 @@ function PublicCardDatabase() {
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginBottom:10}}>← swipe through your hand →</div>
                 <div className="fan-scroll" style={{display:"flex",overflowX:"auto",overflowY:"hidden",width:"100%",padding:"40px 50vw 40px 8vw",WebkitOverflowScrolling:"touch",scrollSnapType:"x proximity"}}>
                   {cards.map((c,i)=>{
-                    const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                    const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     return (
                       <div key={i} onClick={e=>{e.stopPropagation();const el=e.currentTarget;const lifted=el.getAttribute("data-lift")==="1";document.querySelectorAll(".fan-mcard").forEach(x=>{x.style.transform="";x.style.zIndex="";x.setAttribute("data-lift","0");});if(!lifted){el.style.transform="translateY(-34px) scale(1.12)";el.style.zIndex="999";el.setAttribute("data-lift","1");}}}
                         className="fan-mcard" data-lift="0"
@@ -26721,7 +26729,7 @@ function PublicCardDatabase() {
                     const angle=(i-mid)*stepAng;
                     const x=(i-mid)*stepX;
                     const yArc=Math.pow(Math.abs(i-mid),2)*0.35; // gentle arc, edges dip slightly
-                    const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#444";
+                    const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     return (
                       <div key={i} className="fan-card" onClick={e=>e.stopPropagation()}
                         onMouseEnter={e=>{e.currentTarget.style.transform=`translate(-50%,-50%) translateX(${x}px) translateY(${yArc-70}px) rotate(0deg) scale(1.15)`;e.currentTarget.style.zIndex="999";}}
@@ -26885,7 +26893,7 @@ function PublicCardDatabase() {
       )}
       {expandedCard && (()=>{
         const c = expandedCard;
-        const wc = WEAPON_COLORS[c.weapon] || "#E8317A";
+        const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#E8317A";
         const bio = getPlayerNote(c.hero);
         const ath = c.inspiredBy || c.athlete;
         const sport = ath ? athleteSport(ath) : null;
@@ -27492,8 +27500,8 @@ function PublicCardDatabase() {
                       </button>
                       {adminMenuOpen && (
                         <>
-                          <div onClick={()=>setAdminMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
-                          <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:999,background:"#15101a",border:"1px solid rgba(232,49,122,0.3)",borderRadius:14,padding:8,minWidth:220,boxShadow:"0 16px 50px rgba(0,0,0,0.7)"}}>
+                          <div onClick={()=>setAdminMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:2147483600}}/>
+                          <div style={{position:"fixed",top:isMobile?96:120,right:isMobile?12:24,zIndex:2147483601,background:"#15101a",border:"1px solid rgba(232,49,122,0.3)",borderRadius:14,padding:8,minWidth:220,boxShadow:"0 16px 50px rgba(0,0,0,0.7)"}}>
                             <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 8px"}}>Admin Tools</div>
                             <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#E8317A",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               🖼 Import Image Folder
@@ -27503,6 +27511,7 @@ function PublicCardDatabase() {
                               📄 Import Image Files
                               <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
                             </label>
+                            <button onClick={async()=>{ setAdminMenuOpen(false); if(!window.confirm("Permanently fix weapon casing in the database? (ALT→Alt, FIRE→Fire, etc.) This rewrites affected card records.")) return; try{ setToast("Scanning for weapon casing dupes…"); const snap=await getDocs(collection(db,"boba_checklist")); let fixed=0; let batch=writeBatch(db); let inBatch=0; for(const d of snap.docs){ const w=d.data().weapon; if(!w) continue; const cw=canonWeapon(w); if(cw!==w){ batch.update(doc(db,"boba_checklist",d.id),{weapon:cw}); fixed++; inBatch++; if(inBatch>=400){ await batch.commit(); batch=writeBatch(db); inBatch=0; } } } if(inBatch>0) await batch.commit(); setToast(`✅ Fixed ${fixed} cards. Click 🔄 Refresh to reload.`); }catch(e){ alert("Failed: "+e.message); } }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔧 Fix Weapon Casing</button>
                             <button onClick={()=>{ setResetConfirmText(""); setResetModal(true); setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🧹 Reset Marketplace</button>
                             {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                               <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#71717a",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>⬇ Export cards-data.json</button>
@@ -28441,7 +28450,7 @@ function PublicCardDatabase() {
                   </thead>
                   <tbody>
                     {visibleCards.map(c=>{
-                      const wc = WEAPON_COLORS[c.weapon] || "#888";
+                      const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#888";
                       return (
                         <tr key={c.id} onClick={()=>setExpandedCard(c)} style={{borderTop:"1px solid rgba(255,255,255,0.05)",cursor:"pointer"}}
                           onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -29460,7 +29469,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
               </div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {previewCards.map(c=>{
-                  const wc = WEAPON_COLORS[c.weapon]||"#888";
+                  const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#888";
                   const label = [c.hero, c.weapon, c.treatment, c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
                   return (
                     <div key={c.id} style={{ display:"flex", alignItems:"center", gap:5, background:"#111", border:`1px solid ${wc}22`, borderRadius:6, padding:"4px 10px" }}>
@@ -29908,7 +29917,7 @@ function PublicSellPage() {
                       <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#111", border:"1px solid #2a2a2a", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:260, overflowY:"auto" }}>
                         <div style={{ padding:"4px 10px", fontSize:10, color:"#555", borderBottom:"1px solid #1a1a1a" }}>{hits.length} match{hits.length!==1?"es":""}</div>
                         {hits.map(c=>{
-                          const wc=PUBLIC_WEAPON_COLORS[c.weapon]||"#888";
+                          const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#888";
                           const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");
                           return (
                             <div key={c.id} onMouseDown={()=>{ updRow(r.id,"name",label); setAcOpen(null); }}
