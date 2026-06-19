@@ -133,6 +133,16 @@ function canonWeapon(w) {
   const k = String(w).trim().toLowerCase();
   return WEAPON_CANON[k] || (String(w).trim().charAt(0).toUpperCase() + String(w).trim().slice(1).toLowerCase());
 }
+// Preferred display order for weapon dropdowns
+const WEAPON_ORDER = ["Brawl","Steel","Fire","Ice","Glow","Hex","Gum","Super","Alt","Cyber","Medal","Metallic"];
+function sortWeapons(list) {
+  return [...list].sort((a,b) => {
+    const ia = WEAPON_ORDER.indexOf(a), ib = WEAPON_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1; if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
 
 // ── Gzip helpers for the card snapshot (cuts ~13MB → ~1.5MB on first load) ──
 function _loadPako() {
@@ -14439,7 +14449,7 @@ function PublicDeckBuilder() {
     return { ok:true };
   }
 
-  const weapons = [...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))].sort();
+  const weapons = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const heroes  = [...new Set(cards.map(c=>c.hero).filter(Boolean))].sort();
   const powers  = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a));
 
@@ -22332,7 +22342,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
 }
 
 function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, computeDeckProgress }) {
-  const weapons    = [...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))].sort();
+  const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
@@ -22416,7 +22426,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
-                const weapons = Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))).sort();
+                const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
@@ -24797,10 +24807,24 @@ function PublicCardDatabase() {
   // -- Load cards (instant, hang-proof: IndexedDB cache → gzip → plain file → Firestore) --
   useEffect(() => {
     const CACHE_TTL = 30 * 60 * 1000;
-    // wrap any promise so it can never hang the load forever
     const withTimeout = (p, ms) => Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
+    let cancelled = false;
+    let attempt = 0;
+    let gotCards = false;
+
+    const runLoad = () => {
     let done = false;
-    const finish = (all) => { if (done) return; done = true; if (all && all.length) setCards(all); setLoading(false); };
+    const finish = (all) => {
+      if (done) return; done = true;
+      if (all && all.length) { gotCards = true; setCards(all); }
+      // Only stop the spinner if we actually have cards, OR we've exhausted retries.
+      if (gotCards || attempt >= 3) setLoading(false);
+      // If we ended with NO cards and still have retries, try again (mobile slow-network recovery).
+      if (!gotCards && attempt < 3 && !cancelled) {
+        attempt++;
+        setTimeout(() => { if (!cancelled) runLoad(); }, 1200 * attempt);
+      }
+    };
 
     // Absolute safety net: if nothing resolves in 12s, try the plain file, then give up gracefully.
     const hardStop = setTimeout(async () => {
@@ -24815,12 +24839,32 @@ function PublicCardDatabase() {
     }, 12000);
 
     (async () => {
+      // 0. COLD-LOAD FAST PATH: a never-visited user has no IndexedDB cache. Try the static
+      // /cards-data.json bundled with the site FIRST — it's served instantly from the CDN with
+      // no Firebase round-trip — show it immediately, then refresh from the live snapshot below.
+      let shownFromStatic = false;
+      try {
+        const cachedPeek = await withTimeout(idbGetCards(), 1500).catch(()=>null);
+        const haveIdb = cachedPeek && Array.isArray(cachedPeek.cards) && cachedPeek.cards.length>0;
+        if (!haveIdb) {
+          const rs = await withTimeout(fetch("/cards-data.json"), 4000);
+          if (rs.ok) {
+            const all = await rs.json();
+            if (Array.isArray(all) && all.length>0) {
+              setCards(all); setLoading(false);
+              shownFromStatic = true;
+              idbSetCards(all, Date.now()); // seed the cache so next load is instant too
+            }
+          }
+        }
+      } catch(e) {}
+
       // 1. Instant cache from IndexedDB (timeout-guarded so a blocked DB can't hang us).
-      let cacheTs = 0, cacheHasCards = false;
+      let cacheTs = 0, cacheHasCards = shownFromStatic;
       try {
         const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
-          setCards(cached.cards); setLoading(false); // show immediately, keep verifying below
+          if (!shownFromStatic) { setCards(cached.cards); setLoading(false); }
           cacheHasCards = true; cacheTs = cached.ts || 0;
         }
       } catch(e) {}
@@ -24869,7 +24913,11 @@ function PublicCardDatabase() {
       } catch(e) {}
       clearTimeout(hardStop); finish(cacheHasCards ? null : []); // ensure spinner stops
     })();
-    return () => clearTimeout(hardStop);
+    return hardStop;
+    }; // end runLoad
+
+    const ht = runLoad();
+    return () => { cancelled = true; clearTimeout(ht); };
   }, []);
   // (legacy load effect retained but never runs)
   useEffect(() => {
