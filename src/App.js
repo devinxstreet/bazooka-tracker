@@ -15417,18 +15417,32 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {isOwned && <div style={{ position:"absolute", top:6, right:8, fontSize:16 }}>{"\u2705"}</div>}
             {toggleOwned && (
-              <div className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
-                style={{ position:"absolute", left:0, right:0, bottom:0, padding:isSmallCard?"6px":"9px",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:6, cursor:"pointer",
-                  background: isOwned ? "linear-gradient(transparent, rgba(74,222,128,0.32))" : "linear-gradient(transparent, rgba(0,0,0,0.55))",
-                  backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
-                  borderBottomLeftRadius:8, borderBottomRightRadius:8,
-                  opacity:0, transition:"opacity 0.18s ease", zIndex:5 }}>
-                <span style={{ fontSize:isSmallCard?11:13, fontWeight:800, color:"#fff",
-                  display:"flex", alignItems:"center", gap:5, textShadow:"0 1px 4px rgba(0,0,0,0.8)" }}>
-                  {isOwned ? "\u2705 In Collection" : "\u2795 Add to Collection"}
-                </span>
-              </div>
+              isOwned ? (
+                <div className="boba-quickadd" onClick={e=>e.stopPropagation()}
+                  style={{ position:"absolute", bottom:7, left:7, zIndex:6, display:"flex", alignItems:"center", gap:0,
+                    background:"rgba(74,222,128,0.92)", borderRadius:20, overflow:"hidden",
+                    boxShadow:"0 2px 8px rgba(0,0,0,0.5)", fontFamily:"inherit" }}>
+                  <button onClick={e=>{ e.stopPropagation(); const q=(ownedQty||1)-1; if(q<=0){ toggleOwned(c.id); } else { setOwnedQty&&setOwnedQty(c.id,q); } onCardActivity&&onCardActivity(); }}
+                    title={ownedQty>1?"Remove one":"Remove from collection"}
+                    style={{ background:"transparent", border:"none", color:"#062b13", fontSize:isSmallCard?13:15, fontWeight:900, cursor:"pointer", padding:isSmallCard?"3px 7px":"4px 9px", fontFamily:"inherit", lineHeight:1 }}>−</button>
+                  <span style={{ color:"#062b13", fontSize:isSmallCard?10:12, fontWeight:900, padding:"0 2px", minWidth:isSmallCard?24:30, textAlign:"center" }}>✓{(ownedQty||1)>1?` ×${ownedQty}`:""}</span>
+                  <button onClick={e=>{ e.stopPropagation(); setOwnedQty&&setOwnedQty(c.id,(ownedQty||1)+1); onCardActivity&&onCardActivity(); }}
+                    title="Add another copy"
+                    style={{ background:"transparent", border:"none", color:"#062b13", fontSize:isSmallCard?13:15, fontWeight:900, cursor:"pointer", padding:isSmallCard?"3px 7px":"4px 9px", fontFamily:"inherit", lineHeight:1 }}>+</button>
+                </div>
+              ) : (
+                <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
+                  title="Add to your collection"
+                  style={{ position:"absolute", bottom:7, left:7, zIndex:6, cursor:"pointer",
+                    display:"flex", alignItems:"center", gap:4,
+                    background:"rgba(0,0,0,0.72)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.5)",
+                    borderRadius:20, padding:isSmallCard?"4px 8px":"5px 11px",
+                    fontSize:isSmallCard?10:12, fontWeight:900, fontFamily:"inherit",
+                    backdropFilter:"blur(4px)", WebkitBackdropFilter:"blur(4px)",
+                    boxShadow:"0 2px 8px rgba(0,0,0,0.5)" }}>
+                  + Add
+                </button>
+              )
             )}
           </div>
           <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"#111111", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
@@ -24348,6 +24362,9 @@ function PublicCardDatabase() {
   const [animsOn,       setAnimsOn]       = useState(savedUI.animsOn ?? true); // card add/entrance animations
   const [listening,     setListening]     = useState(false);
   const [tourStep,      setTourStep]      = useState(-1); // -1 = not running
+  const [superRecord,   setSuperRecord]   = useState(null); // admin: manually record a super/1of1 hit {card,type}
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [superRecordName, setSuperRecordName] = useState("");
   const recognitionRef = useRef(null);
   // Snap a spoken/typed phrase to the closest real hero name (speech often mangles stylized names).
   function fuzzyHeroMatch(said) {
@@ -24383,27 +24400,30 @@ function PublicCardDatabase() {
   }
 
   function startVoiceSearch() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setToast("Voice search isn't supported in this browser — try Chrome"); return; }
+    let SR = null;
+    try { SR = window.SpeechRecognition || window.webkitSpeechRecognition; } catch(e) {}
+    if (!SR) { showToast("Voice search isn't supported here — try Chrome"); return; }
     try {
-      if (listening && recognitionRef.current) { recognitionRef.current.stop(); return; }
+      if (listening && recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e){} setListening(false); return; }
       const rec = new SR();
       rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
-      rec.onstart = () => setListening(true);
-      rec.onerror = () => { setListening(false); };
-      rec.onend = () => setListening(false);
+      rec.onstart = () => { try { setListening(true); } catch(e){} };
+      rec.onerror = () => { try { setListening(false); } catch(e){} };
+      rec.onend = () => { try { setListening(false); } catch(e){} };
       rec.onresult = (e) => {
-        const said = e.results?.[0]?.[0]?.transcript || "";
-        const clean = said.replace(/[.,!?]+$/,"").trim();
-        if (clean) {
-          const hero = fuzzyHeroMatch(clean);
+        try {
+          const said = e?.results?.[0]?.[0]?.transcript || "";
+          const clean = said.replace(/[.,!?]+$/,"").trim();
+          if (!clean) return;
+          let hero = null;
+          try { hero = fuzzyHeroMatch(clean); } catch(err) { hero = null; }
           if (hero && hero.toLowerCase() !== clean.toLowerCase()) {
             setSearch(hero); setPage(1);
-            setToast(`🎤 Heard "${clean}" → ${hero}`);
+            showToast(`🎤 Heard "${clean}" → ${hero}`);
           } else {
             setSearch(hero || clean); setPage(1);
           }
-        }
+        } catch(err) { /* never let a voice result crash the app */ }
       };
       recognitionRef.current = rec;
       rec.start();
@@ -26647,6 +26667,23 @@ function PublicCardDatabase() {
           </div>
         </div>
       )}
+      {superRecord && (
+        <div onClick={()=>setSuperRecord(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:14700, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"#111", border:"2px solid #F59E0B", borderRadius:20, padding:28, maxWidth:420, width:"100%" }}>
+            <div style={{ fontSize:18, fontWeight:900, color:"#F59E0B", marginBottom:4 }}>🎯 Record Super Hit</div>
+            <div style={{ fontSize:13, color:"#888", marginBottom:18 }}>{superRecord.card.hero} #{superRecord.card.cardNum} · {superRecord.card.setName}</div>
+            <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>Recording as admin — goes straight into the tracker as verified. Does NOT add the card to your collection.</div>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
+            <input autoFocus value={superRecordName} onChange={e=>setSuperRecordName(e.target.value)} placeholder="e.g. @collector_mike"
+              style={{ width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={async()=>{ if(!superRecordName.trim())return; const c=superRecord.card; try{ await setDoc(doc(db,"super_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", cardImage:c.imageUrl||null, userId:null, userName:superRecordName.trim(), submitterName:superRecordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setSuperRecord(null); setSuperRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
+                disabled={!superRecordName.trim()} style={{ flex:1, background:superRecordName.trim()?"linear-gradient(135deg,#F59E0B,#FBBF24)":"#1a1a1a", color:superRecordName.trim()?"#000":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:superRecordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
+              <button onClick={()=>{ setSuperRecord(null); setSuperRecordName(""); }} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       {tourStep >= 0 && (() => {
         const steps = [
           { icon:"🃏", title:"Welcome to the Vault", body:"This is the home base for every BoBA card. Let's take 30 seconds to show you around — tap Next to go through it." },
@@ -27340,27 +27377,31 @@ function PublicCardDatabase() {
                     style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\uD83D\uDD17" : "\uD83D\uDD17 Share"}</button>
                   {_cardAdmin && (
-                    <label title="Bulk-import card images — pick a whole folder. Admin only." style={{background:"linear-gradient(135deg,rgba(123,47,247,0.2),rgba(232,49,122,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {isMobile ? "\uD83D\uDDBC" : "\uD83D\uDDBC Import Folder"}
-                      <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ setBulkImg({files:f, setName:filterSet||""}); } e.target.value=""; }}/>
-                    </label>
-                  )}
-                  {_cardAdmin && (
-                    <label title="Or pick individual image files" style={{background:"rgba(123,47,247,0.12)",color:"#b794f6",border:"1px solid rgba(123,47,247,0.3)",borderRadius:12,padding:isMobile?"9px 12px":"8px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {isMobile ? "\uD83D\uDCC4" : "\uD83D\uDCC4 Files"}
-                      <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); } e.target.value=""; }}/>
-                    </label>
-                  )}
-                  {_cardAdmin && (
-                    <button onClick={()=>{ setResetConfirmText(""); setResetModal(true); }} title="Pre-launch: wipe all marketplace listings, offers, sales & messages. Does NOT touch collections." style={{background:"transparent",color:"#71717a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 12px":"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {isMobile ? "\uD83E\uDDF9" : "\uD83E\uDDF9 Reset Market"}
-                    </button>
-                  )}
-                  {!isMobile && (user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
-                    <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} }}
-                      title="Download cards-data.json — put this in your repo's public/ folder for instant loads"
-                      style={{background:"transparent",color:"rgba(255,255,255,0.4)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                      {"\u2B07 cards-data.json"}</button>
+                    <div style={{position:"relative"}}>
+                      <button onClick={()=>setAdminMenuOpen(v=>!v)} title="Admin tools" style={{background:adminMenuOpen?"rgba(232,49,122,0.2)":"rgba(232,49,122,0.1)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 13px":"8px 15px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+                        {isMobile ? "⚙️" : "⚙️ Admin"} <span style={{fontSize:9,opacity:0.7}}>{adminMenuOpen?"▲":"▼"}</span>
+                      </button>
+                      {adminMenuOpen && (
+                        <>
+                          <div onClick={()=>setAdminMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
+                          <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:999,background:"#15101a",border:"1px solid rgba(232,49,122,0.3)",borderRadius:14,padding:8,minWidth:220,boxShadow:"0 16px 50px rgba(0,0,0,0.7)"}}>
+                            <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 8px"}}>Admin Tools</div>
+                            <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#E8317A",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                              🖼 Import Image Folder
+                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ setBulkImg({files:f, setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
+                            </label>
+                            <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#b794f6",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                              📄 Import Image Files
+                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
+                            </label>
+                            <button onClick={()=>{ setResetConfirmText(""); setResetModal(true); setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🧹 Reset Marketplace</button>
+                            {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
+                              <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#71717a",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>⬇ Export cards-data.json</button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                   {!isMobile && <button onClick={()=>signOut(auth)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:10,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Sign out</button>}
                 </>
@@ -28113,6 +28154,12 @@ function PublicCardDatabase() {
                                 <button onClick={()=>setSigningIn(true)}
                                   style={{width:"100%",background:"rgba(245,158,11,0.1)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8,padding:"6px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                                   Sign in to claim
+                                </button>
+                              )}
+                              {isAdminUser && !isVerified && (
+                                <button onClick={()=>{ setSuperRecord({card:c,type:"super"}); setSuperRecordName(""); }}
+                                  style={{width:"100%",marginTop:6,background:"rgba(245,158,11,0.12)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.4)",borderRadius:8,padding:"6px 0",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                                  🎯 {isPending?"Verify / Record":"Record Hit (Admin)"}
                                 </button>
                               )}
                               {isAdminUser && claim && (
