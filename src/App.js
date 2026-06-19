@@ -22329,6 +22329,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
+  const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
@@ -22410,11 +22411,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 const weapons = Array.from(new Set(cards.map(c=>c.weapon).filter(Boolean))).sort();
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
+                const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
-                      <div style={{fontSize:13,fontWeight:900,color:done?"#4ade80":"#fff",display:"flex",alignItems:"center",gap:7}}>
+                      <div style={{fontSize:13,fontWeight:900,color:done?"#4ade80":"#fff",display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
                         {done ? "✅ You can build a complete" : "🎯 Progress to a complete"} {goalLabel?`${goalLabel} `:""}deck
+                        {dtLabel && <span style={{fontSize:10,fontWeight:800,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 7px"}}>{dtLabel}</span>}
                       </div>
                       <div style={{fontSize:13,fontWeight:900,color:done?"#4ade80":"#E8317A"}}>{deckProgress.have} / {deckProgress.need}</div>
                     </div>
@@ -22428,6 +22431,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#777",fontWeight:700}}>Goal:</span>
+                      <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
+                        <option value="none">No restrictions</option>
+                        <option value="spec">Spec (≤160)</option>
+                        <option value="apex">Apex</option>
+                        <option value="apexmadness">Apex Madness</option>
+                      </select>
                       <select value={deckGoalW} onChange={e=>setDeckGoalW(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
                         <option value="">Any weapon</option>
                         {weapons.map(w=><option key={w} value={w}>{w} only</option>)}
@@ -22438,6 +22447,35 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       </select>
                       {(deckGoalW||deckGoalT) && <button onClick={()=>{setDeckGoalW("");setDeckGoalT("");}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                     </div>
+                    {deckProgress.have>0 && (
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                        <button onClick={()=>setProgressExpanded(v=>!v)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",color:"#ccc",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                          {progressExpanded?"▲ Hide":"▼ Show"} the {deckProgress.have} card{deckProgress.have!==1?"s":""}
+                        </button>
+                        <button onClick={()=>{
+                          const ids=(deckProgress.cards||[]).map(c=>c.id);
+                          setDeckCards(ids);
+                          const nm=[deckGoalW,deckGoalT].filter(Boolean).join(" ");
+                          setDeckName(nm?`My ${nm} Deck`:(done?"My Complete Deck":"My Deck"));
+                          if(typeof window!=="undefined") window.scrollTo({top:0,behavior:"smooth"});
+                        }} style={{background:done?"linear-gradient(135deg,#4ade80,#22c55e)":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:done?"#062b13":"#fff",borderRadius:8,padding:"7px 15px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                          ⚡ {done?"Build this deck":`Build with these ${deckProgress.have}`}
+                        </button>
+                        <span style={{fontSize:10.5,color:"#666"}}>loads them into My Deck → name it → Save</span>
+                      </div>
+                    )}
+                    {progressExpanded && deckProgress.cards && (
+                      <div style={{marginTop:12,maxHeight:280,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(78px,1fr))",gap:6,padding:"4px 2px"}}>
+                        {deckProgress.cards.map(c=>(
+                          <div key={c.id} title={`${c.hero} · ${c.power} · ${c.weapon||""} · ${c.treatment||""}`} style={{position:"relative",borderRadius:6,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)",aspectRatio:"3/4",background:"#0a0a0a"}}>
+                            {c.imageUrl
+                              ? <img src={c.imageUrl} alt={c.hero} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                              : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:3,textAlign:"center"}}><div style={{fontSize:9,fontWeight:800,color:"#aaa",lineHeight:1.1}}>{c.hero}</div></div>}
+                            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.75)",fontSize:8,fontWeight:800,color:"#fff",padding:"1px 3px",textAlign:"center"}}>{c.power}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -26427,20 +26465,21 @@ function PublicCardDatabase() {
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-  // -- "How close am I to a deck?" — from OWNED cards, with optional weapon/treatment filter --
-  function computeDeckProgress(weaponFilter, treatmentFilter) {
+  // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
+  function computeDeckProgress(weaponFilter, treatmentFilter, dtype) {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
-    // owned, eligible cards matching the chosen filters
+    const specCap = (dtype==="spec"||dtype==="vegasbaby");
+    // owned, eligible cards matching the chosen filters + deck-type power rule
     const ownedCards = cards.filter(c => {
       if(!owned[c.id] && !owned[c.id+"::foil"]) return false;
       if(isPlayCard(c)) return false;
       if(weaponFilter && c.weapon !== weaponFilter) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
+      if(specCap && (parseFloat(c.power||0) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
     });
     // dedupe (no duplicate hero|variation|power|weapon) and cap 6 per power level
     const seen = new Set(); const perPower = {}; const usable = [];
-    // higher power first so the "best" 6 at each level get counted
     ownedCards.sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
     for(const c of ownedCards){
       const k = dupKey(c);
@@ -26450,11 +26489,11 @@ function PublicCardDatabase() {
       seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
       if(usable.length >= DECK_SIZE) break;
     }
-    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length };
+    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable };
   }
   const [deckGoalW, setDeckGoalW] = useState("");
   const [deckGoalT, setDeckGoalT] = useState("");
-  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT);
+  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType);
 
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
