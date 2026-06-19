@@ -15245,6 +15245,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
+  const _canHover = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
   const qty = ownedQty || 0;
   const isWanted = !!(wantList && wantList[c.id]);
   const cardRef = useRef(null);
@@ -15366,6 +15367,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   function startAnimation() { if (animRef.current) return; animRef.current = requestAnimationFrame(animate); }
   function onMouseMove(e) {
     if (isFlipped) return;
+    if (!_canHover) return; // touch devices: no hover tilt/foil (it'd get stuck with no mouse-leave)
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = (e.clientX - rect.left) / rect.width;
@@ -15426,7 +15428,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
 
   if (c.imageUrl) {
     return (
-      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter}>
+      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
@@ -20124,14 +20126,14 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             {/* Claim modal */}
             {oneModal && (
               <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}}>
+                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}}>
                 <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
                   {oneSent ? (
                     <div style={{ textAlign:"center", padding:"20px 0" }}>
                       <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
                       <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
                       <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Your Secret 1/1 claim is pending verification. Congrats on the hit!</div>
-                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}
+                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}
                         style={{ background:"#9333EA", color:"#000", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
                     </div>
                   ) : (
@@ -20185,7 +20187,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#000":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
                           {oneSubmitting?"Submitting...":"Submit Claim"}
                         </button>
-                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); }}
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); }}
                           style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
                       </div>
                     </>
@@ -24457,6 +24459,8 @@ function PublicCardDatabase() {
   const [superRecord,   setSuperRecord]   = useState(null); // admin: manually record a super/1of1 hit {card,type}
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [superRecordName, setSuperRecordName] = useState("");
+  const [superRecordPhoto, setSuperRecordPhoto] = useState(null); // {file, preview}
+  const [superRecordUploading, setSuperRecordUploading] = useState(false);
   const [filterNoImg,   setFilterNoImg]   = useState(false); // admin: show only cards missing an image
   const [sortBy,        setSortBy]        = useState(savedUI.sortBy ?? "cardNum");
   const [page,          setPage]          = useState(savedUI.page ?? 1);
@@ -24718,6 +24722,7 @@ function PublicCardDatabase() {
   const [claimStory,      setClaimStory]      = useState("");
   const [claimName,       setClaimName]       = useState("");
   const [claimDate,       setClaimDate]       = useState("");
+  const [adminClaimMode,  setAdminClaimMode]  = useState(false); // admin recording a hit via the normal claim form
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
   const [expandedOneGroups, setExpandedOneGroups] = useState({});
   const [superSearch,     setSuperSearch]     = useState("");
@@ -26780,23 +26785,6 @@ function PublicCardDatabase() {
           </div>
         </div>
       )}
-      {superRecord && (
-        <div onClick={()=>setSuperRecord(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:14700, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:"#111", border:"2px solid #F59E0B", borderRadius:20, padding:28, maxWidth:420, width:"100%" }}>
-            <div style={{ fontSize:18, fontWeight:900, color:"#F59E0B", marginBottom:4 }}>🎯 Record Super Hit</div>
-            <div style={{ fontSize:13, color:"#888", marginBottom:18 }}>{superRecord.card.hero} #{superRecord.card.cardNum} · {superRecord.card.setName}</div>
-            <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>Recording as admin — goes straight into the tracker as verified. Does NOT add the card to your collection.</div>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
-            <input autoFocus value={superRecordName} onChange={e=>setSuperRecordName(e.target.value)} placeholder="e.g. @collector_mike"
-              style={{ width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={async()=>{ if(!superRecordName.trim())return; const c=superRecord.card; try{ await setDoc(doc(db,"super_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", cardImage:c.imageUrl||null, userId:null, userName:superRecordName.trim(), submitterName:superRecordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setSuperRecord(null); setSuperRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
-                disabled={!superRecordName.trim()} style={{ flex:1, background:superRecordName.trim()?"linear-gradient(135deg,#F59E0B,#FBBF24)":"#1a1a1a", color:superRecordName.trim()?"#000":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:superRecordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
-              <button onClick={()=>{ setSuperRecord(null); setSuperRecordName(""); }} style={{ background:"transparent", border:"1px solid #333", color:"#888", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
       {tourStep >= 0 && (() => {
         const steps = [
           { icon:"🃏", title:"Welcome to the Vault", body:"This is the home base for every BoBA card. Let's take 30 seconds to show you around — tap Next to go through it." },
@@ -27742,19 +27730,19 @@ function PublicCardDatabase() {
               {/* Claim modal */}
               {oneModal && (
                 <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-                  onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}}>
+                  onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}}>
                   <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
                     {oneSent ? (
                       <div style={{ textAlign:"center", padding:"20px 0" }}>
                         <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
                         <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
                         <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Pending admin verification. Congrats on the hit!</div>
-                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setOneSent(false); }}
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}
                           style={{ background:"#9333EA", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>💎 Claim Secret 1/1</div>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>{adminClaimMode?"🎯 Record Secret 1/1 Hit (Admin)":"💎 Claim Secret 1/1"}</div>
                         <div style={{ fontSize:13, color:"#888", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
                         <label style={{ display:"block", marginBottom:14 }}>
                           <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
@@ -27787,7 +27775,7 @@ function PublicCardDatabase() {
                               const bs=atob(onePhoto.split(",")[1]); const ab=new ArrayBuffer(bs.length); const ia=new Uint8Array(ab); for(let i=0;i<bs.length;i++)ia[i]=bs.charCodeAt(i);
                               await uploadBytes(sr,new Blob([ab],{type:"image/jpeg"}));
                               const pu=await getDownloadURL(sr);
-                              await setDoc(doc(db,"oneof1_claims",oneModal.id),{ cardId:oneModal.id, cardName:oneModal.hero, cardNum:oneModal.cardNum, setName:oneModal.setName||"", treatment:oneModal.treatment||"", photoUrl:pu, story:oneStory||"", dateHit:oneDate||"", submitterName:oneName||"Anonymous", userId:user?.uid||"anon", status:"pending", createdAt:new Date().toISOString() });
+                              await setDoc(doc(db,"oneof1_claims",oneModal.id),{ cardId:oneModal.id, cardName:oneModal.hero, cardNum:oneModal.cardNum, setName:oneModal.setName||"", treatment:oneModal.treatment||"", photoUrl:pu, story:oneStory||"", dateHit:oneDate||"", submitterName:oneName||"Anonymous", userId:user?.uid||"anon", status:adminClaimMode?"verified":"pending", ...(adminClaimMode?{recordedByAdmin:user?.displayName||user?.email||"Admin", reviewedAt:new Date().toISOString()}:{}), createdAt:new Date().toISOString() });
                               setOneSent(true);
                             } catch(e){ alert("Upload failed: "+e.message); }
                             setOneSubmitting(false);
@@ -27795,7 +27783,7 @@ function PublicCardDatabase() {
                             style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
                             {oneSubmitting?"Submitting...":"Submit Claim"}
                           </button>
-                          <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); }}
+                          <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); }}
                             style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
                         </div>
                       </>
@@ -27984,6 +27972,12 @@ function PublicCardDatabase() {
                                   💎 Claim This 1/1
                                 </button>
                               )}
+                              {isAdminUser && !isV && (
+                                <button onClick={()=>{ setAdminClaimMode(true); setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
+                                  style={{ width:"100%", marginTop:6, background:"rgba(245,158,11,0.12)", color:"#F59E0B", border:"1px solid rgba(245,158,11,0.4)", borderRadius:8, padding:"6px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                  🎯 Record Hit (Admin)
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -28027,9 +28021,10 @@ function PublicCardDatabase() {
               await setDoc(doc(db, "super_claims", card.id), {
                 cardId: card.id, cardName: card.hero, cardNum: card.cardNum,
                 setName: card.setName || "", cardImage: card.imageUrl || null,
-                userId: user.uid, userName: user.displayName || user.email,
+                userId: adminClaimMode ? null : user.uid, userName: adminClaimMode ? (claimName||"Anonymous") : (user.displayName || user.email),
                 submitterName: claimName || "Anonymous", story: claimStory || "", dateHit: claimDate || "",
-                photoUrl, status: "pending",
+                photoUrl, status: adminClaimMode ? "verified" : "pending",
+                ...(adminClaimMode ? { recordedByAdmin: user?.displayName || user?.email || "Admin", reviewedAt: new Date().toISOString() } : {}),
                 createdAt: new Date().toISOString(),
               });
               setClaimSent(true);
@@ -28052,20 +28047,20 @@ function PublicCardDatabase() {
               {/* Claim modal */}
               {claimModal && (
                 <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");} }}>
+                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);} }}>
                   <div style={{background:"#111",border:"2px solid #F59E0B",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
                     {claimSent?(
                       <div style={{textAlign:"center",padding:"20px 0"}}>
                         <div style={{fontSize:52,marginBottom:16}}>⭐</div>
                         <div style={{fontSize:20,fontWeight:900,color:"#F59E0B",marginBottom:8}}>Claim Submitted!</div>
                         <div style={{fontSize:13,color:"#888",marginBottom:24}}>Your Super Foil claim is pending admin verification. You'll be notified once reviewed.</div>
-                        <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");}} style={{background:"#F59E0B",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                        <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);}} style={{background:"#F59E0B",color:"#000",border:"none",borderRadius:12,padding:"12px 32px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
                       </div>
                     ):(
                       <>
-                        <div style={{fontSize:18,fontWeight:900,color:"#F59E0B",marginBottom:4}}>⭐ Claim Super Foil</div>
+                        <div style={{fontSize:18,fontWeight:900,color:"#F59E0B",marginBottom:4}}>{adminClaimMode?"🎯 Record Super Hit (Admin)":"⭐ Claim Super Foil"}</div>
                         <div style={{fontSize:13,color:"#888",marginBottom:16}}>{claimModal.hero} #{claimModal.cardNum} · {claimModal.setName}</div>
-                        <div style={{fontSize:12,color:"#555",marginBottom:16,lineHeight:1.6}}>Super Foils are 1/1 cards. Upload a clear photo as proof — an admin will verify before it counts on the tracker.</div>
+                        <div style={{fontSize:12,color:"#555",marginBottom:16,lineHeight:1.6}}>{adminClaimMode?"Recording on behalf of the puller — this goes straight in as verified. Photo required.":"Super Foils are 1/1 cards. Upload a clear photo as proof — an admin will verify before it counts on the tracker."}</div>
                         <label style={{display:"block",marginBottom:16}}>
                           <div style={{background:claimPhoto?"#0a1a0a":"#0a0a0a",border:`2px dashed ${claimPhoto?"#F59E0B":"#2a2a2a"}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}}>
                             {claimPhoto?(
@@ -28101,7 +28096,7 @@ function PublicCardDatabase() {
                             style={{flex:1,background:claimPhoto?"#F59E0B":"#1a1a1a",color:claimPhoto?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:claimPhoto?"pointer":"not-allowed",fontFamily:"inherit"}}>
                             {claimSubmitting?"Submitting...":"Submit Claim"}
                           </button>
-                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                         </div>
                       </>
                     )}
@@ -28295,9 +28290,9 @@ function PublicCardDatabase() {
                                 </button>
                               )}
                               {isAdminUser && !isVerified && (
-                                <button onClick={()=>{ setSuperRecord({card:c,type:"super"}); setSuperRecordName(""); }}
+                                <button onClick={()=>{ setAdminClaimMode(true); setClaimModal(c); setClaimPhoto(null); setClaimSent(false); setClaimStory(""); setClaimName(""); setClaimDate(""); }}
                                   style={{width:"100%",marginTop:6,background:"rgba(245,158,11,0.12)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.4)",borderRadius:8,padding:"6px 0",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                                  🎯 {isPending?"Verify / Record":"Record Hit (Admin)"}
+                                  🎯 Record Hit (Admin)
                                 </button>
                               )}
                               {isAdminUser && claim && (
