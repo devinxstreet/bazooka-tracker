@@ -24449,17 +24449,20 @@ function PublicCardDatabase() {
       rec.onend = () => { try { setListening(false); } catch(e){} };
       rec.onresult = (e) => {
         try {
-          const said = e?.results?.[0]?.[0]?.transcript || "";
+          let said = "";
+          try {
+            // grab the best transcript across all results/alternatives
+            for (let i=0;i<e.results.length;i++){ const r=e.results[i]; if(r&&r[0]&&r[0].transcript){ said += r[0].transcript+" "; } }
+          } catch(err) { said = e?.results?.[0]?.[0]?.transcript || ""; }
           const clean = said.replace(/[.,!?]+$/,"").trim();
-          if (!clean) return;
+          if (!clean) { showToast("🎤 Didn't catch that — try again"); return; }
           let hero = null;
           try { hero = fuzzyHeroMatch(clean); } catch(err) { hero = null; }
-          if (hero && hero.toLowerCase() !== clean.toLowerCase()) {
-            setSearch(hero); setPage(1);
-            showToast(`🎤 Heard "${clean}" → ${hero}`);
-          } else {
-            setSearch(hero || clean); setPage(1);
-          }
+          const finalTerm = hero || clean;
+          setSearch(finalTerm);
+          setPage(1);
+          if (hero && hero.toLowerCase() !== clean.toLowerCase()) showToast(`🎤 "${clean}" → searching ${hero}`);
+          else showToast(`🎤 Searching "${finalTerm}"`);
         } catch(err) { /* never let a voice result crash the app */ }
       };
       recognitionRef.current = rec;
