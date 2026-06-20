@@ -24728,6 +24728,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [claimName,       setClaimName]       = useState("");
   const [claimDate,       setClaimDate]       = useState("");
   const [adminClaimMode,  setAdminClaimMode]  = useState(false); // admin recording a hit via the normal claim form
+  const [editClaimMode,   setEditClaimMode]   = useState(false); // admin editing an existing verified claim
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
   const [expandedOneGroups, setExpandedOneGroups] = useState({});
   const [superSearch,     setSuperSearch]     = useState("");
@@ -28048,6 +28049,26 @@ function PublicCardDatabase({ swancity = false } = {}) {
             if (!user && !swancity) { setSigningIn(true); return; }
             setClaimSubmitting(true);
             try {
+              // EDIT MODE: just update the existing claim's fields (keep photo unless a new one was picked)
+              if (editClaimMode) {
+                let newPhotoUrl = null;
+                if (photoBase64 && typeof photoBase64 === "string" && photoBase64.startsWith("data:")) {
+                  const storageRefE = ref(storage, `super_claims/${card.id}_${Date.now()}.jpg`);
+                  const bs = atob(photoBase64.split(",")[1]); const ab2 = new ArrayBuffer(bs.length); const ia2 = new Uint8Array(ab2);
+                  for (let i=0;i<bs.length;i++) ia2[i]=bs.charCodeAt(i);
+                  await uploadBytes(storageRefE, new Blob([ab2],{type:"image/jpeg"}));
+                  newPhotoUrl = await getDownloadURL(storageRefE);
+                }
+                await setDoc(doc(db, "super_claims", card.id), {
+                  submitterName: claimName || "Anonymous", userName: claimName || "Anonymous",
+                  story: claimStory || "", dateHit: claimDate || "",
+                  ...(newPhotoUrl ? { photoUrl: newPhotoUrl } : {}),
+                  editedByAdmin: user?.displayName || user?.email || "Admin", editedAt: new Date().toISOString(),
+                }, { merge: true });
+                setClaimModal(null); setClaimPhoto(null); setClaimStory(""); setClaimName(""); setClaimDate(""); setAdminClaimMode(false); setEditClaimMode(false);
+                setClaimSubmitting(false);
+                return;
+              }
               const storageRef2 = ref(storage, `super_claims/${card.id}_${Date.now()}.jpg`);
               const byteStr = atob(photoBase64.split(",")[1]);
               const ab = new ArrayBuffer(byteStr.length);
@@ -28084,7 +28105,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {/* Claim modal */}
               {claimModal && (
                 <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);} }}>
+                  onClick={()=>{ if(!claimSubmitting){setClaimModal(null);setClaimPhoto(null);setClaimSent(false);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);setEditClaimMode(false);} }}>
                   <div style={{background:"#111",border:"2px solid #F59E0B",borderRadius:20,padding:28,maxWidth:420,width:"100%"}} onClick={e=>e.stopPropagation()}>
                     {claimSent?(
                       <div style={{textAlign:"center",padding:"20px 0"}}>
@@ -28095,13 +28116,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       </div>
                     ):(
                       <>
-                        <div style={{fontSize:18,fontWeight:900,color:"#F59E0B",marginBottom:4}}>{adminClaimMode?"🎯 Record Super Hit (Admin)":"⭐ Claim Super Foil"}</div>
+                        <div style={{fontSize:18,fontWeight:900,color:"#F59E0B",marginBottom:4}}>{editClaimMode?"✏️ Edit Claim":adminClaimMode?"🎯 Record Super Hit (Admin)":"⭐ Claim Super Foil"}</div>
                         <div style={{fontSize:13,color:"#888",marginBottom:16}}>{claimModal.hero} #{claimModal.cardNum} · {claimModal.setName}</div>
                         <div style={{fontSize:12,color:"#555",marginBottom:16,lineHeight:1.6}}>{adminClaimMode?"Recording on behalf of the puller — this goes straight in as verified. Photo required.":"Super Foils are 1/1 cards. Upload a clear photo as proof — an admin will verify before it counts on the tracker."}</div>
                         <label style={{display:"block",marginBottom:16}}>
                           <div style={{background:claimPhoto?"#0a1a0a":"#0a0a0a",border:`2px dashed ${claimPhoto?"#F59E0B":"#2a2a2a"}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}}>
                             {claimPhoto?(
-                              <img src={claimPhoto} alt="proof" style={{maxHeight:200,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
+                              <img src={(claimPhoto&&claimPhoto.preview)?claimPhoto.preview:claimPhoto} alt="proof" style={{maxHeight:200,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
                             ):(
                               <>
                                 <div style={{fontSize:32,marginBottom:8}}>📸</div>
@@ -28129,11 +28150,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
                             style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                         </div>
                         <div style={{display:"flex",gap:10}}>
-                          <button onClick={()=>{if(claimPhoto)submitClaim(claimModal,claimPhoto);}} disabled={!claimPhoto||claimSubmitting}
-                            style={{flex:1,background:claimPhoto?"#F59E0B":"#1a1a1a",color:claimPhoto?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:claimPhoto?"pointer":"not-allowed",fontFamily:"inherit"}}>
-                            {claimSubmitting?"Submitting...":"Submit Claim"}
+                          <button onClick={()=>{ const pd=(claimPhoto&&claimPhoto.existing)?null:(claimPhoto&&claimPhoto.preview?claimPhoto.preview:claimPhoto); if(editClaimMode||claimPhoto){submitClaim(claimModal,pd);} }} disabled={(!editClaimMode&&!claimPhoto)||claimSubmitting}
+                            style={{flex:1,background:(editClaimMode||claimPhoto)?"#F59E0B":"#1a1a1a",color:(editClaimMode||claimPhoto)?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:(editClaimMode||claimPhoto)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                            {claimSubmitting?"Saving...":(editClaimMode?"💾 Save Changes":"Submit Claim")}
                           </button>
-                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                          <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);setEditClaimMode(false);}} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                         </div>
                       </>
                     )}
@@ -28331,6 +28352,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
                                 <button onClick={()=>{ setAdminClaimMode(true); setClaimModal(c); setClaimPhoto(null); setClaimSent(false); setClaimStory(""); setClaimName(""); setClaimDate(""); }}
                                   style={{width:"100%",marginTop:6,background:"rgba(245,158,11,0.12)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.4)",borderRadius:8,padding:"6px 0",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                                   🎯 Record Hit (Admin)
+                                </button>
+                              )}
+                              {isAdminUser && claim && (
+                                <button onClick={()=>{ setEditClaimMode(true); setAdminClaimMode(true); setClaimModal(c); setClaimPhoto(claim.photoUrl?{preview:claim.photoUrl,existing:true}:null); setClaimSent(false); setClaimStory(claim.story||""); setClaimName(claim.submitterName||claim.userName||""); setClaimDate(claim.dateHit||""); }}
+                                  style={{width:"100%",marginTop:6,background:"rgba(96,165,250,0.1)",color:"#60A5FA",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,padding:"5px 0",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                                  ✏️ Edit Claim
                                 </button>
                               )}
                               {isAdminUser && claim && (
