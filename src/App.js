@@ -26540,6 +26540,9 @@ function PublicCardDatabase({ swancity = false } = {}) {
           @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+          @keyframes superShineSweep { 0%{background-position:120% 50%} 100%{background-position:-20% 50%} }
+          .super-shine-card:hover .super-shine { opacity:1 !important; animation:superShineSweep 0.9s ease forwards; }
+          .super-shine-card:hover img { filter:none !important; opacity:1 !important; transition:filter 0.3s ease, opacity 0.3s ease; }
         `}</style>
 
         {/* Floating cards */}
@@ -28271,7 +28274,9 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               const isFlipped = isVerified && flippedClaim===`super_${c.id}` && (claim.photoUrl || claim.story);
                               const canFlip = isVerified && (claim.photoUrl || claim.story);
                               return (
-                              <div style={{position:"relative",aspectRatio:"3/4",cursor:canFlip?"pointer":"default"}} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`super_${c.id}`?null:`super_${c.id}`); }}>
+                              <div className="super-shine-card" style={{position:"relative",aspectRatio:"3/4",cursor:canFlip?"pointer":"default"}} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`super_${c.id}`?null:`super_${c.id}`); }}>
+                                {/* interactive foil shine — works even on greyed/unclaimed cards */}
+                                <div className="super-shine" style={{position:"absolute",inset:0,zIndex:4,borderRadius:12,pointerEvents:"none",opacity:0,background:"linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.25) 38%, rgba(255,220,120,0.45) 46%, rgba(120,220,255,0.5) 54%, rgba(210,130,255,0.45) 62%, transparent 75%)",backgroundSize:"250% 250%",mixBlendMode:"screen",transition:"opacity 0.25s ease"}}/>
                                 <div style={{position:"relative",width:"100%",height:"100%",transformStyle:"preserve-3d",transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)",transform:isFlipped?"perspective(700px) rotateY(180deg)":"perspective(700px)",willChange:"transform"}}>
                                   <div style={{position:"absolute",inset:0,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",overflow:"hidden",borderRadius:12}}>
                                     <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block",opacity:isVerified?1:isPending?0.6:0.5,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":isPending?"grayscale(45%)":"grayscale(70%)"}}/>
