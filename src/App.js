@@ -27739,7 +27739,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           const totalCount    = scoped1of1.length;
           const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified" && scoped1of1Ids.has(c.cardId)).length;
           const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
-          const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
+          const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
           const recent1of1 = (() => {
             const seen = new Set();
             return oneOfOneClaims
@@ -28017,7 +28017,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
         {/* SUPERS TAB */}
         {activeTab==="supers"&&(()=>{
-          const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
+          const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
           const superCards = cards.filter(c => c.weapon === "Super" || (c.weapon||"").toUpperCase() === "SUPER");
           const superSets = [...new Set(superCards.map(c => c.setName).filter(Boolean))].sort();
           const claimMap = {};
