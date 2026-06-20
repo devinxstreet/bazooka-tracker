@@ -542,6 +542,10 @@ function GlobalStyles() {
       @keyframes saveFlash { 0%{box-shadow:0 0 0 0 rgba(22,101,52,0.6);} 50%{box-shadow:0 0 0 12px rgba(22,101,52,0.02);} 100%{box-shadow:none;} }
       @keyframes pulsRed { 0%,100%{box-shadow:0 0 0 0 rgba(153,27,27,0.5);} 50%{box-shadow:0 0 0 8px rgba(153,27,27,0);} }
       @keyframes tickerScroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+      @keyframes vtickerScroll { from { transform:translateY(0); } to { transform:translateY(-50%); } }
+      .vticker-wrap { overflow:hidden; }
+      .vticker-track { display:flex; flex-direction:column; animation:vtickerScroll 18s linear infinite; }
+      .vticker-wrap:hover .vticker-track { animation-play-state:paused; }
       .ticker-track { display:inline-flex; gap:10px; animation:tickerScroll 30s linear infinite; }
       .ticker-wrap:hover .ticker-track { animation-play-state:paused; }
       @keyframes pulsYellow { 0%,100%{box-shadow:0 0 0 0 rgba(146,64,14,0.4);} 50%{box-shadow:0 0 0 6px rgba(146,64,14,0);} }
@@ -27827,17 +27831,16 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
               {/* Recent claims ticker */}
               {recent1of1.length>0 && (
-                <div className="ticker-wrap" style={{ background:"#0a0a0a", border:"1px solid rgba(147,51,234,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"center" }}>
-                  <div style={{ flexShrink:0, background:"#9333EA", color:"#fff", fontSize:10, fontWeight:800, padding:"8px 12px", letterSpacing:0.5, whiteSpace:"nowrap" }}>💎 LATEST HITS</div>
-                  <div style={{ overflow:"hidden", flex:1 }}>
-                    <div className="ticker-track">
+                <div style={{ background:"#0a0a0a", border:"1px solid rgba(147,51,234,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"stretch" }}>
+                  <div style={{ flexShrink:0, background:"#9333EA", color:"#fff", fontSize:10, fontWeight:800, padding:"0 12px", letterSpacing:0.5, display:"flex", alignItems:"center", writingMode:"vertical-rl", transform:"rotate(180deg)" }}>💎 LATEST HITS</div>
+                  <div className="vticker-wrap" style={{ flex:1, height:96 }}>
+                    <div className="vticker-track" style={{ animationDuration:`${Math.max(8,recent1of1.length*3)}s` }}>
                       {[...recent1of1,...recent1of1].map((cl,i)=>(
-                        <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", whiteSpace:"nowrap" }}>
-                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:24, height:32, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
-                          <span style={{ fontSize:12, fontWeight:700, color:"#C084FC" }}>{cl.cardName}</span>
-                          <span style={{ fontSize:11, color:"#666" }}>#{cl.cardNum}</span>
-                          <span style={{ fontSize:11, color:"#888" }}>by {cl.submitterName||"Anonymous"}</span>
-                          <span style={{ color:"#333" }}>·</span>
+                        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", height:32, boxSizing:"border-box" }}>
+                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:18, height:24, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                          <span style={{ fontSize:12, fontWeight:700, color:"#C084FC", whiteSpace:"nowrap" }}>{cl.cardName}</span>
+                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#888", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>by {cl.submitterName||"Anonymous"}</span>
                         </div>
                       ))}
                     </div>
@@ -28175,17 +28178,16 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
               {/* Recent claims ticker */}
               {recentSupers.length>0 && (
-                <div className="ticker-wrap" style={{ background:"#0a0a0a", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"center" }}>
-                  <div style={{ flexShrink:0, background:"#F59E0B", color:"#000", fontSize:10, fontWeight:800, padding:"8px 12px", letterSpacing:0.5, whiteSpace:"nowrap" }}>⭐ LATEST HITS</div>
-                  <div style={{ overflow:"hidden", flex:1 }}>
-                    <div className="ticker-track">
+                <div style={{ background:"#0a0a0a", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, overflow:"hidden", display:"flex", alignItems:"stretch" }}>
+                  <div style={{ flexShrink:0, background:"#F59E0B", color:"#000", fontSize:10, fontWeight:800, padding:"0 12px", letterSpacing:0.5, display:"flex", alignItems:"center", writingMode:"vertical-rl", transform:"rotate(180deg)" }}>⭐ LATEST HITS</div>
+                  <div className="vticker-wrap" style={{ flex:1, height:96 }}>
+                    <div className="vticker-track" style={{ animationDuration:`${Math.max(8,recentSupers.length*3)}s` }}>
                       {[...recentSupers,...recentSupers].map((cl,i)=>(
-                        <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", whiteSpace:"nowrap" }}>
-                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:24, height:32, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
-                          <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24" }}>{cl.cardName}</span>
-                          <span style={{ fontSize:11, color:"#666" }}>#{cl.cardNum}</span>
-                          <span style={{ fontSize:11, color:"#888" }}>by {cl.submitterName||cl.userName||"Anonymous"}</span>
-                          <span style={{ color:"#333" }}>·</span>
+                        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", height:32, boxSizing:"border-box" }}>
+                          {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:18, height:24, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
+                          <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24", whiteSpace:"nowrap" }}>{cl.cardName}</span>
+                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#888", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>by {cl.submitterName||cl.userName||"Anonymous"}</span>
                         </div>
                       ))}
                     </div>
