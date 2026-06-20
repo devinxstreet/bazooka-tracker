@@ -27494,7 +27494,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {!isMobile && <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:isMobile?8:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s",flexShrink:0}}>
-              {user?(
+              {swancity ? (
+                user ? null : (
+                  <button onClick={()=>setSigningIn(true)} style={{background:"rgba(245,158,11,0.12)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Sign in</button>
+                )
+              ) : user?(
                 <>
                   {!isMobile && <div>
                     <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
@@ -27588,7 +27592,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
           {/* Right: messages + profile */}
           <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-            {user&&(
+            {user&&!swancity&&(
               <button onClick={()=>setMsgPanelOpen(true)} title="Messages" style={{position:"relative",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
                 💬
                 {unreadThreads>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#E8317A",color:"#fff",borderRadius:10,minWidth:18,height:18,padding:"0 5px",fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadThreads}</span>}
@@ -27886,23 +27890,26 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 </div>
               )}
 
+              {/* Group-by dropdown */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
+                <select value={secret1GroupBy} onChange={e=>{setSecret1GroupBy(e.target.value);setExpandedOneGroups({});}} style={{ background:"#130a1a", color:"#C084FC", border:"1.5px solid rgba(147,51,234,0.4)", borderRadius:10, padding:"8px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", minWidth:180 }}>
+                  <option value="set">💎 Set</option>
+                  <option value="treatment">🎨 Treatment</option>
+                  <option value="weapon">⚔️ Weapon</option>
+                  <option value="hero">🦸 Hero</option>
+                </select>
+                <div style={{ flex:1 }}/>
+                <button onClick={()=>setExpandedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
+                <button onClick={()=>{ const all={}; (secret1SetFilter?secret1of1Cards.filter(c=>c.setName===secret1SetFilter):secret1of1Cards).forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
+              </div>
+
               {/* Status filter */}
               <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83C\uDFAF Show:"}</span>
                 {[["all","All"],["claimed","🏆 Claimed"],["unclaimed","💎 Available"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setSecret1StatusFilter(v)} style={{ background:secret1StatusFilter===v?"rgba(147,51,234,0.18)":"transparent", color:secret1StatusFilter===v?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1StatusFilter===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
                 ))}
-              </div>
-
-              {/* Group-by toggle */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDCC2 Group by:"}</span>
-                {[["set","💎 Set"],["treatment","🎨 Treatment"],["weapon","⚔️ Weapon"],["hero","🦸 Hero"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>{setSecret1GroupBy(v);setExpandedOneGroups({});}} style={{ background:secret1GroupBy===v?"rgba(147,51,234,0.9)":"transparent", color:secret1GroupBy===v?"#fff":"rgba(255,255,255,0.45)", border:`1.5px solid ${secret1GroupBy===v?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
-                ))}
-                <div style={{ flex:1 }}/>
-                <button onClick={()=>setExpandedOneGroups({})} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Collapse all</button>
-                <button onClick={()=>{ const all={}; (secret1SetFilter?secret1of1Cards.filter(c=>c.setName===secret1SetFilter):secret1of1Cards).forEach(c=>{ const k=secret1GroupBy==="set"?(c.setName||"Unknown"):secret1GroupBy==="treatment"?(c.treatment||"Unknown"):secret1GroupBy==="weapon"?(c.weapon||"Unknown"):(c.hero||"Unknown"); all[`${secret1GroupBy}:${k}`]=true; }); setExpandedOneGroups(all); }} style={{ background:"transparent", color:"rgba(255,255,255,0.45)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Expand all</button>
               </div>
 
               {/* Hero search */}
