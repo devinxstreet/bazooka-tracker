@@ -26545,6 +26545,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
           @keyframes superShineSweep { 0%{background-position:120% 50%} 100%{background-position:-20% 50%} }
+          @keyframes vtickerScroll { from { transform:translateY(0); } to { transform:translateY(-50%); } }
+          .vticker-wrap { overflow:hidden; }
+          .vticker-track { display:flex; flex-direction:column; animation:vtickerScroll 18s linear infinite; }
+          .vticker-wrap:hover .vticker-track { animation-play-state:paused; }
           .super-shine-card:hover .super-shine { opacity:1 !important; animation:superShineSweep 0.9s ease forwards; }
           .super-shine-card:hover img { filter:none !important; opacity:1 !important; transition:filter 0.3s ease, opacity 0.3s ease; }
         `}</style>
@@ -27875,10 +27879,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {sets1of1.length > 1 && (
                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, fontWeight:700, color:"#9333EA" }}>{"\uD83D\uDC8E Set:"}</span>
-                  <button onClick={()=>{setSecret1SetFilter("");setExpandedOneGroups({});}} style={{ background:secret1SetFilter===""?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===""?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===""?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
-                  {sets1of1.map(s=>(
-                    <button key={s} onClick={()=>{setSecret1SetFilter(s);setExpandedOneGroups({});}} style={{ background:secret1SetFilter===s?"rgba(147,51,234,0.18)":"transparent", color:secret1SetFilter===s?"#C084FC":"rgba(255,255,255,0.5)", border:`1.5px solid ${secret1SetFilter===s?"#9333EA":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
-                  ))}
+                  <select value={secret1SetFilter} onChange={e=>{setSecret1SetFilter(e.target.value);setExpandedOneGroups({});}} style={{ background:"#130a1a", color:"#C084FC", border:"1.5px solid rgba(147,51,234,0.4)", borderRadius:10, padding:"8px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", minWidth:200 }}>
+                    <option value="">All Sets</option>
+                    {sets1of1.map(s=>(<option key={s} value={s}>{s}</option>))}
+                  </select>
                 </div>
               )}
 
@@ -28199,10 +28203,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {superSets.length > 1 && (
                 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, fontWeight:700, color:"#F59E0B" }}>{"\u2B50 Set:"}</span>
-                  <button onClick={()=>setSuperSetFilter("")} style={{ background:superSetFilter===""?"rgba(245,158,11,0.15)":"transparent", color:superSetFilter===""?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superSetFilter===""?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All Sets</button>
-                  {superSets.map(s=>(
-                    <button key={s} onClick={()=>setSuperSetFilter(s)} style={{ background:superSetFilter===s?"rgba(245,158,11,0.15)":"transparent", color:superSetFilter===s?"#F59E0B":"rgba(255,255,255,0.5)", border:`1.5px solid ${superSetFilter===s?"#F59E0B":"rgba(255,255,255,0.1)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
-                  ))}
+                  <select value={superSetFilter} onChange={e=>setSuperSetFilter(e.target.value)} style={{ background:"#15100a", color:"#F59E0B", border:"1.5px solid rgba(245,158,11,0.4)", borderRadius:10, padding:"8px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", minWidth:200 }}>
+                    <option value="">All Sets</option>
+                    {superSets.map(s=>(<option key={s} value={s}>{s}</option>))}
+                  </select>
                 </div>
               )}
 
