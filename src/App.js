@@ -20130,14 +20130,14 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             {/* Claim modal */}
             {oneModal && (
               <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}}>
+                onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setOneEditMode(false); }}}>
                 <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
                   {oneSent ? (
                     <div style={{ textAlign:"center", padding:"20px 0" }}>
                       <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
                       <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
                       <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Your Secret 1/1 claim is pending verification. Congrats on the hit!</div>
-                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}
+                      <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setOneEditMode(false); }}
                         style={{ background:"#9333EA", color:"#000", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
                     </div>
                   ) : (
@@ -24729,6 +24729,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [claimDate,       setClaimDate]       = useState("");
   const [adminClaimMode,  setAdminClaimMode]  = useState(false); // admin recording a hit via the normal claim form
   const [editClaimMode,   setEditClaimMode]   = useState(false); // admin editing an existing verified claim
+  const [oneEditMode,     setOneEditMode]     = useState(false); // admin editing an existing 1/1 claim
   const [superCelebration, setSuperCelebration] = useState(null); // {cardName, cardImage, type} -> fires celebration
   useEffect(() => {
     if (!superCelebration) return;
@@ -27834,23 +27835,23 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {/* Claim modal */}
               {oneModal && (
                 <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-                  onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}}>
+                  onClick={()=>{ if(!oneSubmitting){ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setOneEditMode(false); }}}>
                   <div style={{ background:"#111", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
                     {oneSent ? (
                       <div style={{ textAlign:"center", padding:"20px 0" }}>
                         <div style={{ fontSize:52, marginBottom:16 }}>💎</div>
                         <div style={{ fontSize:20, fontWeight:900, color:"#9333EA", marginBottom:8 }}>Claim Submitted!</div>
                         <div style={{ fontSize:13, color:"#888", marginBottom:24 }}>Pending admin verification. Congrats on the hit!</div>
-                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setAdminClaimMode(false); }}
+                        <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneSent(false); setOneEditMode(false); }}
                           style={{ background:"#9333EA", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>{adminClaimMode?"🎯 Record Secret 1/1 Hit (Admin)":"💎 Claim Secret 1/1"}</div>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>{oneEditMode?"✏️ Edit Claim":adminClaimMode?"🎯 Record Secret 1/1 Hit (Admin)":"💎 Claim Secret 1/1"}</div>
                         <div style={{ fontSize:13, color:"#888", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
                         <label style={{ display:"block", marginBottom:14 }}>
                           <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
-                            {onePhoto ? <img src={onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/> : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div><div style={{ fontSize:13, fontWeight:700, color:"#9333EA" }}>Tap to upload photo</div></>}
+                            {onePhoto ? <img src={(onePhoto&&onePhoto.preview)?onePhoto.preview:onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/> : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div><div style={{ fontSize:13, fontWeight:700, color:"#9333EA" }}>Tap to upload photo</div></>}
                           </div>
                           <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
                             onChange={e=>{ const f=e.target.files?.[0]; if(!f)return; const r2=new FileReader(); r2.onload=ev=>setOnePhoto(ev.target.result); r2.readAsDataURL(f); e.target.value=""; }}/>
@@ -27872,9 +27873,23 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         </div>
                         <div style={{ display:"flex", gap:10 }}>
                           <button onClick={async()=>{
-                            if(!onePhoto||oneSubmitting) return;
+                            if((!onePhoto && !oneEditMode)||oneSubmitting) return;
                             setOneSubmitting(true);
                             try {
+                              // EDIT MODE: update existing claim, keep photo unless a new one was picked
+                              if (oneEditMode) {
+                                let newPu = null;
+                                if (onePhoto && typeof onePhoto === "string" && onePhoto.startsWith("data:")) {
+                                  const sr2=ref(storage,`oneof1_claims/${oneModal.id}_${Date.now()}.jpg`);
+                                  const bs2=atob(onePhoto.split(",")[1]); const ab2=new ArrayBuffer(bs2.length); const ia2=new Uint8Array(ab2); for(let i=0;i<bs2.length;i++)ia2[i]=bs2.charCodeAt(i);
+                                  await uploadBytes(sr2,new Blob([ab2],{type:"image/jpeg"}));
+                                  newPu=await getDownloadURL(sr2);
+                                }
+                                await setDoc(doc(db,"oneof1_claims",oneModal.id),{ submitterName:oneName||"Anonymous", story:oneStory||"", dateHit:oneDate||"", ...(newPu?{photoUrl:newPu}:{}), editedByAdmin:user?.displayName||user?.email||"Admin", editedAt:new Date().toISOString() },{merge:true});
+                                setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneEditMode(false);
+                                setOneSubmitting(false);
+                                return;
+                              }
                               const sr=ref(storage,`oneof1_claims/${oneModal.id}_${Date.now()}.jpg`);
                               const bs=atob(onePhoto.split(",")[1]); const ab=new ArrayBuffer(bs.length); const ia=new Uint8Array(ab); for(let i=0;i<bs.length;i++)ia[i]=bs.charCodeAt(i);
                               await uploadBytes(sr,new Blob([ab],{type:"image/jpeg"}));
@@ -27884,11 +27899,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               setSuperCelebration({ cardName: oneModal.hero, cardImage: oneModal.imageUrl || null, type: "oneof1" });
                             } catch(e){ alert("Upload failed: "+e.message); }
                             setOneSubmitting(false);
-                          }} disabled={!onePhoto||oneSubmitting}
-                            style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
-                            {oneSubmitting?"Submitting...":"Submit Claim"}
+                          }} disabled={(!onePhoto && !oneEditMode)||oneSubmitting}
+                            style={{ flex:1, background:(onePhoto||oneEditMode)?"#9333EA":"#1a1a1a", color:(onePhoto||oneEditMode)?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:(onePhoto||oneEditMode)?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                            {oneSubmitting?"Saving...":(oneEditMode?"💾 Save Changes":"Submit Claim")}
                           </button>
-                          <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); }}
+                          <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneEditMode(false); }}
                             style={{ background:"transparent", border:"1px solid #2a2a2a", color:"#555", borderRadius:12, padding:"14px 20px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
                         </div>
                       </>
@@ -28083,6 +28098,18 @@ function PublicCardDatabase({ swancity = false } = {}) {
                                 <button onClick={()=>{ setAdminClaimMode(true); setOneModal(c); setOnePhoto(null); setOneSent(false); setOneStory(""); setOneDate(""); setOneName(""); }}
                                   style={{ width:"100%", marginTop:6, background:"rgba(245,158,11,0.12)", color:"#F59E0B", border:"1px solid rgba(245,158,11,0.4)", borderRadius:8, padding:"6px 0", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
                                   🎯 Record Hit (Admin)
+                                </button>
+                              )}
+                              {isAdminUser && claim && (
+                                <button onClick={()=>{ setOneEditMode(true); setAdminClaimMode(true); setOneModal(c); setOnePhoto(claim.photoUrl?{preview:claim.photoUrl,existing:true}:null); setOneSent(false); setOneStory(claim.story||""); setOneDate(claim.dateHit||""); setOneName(claim.submitterName||claim.userName||""); }}
+                                  style={{ width:"100%", marginTop:6, background:"rgba(96,165,250,0.1)", color:"#60A5FA", border:"1px solid rgba(96,165,250,0.3)", borderRadius:8, padding:"5px 0", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                                  ✏️ Edit Claim
+                                </button>
+                              )}
+                              {isAdminUser && claim && (
+                                <button onClick={async()=>{ if(window.confirm(`Remove the claim for ${c.hero} #${c.cardNum}? This cannot be undone.`)) { await deleteDoc(doc(db,"oneof1_claims",c.id)); } }}
+                                  style={{ width:"100%", marginTop:6, background:"rgba(232,49,122,0.08)", color:"#E8317A", border:"1px solid rgba(232,49,122,0.2)", borderRadius:8, padding:"5px 0", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                                  🗑️ Remove Claim
                                 </button>
                               )}
                             </div>
