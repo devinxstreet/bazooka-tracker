@@ -27729,7 +27729,14 @@ function PublicCardDatabase({ swancity = false } = {}) {
           const verifiedCount1 = oneOfOneClaims.filter(c=>c.status==="verified" && scoped1of1Ids.has(c.cardId)).length;
           const pendingClaims1 = oneOfOneClaims.filter(c=>c.status==="pending");
           const isAdminUser   = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik");
-          const recent1of1 = oneOfOneClaims.filter(c=>c.status==="verified").sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0)).slice(0,12);
+          const recent1of1 = (() => {
+            const seen = new Set();
+            return oneOfOneClaims
+              .filter(c=>c.status==="verified")
+              .sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0))
+              .filter(cl => { const k = cl.cardId || `${cl.cardName}|${cl.cardNum}`; if (seen.has(k)) return false; seen.add(k); return true; })
+              .slice(0,12);
+          })();
 
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:16, paddingBottom:40 }}>
@@ -28011,7 +28018,14 @@ function PublicCardDatabase({ swancity = false } = {}) {
           const scopedSuperIds = new Set(scopedSupers.map(c => c.id));
           const verifiedCount = superClaims.filter(cl => cl.status === "verified" && scopedSuperIds.has(cl.cardId)).length;
           const totalSupers = scopedSupers.length;
-          const recentSupers = superClaims.filter(cl => cl.status === "verified").sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0)).slice(0,12);
+          const recentSupers = (() => {
+            const seen = new Set();
+            return superClaims
+              .filter(cl => cl.status === "verified")
+              .sort((a,b)=>new Date(b.reviewedAt||b.createdAt||0)-new Date(a.reviewedAt||a.createdAt||0))
+              .filter(cl => { const k = cl.cardId || `${cl.cardName}|${cl.cardNum}`; if (seen.has(k)) return false; seen.add(k); return true; })
+              .slice(0,12);
+          })();
 
           async function submitClaim(card, photoBase64) {
             if (!user && !swancity) { setSigningIn(true); return; }
