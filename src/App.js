@@ -24729,7 +24729,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [claimDate,       setClaimDate]       = useState("");
   const [adminClaimMode,  setAdminClaimMode]  = useState(false); // admin recording a hit via the normal claim form
   const [editClaimMode,   setEditClaimMode]   = useState(false); // admin editing an existing verified claim
-  const [superCelebration, setSuperCelebration] = useState(null); // {cardName, cardImage} -> fires gold celebration
+  const [superCelebration, setSuperCelebration] = useState(null); // {cardName, cardImage, type} -> fires celebration
+  useEffect(() => {
+    if (!superCelebration) return;
+    const t = setTimeout(() => setSuperCelebration(null), 4200);
+    return () => clearTimeout(t);
+  }, [superCelebration]);
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
   const [expandedOneGroups, setExpandedOneGroups] = useState({});
   const [superSearch,     setSuperSearch]     = useState("");
@@ -26823,7 +26828,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           textGrad:"linear-gradient(180deg,#F3E8FF,#C084FC,#9333EA)",
           name:"#C084FC",
           title:"SECRET 1/1!",
-          sub:"💎 1 of 1 · You pulled a Secret 1/1 — the holy grail 💎",
+          sub:"💎 1 of 1 · A true Secret 1/1 — the holy grail 💎",
           textGlowKf:"superTextGlowP",
         } : {
           bgRadial:"radial-gradient(circle at 50% 45%, rgba(120,80,0,0.55), rgba(0,0,0,0.88))",
@@ -26835,12 +26840,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
           textGrad:"linear-gradient(180deg,#FFF3B0,#FBBF24,#F59E0B)",
           name:"#FBBF24",
           title:"SUPER HIT!",
-          sub:"⭐ 1 of 1 · You pulled the rarest card in the set ⭐",
+          sub:"⭐ 1 of 1 · One of the hardest pulls in the hobby ⭐",
           textGlowKf:"superTextGlow",
         };
         return (
-        <div style={{ position:"fixed", inset:0, zIndex:16000, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", animation:"superFadeBg 4s ease forwards" }}
-          onAnimationEnd={()=>setSuperCelebration(null)}>
+        <div style={{ position:"fixed", inset:0, zIndex:16000, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", animation:"superFadeBg 4.2s ease forwards" }}>
           <div style={{ position:"absolute", inset:0, background:theme.bgRadial }}/>
           <div style={{ position:"absolute", width:"140vmax", height:"140vmax", left:"50%", top:"45%", transform:"translate(-50%,-50%)", background:`repeating-conic-gradient(from 0deg, ${theme.ray} 0deg 8deg, transparent 8deg 16deg)`, animation:"superRays 9s linear infinite" }}/>
           {[0,0.4,0.8].map((d,i)=>(
