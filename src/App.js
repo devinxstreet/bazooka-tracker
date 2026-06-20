@@ -26556,6 +26556,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
           @keyframes superShineSweep { 0%{background-position:200% 50%} 100%{background-position:-100% 50%} }
+          @keyframes fxBackdrop { 0%{opacity:0} 8%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
+          @keyframes caughtFlash { 0%{opacity:0} 3%{opacity:0.55} 12%{opacity:0} 100%{opacity:0} }
+          @keyframes caughtCardIn { 0%{opacity:0;transform:scale(0.4) rotate(-12deg)} 14%{opacity:1;transform:scale(1.18) rotate(4deg)} 24%{transform:scale(0.96) rotate(-2deg)} 32%{transform:scale(1.06) rotate(0deg)} 40%{transform:scale(1)} 86%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.08)} }
+          @keyframes caughtBurst { 0%{transform:scale(0.2);opacity:0} 22%{opacity:1} 100%{transform:scale(2.8);opacity:0} }
+          @keyframes caughtText { 0%{opacity:0;transform:scale(0.6) translateY(10px)} 16%{opacity:1;transform:scale(1.1) translateY(0)} 24%{transform:scale(1)} 86%{opacity:1} 100%{opacity:0;transform:scale(0.95)} }
+          @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:0} 8%{opacity:1} 70%{opacity:1} 100%{transform:translateY(105vh) rotate(720deg);opacity:0} }
+          @keyframes starPop { 0%{transform:scale(0) rotate(0deg);opacity:0} 35%{transform:scale(1.3) rotate(180deg);opacity:1} 100%{transform:scale(0.6) rotate(360deg);opacity:0} }
           @keyframes superGoldFall { 0%{transform:translateY(-40px) rotate(0deg);opacity:0} 10%{opacity:1} 100%{transform:translateY(105vh) rotate(720deg);opacity:0} }
           @keyframes superCardPop { 0%{transform:scale(0.3) rotateY(0deg);opacity:0} 40%{transform:scale(1.15) rotateY(360deg);opacity:1} 60%{transform:scale(0.95) rotateY(360deg)} 100%{transform:scale(1) rotateY(360deg);opacity:1} }
           @keyframes superRays { 0%{transform:rotate(0deg) scale(1.2);opacity:0.7} 100%{transform:rotate(360deg) scale(1.2);opacity:0.7} }
@@ -26818,56 +26825,45 @@ function PublicCardDatabase({ swancity = false } = {}) {
       )}
       {superCelebration && animsOn && (() => {
         const isOne = superCelebration.type === "oneof1";
-        const theme = isOne ? {
-          bgRadial:"radial-gradient(circle at 50% 45%, rgba(80,30,140,0.6), rgba(0,0,0,0.9))",
-          ray:"rgba(168,85,247,0.16)",
-          ring:"rgba(168,85,247,0.65)",
-          confetti:["#A855F7","#C084FC","#9333EA","#E9D5FF","#7C3AED","#D8B4FE"],
-          glow:"0 0 50px rgba(168,85,247,0.9), 0 0 90px rgba(147,51,234,0.6)",
-          border:"rgba(192,132,252,0.85)",
-          textGrad:"linear-gradient(180deg,#F3E8FF,#C084FC,#9333EA)",
-          name:"#C084FC",
-          title:"SECRET 1/1!",
-          sub:"💎 1 of 1 · A true Secret 1/1 — the holy grail 💎",
-          textGlowKf:"superTextGlowP",
-        } : {
-          bgRadial:"radial-gradient(circle at 50% 45%, rgba(120,80,0,0.55), rgba(0,0,0,0.88))",
-          ray:"rgba(251,191,36,0.14)",
-          ring:"rgba(251,191,36,0.6)",
-          confetti:["#FFD700","#FBBF24","#F59E0B","#FFF3B0","#FFAA00","#FFE08A"],
-          glow:"0 0 50px rgba(251,191,36,0.9), 0 0 90px rgba(245,158,11,0.6)",
-          border:"rgba(251,191,36,0.8)",
-          textGrad:"linear-gradient(180deg,#FFF3B0,#FBBF24,#F59E0B)",
-          name:"#FBBF24",
-          title:"SUPER HIT!",
-          sub:"⭐ 1 of 1 · One of the hardest pulls in the hobby ⭐",
-          textGlowKf:"superTextGlow",
-        };
+        const C = isOne
+          ? { main:"#A855F7", light:"#C084FC", deep:"#7C3AED", bg:"rgba(124,58,237,0.22)", glow:"0 0 50px rgba(168,85,247,0.7), 0 0 100px rgba(147,51,234,0.4)", title:"SECRET 1/1!", sub:"💎 A true Secret 1/1 — the holy grail 💎",
+              confetti:["#A855F7","#C084FC","#9333EA","#E9D5FF","#7C3AED","#D8B4FE"] }
+          : { main:"#FBBF24", light:"#FFE08A", deep:"#F59E0B", bg:"rgba(245,158,11,0.22)", glow:"0 0 50px rgba(251,191,36,0.75), 0 0 100px rgba(245,158,11,0.4)", title:"SUPER HIT!", sub:"⭐ One of the hardest pulls in the hobby ⭐",
+              confetti:["#FFD700","#FBBF24","#F59E0B","#FFF3B0","#FFAA00","#FFE08A"] };
+        const img = superCelebration.cardImage;
         return (
-        <div style={{ position:"fixed", inset:0, zIndex:16000, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", animation:"superFadeBg 4.2s ease forwards" }}>
-          <div style={{ position:"absolute", inset:0, background:theme.bgRadial }}/>
-          <div style={{ position:"absolute", width:"140vmax", height:"140vmax", left:"50%", top:"45%", transform:"translate(-50%,-50%)", background:`repeating-conic-gradient(from 0deg, ${theme.ray} 0deg 8deg, transparent 8deg 16deg)`, animation:"superRays 9s linear infinite" }}/>
-          {[0,0.4,0.8].map((d,i)=>(
-            <div key={i} style={{ position:"absolute", left:"50%", top:"45%", width:240, height:240, marginLeft:-120, marginTop:-120, borderRadius:"50%", border:`3px solid ${theme.ring}`, animation:`superRingPulse 1.6s ease-out ${d}s infinite` }}/>
-          ))}
-          {Array.from({length:70}).map((_,i)=>{
-            const left=Math.random()*100, delay=Math.random()*1.2, dur=2.4+Math.random()*2, size=6+Math.random()*10;
-            const col=theme.confetti[i%theme.confetti.length];
-            return <div key={i} style={{ position:"absolute", top:0, left:`${left}%`, width:size, height:size*1.4, background:col, borderRadius:2, boxShadow:`0 0 6px ${col}`, animation:`superGoldFall ${dur}s ease-in ${delay}s forwards`, opacity:0 }}/>;
-          })}
-          <div style={{ position:"relative", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
-            {superCelebration.cardImage && (
-              <div style={{ position:"relative", animation:"superCardPop 1.1s cubic-bezier(0.2,0.8,0.2,1) forwards" }}>
-                <img src={superCelebration.cardImage} alt="" style={{ width:200, maxWidth:"60vw", borderRadius:14, boxShadow:theme.glow, border:`2px solid ${theme.border}` }}/>
+          <div style={{ position:"fixed", inset:0, zIndex:100000, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", overflow:"hidden" }}>
+            {/* backdrop */}
+            <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at center, ${C.bg}, rgba(0,0,0,0.86) 72%)`, animation:"fxBackdrop 4s ease forwards" }}/>
+            {/* white flash */}
+            <div style={{ position:"absolute", inset:0, background:"#fff", animation:"caughtFlash 4s ease forwards" }}/>
+            {/* confetti */}
+            {Array.from({length:55}).map((_,i)=>{
+              const left=Math.random()*100, delay=Math.random()*0.5, dur=1.8+Math.random()*1.4, size=6+Math.random()*9;
+              const color=C.confetti[i%C.confetti.length], round=Math.random()>0.5;
+              return <div key={i} style={{ position:"absolute", top:-20, left:`${left}%`, width:size, height:round?size:size*0.5, background:color, borderRadius:round?"50%":2, animation:`confettiFall ${dur}s ease ${delay}s forwards`, boxShadow:`0 0 6px ${color}` }}/>;
+            })}
+            {/* burst rings */}
+            {[0,0.15,0.3].map((d,i)=>(
+              <div key={i} style={{ position:"absolute", width:"min(300px,68vw)", aspectRatio:"1", borderRadius:"50%", border:`3px solid ${C.main}99`, animation:`caughtBurst 1.5s ease ${d}s forwards` }}/>
+            ))}
+            {/* pop stars */}
+            {[["20%","22%"],["78%","20%"],["18%","72%"],["80%","74%"],["50%","13%"]].map(([t,l],i)=>(
+              <div key={i} style={{ position:"absolute", top:t, left:l, fontSize:"clamp(24px,5vw,40px)", animation:`starPop 1.4s ease ${0.2+0.12*i}s forwards`, opacity:0 }}>{isOne?"💎":"⭐"}</div>
+            ))}
+            {/* card */}
+            {img && (
+              <div style={{ position:"relative", width:"min(250px,58vw)", aspectRatio:"3/4", animation:"caughtCardIn 4s cubic-bezier(0.34,1.56,0.64,1) forwards", borderRadius:14, overflow:"hidden", border:`3px solid ${C.main}`, boxShadow:C.glow }}>
+                <img src={img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
               </div>
             )}
-            <div style={{ animation:"superTextIn 0.6s ease 0.5s both" }}>
-              <div style={{ fontSize:"clamp(34px,9vw,68px)", fontWeight:900, letterSpacing:1, background:theme.textGrad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", animation:`${theme.textGlowKf} 1.4s ease-in-out infinite`, lineHeight:1 }}>{theme.title}</div>
-              <div style={{ marginTop:8, fontSize:"clamp(15px,4vw,22px)", fontWeight:800, color:theme.name }}>{superCelebration.cardName}</div>
-              <div style={{ marginTop:10, fontSize:13, fontWeight:700, color:"rgba(255,255,255,0.7)" }}>{theme.sub}</div>
+            {/* text */}
+            <div style={{ position:"absolute", bottom:"15%", textAlign:"center", animation:"caughtText 4s ease forwards", padding:"0 16px" }}>
+              <div style={{ fontSize:"clamp(30px,8vw,60px)", fontWeight:900, color:C.main, letterSpacing:2, textShadow:`0 0 30px ${C.main}, 0 0 60px ${C.deep}`, fontFamily:"'Trebuchet MS',sans-serif", lineHeight:1 }}>{C.title}</div>
+              <div style={{ fontSize:"clamp(16px,4vw,22px)", color:C.light, letterSpacing:1, marginTop:8, fontWeight:800 }}>{superCelebration.cardName}</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.75)", letterSpacing:1, marginTop:8, fontWeight:700 }}>{C.sub}</div>
             </div>
           </div>
-        </div>
         );
       })()}
       {tourStep >= 0 && (() => {
@@ -27861,7 +27857,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         </label>
                         <div style={{ marginBottom:14 }}>
                           <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>Date You Hit It</label>
-                          <input type="date" value={oneDate} onChange={e=>setOneDate(e.target.value)} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
+                          <input type="date" value={oneDate} onChange={e=>setOneDate(e.target.value)} onClick={e=>{try{e.target.showPicker&&e.target.showPicker();}catch(_){}}} style={{ background:"#0a0a0a", border:"1px solid #2a2a2a", borderRadius:8, color:"#F0F0F0", padding:"12px", fontSize:16, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", cursor:"pointer" }}/>
                         </div>
                         <div style={{ marginBottom:14 }}>
                           <label style={{ fontSize:11, fontWeight:700, color:"#AAAAAA", display:"block", marginBottom:6 }}>The Story <span style={{ color:"#555", fontWeight:400 }}>(optional)</span></label>
@@ -28217,7 +28213,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         </label>
                         <div style={{marginBottom:14}}>
                           <label style={{fontSize:11,fontWeight:700,color:"#AAAAAA",display:"block",marginBottom:6}}>Date You Hit It</label>
-                          <input type="date" value={claimDate} onChange={e=>setClaimDate(e.target.value)} style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                          <input type="date" value={claimDate} onChange={e=>setClaimDate(e.target.value)} onClick={e=>{try{e.target.showPicker&&e.target.showPicker();}catch(_){}}} style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,color:"#F0F0F0",padding:"12px",fontSize:16,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",cursor:"pointer"}}/>
                         </div>
                         <div style={{marginBottom:14}}>
                           <label style={{fontSize:11,fontWeight:700,color:"#AAAAAA",display:"block",marginBottom:6}}>The Story <span style={{color:"#555",fontWeight:400}}>(optional)</span></label>
