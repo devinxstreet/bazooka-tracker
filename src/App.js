@@ -28277,11 +28277,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               const canFlip = isVerified && (claim.photoUrl || claim.story);
                               return (
                               <div className="super-shine-card" style={{position:"relative",aspectRatio:"3/4",cursor:canFlip?"pointer":"default"}} onClick={()=>{ if(canFlip) setFlippedClaim(p=>p===`super_${c.id}`?null:`super_${c.id}`); }}>
-                                {/* interactive foil shine — works even on greyed/unclaimed cards */}
-                                <div className="super-shine" style={{position:"absolute",inset:0,zIndex:4,borderRadius:12,pointerEvents:"none",opacity:0,background:"linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.25) 38%, rgba(255,220,120,0.45) 46%, rgba(120,220,255,0.5) 54%, rgba(210,130,255,0.45) 62%, transparent 75%)",backgroundSize:"250% 250%",mixBlendMode:"screen",transition:"opacity 0.25s ease"}}/>
                                 <div style={{position:"relative",width:"100%",height:"100%",transformStyle:"preserve-3d",transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)",transform:isFlipped?"perspective(700px) rotateY(180deg)":"perspective(700px)",willChange:"transform"}}>
                                   <div style={{position:"absolute",inset:0,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",overflow:"hidden",borderRadius:12}}>
                                     <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block",opacity:isVerified?1:isPending?0.6:0.5,filter:isVerified?"drop-shadow(0 0 12px rgba(245,158,11,0.6))":isPending?"grayscale(45%)":"grayscale(70%)"}}/>
+                                    {/* interactive foil shine — sits over the art, works even on greyed/unclaimed cards */}
+                                    <div className="super-shine" style={{position:"absolute",inset:0,zIndex:5,borderRadius:12,pointerEvents:"none",opacity:0,background:"linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.3) 38%, rgba(255,220,120,0.5) 46%, rgba(120,220,255,0.55) 54%, rgba(210,130,255,0.5) 62%, transparent 75%)",backgroundSize:"250% 250%",mixBlendMode:"screen",transition:"opacity 0.25s ease"}}/>
                                     {canFlip && <div style={{position:"absolute",bottom:6,right:6,background:"rgba(0,0,0,0.7)",color:"#F59E0B",borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700}}>🔄 the hit</div>}
                                   </div>
                                   {canFlip && (
