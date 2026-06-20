@@ -24729,6 +24729,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [claimDate,       setClaimDate]       = useState("");
   const [adminClaimMode,  setAdminClaimMode]  = useState(false); // admin recording a hit via the normal claim form
   const [editClaimMode,   setEditClaimMode]   = useState(false); // admin editing an existing verified claim
+  const [superCelebration, setSuperCelebration] = useState(null); // {cardName, cardImage} -> fires gold celebration
   const [collapsedSuperSets, setCollapsedSuperSets] = useState({});
   const [expandedOneGroups, setExpandedOneGroups] = useState({});
   const [superSearch,     setSuperSearch]     = useState("");
@@ -25507,6 +25508,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [bulkProg, setBulkProg] = useState(null); // {done,total,matched,skipped,status}
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   useEffect(() => {
+    if (swancity) {
+      try { if (!localStorage.getItem("bz_swancity_tour_done")) setTimeout(()=>setTourStep(0), 600); } catch(e){}
+      return;
+    }
     try { if (!localStorage.getItem("bz_beta_welcomed")) setShowBetaWelcome(true); } catch(e){}
   }, []);
   function dismissBetaWelcome() {
@@ -26546,6 +26551,14 @@ function PublicCardDatabase({ swancity = false } = {}) {
           @keyframes logoGlow { 0%,100%{opacity:0.7} 50%{opacity:1} }
           @keyframes foilSheen { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
           @keyframes superShineSweep { 0%{background-position:200% 50%} 100%{background-position:-100% 50%} }
+          @keyframes superGoldFall { 0%{transform:translateY(-40px) rotate(0deg);opacity:0} 10%{opacity:1} 100%{transform:translateY(105vh) rotate(720deg);opacity:0} }
+          @keyframes superCardPop { 0%{transform:scale(0.3) rotateY(0deg);opacity:0} 40%{transform:scale(1.15) rotateY(360deg);opacity:1} 60%{transform:scale(0.95) rotateY(360deg)} 100%{transform:scale(1) rotateY(360deg);opacity:1} }
+          @keyframes superRays { 0%{transform:rotate(0deg) scale(1.2);opacity:0.7} 100%{transform:rotate(360deg) scale(1.2);opacity:0.7} }
+          @keyframes superTextGlow { 0%,100%{text-shadow:0 0 20px rgba(245,158,11,0.8),0 0 40px rgba(245,158,11,0.5)} 50%{text-shadow:0 0 35px rgba(251,191,36,1),0 0 70px rgba(245,158,11,0.8)} }
+          @keyframes superTextGlowP { 0%,100%{text-shadow:0 0 20px rgba(168,85,247,0.8),0 0 40px rgba(147,51,234,0.5)} 50%{text-shadow:0 0 35px rgba(192,132,252,1),0 0 70px rgba(168,85,247,0.8)} }
+          @keyframes superTextIn { 0%{transform:scale(0.5) translateY(20px);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1) translateY(0);opacity:1} }
+          @keyframes superFadeBg { 0%{opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{opacity:0} }
+          @keyframes superRingPulse { 0%{transform:scale(0.6);opacity:0.9} 100%{transform:scale(2.4);opacity:0} }
           .vticker-wrap { overflow:hidden; }
           .vticker-track { display:flex; flex-direction:column; animation:vtickerScroll 18s linear infinite; }
           .vticker-wrap:hover .vticker-track { animation-play-state:paused; }
@@ -26798,8 +26811,70 @@ function PublicCardDatabase({ swancity = false } = {}) {
           </div>
         </div>
       )}
+      {superCelebration && animsOn && (() => {
+        const isOne = superCelebration.type === "oneof1";
+        const theme = isOne ? {
+          bgRadial:"radial-gradient(circle at 50% 45%, rgba(80,30,140,0.6), rgba(0,0,0,0.9))",
+          ray:"rgba(168,85,247,0.16)",
+          ring:"rgba(168,85,247,0.65)",
+          confetti:["#A855F7","#C084FC","#9333EA","#E9D5FF","#7C3AED","#D8B4FE"],
+          glow:"0 0 50px rgba(168,85,247,0.9), 0 0 90px rgba(147,51,234,0.6)",
+          border:"rgba(192,132,252,0.85)",
+          textGrad:"linear-gradient(180deg,#F3E8FF,#C084FC,#9333EA)",
+          name:"#C084FC",
+          title:"SECRET 1/1!",
+          sub:"💎 1 of 1 · You pulled a Secret 1/1 — the holy grail 💎",
+          textGlowKf:"superTextGlowP",
+        } : {
+          bgRadial:"radial-gradient(circle at 50% 45%, rgba(120,80,0,0.55), rgba(0,0,0,0.88))",
+          ray:"rgba(251,191,36,0.14)",
+          ring:"rgba(251,191,36,0.6)",
+          confetti:["#FFD700","#FBBF24","#F59E0B","#FFF3B0","#FFAA00","#FFE08A"],
+          glow:"0 0 50px rgba(251,191,36,0.9), 0 0 90px rgba(245,158,11,0.6)",
+          border:"rgba(251,191,36,0.8)",
+          textGrad:"linear-gradient(180deg,#FFF3B0,#FBBF24,#F59E0B)",
+          name:"#FBBF24",
+          title:"SUPER HIT!",
+          sub:"⭐ 1 of 1 · You pulled the rarest card in the set ⭐",
+          textGlowKf:"superTextGlow",
+        };
+        return (
+        <div style={{ position:"fixed", inset:0, zIndex:16000, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none", animation:"superFadeBg 4s ease forwards" }}
+          onAnimationEnd={()=>setSuperCelebration(null)}>
+          <div style={{ position:"absolute", inset:0, background:theme.bgRadial }}/>
+          <div style={{ position:"absolute", width:"140vmax", height:"140vmax", left:"50%", top:"45%", transform:"translate(-50%,-50%)", background:`repeating-conic-gradient(from 0deg, ${theme.ray} 0deg 8deg, transparent 8deg 16deg)`, animation:"superRays 9s linear infinite" }}/>
+          {[0,0.4,0.8].map((d,i)=>(
+            <div key={i} style={{ position:"absolute", left:"50%", top:"45%", width:240, height:240, marginLeft:-120, marginTop:-120, borderRadius:"50%", border:`3px solid ${theme.ring}`, animation:`superRingPulse 1.6s ease-out ${d}s infinite` }}/>
+          ))}
+          {Array.from({length:70}).map((_,i)=>{
+            const left=Math.random()*100, delay=Math.random()*1.2, dur=2.4+Math.random()*2, size=6+Math.random()*10;
+            const col=theme.confetti[i%theme.confetti.length];
+            return <div key={i} style={{ position:"absolute", top:0, left:`${left}%`, width:size, height:size*1.4, background:col, borderRadius:2, boxShadow:`0 0 6px ${col}`, animation:`superGoldFall ${dur}s ease-in ${delay}s forwards`, opacity:0 }}/>;
+          })}
+          <div style={{ position:"relative", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
+            {superCelebration.cardImage && (
+              <div style={{ position:"relative", animation:"superCardPop 1.1s cubic-bezier(0.2,0.8,0.2,1) forwards" }}>
+                <img src={superCelebration.cardImage} alt="" style={{ width:200, maxWidth:"60vw", borderRadius:14, boxShadow:theme.glow, border:`2px solid ${theme.border}` }}/>
+              </div>
+            )}
+            <div style={{ animation:"superTextIn 0.6s ease 0.5s both" }}>
+              <div style={{ fontSize:"clamp(34px,9vw,68px)", fontWeight:900, letterSpacing:1, background:theme.textGrad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", animation:`${theme.textGlowKf} 1.4s ease-in-out infinite`, lineHeight:1 }}>{theme.title}</div>
+              <div style={{ marginTop:8, fontSize:"clamp(15px,4vw,22px)", fontWeight:800, color:theme.name }}>{superCelebration.cardName}</div>
+              <div style={{ marginTop:10, fontSize:13, fontWeight:700, color:"rgba(255,255,255,0.7)" }}>{theme.sub}</div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
       {tourStep >= 0 && (() => {
-        const steps = [
+        const steps = swancity ? [
+          { icon:"⭐", title:"The Super Foil Hunt", body:"Every Super Foil is a 1-of-1 — the rarest, hardest pull in Bo Jackson Battle Arena. This page tracks every one that's been hit across the community." },
+          { icon:"📊", title:"See what's been pulled", body:"The bar up top shows how many Supers have been claimed so far. Each card is unique — once it's hit, it's gone forever." },
+          { icon:"🔍", title:"Browse & filter", body:"Use the Set dropdown to jump to a release, and Show: Claimed / Available to see what's already been pulled vs. what's still out there waiting." },
+          { icon:"✨", title:"Tap a card", body:"Greyed-out cards are still available. Verified hits glow gold — tap one to flip it and see the actual photo of the pull and the collector's story." },
+          { icon:"🏆", title:"Hit one? Claim it!", body:"Pulled a Super? Tap 'Claim This Super', add a photo of your card, your name, and the story. No account needed — submit and it goes in for verification." },
+          { icon:"💎", title:"Supers & Secret 1/1s", body:"Switch between the Supers and Secret 1/1s tabs up top to track both. Good luck out there — may your next rip be a 1-of-1!" },
+        ] : [
           { icon:"🃏", title:"Welcome to the Vault", body:"This is the home base for every BoBA card. Let's take 30 seconds to show you around — tap Next to go through it." },
           { icon:"🔍", title:"Find any card", body:"Search by hero, card number, athlete, or treatment to find any card instantly." },
           { icon:"🎛️", title:"Filter & sort", body:"Narrow down by set, weapon, treatment, power, or what you own. Toggle between grid and list view, and resize cards with the slider." },
@@ -26810,7 +26885,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
         ];
         const s = steps[tourStep];
         const last = tourStep === steps.length-1;
-        const end = () => { try{localStorage.setItem("bz_tour_done","1");}catch(e){} setTourStep(-1); };
+        const end = () => { try{localStorage.setItem(swancity?"bz_swancity_tour_done":"bz_tour_done","1");}catch(e){} setTourStep(-1); };
         return (
           <div style={{ position:"fixed", inset:0, zIndex:14600, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div style={{ background:"linear-gradient(160deg,#1a0f1f,#120a16)", border:"1px solid rgba(232,49,122,0.35)", borderRadius:22, padding:"30px 26px", maxWidth:420, width:"100%", textAlign:"center", boxShadow:"0 24px 70px rgba(232,49,122,0.3)" }}>
@@ -27806,6 +27881,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               const pu=await getDownloadURL(sr);
                               await setDoc(doc(db,"oneof1_claims",oneModal.id),{ cardId:oneModal.id, cardName:oneModal.hero, cardNum:oneModal.cardNum, setName:oneModal.setName||"", treatment:oneModal.treatment||"", photoUrl:pu, story:oneStory||"", dateHit:oneDate||"", submitterName:oneName||"Anonymous", userId:user?.uid||"anon", status:adminClaimMode?"verified":"pending", ...(adminClaimMode?{recordedByAdmin:user?.displayName||user?.email||"Admin", reviewedAt:new Date().toISOString()}:{}), createdAt:new Date().toISOString() });
                               setOneSent(true);
+                              setSuperCelebration({ cardName: oneModal.hero, cardImage: oneModal.imageUrl || null, type: "oneof1" });
                             } catch(e){ alert("Upload failed: "+e.message); }
                             setOneSubmitting(false);
                           }} disabled={!onePhoto||oneSubmitting}
@@ -28086,6 +28162,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 createdAt: new Date().toISOString(),
               });
               setClaimSent(true);
+              setSuperCelebration({ cardName: card.hero, cardImage: card.imageUrl || null, type: "super" });
             } catch(e) { alert("Upload failed: " + e.message); }
             setClaimSubmitting(false);
           }
