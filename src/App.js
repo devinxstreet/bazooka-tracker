@@ -24614,6 +24614,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [importRows,    setImportRows]    = useState(null); // parsed+matched rows for preview
   const [importRaw,     setImportRaw]     = useState(null); // { hdr, records } before set mapping
   const [importSetMap,  setImportSetMap]  = useState({});   // { csvSetName: yourSetName }
+  const [importColMap,  setImportColMap]  = useState(null); // { Name:idx, Set:idx, "Card Number":idx, Parallel:idx, Weapon:idx, Power:idx, Quantity:idx, "Estimated Value":idx }
+  const [colMapConfirmed, setColMapConfirmed] = useState(false);
   const [importing,     setImporting]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
   const scanInFlight = useRef(false);
@@ -25294,19 +25296,19 @@ function PublicCardDatabase({ swancity = false } = {}) {
     return rows.filter(r => r.some(c => c.trim() !== ""));
   }
 
-  function matchImportRow(rec, hdr, setMap) {
-    const get = (name) => { const idx = hdr.findIndex(h => h.toLowerCase().trim() === name.toLowerCase()); return idx>=0 ? (rec[idx]||"").trim() : ""; };
-    const heroRaw = get("Name");
-    const csvSet = get("Set");
+  function matchImportRow(rec, hdr, setMap, colMap) {
+    const cell = (field) => { const idx = colMap ? colMap[field] : hdr.findIndex(h => h.toLowerCase().trim() === field.toLowerCase()); return (idx!=null && idx>=0) ? (rec[idx]||"").trim() : ""; };
+    const heroRaw = cell("Name");
+    const csvSet = cell("Set");
     const mappedSet = setMap ? setMap[csvSet] : undefined;
     const forceSkip = mappedSet === "__SKIP__"; // user marked this set as not in our database
     const setName = (mappedSet && !forceSkip) ? mappedSet : csvSet; // use mapped set if provided
-    const cardNum = get("Card Number");
-    const parallel = get("Parallel");   // maps to treatment
-    const weapon = get("Weapon");
-    const power = get("Power");
-    const qty = parseInt(get("Quantity")) || 1;
-    const value = parseFloat(get("Estimated Value")) || null;
+    const cardNum = cell("Card Number");
+    const parallel = cell("Parallel");   // maps to treatment
+    const weapon = cell("Weapon");
+    const power = cell("Power");
+    const qty = parseInt(cell("Quantity")) || 1;
+    const value = parseFloat(String(cell("Estimated Value")).replace(/[^0-9.]/g,"")) || null;
     if (!heroRaw && !cardNum) return null;
     const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
     // Hero name variants: full string, the quoted nickname (BoBA hero name), and the string with the quoted part removed
@@ -25337,6 +25339,33 @@ function PublicCardDatabase({ swancity = false } = {}) {
     return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value}, match:match||null };
   }
 
+  // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
+  const COL_ALIASES = {
+    "Name": ["name","player","card name","cardname","hero","player name","title","subject","athlete","card","description"],
+    "Set": ["set","set name","setname","series","release","edition","product","brand/set"],
+    "Card Number": ["card number","cardnumber","card #","card#","number","no","no.","#","card no","cardno","card num","cardnum"],
+    "Parallel": ["parallel","treatment","variation","variant","finish","foil","insert","subset","sub set","parallel/insert","type"],
+    "Weapon": ["weapon","weapon type"],
+    "Power": ["power","power level","pwr"],
+    "Quantity": ["quantity","qty","count","amount","# owned","owned","copies"],
+    "Estimated Value": ["estimated value","value","fair market value","fmv","market value","price","est value","est. value","worth","comp"],
+  };
+  function autoDetectColumns(hdr) {
+    const norm = s => String(s||"").replace(/[\s\-_.()/#]/g,"").toLowerCase();
+    const map = {};
+    const usedIdx = new Set();
+    Object.keys(COL_ALIASES).forEach(field => {
+      const aliases = COL_ALIASES[field];
+      // exact normalized match first
+      let idx = hdr.findIndex((h,i) => !usedIdx.has(i) && aliases.some(a => norm(a)===norm(h)));
+      // then contains match
+      if (idx < 0) idx = hdr.findIndex((h,i) => !usedIdx.has(i) && aliases.some(a => norm(h).includes(norm(a)) || norm(a).includes(norm(h))));
+      map[field] = idx;
+      if (idx >= 0) usedIdx.add(idx);
+    });
+    return map;
+  }
+
   function handleImportFile(file) {
     if (!file) return;
     const reader = new FileReader();
@@ -25345,30 +25374,38 @@ function PublicCardDatabase({ swancity = false } = {}) {
         const rows = parseCSV(e.target.result);
         if (rows.length < 2) { alert("That file looks empty. Make sure it has a header row and at least one card."); return; }
         const hdr = rows[0];
-        const hasSet = hdr.some(h => h.toLowerCase().trim() === "set");
-        if (!hasSet) { alert("Your CSV needs a \"Set\" column so we can match cards to the right set. Download our template for the correct format."); return; }
         const records = rows.slice(1).filter(r => r.some(c => c.trim()!==""));
-        if (!records.length) { alert("Couldn't read any cards from that file. Check the columns match the template."); return; }
-        // Find the unique set names in their file — they'll map each to one of our sets
-        const setIdx = hdr.findIndex(h => h.toLowerCase().trim()==="set");
-        const csvSets = [...new Set(records.map(r => (r[setIdx]||"").trim()).filter(Boolean))].sort();
-        // Pre-fill any that already match one of our set names exactly
-        const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))];
-        const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
-        const initialMap = {};
-        csvSets.forEach(cs => { const hit = ourSets.find(os => norm(os)===norm(cs) || norm(os).includes(norm(cs)) || norm(cs).includes(norm(os))); if (hit) initialMap[cs]=hit; });
+        if (!records.length) { alert("Couldn't read any cards from that file. Check that it has card rows below the header."); return; }
+        // Auto-detect which CSV column maps to each field, then let the user confirm/fix it.
+        const detected = autoDetectColumns(hdr);
         setImportRaw({ hdr, records });
-        setImportSetMap(initialMap);
+        setImportColMap(detected);
+        setColMapConfirmed(false);
+        setImportSetMap({});
         setImportRows(null);
-      } catch(err) { console.error(err); alert("Couldn't read that CSV. Try the template format."); }
+      } catch(err) { console.error(err); alert("Couldn't read that CSV. Make sure it's a valid comma-separated file."); }
     };
     reader.readAsText(file);
+  }
+
+  // Called after the user confirms the column mapping → derive set list + pre-fill obvious set matches
+  function confirmColumnMapAndProceed() {
+    if (!importRaw || !importColMap) return;
+    const { records } = importRaw;
+    const setColIdx = importColMap["Set"];
+    const csvSets = setColIdx>=0 ? [...new Set(records.map(r => (r[setColIdx]||"").trim()).filter(Boolean))].sort() : [];
+    const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))];
+    const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
+    const initialMap = {};
+    csvSets.forEach(cs => { const hit = ourSets.find(os => norm(os)===norm(cs) || norm(os).includes(norm(cs)) || norm(cs).includes(norm(os))); if (hit) initialMap[cs]=hit; });
+    setImportSetMap(initialMap);
+    setColMapConfirmed(true);
   }
 
   function applySetMappingAndMatch() {
     if (!importRaw) return;
     const { hdr, records } = importRaw;
-    const parsed = records.map(r => matchImportRow(r, hdr, importSetMap)).filter(Boolean);
+    const parsed = records.map(r => matchImportRow(r, hdr, importSetMap, importColMap)).filter(Boolean);
     setImportRows(parsed);
   }
 
@@ -25435,7 +25472,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
       }
 
       showToast(`Imported ${matched.length} card${matched.length!==1?"s":""}${unmatched.length?` · ${unmatched.length} not in database yet`:""}!`);
-      setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({});
+      setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false);
     } catch(e) { console.error("import failed:", e); alert("Import failed. Please try again."); }
     setImporting(false);
   }
@@ -27269,11 +27306,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
         </div>
       )}
       {importModal && (
-        <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
+        <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>Import Your Collection</div>
-              <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+              <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); } }} style={{background:"none",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
             </div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:12}}>Already track your collection somewhere else? Export it as a CSV and drop it in here — we'll match your cards automatically. Or download our template, fill it out, and import.</div>
             <div style={{fontSize:12,color:"#FBBF24",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 12px",marginBottom:18,lineHeight:1.5}}>⚠️ <strong>The "Set" column is required.</strong> The same hero can appear in multiple sets, so we need the set name to match the right card. Make sure every card has its set filled in before importing.</div>
@@ -27311,8 +27348,55 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   </div>
                 </>
               );
+            })() : (importRaw && !colMapConfirmed) ? (()=>{
+              const FIELDS = [
+                {key:"Name", label:"Card / Player Name", required:true, hint:"The hero or player name"},
+                {key:"Set", label:"Set", required:true, hint:"Required — which release the card is from"},
+                {key:"Card Number", label:"Card Number", required:false, hint:"Best for exact matching"},
+                {key:"Parallel", label:"Parallel / Treatment", required:false, hint:"e.g. Battlefoil, Hex"},
+                {key:"Weapon", label:"Weapon", required:false, hint:"Weapon type, if your file has it"},
+                {key:"Power", label:"Power", required:false, hint:"Power level"},
+                {key:"Quantity", label:"Quantity", required:false, hint:"How many you own (defaults to 1)"},
+                {key:"Estimated Value", label:"Value", required:false, hint:"Market / estimated value"},
+              ];
+              const cm = importColMap || {};
+              const nameOk = cm["Name"]>=0, setOk = cm["Set"]>=0;
+              const canContinue = nameOk && setOk;
+              const detectedCount = Object.values(cm).filter(v=>v>=0).length;
+              return (
+                <>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",lineHeight:1.5,marginBottom:8}}>We looked at your file's columns and matched them up automatically. <strong style={{color:"#4ade80"}}>Check they're right</strong> and fix any that are off, then continue.</div>
+                  <div style={{fontSize:12,color:"#7B9CFF",background:"rgba(123,156,255,0.08)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:10,padding:"9px 12px",marginBottom:16,lineHeight:1.5}}>✨ Auto-matched {detectedCount} column{detectedCount!==1?"s":""} from your file. Anything set to “— not in my file —” just means we'll skip it.</div>
+                  <div style={{maxHeight:340,overflowY:"auto",marginBottom:16}}>
+                    {FIELDS.map(f=>{
+                      const idx = cm[f.key];
+                      const isSet = idx>=0;
+                      const missingReq = f.required && !isSet;
+                      const borderC = missingReq?"rgba(232,49,122,0.4)":isSet?"rgba(74,222,128,0.25)":"rgba(255,255,255,0.1)";
+                      return (
+                        <div key={f.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${borderC}`,borderRadius:10,padding:"10px 12px"}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#F0F0F0"}}>{f.label}{f.required&&<span style={{color:"#E8317A",marginLeft:4}}>*</span>}</div>
+                            <div style={{fontSize:10,color:"#666"}}>{f.hint}</div>
+                          </div>
+                          <span style={{color:"#555",fontSize:14}}>←</span>
+                          <select value={idx>=0?String(idx):""} onChange={e=>{ const v=e.target.value===""?-1:parseInt(e.target.value); setImportColMap(prev=>({...prev,[f.key]:v})); }} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:missingReq?"rgba(232,49,122,0.5)":isSet?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.15)"}}>
+                            <option value="">— not in my file —</option>
+                            {importRaw.hdr.map((h,i)=><option key={i} value={i}>{h||`Column ${i+1}`}</option>)}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!canContinue && <div style={{fontSize:11,color:"#E8317A",marginBottom:12,textAlign:"center"}}>Name and Set are required — pick which of your columns hold those.</div>}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>{ setImportRaw(null); setImportColMap(null); }} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
+                    <button onClick={confirmColumnMapAndProceed} disabled={!canContinue} style={{flex:2,background:canContinue?"linear-gradient(135deg,#7B9CFF,#4ade80)":"#333",color:canContinue?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:canContinue?"pointer":"not-allowed",fontFamily:"inherit"}}>{canContinue?"Continue →":"Map Name & Set"}</button>
+                  </div>
+                </>
+              );
             })() : importRaw ? (()=>{
-              const setIdx = importRaw.hdr.findIndex(h=>h.toLowerCase().trim()==="set");
+              const setIdx = importColMap ? importColMap["Set"] : importRaw.hdr.findIndex(h=>h.toLowerCase().trim()==="set");
               const csvSets = [...new Set(importRaw.records.map(r=>(r[setIdx]||"").trim()))].sort((a,b)=>(a||"").localeCompare(b||""));
               const ourSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
               // Every set needs a choice — a real set OR "skip" (not in our database)
@@ -27345,7 +27429,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   </div>
                   {skipCount>0 && <div style={{fontSize:11,color:"#7B9CFF",marginBottom:12,textAlign:"center"}}>{skipCount} card{skipCount!==1?"s":""} will go to your Pending list (not in our database yet)</div>}
                   <div style={{display:"flex",gap:10}}>
-                    <button onClick={()=>{ setImportRaw(null); setImportSetMap({}); }} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
+                    <button onClick={()=>{ setColMapConfirmed(false); setImportSetMap({}); }} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
                     <button onClick={applySetMappingAndMatch} disabled={!allMapped} style={{flex:2,background:allMapped?"linear-gradient(135deg,#7B9CFF,#4ade80)":"#333",color:allMapped?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:allMapped?"pointer":"not-allowed",fontFamily:"inherit"}}>{allMapped?"Continue →":"Choose for every set"}</button>
                   </div>
                 </>
@@ -27589,7 +27673,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
-                  <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                  <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
                     title="Share your public collection page"
