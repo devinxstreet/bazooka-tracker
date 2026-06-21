@@ -3,12 +3,39 @@ export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 export default async function handler(req, res) {
   // Diagnostic: open https://bazookadash.com/api/scan-card in a browser to check deploy + key
   if (req.method === "GET") {
+    // ?test=1 makes a REAL Claude call with a tiny 1x1 red JPEG and returns exactly what Claude says.
+    if (req.query && req.query.test) {
+      // 1x1 red pixel JPEG, base64 (known-good, ~600 bytes)
+      const TINY_JPEG = "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+      try {
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": process.env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 20,
+            messages: [{ role: "user", content: [
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: TINY_JPEG } },
+              { type: "text", text: "Reply with the word OK." },
+            ]}],
+          }),
+        });
+        const bodyText = await r.text();
+        return res.status(200).json({ liveTest: true, claudeStatus: r.status, claudeResponse: bodyText.slice(0, 500) });
+      } catch (e) {
+        return res.status(200).json({ liveTest: true, fetchError: e.message });
+      }
+    }
     return res.status(200).json({
       ok: true,
       model: "claude-sonnet-4-6",
       hasApiKey: !!process.env.ANTHROPIC_API_KEY,
       keyPrefix: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0, 7) + "..." : null,
-      deployedAt: "scan-magicbytes-v3",
+      deployedAt: "scan-magicbytes-v4",
     });
   }
 
