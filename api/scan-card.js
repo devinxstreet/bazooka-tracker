@@ -8,7 +8,7 @@ export default async function handler(req, res) {
       model: "claude-sonnet-4-6",
       hasApiKey: !!process.env.ANTHROPIC_API_KEY,
       keyPrefix: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0, 7) + "..." : null,
-      deployedAt: "scan-sonnet-4-6-v2",
+      deployedAt: "scan-magicbytes-v3",
     });
   }
 
@@ -23,17 +23,38 @@ export default async function handler(req, res) {
 
     if (!imageBase64) return res.status(400).json({ error: "No image data provided" });
 
-    // Claude Vision only supports these media types — convert anything else to jpeg label
-    const SUPPORTED = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    let finalMediaType = (mediaType || "image/jpeg").toLowerCase();
+    // Strip any data-URI prefix the client may have left on ("data:image/jpeg;base64,....")
+    const stripPrefix = (b64) => {
+      if (!b64) return b64;
+      const comma = b64.indexOf(",");
+      if (b64.slice(0, 5) === "data:" && comma > -1) return b64.slice(comma + 1);
+      return b64;
+    };
 
-    // Strip any parameters (e.g. "image/jpeg;base64" -> "image/jpeg")
-    finalMediaType = finalMediaType.split(";")[0].trim();
+    // Detect the REAL image format from the first bytes of the base64 (magic bytes),
+    // instead of trusting the declared mediaType. This is the #1 cause of Claude 400s.
+    const detectType = (b64) => {
+      if (!b64) return null;
+      const head = b64.slice(0, 24);
+      if (head.startsWith("/9j/")) return "image/jpeg";        // JPEG
+      if (head.startsWith("iVBORw0KGgo")) return "image/png";  // PNG
+      if (head.startsWith("R0lGOD")) return "image/gif";       // GIF
+      if (head.startsWith("UklGR")) return "image/webp";       // WEBP (RIFF)
+      return null; // unknown / unsupported (e.g. HEIC)
+    };
 
-    // If unsupported type, default to jpeg (the base64 data is what matters)
-    if (!SUPPORTED.includes(finalMediaType)) {
-      finalMediaType = "image/jpeg";
+    const cleanImage  = stripPrefix(imageBase64);
+    const cleanCorner = stripPrefix(cornerBase64);
+
+    const detected = detectType(cleanImage);
+    if (!detected) {
+      return res.status(400).json({
+        error: "Unsupported image format",
+        details: "That photo isn't a JPEG/PNG/GIF/WEBP (likely HEIC from an iPhone). The app should convert it — try again or take a fresh photo.",
+      });
     }
+    const finalMediaType = detected;
+    const cornerType = detectType(cleanCorner) || finalMediaType;
 
     const systemPrompt = `You are a Bo Jackson Battle Arena (BoBA) trading card identifier. You read details from photos of cards and return structured JSON. Photos may be angled, glare-y, blurry, or imperfect — do your best and NEVER invent details you cannot actually see.
 
@@ -64,16 +85,16 @@ Example: {"hero":"Showtime","cardNum":"4","weapon":"Ice","treatment":"Base Set",
       { type: "text", text: "FULL CARD photo:" },
       {
         type: "image",
-        source: { type: "base64", media_type: finalMediaType, data: imageBase64 },
+        source: { type: "base64", media_type: finalMediaType, data: cleanImage },
       },
     ];
 
     // Optional zoomed bottom-left corner crop to help read the tiny card number
-    if (cornerBase64) {
+    if (cleanCorner) {
       userContent.push({ type: "text", text: "ZOOMED-IN bottom-left corner (use this to read the small card number):" });
       userContent.push({
         type: "image",
-        source: { type: "base64", media_type: finalMediaType, data: cornerBase64 },
+        source: { type: "base64", media_type: cornerType, data: cleanCorner },
       });
     }
 
