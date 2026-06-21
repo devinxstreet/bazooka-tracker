@@ -81,7 +81,7 @@ Example: {"hero":"Showtime","cardNum":"4","weapon":"Ice","treatment":"Base Set",
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         max_tokens: 320,
         system: systemPrompt,
         messages: [{ role: "user", content: userContent }],
@@ -91,7 +91,8 @@ Example: {"hero":"Showtime","cardNum":"4","weapon":"Ice","treatment":"Base Set",
     if (!response.ok) {
       const errText = await response.text();
       console.error("Claude API error:", response.status, errText);
-      return res.status(500).json({ error: `Claude API ${response.status}`, details: errText });
+      // Pass the real status + Claude's message through so the app can show what's wrong
+      return res.status(response.status).json({ error: `Claude API ${response.status}`, details: errText });
     }
 
     const data = await response.json();
