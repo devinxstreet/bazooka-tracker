@@ -14,6 +14,7 @@ const EARLY_ACCESS_EMAILS = [
   "christopher.e.ohara@gmail.com",
   "sydxelyse@icloud.com",
   "matthewjessell@gmail.com",
+  "mikerfried@aol.com",
 ];
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
