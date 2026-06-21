@@ -1,7 +1,22 @@
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 export default async function handler(req, res) {
+  // Diagnostic: open https://bazookadash.com/api/scan-card in a browser to check deploy + key
+  if (req.method === "GET") {
+    return res.status(200).json({
+      ok: true,
+      model: "claude-sonnet-4-6",
+      hasApiKey: !!process.env.ANTHROPIC_API_KEY,
+      keyPrefix: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0, 7) + "..." : null,
+      deployedAt: "scan-sonnet-4-6-v2",
+    });
+  }
+
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: "Server missing ANTHROPIC_API_KEY", details: "Set ANTHROPIC_API_KEY in Vercel → Settings → Environment Variables, then redeploy." });
+  }
 
   try {
     const { imageBase64, cornerBase64, mediaType, setName, treatment, weapon } = req.body;
