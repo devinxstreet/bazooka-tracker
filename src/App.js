@@ -84,7 +84,7 @@ function calcStream(s, targetBreaker=null) {
   const bazExpShare  = isSingles ? 0 : streamExp * ((1-rate) * 0.30);
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
-  const eventStaffAmt = 0;
+  const eventStaffAmt = isSingles ? 0 : (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000, bazOwnShare*0.15), 0);
   const imcReimb      = isSingles ? 0 : externalCh ? 0 : streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
@@ -93,7 +93,7 @@ function calcStream(s, targetBreaker=null) {
   const biguCardCosts = isBigU ? (parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0) : 0;
   // Shipping is split 50/50: BigU fronts it, Bazooka reimburses half (and eats that half as a cost)
   const biguShippingHalf = isBigU ? ((parseFloat(s.biguShipping)||0) * 0.5) : 0;
-  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts - biguShippingHalf;
+  const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt - salesBonus + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts - biguShippingHalf;
   let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
@@ -110,7 +110,7 @@ function calcStream(s, targetBreaker=null) {
     ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+biguShippingHalf
     : 0;
 
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -468,7 +468,7 @@ function useDebounce(value, delay=220) {
 // recalculate 100 streams on every keystroke
 const streamCalcCache = new Map();
 function calcStreamMemo(s, targetBreaker=null) {
-  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${targetBreaker||""}`;
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${s.splitRep||""}:${s.splitPct||""}:${(s.eventStaff||[]).map(e=>e.breaker).join(",")}:${targetBreaker||""}`;
   if (streamCalcCache.has(key)) return streamCalcCache.get(key);
   const result = calcStream(s, targetBreaker);
   streamCalcCache.set(key, result);
@@ -1022,7 +1022,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             gross:      { label:"Gross Revenue",       color:"#E8317A", val: s => calcStream(s).gross },
             expenses:   { label:"Stream Expenses",     color:"#991b1b", val: s => (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0) },
             imc:        { label:"Owed to Imagination Mining (70%)", color:"#E8317A", val: s => calcStream(s).imcNet },
-            commission: { label:"Commission Owed",     color:"#E8317A", val: s => calcStream(s).commAmt },
+            commission: { label:"Commission Owed",     color:"#E8317A", val: s => { const c=calcStream(s); const sp=s.splitRep?parseFloat(s.splitPct||50)/100:1; const primary=s.splitRep?c.commAmt*sp:c.commAmt; const splitRepC=s.splitRep?c.commAmt*(1-sp):0; const evt=(s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,c.bazNet*0.15),0); return (primary-(c.repExpShare||0))+splitRepC+evt+(c.salesBonus||0)+(c.tips||0); } },
             bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
             trueNet:    { label:"Bazooka True Net",      color:"#E8317A", val: s => calcStream(s).bazTrueNet||0 },
           }[drillDown];
@@ -1042,7 +1042,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <thead>
                     <tr style={{ borderBottom:"1px solid #2a2a2a", background:"#0d0d0d" }}>
                       {["Date","Breaker","Gross","Rate",
-                        ...(drillDown==="trueNet" ? ["Baz Net","− Commission","💙 IMC Reimb","= True Net"] : [
+                        ...(drillDown==="trueNet" ? ["Baz Net","− Payouts","💙 IMC Reimb","= True Net"] : [
                           drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka 30%":"Gross"
                         ])
                       ].map(h=><th key={h} style={{ padding:"10px 14px", textAlign:"left", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:1, whiteSpace:"nowrap" }}>{h}</th>)}
@@ -1064,7 +1064,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                               <td style={{ padding:"10px 14px", color:"#AAAAAA" }}>{(c.rate*100).toFixed(0)}%{s.isEvent?" Event":s.binOnly?" BIN":""}{s.externalChannel&&<span style={{ marginLeft:6, fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:4, padding:"1px 5px" }}>🌐 Ext</span>}</td>
                               {drillDown==="trueNet" ? <>
                                 <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.bazNet)}</td>
-                                <td style={{ padding:"10px 14px", color:"#ef4444" }}>−{fmt(c.commAmt)}</td>
+                                <td style={{ padding:"10px 14px", color:"#ef4444" }}>−{fmt(c.commAmt + (c.eventStaffAmt||0) + (c.salesBonus||0))}</td>
                                 <td style={{ padding:"10px 14px" }}>
                                   {hasReimb ? (
                                     <div>
@@ -1085,7 +1085,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                       <td colSpan={4} style={{ padding:"12px 14px", fontWeight:800, color:"#F0F0F0", fontSize:12 }}>Total ({drillRows.length} stream{drillRows.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(drillRows.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(drillRows.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(drillRows.reduce((a,s)=>{const c=calcStream(s);return a+c.commAmt+(c.eventStaffAmt||0)+(c.salesBonus||0);},0))}</td>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#60A5FA", fontSize:14 }}>{drillRows.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(drillRows.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
                       </> : <td style={{ padding:"12px 14px", fontWeight:900, color:config.color, fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+config.val(s),0))}</td>}
@@ -5205,7 +5205,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     { l:"Bazooka Earnings",            v:fmt(rc.bazNet),               c:"#E8317A" },
                     { l:"\u2212 Rep Commission",             v:"\u2212 "+fmt(rc.commAmt),         c:"#991b1b" },
                     ...(rc.tips>0 ? [{ l:"+ Tips (100% rep)", v:"+ "+fmt(rc.tips), c:"#FBBF24" }] : []),
-                    ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"+ "+fmt(rc.salesBonus), c:"#A78BFA" }] : []),
+                    ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"\u2212 "+fmt(rc.salesBonus), c:"#991b1b" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
                     ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
