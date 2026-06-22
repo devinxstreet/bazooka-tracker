@@ -59,21 +59,6 @@ const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
 // ── SINGLE CANONICAL STREAM CALC ─────────────────────────────────────────────
 function calcStream(s, targetBreaker=null) {
-  // EXCLUDED FROM FINANCIALS: this stream doesn't report on the dashboard and doesn't
-  // add to IMC owed or Bazooka net. Devin can still manually enter a commission to pay out.
-  if (s.excludeFinancials) {
-    const manualComm = parseFloat(s.manualCommission)||0;
-    const tips = parseFloat(s.tips)||0;
-    const gross = parseFloat(s.grossRevenue)||0;
-    return {
-      gross, fees:0, coupons:0, streamExp:0, splitBase:0, netRev:0, bazNet:0, bazOwnShare:0,
-      imcNet:0, rate:0, commAmt:manualComm, repExpShare:0, bazExpShare:0, tips, salesBonus:0,
-      collabAmt:0, eventStaffAmt:0, imcReimb:0, imcDirectReimb:0, splitPct:1,
-      primaryCommAmt:manualComm, splitRepAmt:0, splitRep:"", bazTrueNet:0,
-      myComm:manualComm + tips, totalExp:0, commBase:0, externalChannel:false,
-      isSingles:false, isBigU:false, biguReimb:0, biguShippingHalf:0, excludeFinancials:true,
-    };
-  }
   const gross        = parseFloat(s.grossRevenue)||0;
   const fees         = parseFloat(s.whatnotFees)||0;
   const coupons      = parseFloat(s.coupons)||0;
@@ -122,7 +107,7 @@ function calcStream(s, targetBreaker=null) {
     ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+biguShippingHalf
     : 0;
 
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt:0, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -982,9 +967,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           const primaryComm = s.splitRep ? c.commAmt*splitPct : c.commAmt;
           const splitRepComm = s.splitRep ? c.commAmt*(1-splitPct) : 0;
           const eventStaffComm = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000,c.bazNet*0.15),0);
+          // Commission ALWAYS counts (reps get paid). Excluded streams contribute $0 to the financial figures
+          // (revenue was already counted from the imported CSV) but their commission still pays out.
+          acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0) + (c.tips||0);
+          if (c.excludeFinancials) return acc;
           acc.gross    += c.gross;
           acc.imc      += c.imcNet - (c.imcDirectReimb||0);
-          acc.comm     += (primaryComm - (c.repExpShare||0)) + splitRepComm + eventStaffComm + (c.salesBonus||0) + (c.tips||0);
           acc.baz      += c.bazNet;
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
@@ -5053,27 +5041,18 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           )}
         </div>
 
-        {/* Exclude from Financials — off-books stream, still allows a manual commission payout */}
+        {/* Exclude from Financials — revenue already counted (e.g. from imported CSV); pay commission normally but keep it off the dashboard/IMC */}
         <div style={{ background:"#1a1206", border:"1px solid #F59E0B44", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <input type="checkbox" checked={!!recap.excludeFinancials} onChange={e=>rf("excludeFinancials")(e.target.checked)} style={{ width:15, height:15, cursor:"pointer", accentColor:"#F59E0B" }}/>
             <div>
-              <span style={{ fontSize:12, color:"#F59E0B", fontWeight:700 }}>🚫 Exclude from Financials</span>
-              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>This stream won't show on the dashboard totals and won't add to IMC owed or Bazooka net. Use for off-books or special sessions. You can still pay out a commission below.</div>
+              <span style={{ fontSize:12, color:"#F59E0B", fontWeight:700 }}>🚫 Exclude from Financials (already counted)</span>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>For revenue you already recorded elsewhere (e.g. an imported CSV). Commission still calculates normally — full rate, splits, event staff, bonuses — so reps get paid. The gross / IMC owed / Bazooka net just won't be added to the dashboard again.</div>
             </div>
           </div>
-          {recap.excludeFinancials && (
-            <div style={{ marginTop:12 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                <label style={{ fontSize:12, color:"#F59E0B", fontWeight:700, whiteSpace:"nowrap" }}>💰 Commission to pay out:</label>
-                <div style={{ position:"relative", flex:1, minWidth:140 }}>
-                  <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#888", fontSize:13 }}>$</span>
-                  <input type="number" min="0" step="0.01" value={recap.manualCommission||""} onChange={e=>rf("manualCommission")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:"100%", paddingLeft:22, fontSize:13, color:"#F59E0B", boxSizing:"border-box" }}/>
-                </div>
-              </div>
-              <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:6, fontSize:11, color:"#F59E0B", lineHeight:1.5 }}>
-                ✓ Off the books — no dashboard impact, nothing added to IMC. {parseFloat(recap.manualCommission)>0 ? <>Only <strong>{fmt(parseFloat(recap.manualCommission))}</strong> will be paid to {recap.breaker||breaker||"the rep"} as commission.</> : "Enter an amount above if you need to pay the rep."}
-              </div>
+          {recap.excludeFinancials && rc && (
+            <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:6, fontSize:11, color:"#F59E0B", lineHeight:1.5 }}>
+              ✓ Commission pays out normally: <strong>{fmt(rc.myComm)}</strong> to {recap.breaker||breaker||"the rep"}{recap.splitRep?` (split with ${recap.splitRep})`:""}. Revenue stays off the dashboard and adds nothing to IMC.
             </div>
           )}
         </div>
@@ -13541,7 +13520,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
     const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
-    const ownStream = !isEventOnly && !isSplitRep;
+    const ownStream = !isEventOnly && !isSplitRep && !c.excludeFinancials;
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
