@@ -59,6 +59,21 @@ const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
 // ── SINGLE CANONICAL STREAM CALC ─────────────────────────────────────────────
 function calcStream(s, targetBreaker=null) {
+  // EXCLUDED FROM FINANCIALS: this stream doesn't report on the dashboard and doesn't
+  // add to IMC owed or Bazooka net. Devin can still manually enter a commission to pay out.
+  if (s.excludeFinancials) {
+    const manualComm = parseFloat(s.manualCommission)||0;
+    const tips = parseFloat(s.tips)||0;
+    const gross = parseFloat(s.grossRevenue)||0;
+    return {
+      gross, fees:0, coupons:0, streamExp:0, splitBase:0, netRev:0, bazNet:0, bazOwnShare:0,
+      imcNet:0, rate:0, commAmt:manualComm, repExpShare:0, bazExpShare:0, tips, salesBonus:0,
+      collabAmt:0, eventStaffAmt:0, imcReimb:0, imcDirectReimb:0, splitPct:1,
+      primaryCommAmt:manualComm, splitRepAmt:0, splitRep:"", bazTrueNet:0,
+      myComm:manualComm + tips, totalExp:0, commBase:0, externalChannel:false,
+      isSingles:false, isBigU:false, biguReimb:0, biguShippingHalf:0, excludeFinancials:true,
+    };
+  }
   const gross        = parseFloat(s.grossRevenue)||0;
   const fees         = parseFloat(s.whatnotFees)||0;
   const coupons      = parseFloat(s.coupons)||0;
@@ -465,7 +480,7 @@ function useDebounce(value, delay=220) {
 // recalculate 100 streams on every keystroke
 const streamCalcCache = new Map();
 function calcStreamMemo(s, targetBreaker=null) {
-  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${targetBreaker||""}`;
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${targetBreaker||""}`;
   if (streamCalcCache.has(key)) return streamCalcCache.get(key);
   const result = calcStream(s, targetBreaker);
   streamCalcCache.set(key, result);
@@ -4281,7 +4296,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault", excludeFinancials:false, manualCommission:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4312,7 +4327,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", biguShipping:existingStream.biguShipping||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", biguShipping:existingStream.biguShipping||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", excludeFinancials:existingStream.excludeFinancials||false, manualCommission:existingStream.manualCommission||"", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -5034,6 +5049,31 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {recap.externalChannel && (
             <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(123,156,255,0.06)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, fontSize:12, color:"#7B9CFF" }}>
               ✓ 70/30 split math unchanged — Bazooka keeps its 30%, commission applies normally. IMC obligation zeroed out.
+            </div>
+          )}
+        </div>
+
+        {/* Exclude from Financials — off-books stream, still allows a manual commission payout */}
+        <div style={{ background:"#1a1206", border:"1px solid #F59E0B44", borderRadius:8, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <input type="checkbox" checked={!!recap.excludeFinancials} onChange={e=>rf("excludeFinancials")(e.target.checked)} style={{ width:15, height:15, cursor:"pointer", accentColor:"#F59E0B" }}/>
+            <div>
+              <span style={{ fontSize:12, color:"#F59E0B", fontWeight:700 }}>🚫 Exclude from Financials</span>
+              <div style={{ fontSize:10, color:"#555", marginTop:2 }}>This stream won't show on the dashboard totals and won't add to IMC owed or Bazooka net. Use for off-books or special sessions. You can still pay out a commission below.</div>
+            </div>
+          </div>
+          {recap.excludeFinancials && (
+            <div style={{ marginTop:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <label style={{ fontSize:12, color:"#F59E0B", fontWeight:700, whiteSpace:"nowrap" }}>💰 Commission to pay out:</label>
+                <div style={{ position:"relative", flex:1, minWidth:140 }}>
+                  <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#888", fontSize:13 }}>$</span>
+                  <input type="number" min="0" step="0.01" value={recap.manualCommission||""} onChange={e=>rf("manualCommission")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:"100%", paddingLeft:22, fontSize:13, color:"#F59E0B", boxSizing:"border-box" }}/>
+                </div>
+              </div>
+              <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:6, fontSize:11, color:"#F59E0B", lineHeight:1.5 }}>
+                ✓ Off the books — no dashboard impact, nothing added to IMC. {parseFloat(recap.manualCommission)>0 ? <>Only <strong>{fmt(parseFloat(recap.manualCommission))}</strong> will be paid to {recap.breaker||breaker||"the rep"} as commission.</> : "Enter an amount above if you need to pay the rep."}
+              </div>
             </div>
           )}
         </div>
@@ -13505,8 +13545,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
+    const eventStaffTotal = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000, c.bazNet*0.15), 0);
     acc.comm      += !targetBreaker
-                   ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + (c.eventStaffAmt||0)
+                   ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + eventStaffTotal
+                   : isEventOnly ? myEventFee
                    : c.myComm;
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
