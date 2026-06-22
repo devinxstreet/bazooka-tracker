@@ -1023,6 +1023,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
             trueNet:    { label:"Bazooka True Net",      color:"#E8317A", val: s => calcStream(s).bazTrueNet||0 },
           }[drillDown];
+          // Financial drill-downs exclude "Exclude from Financials" streams; commission still shows them (reps get paid)
+          const drillRows = drillDown==="commission" ? filtered : filtered.filter(s=>!s.excludeFinancials);
           return (
             <div style={{ ...S.card, border:`1px solid #2a2a2a`, marginTop:0, padding:0, overflow:"hidden" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid #1a1a1a" }}>
@@ -1041,9 +1043,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length===0
+                    {drillRows.length===0
                       ? <EmptyRow msg={streams.length===0 ? "No streams logged yet." : "No streams in this period."} cols={drillDown==="trueNet"?8:5}/>
-                      : filtered.map((s,i) => {
+                      : drillRows.map((s,i) => {
                           const c   = calcStream(s);
                           const bc  = BC[s.breaker]||{bg:"#F3F4F6",text:"#6B7280"};
                           const val = config.val(s);
@@ -1074,13 +1076,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   </tbody>
                   <tfoot>
                     <tr style={{ background:"#0d0d0d", borderTop:"2px solid #2a2a2a" }}>
-                      <td colSpan={4} style={{ padding:"12px 14px", fontWeight:800, color:"#F0F0F0", fontSize:12 }}>Total ({filtered.length} stream{filtered.length!==1?"s":""})</td>
+                      <td colSpan={4} style={{ padding:"12px 14px", fontWeight:800, color:"#F0F0F0", fontSize:12 }}>Total ({drillRows.length} stream{drillRows.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(filtered.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(filtered.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#60A5FA", fontSize:14 }}>{filtered.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(filtered.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(filtered.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
-                      </> : <td style={{ padding:"12px 14px", fontWeight:900, color:config.color, fontSize:16 }}>{fmt(filtered.reduce((a,s)=>a+config.val(s),0))}</td>}
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(drillRows.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(drillRows.reduce((a,s)=>a+calcStream(s).commAmt,0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#60A5FA", fontSize:14 }}>{drillRows.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(drillRows.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
+                      </> : <td style={{ padding:"12px 14px", fontWeight:900, color:config.color, fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
                   </tfoot>
                 </table>
@@ -1247,7 +1249,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           return true;
         }
 
-        const periodStreams = streams.filter(s => opsInPeriod(s.date));
+        const periodStreams = streams.filter(s => opsInPeriod(s.date) && !s.excludeFinancials);
 
         const totMagpros  = periodStreams.reduce((s,r)=>s+(parseFloat(r.magpros)||0),0);
         const totPack     = periodStreams.reduce((s,r)=>s+(parseFloat(r.packagingMaterial)||0),0);
@@ -1401,7 +1403,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now = new Date();
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
-        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear());
+        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials);
         const skippedStreams = streams.filter(s => !s.date || new Date(s.date+"T12:00:00").getFullYear()!==now.getFullYear());
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
@@ -13519,7 +13521,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
-    const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
+    // Event fee is owed whenever the target breaker is in eventStaff — even if they ALSO ran the stream
+    // (i.e. they get their normal commission PLUS the event fee on top).
+    const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
     const ownStream = !isEventOnly && !isSplitRep && !c.excludeFinancials;
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
@@ -13528,7 +13532,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.comm      += !targetBreaker
                    ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + eventStaffTotal
                    : isEventOnly ? myEventFee
-                   : c.myComm;
+                   : isSplitRep ? (c.splitRepAmt||0) + myEventFee
+                   : c.myComm + myEventFee;
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
     acc.biguReimb += c.biguReimb||0;
@@ -13842,7 +13847,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const myStaff = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
               const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
               const isSplitRep  = s.splitRep === targetBreaker;
-              return { ...c, isEventOnly, isSplitRep };
+              const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
+              const alsoEventStaff = !!myStaff && s.breaker === targetBreaker;
+              // If they ran the stream AND earned an event fee, pay = commission + event fee
+              const payComm = isEventOnly ? myEventFee : (c.myComm + myEventFee);
+              return { ...c, isEventOnly, isSplitRep, myEventFee, alsoEventStaff, myComm: payComm, baseComm: c.myComm };
             };
 
             // Exclude event-only AND split-rep streams from gross/baz totals — only own streams count
@@ -13859,7 +13868,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 const c = calcS(s);
                 const typeLabel = c.isEventOnly ? `🎪 Event Fee (${s.breaker}'s stream)`
                                 : c.isSplitRep  ? `✂️ Split (${s.breaker}'s stream)`
-                                : `${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}`;
+                                : `${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}${c.alsoEventStaff?" + 🎪 Event Fee":""}`;
                 return adminPDF ? `
                   <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px 12px;font-size:13px;">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</td>
@@ -14234,8 +14243,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
-            const myEventFee = isEventOnly ? Math.min(1000, c.bazNet * 0.15) : 0;
+            const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = c.myComm;
+            const alsoEventStaff = !!myStaff && s.breaker === targetBreaker; // ran the stream AND got an event fee
 
             // Color-code performance by MM
             const mm = parseFloat(s.marketMultiple)||0;
@@ -14289,10 +14299,13 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
                     {/* Rep payout — always highlighted */}
                     <div style={{ background: isEventOnly?"rgba(167,139,250,0.08)":isSplitRep?"rgba(251,191,36,0.08)":"rgba(74,222,128,0.06)", borderRadius:8, padding:"10px 12px", border:`1px solid ${accentColor}22` }}>
-                      <div style={{ fontSize:15, fontWeight:900, color:accentColor }}>{fmt(isEventOnly?myEventFee:myRepNet)}</div>
+                      <div style={{ fontSize:15, fontWeight:900, color:accentColor }}>{fmt(isEventOnly?myEventFee:(myRepNet+myEventFee))}</div>
                       <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>
-                        {isEventOnly?"Event Fee":isSplitRep?"Split":"Rep Net"}
+                        {isEventOnly?"Event Fee":isSplitRep?"Split":"Rep Net"}{alsoEventStaff?" + 🎪 Event Fee":""}
                       </div>
+                      {alsoEventStaff && (
+                        <div style={{ fontSize:9, color:"#A78BFA", marginTop:3 }}>{fmt(myRepNet)} comm + {fmt(myEventFee)} event</div>
+                      )}
                     </div>
 
                     {/* True Net — admin only */}
