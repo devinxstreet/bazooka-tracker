@@ -97,8 +97,10 @@ function calcStream(s, targetBreaker=null) {
   let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
-    const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep  = s.splitRep === targetBreaker;
+    const isOwner     = s.breaker === targetBreaker;
+    // "Event only" = they're event staff but NOT the breaker and NOT the split rep (no other commission on this stream)
+    const isEventOnly = !!myStaff && !isOwner && !isSplitRep;
     const myEventFee  = myStaff ? Math.min(1000, bazOwnShare*0.15) : 0;
     myComm = isEventOnly ? myEventFee
            : isSplitRep  ? (splitRepAmt - repExpShare * (1-splitPct)) + myEventFee
@@ -1024,8 +1026,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             bazooka:    { label:"Bazooka Earnings (30%)", color:"#E8317A", val: s => calcStream(s).bazNet },
             trueNet:    { label:"Bazooka True Net",      color:"#E8317A", val: s => calcStream(s).bazTrueNet||0 },
           }[drillDown];
-          // Financial drill-downs exclude "Exclude from Financials" streams; commission still shows them (reps get paid)
-          const drillRows = drillDown==="commission" ? filtered : filtered.filter(s=>!s.excludeFinancials);
+          // Financial drill-downs exclude "Exclude from Financials" AND singles streams (singles have their own area).
+          // Commission drill-down still shows excluded streams (reps get paid) but not singles (those pay in the singles area).
+          const drillRows = drillDown==="commission"
+            ? filtered.filter(s=>!s.isSinglesShow)
+            : filtered.filter(s=>!s.excludeFinancials && !s.isSinglesShow);
           return (
             <div style={{ ...S.card, border:`1px solid #2a2a2a`, marginTop:0, padding:0, overflow:"hidden" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid #1a1a1a" }}>
@@ -1404,7 +1409,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now = new Date();
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
-        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials);
+        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials && !s.isSinglesShow);
         const skippedStreams = streams.filter(s => !s.date || new Date(s.date+"T12:00:00").getFullYear()!==now.getFullYear());
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
@@ -13520,10 +13525,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
     const c = targetBreaker ? calcStream(s, targetBreaker) : calcStreamDash(s);
     const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
-    const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
+    const isEventOnly = !!myStaff && s.breaker !== targetBreaker && !isSplitRep;
     const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
-    const ownStream = !isEventOnly && !isSplitRep && !c.excludeFinancials;
+    const ownStream = !isEventOnly && !isSplitRep && !c.excludeFinancials && !c.isSingles;
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
@@ -13843,10 +13848,10 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const calcS = (s) => {
               const c = calcStream(s, targetBreaker);
               const myStaff = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
-              const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
               const isSplitRep  = s.splitRep === targetBreaker;
+              const isEventOnly = !!myStaff && s.breaker !== targetBreaker && !isSplitRep;
               const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
-              const alsoEventStaff = !!myStaff && s.breaker === targetBreaker;
+              const alsoEventStaff = !!myStaff && !isEventOnly;
               // c.myComm already includes the event fee (calcStream adds it when targetBreaker is in eventStaff)
               return { ...c, isEventOnly, isSplitRep, myEventFee, alsoEventStaff, baseComm: c.myComm - myEventFee };
             };
@@ -14242,7 +14247,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
             const myRepNet = c.myComm; // already includes event fee when targetBreaker set
-            const alsoEventStaff = !!myStaff && s.breaker === targetBreaker; // ran the stream AND got an event fee
+            const alsoEventStaff = !!myStaff && !isEventOnly; // earned commission/split AND an event fee on top
 
             // Color-code performance by MM
             const mm = parseFloat(s.marketMultiple)||0;
