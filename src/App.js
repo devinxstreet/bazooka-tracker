@@ -99,9 +99,10 @@ function calcStream(s, targetBreaker=null) {
     const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep  = s.splitRep === targetBreaker;
-    myComm = isEventOnly ? Math.min(1000, bazOwnShare*0.15)
-           : isSplitRep  ? splitRepAmt - repExpShare * (1-splitPct)
-           : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
+    const myEventFee  = myStaff ? Math.min(1000, bazOwnShare*0.15) : 0;
+    myComm = isEventOnly ? myEventFee
+           : isSplitRep  ? (splitRepAmt - repExpShare * (1-splitPct)) + myEventFee
+           : (primaryCommAmt - repExpShare * splitPct + salesBonus + tips) + myEventFee;
   }
   const biguReimb = isBigU
     ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+biguShippingHalf
@@ -13516,24 +13517,21 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
   // Aggregates
   const totals = filteredStreams.reduce((acc, s) => {
-    const c = calcStreamDash(s);
     const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
+    const c = targetBreaker ? calcStream(s, targetBreaker) : calcStreamDash(s);
     const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
     const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
     const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
-    // Event fee is owed whenever the target breaker is in eventStaff — even if they ALSO ran the stream
-    // (i.e. they get their normal commission PLUS the event fee on top).
     const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
     const ownStream = !isEventOnly && !isSplitRep && !c.excludeFinancials;
     acc.gross     += ownStream ? c.gross : 0;
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
     const eventStaffTotal = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000, c.bazNet*0.15), 0);
+    // With a target breaker, c.myComm already includes their event fee (computed in calcStream).
     acc.comm      += !targetBreaker
                    ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + eventStaffTotal
-                   : isEventOnly ? myEventFee
-                   : isSplitRep ? (c.splitRepAmt||0) + myEventFee
-                   : c.myComm + myEventFee;
+                   : c.myComm;
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
     acc.biguReimb += c.biguReimb||0;
@@ -13849,9 +13847,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const isSplitRep  = s.splitRep === targetBreaker;
               const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
               const alsoEventStaff = !!myStaff && s.breaker === targetBreaker;
-              // If they ran the stream AND earned an event fee, pay = commission + event fee
-              const payComm = isEventOnly ? myEventFee : (c.myComm + myEventFee);
-              return { ...c, isEventOnly, isSplitRep, myEventFee, alsoEventStaff, myComm: payComm, baseComm: c.myComm };
+              // c.myComm already includes the event fee (calcStream adds it when targetBreaker is in eventStaff)
+              return { ...c, isEventOnly, isSplitRep, myEventFee, alsoEventStaff, baseComm: c.myComm - myEventFee };
             };
 
             // Exclude event-only AND split-rep streams from gross/baz totals — only own streams count
@@ -14237,14 +14234,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ color:"#AAAAAA" }}>{visibleStreams.length === 0 ? "No streams logged yet. Stream recaps are entered in the Break Log tab." : `No streams for ${breakerFilter} yet.`}</div>
           </div>
         : filteredStreams.map(s => {
-            const c  = calcStreamDash(s);
-            const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             const targetBreaker = !isAdmin ? myBreaker : (breakerFilter !== "all" ? breakerFilter : null);
+            const c  = targetBreaker ? calcStream(s, targetBreaker) : calcStreamDash(s);
+            const bc = BC[s.breaker] || { bg:"#EEF0FB", text:"#2C3E7A", border:"#3730a3" };
             const myStaff = targetBreaker ? (s.eventStaff||[]).find(es => es.breaker === targetBreaker) : null;
             const isEventOnly = !!myStaff && s.breaker !== targetBreaker;
             const isSplitRep = targetBreaker && s.splitRep === targetBreaker;
             const myEventFee = myStaff ? Math.min(1000, c.bazNet * 0.15) : 0;
-            const myRepNet = c.myComm;
+            const myRepNet = c.myComm; // already includes event fee when targetBreaker set
             const alsoEventStaff = !!myStaff && s.breaker === targetBreaker; // ran the stream AND got an event fee
 
             // Color-code performance by MM
@@ -14299,12 +14296,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
                     {/* Rep payout — always highlighted */}
                     <div style={{ background: isEventOnly?"rgba(167,139,250,0.08)":isSplitRep?"rgba(251,191,36,0.08)":"rgba(74,222,128,0.06)", borderRadius:8, padding:"10px 12px", border:`1px solid ${accentColor}22` }}>
-                      <div style={{ fontSize:15, fontWeight:900, color:accentColor }}>{fmt(isEventOnly?myEventFee:(myRepNet+myEventFee))}</div>
+                      <div style={{ fontSize:15, fontWeight:900, color:accentColor }}>{fmt(myRepNet)}</div>
                       <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.8px", marginTop:3 }}>
                         {isEventOnly?"Event Fee":isSplitRep?"Split":"Rep Net"}{alsoEventStaff?" + 🎪 Event Fee":""}
                       </div>
                       {alsoEventStaff && (
-                        <div style={{ fontSize:9, color:"#A78BFA", marginTop:3 }}>{fmt(myRepNet)} comm + {fmt(myEventFee)} event</div>
+                        <div style={{ fontSize:9, color:"#A78BFA", marginTop:3 }}>{fmt(myRepNet-myEventFee)} comm + {fmt(myEventFee)} event</div>
                       )}
                     </div>
 
