@@ -811,12 +811,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {q.quotedBy && <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Quoted by <strong style={{color:"#AAAAAA"}}>{q.quotedBy.split(" ")[0]}</strong></div>}
                   {/* Lot photos */}
                   {(q.photoUrls||[]).length > 0 && (
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:10 }}>
                       {(q.photoUrls||[]).map((url,i)=>(
-                        <img key={i} src={url} alt={`Photo ${i+1}`}
-                          onClick={(e)=>{ e.stopPropagation(); try { setLightbox(url); } catch(err) { window.open(url,"_blank"); } }}
-                          style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"zoom-in" }}
-                          onError={e=>e.target.style.display="none"}/>
+                        <div key={i} role="button" tabIndex={0}
+                          onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setLightbox(url); }}
+                          onKeyDown={(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); setLightbox(url); } }}
+                          style={{ width:96, height:96, borderRadius:8, border:"1px solid rgba(123,156,255,0.3)", cursor:"zoom-in", overflow:"hidden", position:"relative", flexShrink:0 }}>
+                          <img src={url} alt={`Photo ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", pointerEvents:"none", display:"block" }} onError={e=>{ e.target.parentElement.style.display="none"; }}/>
+                          <div style={{ position:"absolute", bottom:0, right:0, background:"rgba(0,0,0,0.6)", color:"#fff", fontSize:10, padding:"1px 5px", borderTopLeftRadius:6 }}>🔍</div>
+                        </div>
                       ))}
                       <div style={{ fontSize:11, color:"#7B9CFF", alignSelf:"center" }}>📸 {(q.photoUrls||[]).length} photo{(q.photoUrls||[]).length!==1?"s":""} · click to enlarge</div>
                     </div>
