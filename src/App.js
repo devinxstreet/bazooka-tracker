@@ -31838,12 +31838,17 @@ export default function App() {
   }
 
   async function handleDeleteStream(id) {
+    if (!id) { showToast("❌ Can't delete: stream has no ID"); return; }
     try {
-      // Restore any chaser cards logged under this stream
-      const streamBreaks = breaks.filter(b => b.streamId === id || b.streamId === streams.find(s=>s.id===id)?.breaker_date);
-      await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id))));
+      // Delete the stream itself FIRST — this is the part that matters.
       await deleteDoc(doc(db,"streams",id));
       showToast("\uD83D\uDDD1 Stream deleted");
+      // Then best-effort clean up any breaks logged under this stream (don't let this block the delete).
+      try {
+        const st = streams.find(s=>s.id===id);
+        const streamBreaks = breaks.filter(b => b && b.id && (b.streamId === id || (st && b.streamId === st.breaker_date)));
+        await Promise.all(streamBreaks.map(b => deleteDoc(doc(db,"breaks",b.id)).catch(()=>{})));
+      } catch(cleanupErr) { console.warn("Break cleanup after stream delete:", cleanupErr); }
     } catch(e) {
       console.error("Delete stream error:", e);
       showToast("❌ Delete failed: " + e.message);
