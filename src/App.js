@@ -13882,6 +13882,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               const streamRows = stubStreams.map(s => {
                 const c = calcS(s);
                 const typeLabel = c.isEventOnly ? `🎪 Event Fee (${s.breaker}'s stream)`
+                                : s.isSinglesShow ? `🃏 Singles Show`
                                 : c.isSplitRep  ? `✂️ Split (${s.breaker}'s stream)`
                                 : `${s.breakType||"Auction"}${s.binOnly?" (BIN)":""}${c.alsoEventStaff?" + 🎪 Event Fee":""}`;
                 return adminPDF ? `
@@ -14021,7 +14022,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                         totalBaz: totals.baz,
                         totalComm: totals.comm,
                         totalTips: totals.tips,
-                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:c.isEventOnly?`🎪 Event Fee (${s.breaker}'s stream)`:s.breakType||"Auction", binOnly:s.binOnly, gross:c.isEventOnly?0:c.gross, bazNet:c.isEventOnly?0:c.bazNet, repExp:c.repExpShare, rate:c.isEventOnly?-1:c.rate, commAmt:c.myComm, tips:c.tips, isEventOnly:c.isEventOnly }; }),
+                        streams: stubStreams.map(s=>{ const c=calcS(s); return { date:s.date, breakType:c.isEventOnly?`🎪 Event Fee (${s.breaker}'s stream)`:s.isSinglesShow?"🃏 Singles Show":s.breakType||"Auction", binOnly:s.binOnly, gross:c.isEventOnly?0:c.gross, bazNet:c.isEventOnly?0:c.bazNet, repExp:c.repExpShare, rate:c.isEventOnly?-1:c.rate, commAmt:c.myComm, tips:c.tips, isEventOnly:c.isEventOnly }; }),
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
@@ -14285,6 +14286,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <span style={{ background:bc.bg, color:bc.text, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{s.breaker}</span>
                       {s.channel && s.channel !== "Bazooka Vault" && <span style={{ fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>📺 {s.channel}</span>}
                       {s.binOnly && <span style={{ fontSize:10, color:"#888", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
+                      {s.isSinglesShow && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🃏 Singles</span>}
                       {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                       {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
                       {s.newBuyers>0 && <span style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.08)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🌱 {s.newBuyers} new</span>}
