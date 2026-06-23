@@ -84,7 +84,8 @@ function calcStream(s, targetBreaker=null) {
   const bazExpShare  = isSingles ? 0 : streamExp * ((1-rate) * 0.30);
   const tips         = parseFloat(s.tips)||0;
   const salesBonus   = parseFloat(s.salesBonus)||0;
-  const eventStaffAmt = isSingles ? 0 : (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000, bazOwnShare*0.15), 0);
+  const eventStaffArr = Array.isArray(s.eventStaff) ? s.eventStaff : [];
+  const eventStaffAmt = isSingles ? 0 : eventStaffArr.reduce((sum,_)=>sum+Math.min(1000, bazOwnShare*0.15), 0);
   const imcReimb      = isSingles ? 0 : externalCh ? 0 : streamExp * 0.70;
   const imcDirectReimb = parseFloat(s.imcReimbursement)||0;
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
@@ -96,7 +97,7 @@ function calcStream(s, targetBreaker=null) {
   const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt - salesBonus + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts - biguShippingHalf;
   let myComm = isSingles ? splitBase + tips : primaryCommAmt - repExpShare * splitPct + salesBonus + tips;
   if (targetBreaker) {
-    const myStaff    = (s.eventStaff||[]).find(es=>es.breaker===targetBreaker);
+    const myStaff    = eventStaffArr.find(es=>es && es.breaker===targetBreaker);
     const isSplitRep  = s.splitRep === targetBreaker;
     const isOwner     = s.breaker === targetBreaker;
     // "Event only" = they're event staff but NOT the breaker and NOT the split rep (no other commission on this stream)
@@ -4743,6 +4744,18 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
           ))}
         </div>}
+
+        {/* Tips — 100% to rep (buyer tips passed through) */}
+        <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:2 }}>💵 Tips</div>
+              <div style={{ fontSize:10, color:"#555" }}>Buyer tips — passed 100% to the rep, on top of commission.</div>
+            </div>
+            <input type="number" step="0.01" value={recap.tips||""} onChange={e=>rf("tips")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#FBBF24", fontWeight:700 }}/>
+            {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
+          </div>
+        </div>
 
         {/* Sales Bonus — Admin only */}
         {userRole?.role === "Admin" && <div style={{ background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
@@ -31590,7 +31603,37 @@ function BugReporter({ user }) {
   );
 }
 
+class AppErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state={ err:null }; }
+  static getDerivedStateFromError(err){ return { err }; }
+  componentDidCatch(err, info){ console.error("App crashed:", err, info); }
+  render(){
+    if (this.state.err) {
+      return (
+        <div style={{ minHeight:"100vh", background:"#0a0a0a", color:"#eee", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"system-ui,sans-serif", padding:24 }}>
+          <div style={{ maxWidth:480, textAlign:"center" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+            <div style={{ fontSize:18, fontWeight:800, marginBottom:8, color:"#E8317A" }}>Something hit a snag</div>
+            <div style={{ fontSize:13, color:"#aaa", lineHeight:1.6, marginBottom:20 }}>The dashboard ran into an error while rendering, but your data is safe. Reloading usually clears it.</div>
+            <div style={{ fontSize:11, color:"#555", background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px 12px", marginBottom:20, textAlign:"left", wordBreak:"break-word", fontFamily:"monospace" }}>{String(this.state.err && this.state.err.message || this.state.err)}</div>
+            <button onClick={()=>{ this.setState({err:null}); window.location.reload(); }} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:800, cursor:"pointer" }}>Reload Dashboard</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppInner />
+    </AppErrorBoundary>
+  );
+}
+
+function AppInner() {
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
   const [gOpen,         setGOpen]         = useState(false);
