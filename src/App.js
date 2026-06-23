@@ -53,6 +53,18 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU"];
+// Resolve which breaker a logged-in user is — tolerant of display-name vs breaker-name
+// differences (e.g. "Big U" vs "BigU"), checking first name, full name, and email.
+function resolveBreaker(user) {
+  const norm = x => String(x||"").replace(/\s+/g,"").toLowerCase();
+  const first = norm(user?.displayName?.split(" ")[0]);
+  const dn = norm(user?.displayName);
+  const em = norm(user?.email);
+  return BREAKERS.find(b => {
+    const nb = norm(b);
+    return first===nb || first.includes(nb) || nb.includes(first) || dn.includes(nb) || em.includes(nb);
+  });
+}
 const LOCATIONS = ["BZKA HQ","BIGU HQ"];
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
@@ -91,7 +103,7 @@ function calcStream(s, targetBreaker=null) {
   const splitPct      = s.splitRep ? parseFloat(s.splitPct||50)/100 : 1;
   const primaryCommAmt = isSingles ? splitBase : (s.splitRep ? commAmt*splitPct : commAmt);
   const splitRepAmt    = s.splitRep ? commAmt*(1-splitPct) : 0;
-  const biguCardCosts = isBigU ? (parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0) : 0;
+  const biguCardCosts = isBigU ? (parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0) : 0;
   // Shipping is split 50/50: BigU fronts it, Bazooka reimburses half (and eats that half as a cost)
   const biguShippingHalf = isBigU ? ((parseFloat(s.biguShipping)||0) * 0.5) : 0;
   const bazTrueNet    = isSingles ? 0 : bazOwnShare - commAmt - eventStaffAmt - salesBonus + repExpShare - bazExpShare + imcReimb + imcDirectReimb - biguCardCosts - biguShippingHalf;
@@ -108,7 +120,7 @@ function calcStream(s, targetBreaker=null) {
            : (primaryCommAmt - repExpShare * splitPct + salesBonus + tips) + myEventFee;
   }
   const biguReimb = isBigU
-    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+biguShippingHalf
+    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
     : 0;
 
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
@@ -469,7 +481,7 @@ function useDebounce(value, delay=220) {
 // recalculate 100 streams on every keystroke
 const streamCalcCache = new Map();
 function calcStreamMemo(s, targetBreaker=null) {
-  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${s.splitRep||""}:${s.splitPct||""}:${(s.eventStaff||[]).map(e=>e.breaker).join(",")}:${targetBreaker||""}`;
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${s.splitRep||""}:${s.splitPct||""}:${s.biguGiveawayCards}:${s.biguInsuranceCards}:${s.biguChaserCards}:${s.biguShipping}:${(s.eventStaff||[]).map(e=>e.breaker).join(",")}:${targetBreaker||""}`;
   if (streamCalcCache.has(key)) return streamCalcCache.get(key);
   const result = calcStream(s, targetBreaker);
   streamCalcCache.set(key, result);
@@ -656,7 +668,7 @@ function LoginScreen() {
 function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments, plannedStreams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
-  const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
+  const myBreaker  = resolveBreaker(user);
   const GOAL_KEY   = `bz_yeargoals_${new Date().getFullYear()}`;
   const [goals,     setGoals]     = useState(()=>{ try { return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}"); } catch(e) { return {}; } });
   const [editGoals, setEditGoals] = useState(false);
@@ -3252,7 +3264,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
   const EMPTY_POOL = { cardName:"", cardType:"Giveaway Cards", totalQty:"", costPerCard:"", marketValue:"", notes:"" };
   const [form,       setForm]       = useState(EMPTY_POOL);
   const [editing,    setEditing]    = useState(null);
-  const [logForm,    setLogForm]    = useState({ poolId:"", qty:"", breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
+  const [logForm,    setLogForm]    = useState({ poolId:"", qty:"", breaker:BREAKERS[0], date:todayLocal(), usage:"Giveaway" });
 
   // Derive counts from inventory for each pool
   // A pool matches inventory cards by cardType + cardName (treatment match)
@@ -3570,10 +3582,10 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const transitCount = transitCards.length;
   const [sortInv,  setSortInv]  = useState("date");
   const [logOutCard, setLogOutCard] = useState(null);
-  const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
+  const [logOutForm, setLogOutForm] = useState({ breaker:BREAKERS[0], date:todayLocal(), usage:"Giveaway" });
   const [bulkLogMode, setBulkLogMode] = useState(false);
   const [bulkLogSel,  setBulkLogSel]  = useState(new Set());
-  const [bulkLogForm, setBulkLogForm] = useState({ breaker:BREAKERS[0], date:new Date().toISOString().split("T")[0], usage:"Giveaway" });
+  const [bulkLogForm, setBulkLogForm] = useState({ breaker:BREAKERS[0], date:todayLocal(), usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
   const [invTab,   setInvTab]   = useState(defaultTab);
   useEffect(()=>{setInvTab(defaultTab);},[defaultTab]);
@@ -4293,7 +4305,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
-  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault", excludeFinancials:false, manualCommission:"" };
+  const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguChaserCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault", excludeFinancials:false, manualCommission:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
@@ -4324,7 +4336,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     if (csvJustLoaded.current) { csvJustLoaded.current = false; return; }
     if (existingStream) {
       const prodFields = PRODUCT_TYPES.reduce((acc,pt) => { acc[`prod_${pt}`] = existingStream[`prod_${pt}`]||""; return acc; }, {});
-      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", biguShipping:existingStream.biguShipping||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", excludeFinancials:existingStream.excludeFinancials||false, manualCommission:existingStream.manualCommission||"", ...prodFields });
+      setRecap({ grossRevenue:existingStream.grossRevenue||"", whatnotFees:existingStream.whatnotFees||"", coupons:existingStream.coupons||"", whatnotPromo:existingStream.whatnotPromo||"", magpros:existingStream.magpros||"", packagingMaterial:existingStream.packagingMaterial||"", topLoaders:existingStream.topLoaders||"", magprosQty:existingStream.magprosQty||"", packagingQty:existingStream.packagingQty||"", topLoadersQty:existingStream.topLoadersQty||"", chaserCards:existingStream.chaserCards||"", chaserCardIds:existingStream.chaserCardIds||"", marketMultiple:existingStream.marketMultiple||"", newBuyers:existingStream.newBuyers||"", binOnly:existingStream.binOnly||false, isEvent:existingStream.isEvent||false, isSinglesShow:existingStream.isSinglesShow||false, biguGiveawayCards:existingStream.biguGiveawayCards||"", biguInsuranceCards:existingStream.biguInsuranceCards||"", biguChaserCards:existingStream.biguChaserCards||"", biguShipping:existingStream.biguShipping||"", breakType:existingStream.breakType||"auction", sessionType:existingStream.sessionType||"", commissionOverride:existingStream.commissionOverride||"", streamNotes:existingStream.notes||"", zionRevenue:existingStream.zionRevenue||"", collabPartner:existingStream.collabPartner||"", collabPct:existingStream.collabPct||"", streamSkuPrices:existingStream.streamSkuPrices||{}, streamName:existingStream.streamName||"", tips:existingStream.tips||"", salesBonus:existingStream.salesBonus||"", salesBonusNote:existingStream.salesBonusNote||"", imcReimbursement:existingStream.imcReimbursement||"", imcReimbNote:existingStream.imcReimbNote||"", eventStaff:existingStream.eventStaff||[], splitRep:existingStream.splitRep||"", splitPct:existingStream.splitPct||"50", externalChannel:existingStream.externalChannel||false, channel:existingStream.channel||"Bazooka Vault", excludeFinancials:existingStream.excludeFinancials||false, manualCommission:existingStream.manualCommission||"", ...prodFields });
       setRecapSaved(true);
       csvDataLoaded.current = false;
     } else if (!csvDataLoaded.current) {
@@ -4642,10 +4654,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           </div>
           <div>
             <label style={S.lbl}>Break Type</label>
-            <select value={recap.breakType} onChange={e=>rf("breakType")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+            <select value={recap.isSinglesShow ? "singles" : recap.breakType} onChange={e=>{ if(e.target.value==="singles"){ rf("isSinglesShow")(true); } else { rf("isSinglesShow")(false); rf("breakType")(e.target.value); } }} style={{ ...S.inp, cursor:"pointer" }}>
               <option value="auction">Auction</option>
               <option value="bin">BIN</option>
               <option value="mixed">Mixed</option>
+              <option value="singles">🃏 Singles (100% to breaker)</option>
             </select>
           </div>
         </div>
@@ -4903,6 +4916,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     <label style={{ ...S.lbl, color:"#FBBF24" }}>Insurance Cards ($)</label>
                     <input type="number" step="0.01" value={recap.biguInsuranceCards||""} onChange={e=>{ rf("biguInsuranceCards")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
                   </div>
+                  <div>
+                    <label style={{ ...S.lbl, color:"#FBBF24" }}>Chaser Cards ($)</label>
+                    <input type="number" step="0.01" value={recap.biguChaserCards||""} onChange={e=>{ rf("biguChaserCards")(e.target.value); setRecapSaved(false); }} placeholder="0.00" style={{ ...S.inp }}/>
+                  </div>
                 </div>
                 <div style={{ marginTop:10 }}>
                   <label style={{ ...S.lbl, color:"#FBBF24" }}>Shipping ($) — split 50/50 with Bazooka</label>
@@ -4911,9 +4928,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     <div style={{ fontSize:11, color:"#FBBF24", marginTop:4 }}>You're reimbursed ${((parseFloat(recap.biguShipping)||0)*0.5).toFixed(2)} (half of ${(parseFloat(recap.biguShipping)||0).toFixed(2)})</div>
                   )}
                 </div>
-                {rc && ((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5))>0 && (
+                {rc && ((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+(parseFloat(recap.biguChaserCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5))>0 && (
                   <div style={{ fontSize:12, color:"#FBBF24", fontWeight:700, marginTop:8 }}>
-                    Total reimb this stream: ${((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5)).toFixed(2)}
+                    Total reimb this stream: ${((parseFloat(recap.biguGiveawayCards)||0)+(parseFloat(recap.biguInsuranceCards)||0)+(parseFloat(recap.biguChaserCards)||0)+((parseFloat(recap.biguShipping)||0)*0.5)).toFixed(2)}
                   </div>
                 )}
               </div>
@@ -7948,7 +7965,7 @@ const WN_CHANNELS = [
 function WhatnotFollowerTracker({ isAdmin }) {
   const STORE_KEY = "bz_wn_followers_v1";
   const [entries,    setEntries]    = useState(()=>{ try { return JSON.parse(localStorage.getItem(STORE_KEY)||"[]"); } catch(e){ return []; } });
-  const [form,       setForm]       = useState({ date:new Date().toISOString().split("T")[0], ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
+  const [form,       setForm]       = useState({ date:todayLocal(), ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
   const [adding,     setAdding]     = useState(false);
   const [saved,      setSaved]      = useState(false);
   const [activeView, setActiveView] = useState("chart"); // chart | table
@@ -7980,7 +7997,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
     setAdding(false);
     setSaved(true);
     setTimeout(()=>setSaved(false), 2500);
-    setForm({ date:new Date().toISOString().split("T")[0], ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
+    setForm({ date:todayLocal(), ...Object.fromEntries(WN_CHANNELS.map(c=>[c.key,""])) });
   }
 
   async function deleteEntry(id) {
@@ -8249,7 +8266,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
 // --- PRODUCT INVENTORY -------------------------------------------
 function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDeleteShipment, onDeleteProductUsage, user, userRole, skuPrices={}, onSaveSkuPrices, streams=[], skuPriceHistory=[] }) {
   const canEdit = ["Admin"].includes(userRole?.role);
-  const EMPTY   = { date:new Date().toISOString().split("T")[0], productType:"Hobby", qty:"", notes:"" };
+  const EMPTY   = { date:todayLocal(), productType:"Hobby", qty:"", notes:"" };
   const [form,          setForm]          = useState(EMPTY);
   const [adding,        setAdding]        = useState(false);
   const [editId,        setEditId]        = useState(null);
@@ -13466,7 +13483,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
 function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[], onSavePayStub, payStubs=[], onDeletePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
-  const myBreaker  = BREAKERS.find(b => curUser.toLowerCase().includes(b.toLowerCase()));
+  const myBreaker  = resolveBreaker(user);
 
   const EMPTY = { date:"", breaker:"", breakType:"auction", grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, notes:"" };
   const [form,      setForm]      = useState(EMPTY);
@@ -13561,7 +13578,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     return acc;
   }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, biguReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
 
-  function openNew()   { setForm({...EMPTY, date:new Date().toISOString().split("T")[0]}); setEditing("new"); setViewStream(null); }
+  function openNew()   { setForm({...EMPTY, date:todayLocal()}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
   function cancelEdit(){ setEditing(null); setForm(EMPTY); }
 
@@ -23860,7 +23877,7 @@ const LOT_METHODS = [
 ];
 
 function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
-  const blank = { cost:"", value:"", method:"purchased", date:new Date().toISOString().split("T")[0], notes:"" };
+  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"" };
   const [draft, setDraft] = useState(blank);
   const [editId, setEditId] = useState(null);
 
@@ -25486,7 +25503,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
         const q = r.csv.qty || 1;
         nextOwned[id] = (nextOwned[id]||0) + q;
         for (let i=0;i<q;i++) {
-          newLots.push({ id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other", date:new Date().toISOString().split("T")[0], notes:"Imported", photoUrl:"" });
+          newLots.push({ id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other", date:todayLocal(), notes:"Imported", photoUrl:"" });
         }
       }
       setOwned(nextOwned);
@@ -29205,6 +29222,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
 }
 
 
+// Local YYYY-MM-DD for "today" — avoids UTC rollover that makes evening-logged dates jump a day
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
 function parseLocalDate(dateStr) {
   if (!dateStr) return new Date(0);
   const parts = String(dateStr).split("T")[0].split("-");
@@ -31989,7 +32011,7 @@ function AppInner() {
     await setDoc(doc(db,"config","skuPrices"), prices, { merge:true });
     // Save snapshot to price history
     const histId = uid();
-    await setDoc(doc(db,"sku_price_history",histId), { id:histId, date:new Date().toISOString().split("T")[0], prices, savedAt:new Date().toISOString() });
+    await setDoc(doc(db,"sku_price_history",histId), { id:histId, date:todayLocal(), prices, savedAt:new Date().toISOString() });
     showToast("\uD83D\uDCBE SKU prices saved");
   }
 
