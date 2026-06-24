@@ -13566,10 +13566,15 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     acc.net       += ownStream ? c.netRev : 0;
     acc.baz       += ownStream ? c.bazNet : 0;
     const eventStaffTotal = (s.eventStaff||[]).reduce((sum,_)=>sum+Math.min(1000, c.bazNet*0.15), 0);
-    // With a target breaker, c.myComm already includes their event fee (computed in calcStream).
-    acc.comm      += !targetBreaker
+    // SINGLES: pass-through revenue (breaker keeps 100%) — track separately from earned break commission.
+    if (c.isSingles) {
+      acc.singlesRev += c.myComm; // myComm for singles = the full pass-through amount
+    } else {
+      // With a target breaker, c.myComm already includes their event fee (computed in calcStream).
+      acc.comm    += !targetBreaker
                    ? (c.primaryCommAmt||c.commAmt) - (c.repExpShare||0) + (c.salesBonus||0) + (c.tips||0) + (c.splitRepAmt||0) + eventStaffTotal
                    : c.myComm;
+    }
     acc.trueNet   += ownStream ? (c.bazTrueNet||0) : 0;
     acc.imcReimb  += c.imcReimb||0;
     acc.biguReimb += c.biguReimb||0;
@@ -13579,7 +13584,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       acc.mmCount += 1;
     }
     return acc;
-  }, { gross:0, net:0, baz:0, comm:0, trueNet:0, imcReimb:0, biguReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
+  }, { gross:0, net:0, baz:0, comm:0, singlesRev:0, trueNet:0, imcReimb:0, biguReimb:0, newBuyers:0, mmSum:0, mmCount:0 });
 
   function openNew()   { setForm({...EMPTY, date:todayLocal()}); setEditing("new"); setViewStream(null); }
   function openEdit(s) { setForm({...s}); setEditing(s.id); setViewStream(null); }
@@ -13890,7 +13895,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             };
 
             // Exclude event-only AND split-rep streams from gross/baz totals — only own streams count
-            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); const ownStream=!c.isEventOnly&&!c.isSplitRep; acc.gross+=ownStream?c.gross:0; acc.baz+=ownStream?c.bazNet:0; acc.comm+=c.myComm; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=ownStream?c.bazTrueNet:0; acc.biguReimb+=(c.biguReimb||0); return acc; }, {gross:0,baz:0,comm:0,tips:0,salesBonus:0,repExp:0,trueNet:0,biguReimb:0});
+            const totals = stubStreams.reduce((acc,s)=>{ const c=calcS(s); const ownStream=!c.isEventOnly&&!c.isSplitRep&&!c.isSingles; if(c.isSingles){ acc.singlesRev+=c.myComm; } else { acc.comm+=c.myComm; } acc.gross+=ownStream?c.gross:0; acc.baz+=ownStream?c.bazNet:0; acc.tips+=c.tips; acc.salesBonus+=(c.salesBonus||0); acc.repExpShare+=c.repExpShare; acc.trueNet+=ownStream?c.bazTrueNet:0; acc.biguReimb+=(c.biguReimb||0); return acc; }, {gross:0,baz:0,comm:0,singlesRev:0,tips:0,salesBonus:0,repExp:0,trueNet:0,biguReimb:0});
             const periodLabel = stubPeriod==="week"
               ? `${weekStart.toLocaleDateString("en-US",{month:"short",day:"numeric"})} - ${weekEnd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
               : stubFrom && stubTo ? `${stubFrom} - ${stubTo}` : "Select dates";
@@ -13995,8 +14000,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 </div>
                 <div class="payout">
                   <div class="payout-label">💵 Total Earned This Period</div>
-                  <div class="payout-amt">${fmt(totals.comm+totals.tips+totals.salesBonus)}</div>
-                  ${(totals.tips>0||totals.salesBonus>0)?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">${fmt(totals.comm)} commission${totals.tips>0?" + "+fmt(totals.tips)+" tips":""}${totals.salesBonus>0?" + "+fmt(totals.salesBonus)+" bonus":""}</div>`:""}
+                  <div class="payout-amt">${fmt(totals.comm+totals.singlesRev+totals.tips+totals.salesBonus)}</div>
+                  ${(totals.singlesRev>0||totals.tips>0||totals.salesBonus>0)?`<div style="font-size:13px;color:#4ade80;margin-top:4px;">${fmt(totals.comm)} break commission${totals.singlesRev>0?" + "+fmt(totals.singlesRev)+" singles (pass-through)":""}${totals.tips>0?" + "+fmt(totals.tips)+" tips":""}${totals.salesBonus>0?" + "+fmt(totals.salesBonus)+" bonus":""}</div>`:""}
                 </div>`}
                 <div class="footer">Bazooka Breaks, LLC &nbsp;·&nbsp; This document is confidential and intended for the named recipient only.</div>
               </body></html>`);
@@ -14073,10 +14078,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                               { l:"Bazooka True Net",    v:fmt(totals.trueNet), c:"#4ade80" },
                               ...(totals.biguReimb>0?[{ l:"🔄 Expense Reimb", v:"+"+fmt(totals.biguReimb), c:"#FBBF24" }]:[]),
                             ] : [
-                              { l:"Commission",         v:fmt(totals.comm),    c:"#4ade80" },
+                              { l:"💵 Break Commission",  v:fmt(totals.comm),    c:"#4ade80" },
+                              ...((totals.singlesRev||0)>0?[{ l:"🃏 Singles (pass-through)", v:fmt(totals.singlesRev), c:"#FBBF24" }]:[]),
                               ...(totals.tips>0?[{ l:"Tips (100% yours)", v:fmt(totals.tips), c:"#FBBF24" }]:[]),
                               ...(totals.salesBonus>0?[{ l:"🎁 Sales Bonus", v:"+"+fmt(totals.salesBonus), c:"#A78BFA" }]:[]),
-                              ...((totals.tips>0||totals.salesBonus>0)?[{ l:"Total Earned", v:fmt(totals.comm+totals.tips+totals.salesBonus), c:"#4ade80" }]:[]),
+                              { l:"Total Earned", v:fmt(totals.comm+(totals.singlesRev||0)+totals.tips+totals.salesBonus), c:"#4ade80" },
                               ...(totals.biguReimb>0?[{ l:"🔄 Expense Reimbursement", v:"+"+fmt(totals.biguReimb), c:"#FBBF24" }]:[]),
                             ]),
                           ].map(({l,v,c})=>(
@@ -14228,11 +14234,14 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {(() => {
         const avgMM = totals.mmCount > 0 ? (totals.mmSum / totals.mmCount) : 0;
         const mmColor = avgMM>=1.7?"#4ade80":avgMM>=1.5?"#86efac":avgMM>=1.4?"#FBBF24":"#E8317A";
+        const hasSingles = (totals.singlesRev||0) > 0;
+        const cols = (isAdmin?6:4) + (hasSingles?1:0);
         return (
-          <div style={{ display:"grid", gridTemplateColumns:`repeat(${isAdmin?6:4},1fr)`, gap:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols},1fr)`, gap:12 }}>
             {[
               { l:"Total Streams",     v:filteredStreams.length,                                    c:"#F0F0F0" },
-              { l:"Total Commission",  v:fmt(totals.comm),                                          c:"#4ade80" },
+              { l:"💵 Break Commission",  v:fmt(totals.comm),                                       c:"#4ade80" },
+              ...(hasSingles ? [{ l:"🃏 Singles Revenue (pass-through)", v:fmt(totals.singlesRev), c:"#FBBF24" }] : []),
               { l:"\uD83C\uDF31 New Buyers",     v:totals.newBuyers,                               c:"#166534" },
               { l:"Avg Market Multiple", v:avgMM>0?`${avgMM.toFixed(2)}x`:"--",                    c:mmColor   },
               ...(isAdmin ? [
