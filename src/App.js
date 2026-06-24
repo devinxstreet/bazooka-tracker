@@ -30372,16 +30372,19 @@ function PublicQuote({ quoteId }) {
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
-    if (!quoteId) return;
+    if (!quoteId) { setLoading(false); return; }
     getDoc(doc(db, "quotes", quoteId)).then(snap => {
       if (snap.exists()) {
         setQuote({ id: snap.id, ...snap.data() });
-        // Track view
+        // Track view — best effort, never let a denied write break the page
         setDoc(doc(db, "quotes", quoteId), {
           viewCount: (snap.data().viewCount || 0) + 1,
           lastViewedAt: new Date().toISOString(),
-        }, { merge: true });
+        }, { merge: true }).catch(()=>{});
       }
+      setLoading(false);
+    }).catch(err => {
+      console.error("Quote load error:", err);
       setLoading(false);
     });
   }, [quoteId]);
