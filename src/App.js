@@ -30397,6 +30397,11 @@ function PublicQuote({ quoteId }) {
   const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
   const offerPct  = totalMkt > 0 ? (offer/totalMkt*100).toFixed(1) : null;
+  // An offer only counts as "made" once Bazooka has set a price (currentOffer/dispOffer > 0).
+  // Seller-submitted lots start at 0 until reviewed — don't show "$0.00" as if we offered nothing.
+  const sellerResponded = ["accepted","declined","countered"].includes(quote.status);
+  const hasOffer  = offer > 0;
+  const awaitingReview = !hasOffer && !sellerResponded;
 
   async function submitResponse(type) {
     setSubmitError("");
@@ -30476,8 +30481,7 @@ function PublicQuote({ quoteId }) {
                       <td style={{ padding:"10px 12px", color:"#888", fontSize:12, textAlign:"center" }}>{qty}</td>
                       <td style={{ padding:"10px 12px", color:"#888", fontSize:12 }}>${mv.toFixed(2)}</td>
                       <td style={{ padding:"10px 12px", color: isCustom?"#A78BFA":"#E8317A", fontWeight:700, fontSize:12 }}>
-                        ${cardOffer.toFixed(2)}
-                        {isCustom && <span style={{ fontSize:9, color:"#A78BFA", marginLeft:4 }}>★</span>}
+                        {hasOffer ? <>${cardOffer.toFixed(2)}{isCustom && <span style={{ fontSize:9, color:"#A78BFA", marginLeft:4 }}>★</span>}</> : <span style={{ color:"#555" }}>—</span>}
                       </td>
                     </tr>
                   );
@@ -30496,19 +30500,26 @@ function PublicQuote({ quoteId }) {
         )}
 
         {/* Offer box */}
-        <div style={{ background:"#111111", border:"2px solid #E8317A33", borderRadius:12, padding:"20px 24px", marginBottom:12 }}>
+        <div style={{ background:"#111111", border:`2px solid ${hasOffer?"#E8317A33":"#7B9CFF33"}`, borderRadius:12, padding:"20px 24px", marginBottom:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span style={{ fontSize:16, fontWeight:800, color:"#E8317A" }}>Bazooka's Offer</span>
-            <span style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
+            <span style={{ fontSize:16, fontWeight:800, color:hasOffer?"#E8317A":"#7B9CFF" }}>{hasOffer?"Bazooka's Offer":"Bazooka's Offer"}</span>
+            {hasOffer
+              ? <span style={{ fontSize:32, fontWeight:900, color:"#F0F0F0" }}>${offer.toFixed(2)}</span>
+              : <span style={{ fontSize:18, fontWeight:800, color:"#7B9CFF" }}>⏳ Under Review</span>}
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
             <div style={{ fontSize:12, color:"#555" }}>{quote.totalCards || (quote.cards||[]).reduce((s,c)=>s+(parseInt(c.qty)||1),0)} cards total</div>
             {quote.quoteRef && <div style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 10px", letterSpacing:1 }}>Ref: {quote.quoteRef}</div>}
           </div>
+          {!hasOffer && (
+            <div style={{ marginTop:12, fontSize:13, color:"#888", lineHeight:1.6 }}>
+              We've received your lot and our team is reviewing your cards. You'll see your offer here as soon as it's ready — keep this link handy and check back soon.
+            </div>
+          )}
         </div>
 
-        {/* -- RESPONSE AREA -- right after the offer, impossible to miss -- */}
-        {!isExpired && !isClosed && !submitted && (quote.status === "pending" || !quote.status) && (
+        {/* -- RESPONSE AREA -- only show once Bazooka has actually made an offer -- */}
+        {!isExpired && !isClosed && !submitted && hasOffer && (
           <div style={{ background:"#111111", border:"2px solid #4ade8044", borderRadius:12, padding:"20px", marginBottom:12 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#888", marginBottom:14 }}>How would you like to respond?</div>
 
