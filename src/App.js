@@ -25857,17 +25857,37 @@ function PublicCardDatabase({ swancity = false } = {}) {
     if (!list.length) return;
     const firstWord = s => (s||"").toLowerCase().trim().split(" ")[0];
     const norm = n => String(n||"").toLowerCase().replace(/[\s-]/g,"");
-    // candidate pool — scope to chosen set + treatment to avoid collisions and help noisy-foil reads
-    let pool = setName ? cards.filter(c=>c.setName===setName) : cards;
-    if (treatment) pool = pool.filter(c=>(c.treatment||"")===treatment);
+    // Available treatments for this set (to match a subfolder name to a real treatment)
+    const setTreatments = [...new Set((setName?cards.filter(c=>c.setName===setName):cards).map(c=>c.treatment).filter(Boolean))];
+    // Given a file, figure out its treatment: explicit treatment arg wins; otherwise read the
+    // immediate subfolder it sits in (from webkitRelativePath) and match it to a real treatment.
+    function treatmentForFile(file){
+      if (treatment) return treatment;
+      const rel = file.webkitRelativePath || file.relativePath || "";
+      const parts = rel.split("/").filter(Boolean);
+      if (parts.length < 2) return ""; // file sits directly in the picked folder — no treatment subfolder
+      const folder = parts[parts.length-2]; // the subfolder the file is in
+      const nf = norm(folder);
+      // exact, then contains, match against this set's real treatments
+      let t = setTreatments.find(tt=>norm(tt)===nf);
+      if (!t) t = setTreatments.find(tt=>norm(tt).includes(nf)||nf.includes(norm(tt)));
+      return t || "";
+    }
     const alreadyImaged = new Set(cards.filter(c=>c.imageUrl&&String(c.imageUrl).startsWith("http")).map(c=>c.id));
     let matched=0, skipped=0, done=0;
     window._bulkErrShown = false;
     const skippedNames=[];
     setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
 
-    const tightPool = !!(setName && treatment);
-    async function visionFind(file) {
+    // Build the candidate pool for a specific treatment (used per-file)
+    function poolFor(fileTreatment){
+      let pool = setName ? cards.filter(c=>c.setName===setName) : cards;
+      if (fileTreatment) pool = pool.filter(c=>(c.treatment||"")===fileTreatment);
+      return pool;
+    }
+
+    async function visionFind(file, pool, fileTreatment){
+      const tightPool = !!(setName && fileTreatment);
       try {
         const base64 = await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ const MAX=1400; const sc=Math.min(1,MAX/Math.max(img.width,img.height)); const cv=document.createElement("canvas"); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc); cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height); res(cv.toDataURL("image/jpeg",0.9).split(",")[1]); }; img.onerror=rej; img.src=ev.target.result; }; rd.onerror=rej; rd.readAsDataURL(file); });
         const resp = await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:base64,mediaType:"image/jpeg",setName,heroOnly:tightPool})});
@@ -25897,8 +25917,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
       } catch(e){ return null; }
     }
 
-    // Match a card by pulling its card-number out of the filename, scoped to the locked pool.
-    function filenameFind(fname){
+    // Match a card by pulling its card-number out of the filename, scoped to the given pool.
+    function filenameFind(fname, pool){
       const base = String(fname||"").replace(/\.[a-z0-9]+$/i,"").toLowerCase(); // strip extension
       const flat = base.replace(/[\s_-]/g,""); // "2026griffeybbf1"
       // For each card in the pool, see if its cardNum appears in the filename.
@@ -25921,9 +25941,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
     async function one(file){
       try {
+        const fileTreatment = treatmentForFile(file);
+        const pool = poolFor(fileTreatment);
         // Try filename FIRST — it usually contains the exact card number (e.g. "2026-Griffey-BBF-1.jpg" → BBF-1).
-        let card = filenameFind(file.name);
-        if(!card) card = await visionFind(file);
+        let card = filenameFind(file.name, pool);
+        if(!card) card = await visionFind(file, pool, fileTreatment);
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
         if(alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
         const fsId = card.fsId || card.id;
@@ -27186,24 +27208,40 @@ function PublicCardDatabase({ swancity = false } = {}) {
         const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
         const treatPool = bulkImg.setName ? cards.filter(c=>c.setName===bulkImg.setName) : cards;
         const treatments = [...new Set(treatPool.map(c=>c.treatment).filter(Boolean))].sort();
+        // Detect the subfolders present in this batch (each = a treatment)
+        const subFolders = bulkImg.byFolder ? [...new Set(bulkImg.files.map(f=>{ const p=(f.webkitRelativePath||"").split("/").filter(Boolean); return p.length>2?p[p.length-2]:null; }).filter(Boolean))] : [];
         return (
           <div onClick={()=>setBulkImg(null)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:24,maxWidth:460,width:"100%"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid #333",borderRadius:16,padding:24,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
               <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>🖼 Import {bulkImg.files.length} Images</div>
-              <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Pick the Set and Treatment below. When BOTH are set, the importer just reads the hero name off each card (the big easy-to-read banner) and assigns it — perfect for noisy foils like Linoleum where the card number is hard to read.</div>
+              {bulkImg.byFolder ? (
+                <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Detected <strong style={{color:"#4ade80"}}>{subFolders.length} treatment subfolder{subFolders.length!==1?"s":""}</strong>. Each image will be assigned the treatment of the subfolder it's in — just confirm the Set below.</div>
+              ) : (
+                <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Pick the Set and Treatment below. When BOTH are set, the importer just reads the hero name off each card (the big easy-to-read banner) and assigns it — perfect for noisy foils like Linoleum where the card number is hard to read.</div>
+              )}
               <div style={{fontSize:11,fontWeight:800,color:bulkImg.setName?"#4ade80":"#FBBF24",marginBottom:6}}>{bulkImg.setName?"✅":"⚠️"} Target Set</div>
               <select value={bulkImg.setName} onChange={e=>setBulkImg(b=>({...b,setName:e.target.value,treatment:""}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
                 <option value="">— All sets —</option>
                 {sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
+              {bulkImg.byFolder ? (
+                <div style={{marginBottom:18}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#4ade80",marginBottom:6}}>✅ Treatments (auto-detected from subfolders)</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {subFolders.map(sf=>{ const known=bulkImg.setName?treatments.some(t=>t.replace(/[\s-]/g,"").toLowerCase()===sf.replace(/[\s-]/g,"").toLowerCase()||t.replace(/[\s-]/g,"").toLowerCase().includes(sf.replace(/[\s-]/g,"").toLowerCase())):true; return <span key={sf} style={{fontSize:11,fontWeight:700,color:known?"#4ade80":"#FBBF24",background:known?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",border:`1px solid ${known?"#4ade8044":"#FBBF2444"}`,borderRadius:6,padding:"3px 9px"}}>{known?"":"⚠️ "}{sf}</span>; })}
+                  </div>
+                  <div style={{fontSize:10,color:"#666",marginTop:6}}>⚠️ = folder name doesn't match a known treatment in this set; those images fall back to name/vision matching.</div>
+                </div>
+              ) : (<>
               <div style={{fontSize:11,fontWeight:800,color:bulkImg.treatment?"#4ade80":"#888",marginBottom:6}}>{bulkImg.treatment?"✅":"○"} Treatment {bulkImg.treatment?"":"(optional — helps for noisy foils)"}</div>
               <select value={bulkImg.treatment||""} onChange={e=>setBulkImg(b=>({...b,treatment:e.target.value}))} style={{width:"100%",background:"#0d0d0d",color:"#F0F0F0",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:18}}>
                 <option value="">— Any treatment —</option>
                 {treatments.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
+              </>)}
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>setBulkImg(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={()=>{ const {files,setName,treatment}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName,treatment||""); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.treatment?` → ${bulkImg.treatment}`:bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
+                <button onClick={()=>{ const {files,setName,treatment,byFolder}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName,byFolder?"":(treatment||"")); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.byFolder?` → ${subFolders.length} treatments`:bulkImg.treatment?` → ${bulkImg.treatment}`:bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
               </div>
             </div>
           </div>
@@ -27939,7 +27977,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                             <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 8px"}}>Admin Tools</div>
                             <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#E8317A",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               🖼 Import Image Folder
-                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ setBulkImg({files:f, setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
+                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ const hasSub=f.some(x=>(x.webkitRelativePath||"").split("/").filter(Boolean).length>2); setBulkImg({files:f, setName:filterSet||"", byFolder:hasSub}); setAdminMenuOpen(false); } e.target.value=""; }}/>
                             </label>
                             <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#b794f6",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               📄 Import Image Files
