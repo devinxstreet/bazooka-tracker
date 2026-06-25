@@ -1024,12 +1024,14 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
+        // Recap totals use STREAMS ONLY so they always match the drill-down (which is streams-only).
+        // Historical monthly summaries are shown in their own Historical section, not merged here.
         const totals = {
-          gross:         streamTotals.gross    + histTotals.gross,
-          imc:           streamTotals.imc      + histTotals.imc,
-          comm:          streamTotals.comm     + histTotals.comm,
-          baz:           streamTotals.baz      + histTotals.baz,
-          trueNet:       streamTotals.trueNet  + histTotals.trueNet,
+          gross:         streamTotals.gross,
+          imc:           streamTotals.imc,
+          comm:          streamTotals.comm,
+          baz:           streamTotals.baz,
+          trueNet:       streamTotals.trueNet,
           expenses:      streamTotals.expenses || 0,
           imcDirectReimb: streamTotals.imcDirectReimb || 0,
           singlesGross:  streamTotals.singlesGross || 0,
