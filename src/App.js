@@ -25691,12 +25691,26 @@ function PublicCardDatabase({ swancity = false } = {}) {
     try {
       const fsId = card.fsId || card.id;
       const safe = `${card.setName||"set"}_${card.cardNum||"x"}_${card.treatment||"t"}`.replace(/[^a-zA-Z0-9_]/g,"_");
-      const storageRef2 = ref(storage, `boba_cards/manual/${safe}.png`);
+      // Cache-bust the storage path so the new image URL is unique (avoids stale CDN/browser cache showing the old pic)
+      const storageRef2 = ref(storage, `boba_cards/manual/${safe}_${Date.now()}.png`);
       await uploadBytes(storageRef2, file);
       const url = await getDownloadURL(storageRef2);
       await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
+      // Update the UI immediately — this page and the open modal
+      setCards(cs => cs.map(c => c.id===card.id ? { ...c, imageUrl:url } : c));
+      setExpandedCard(ec => ec && ec.id===card.id ? { ...ec, imageUrl:url } : ec);
+      // Refresh the shared snapshot so it shows for everyone, not just this device
+      try {
+        const snap2 = await getDocs(collection(db,"boba_checklist"));
+        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
+        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+        try { await writeCardSnapshot(all, 300); } catch(e) {}
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
+        try { idbSetCards(all, Date.now()); } catch(e){}
+      } catch(e) {}
       try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
-      setToast("✅ Image uploaded — refresh to see it everywhere");
+      setToast("✅ Image updated");
     } catch(e) { alert("Upload failed: "+(e?.message||e)); }
   }
 
