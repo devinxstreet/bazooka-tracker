@@ -16947,6 +16947,288 @@ function BulkDeleter() {
   );
 }
 
+function SwanCityBulkImport() {
+  const [cards,   setCards]   = useState([]);
+  const [cardsLoaded, setCardsLoaded] = useState(false);
+  const [csvText, setCsvText] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [done,    setDone]    = useState(null);
+
+  // Load the checklist once (this tool is self-contained).
+  async function loadCards() {
+    const snap = await getDocs(collection(db, "boba_checklist"));
+    setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCardsLoaded(true);
+  }
+
+  // Swan City column header -> your treatment string.
+  //  "__SUPER__" => match weapon === "Super", write to super_claims
+  //  null        => ignore the column
+  const COLUMN_MAP = {
+    "SUPERFOIL":                              "__SUPER__",
+    "Inspired Ink/ Highlighted  Superfoil":   "Inspired Ink Superfoil",
+    "Pink Hex Battlefoil":                    "Pink Battlefoil",
+    "Highlighted Pink Hex Battlefoil":        "Pink Battlefoil",
+    "Alpha":                                  "Alpha Battlefoil",
+    "Helmets*":                               "Helmets Battlefoil",
+    "News*":                                  "Tecmo News Battlefoil",
+    "80's Rad":                               "80's 8-Bit Rad Battlefoil",
+    "Scoreboard*":                            "Scoreboard Battlefoil",
+    "Logofoils":                              "Logofoil",
+    "Sore Thumb*":                            "Sore Thumb Battlefoil",
+    "Blow On It*":                            "Blow on it Battlefoil",
+    "Gold Coinflip*":                         "Gold Coin Flip Battlefoil",
+    "Silver Coinflip*":                       "Silver Coin Flip Battlefoil",
+    "Tecmo Logo":                             "Tecmo Logo Battlefoil",
+    "Big Pixel*":                             "Big Pixel Battlefoil",
+    "Helmet Icons*":                          "Helmet Icon Battlefoil",
+    "Touchdown":                              "Endzone Battlefoil",
+    "Touchdown /34":                          null,
+  };
+
+  const DATE_RE = /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{3,4}\/\d{4}\b/;
+
+  function parseCSV(text) {
+    const rows = []; let row = [], field = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+        else if (c === '"') q = false;
+        else field += c;
+      } else {
+        if (c === '"') q = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+        else if (c === "\r") {}
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  const norm = s => (s || "").toString().trim().toLowerCase();
+
+  function buildPreview() {
+    if (!cardsLoaded) { alert("Click \u201cLoad checklist\u201d first."); return; }
+    const rows = parseCSV(csvText);
+    if (rows.length < 3) { alert("Couldn't read that CSV \u2014 paste the full Swan City tracker including the header row."); return; }
+
+    let hIdx = rows.findIndex(r => r.some(c => norm(c) === "hero"));
+    if (hIdx < 0) hIdx = 1;
+    const header = rows[hIdx];
+    const heroCol = header.findIndex(c => norm(c) === "hero");
+    const inspCol = header.findIndex(c => norm(c).includes("inspired"));
+    const firstParallel = inspCol >= 0 ? inspCol + 1 : heroCol + 2;
+
+    const byHero = {}, byInspired = {};
+    cards.forEach(c => {
+      if (c.hero)     (byHero[norm(c.hero)]         = byHero[norm(c.hero)]         || []).push(c);
+      if (c.inspired) (byInspired[norm(c.inspired)] = byInspired[norm(c.inspired)] || []).push(c);
+    });
+
+    const sf = [], one = [], unmatched = [];
+    for (let r = hIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      const hero = (row[heroCol] || "").trim().replace(/\*+$/,"").trim();
+      const player = (row[inspCol] || "").trim();
+      if (!hero) continue;
+      for (let col = firstParallel; col < row.length; col++) {
+        const cellV = (row[col] || "").trim();
+        if (!cellV || !DATE_RE.test(cellV)) continue;
+        const colName = (header[col] || "").trim();
+        const mapped = COLUMN_MAP[colName];
+        if (mapped === null || mapped === undefined) continue;
+        const isSuper = mapped === "__SUPER__";
+        let pool = byHero[norm(hero)] || byInspired[norm(player)] || [];
+        let card;
+        if (isSuper) card = pool.find(c => (c.weapon || "").toUpperCase() === "SUPER");
+        else         card = pool.find(c => norm(c.treatment) === norm(mapped));
+        const record = { hero, player, colName, mapped, cell: cellV,
+                         dateHit: (cellV.match(DATE_RE) || [""])[0],
+                         source: cellV.replace(DATE_RE, "").trim() };
+        if (card) {
+          record.cardId = card.id; record.cardNum = card.cardNum;
+          record.cardImage = card.imageUrl || null; record.setName = card.setName || "";
+          record.treatment = card.treatment || "";
+          (isSuper ? sf : one).push(record);
+        } else {
+          record.reason = pool.length ? `hero found but no "${isSuper ? "Super" : mapped}" card` : "hero not in checklist";
+          unmatched.push(record);
+        }
+      }
+    }
+    setPreview({ sf, one, unmatched });
+    setDone(null);
+  }
+
+  async function runImport() {
+    if (!preview) return;
+    const total = preview.sf.length + preview.one.length;
+    if (!total) { alert("Nothing matched to import."); return; }
+    if (!window.confirm(`Write ${total} VERIFIED claims?\n  \u2022 ${preview.sf.length} \u2192 super_claims\n  \u2022 ${preview.one.length} \u2192 oneof1_claims\n\nExisting claims for the same card will be overwritten.`)) return;
+    setRunning(true); setDone(null);
+    const u = auth.currentUser;
+    const admin = u?.displayName || u?.email || "Swan City Import";
+    const now = new Date().toISOString();
+    let written = 0;
+    try {
+      for (let i = 0; i < preview.sf.length; i += 400) {
+        const batch = writeBatch(db);
+        preview.sf.slice(i, i + 400).forEach(h => {
+          batch.set(doc(db, "super_claims", h.cardId), {
+            cardId: h.cardId, cardName: h.hero, cardNum: h.cardNum,
+            setName: h.setName, cardImage: h.cardImage,
+            userId: null, userName: h.source || "Swan City", submitterName: h.source || "Swan City",
+            story: h.source ? `Imported from Swan City tracker \u2014 ${h.source}` : "Imported from Swan City tracker",
+            dateHit: h.dateHit, recordedByAdmin: admin, photoUrl: null, status: "verified",
+            createdAt: now, reviewedAt: now, source: "swancity_import",
+          }, { merge: true });
+        });
+        await batch.commit();
+        written += Math.min(400, preview.sf.length - i);
+      }
+      for (let i = 0; i < preview.one.length; i += 400) {
+        const batch = writeBatch(db);
+        preview.one.slice(i, i + 400).forEach(h => {
+          batch.set(doc(db, "oneof1_claims", h.cardId), {
+            cardId: h.cardId, cardName: h.hero, cardNum: h.cardNum,
+            setName: h.setName, treatment: h.treatment, cardImage: h.cardImage,
+            userId: null, submitterName: h.source || "Swan City",
+            story: h.source ? `Imported from Swan City tracker \u2014 ${h.source}` : "Imported from Swan City tracker",
+            dateHit: h.dateHit, recordedByAdmin: admin, photoUrl: null, status: "verified",
+            createdAt: now, reviewedAt: now, source: "swancity_import",
+          }, { merge: true });
+        });
+        await batch.commit();
+        written += Math.min(400, preview.one.length - i);
+      }
+      setDone({ written });
+    } catch (e) {
+      alert("Import failed: " + (e?.message || e) + "\n\nIf this mentions permissions, the Firestore rules for super_claims / oneof1_claims need to allow admin writes.");
+    } finally { setRunning(false); }
+  }
+
+  async function undoImport() {
+    if (!window.confirm("Delete ALL claims tagged source:\"swancity_import\" from both super_claims and oneof1_claims?")) return;
+    setRunning(true);
+    try {
+      let removed = 0;
+      for (const coll of ["super_claims", "oneof1_claims"]) {
+        const snap = await getDocs(query(collection(db, coll), where("source", "==", "swancity_import")));
+        for (let i = 0; i < snap.docs.length; i += 400) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 400).forEach(d => batch.delete(doc(db, coll, d.id)));
+          await batch.commit();
+        }
+        removed += snap.docs.length;
+      }
+      setDone({ written: 0, removed });
+    } catch (e) { alert("Undo failed: " + (e?.message || e)); }
+    finally { setRunning(false); }
+  }
+
+  const tcell = { padding: "4px 8px", fontSize: 11, borderBottom: "1px solid #1a1a1a", whiteSpace: "nowrap" };
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>
+        Paste Swan City's CSV tracker. Only cells with a <strong>date + source</strong> import.
+        Superfoils \u2192 <strong style={{ color: "#F59E0B" }}>super_claims</strong>, other parallels \u2192 <strong style={{ color: "#E8317A" }}>oneof1_claims</strong>, all <strong>verified</strong>. Preview before importing.
+      </div>
+
+      {!cardsLoaded ? (
+        <button onClick={loadCards}
+          style={{ background: "rgba(255,255,255,0.08)", color: "#F0F0F0", border: "1px solid rgba(255,255,255,0.15)",
+                   borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }}>
+          \u2b07\ufe0f Load checklist
+        </button>
+      ) : (
+        <div style={{ fontSize: 11, color: "#4ade80", marginBottom: 8 }}>\u2705 {cards.length} cards loaded</div>
+      )}
+
+      <textarea value={csvText} onChange={e => setCsvText(e.target.value)} spellCheck={false}
+        placeholder="Paste the full Swan City CSV here (including the header row with Hero / Inspired By / SUPERFOIL / ...)"
+        style={{ width: "100%", minHeight: 120, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+                 borderRadius: 10, color: "#ddd", padding: 10, fontSize: 11, fontFamily: "monospace", outline: "none", resize: "vertical" }}/>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button onClick={buildPreview} disabled={!csvText.trim() || !cardsLoaded}
+          style={{ background: "rgba(255,255,255,0.08)", color: "#F0F0F0", border: "1px solid rgba(255,255,255,0.15)",
+                   borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: (csvText.trim() && cardsLoaded) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+          \ud83d\udd0d Preview matches
+        </button>
+        {preview && (preview.sf.length + preview.one.length > 0) && (
+          <button onClick={runImport} disabled={running}
+            style={{ background: "linear-gradient(135deg,#F59E0B,#E8317A)", color: "#fff", border: "none",
+                     borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 800, cursor: running ? "wait" : "pointer", fontFamily: "inherit" }}>
+            {running ? "Working\u2026" : `\u2b06\ufe0f Import ${preview.sf.length + preview.one.length} verified`}
+          </button>
+        )}
+        <button onClick={undoImport} disabled={running}
+          style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)",
+                   borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: running ? "wait" : "pointer", fontFamily: "inherit" }}>
+          \ud83d\uddd1\ufe0f Undo import
+        </button>
+      </div>
+
+      {done && <div style={{ fontSize: 13, color: "#4ade80", marginTop: 12, fontWeight: 700 }}>
+        {done.removed != null ? `\ud83e\uddf9 Removed ${done.removed} imported claims.` : `\u2705 Imported ${done.written} verified claims. Open the Supers / 1/1 tabs to see them.`}
+      </div>}
+
+      {preview && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", gap: 16, fontSize: 12, fontWeight: 700, marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={{ color: "#F59E0B" }}>\u2b50 {preview.sf.length} Superfoils</span>
+            <span style={{ color: "#E8317A" }}>\ud83c\udfaf {preview.one.length} Secret 1/1s</span>
+            <span style={{ color: preview.unmatched.length ? "#ef4444" : "#555" }}>\u26a0\ufe0f {preview.unmatched.length} unmatched</span>
+          </div>
+          {[["\u2b50 Superfoils \u2192 super_claims", preview.sf],
+            ["\ud83c\udfaf Secret 1/1s \u2192 oneof1_claims", preview.one]].map(([title, list]) => list.length > 0 && (
+            <div key={title} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{title}</div>
+              <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #1a1a1a", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
+                  {list.map((h, i) => (
+                    <tr key={i}>
+                      <td style={{ ...tcell, color: "#F0F0F0", fontWeight: 700 }}>{h.hero}</td>
+                      <td style={{ ...tcell, color: "#888" }}>#{h.cardNum}</td>
+                      <td style={{ ...tcell, color: "#aaa" }}>{h.colName}</td>
+                      <td style={{ ...tcell, color: "#666" }}>{h.dateHit}</td>
+                      <td style={{ ...tcell, color: "#666" }}>{h.source}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            </div>
+          ))}
+          {preview.unmatched.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                \u26a0\ufe0f Unmatched \u2014 not imported (fix COLUMN_MAP or add the card, then re-preview)
+              </div>
+              <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #2a1414", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
+                  {preview.unmatched.map((h, i) => (
+                    <tr key={i}>
+                      <td style={{ ...tcell, color: "#F0F0F0" }}>{h.hero}</td>
+                      <td style={{ ...tcell, color: "#aaa" }}>{h.colName}</td>
+                      <td style={{ ...tcell, color: "#ef4444" }}>{h.reason}</td>
+                      <td style={{ ...tcell, color: "#666" }}>{h.dateHit}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DataCleanup() {
   const [loading,    setLoading]    = useState(false);
   const [fieldData,  setFieldData]  = useState(null); // { weapon: {...}, treatment: {...} }
@@ -17046,6 +17328,12 @@ function DataCleanup() {
           Finds cards with misspelled treatments and corrects them: "Halltime Alts" → "Halftime Alts", "Pixel Helemt Alt" → "Pixel Helmet Alt".
         </div>
         <FixTreatmentTypos/>
+      </div>
+
+      {/* Swan City bulk import */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="⭐ Swan City Bulk Import (Supers & 1/1s)"/>
+        <SwanCityBulkImport/>
       </div>
       </div>
 
