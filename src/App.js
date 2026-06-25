@@ -25429,22 +25429,31 @@ function PublicCardDatabase({ swancity = false } = {}) {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
+        // --- Access pause: only @bazookabreaks.com team until launch (flip ACCESS_PAUSED to false to re-open) ---
+        // The /swancity moderator (swancitycards@gmail.com) must ALWAYS stay signed in,
+        // on any path/instance. This gate runs BEFORE any Firestore read so a flaky
+        // server read on mobile can never bounce an allowed user back to signed-out.
+        const ACCESS_PAUSED = true;
+        const emailNorm = (u.email || "").toLowerCase().trim();
+        const isSwancityMod = emailNorm === "swancitycards@gmail.com";
+        const isTeam = hasEarlyAccess(u.email) || isSwancityMod || swancity;
+        if (ACCESS_PAUSED && !isTeam) {
+          alert("We're putting some finishing touches on things and aren't quite open yet — please check back soon. Thanks for your patience!");
+          await signOut(auth);
+          return;
+        }
+        // The Swan City moderator belongs on the /swancity page. If she signs in
+        // anywhere else on the site, send her there (once) so the right UI loads.
+        if (isSwancityMod && !swancity) {
+          const path = (window.location.pathname || "").toLowerCase();
+          if (path !== "/swancity") { window.location.replace("/swancity"); return; }
+        }
         // Record this user for admin user-count (firstSeen set once, lastSeen updated each visit)
         try {
           const uref = doc(db,"users",u.uid);
           let usnap;
           try { usnap = await getDocFromServer(uref); }
-          catch(se) { usnap = await getDoc(uref); }
-          // --- Access pause: only @bazookabreaks.com team until launch (flip ACCESS_PAUSED to false to re-open) ---
-          // The /swancity page is always public, and its moderator (swancitycards@gmail.com) must stay signed in.
-          const ACCESS_PAUSED = true;
-          const isSwancityMod = (u.email||"").toLowerCase().trim() === "swancitycards@gmail.com";
-          const isTeam = hasEarlyAccess(u.email) || isSwancityMod || swancity;
-          if (ACCESS_PAUSED && !isTeam) {
-            alert("We're putting some finishing touches on things and aren't quite open yet — please check back soon. Thanks for your patience!");
-            await signOut(auth);
-            return;
-          }
+          catch(se) { try { usnap = await getDoc(uref); } catch(se2) { usnap = { exists:()=>false, data:()=>({}) }; } }
           await setDoc(uref, {
             email: u.email || "",
             displayName: u.displayName || "",
@@ -26272,6 +26281,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
     // Match a card by pulling its card-number out of the filename, scoped to the given pool.
     function filenameFind(fname, pool){
       const base = String(fname||"").replace(/\.[a-z0-9]+$/i,"").toLowerCase(); // strip extension
+      // Page/export-order filenames (e.g. "Steel-Paper_page-0001", "scan_0002") carry NO real
+      // card number — only an export sequence. Matching their digits to a cardNum is wrong, so
+      // skip filename matching entirely and let vision read the hero off the card.
+      if (/(?:^|[_\s-])(?:page|scan|img|image|export|slide|sheet)?[_\s-]*0*\d{1,4}$/i.test(base)
+          && /(page|scan|img|image|export|slide|sheet)/i.test(base)) {
+        return null;
+      }
       const flat = base.replace(/[\s_-]/g,""); // "2026griffeybbf1"
       // For each card in the pool, see if its cardNum appears in the filename.
       // Prefer the LONGEST cardNum match so "bbf1" wins over "1".
