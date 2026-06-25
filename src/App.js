@@ -1484,14 +1484,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
               const monthData = monthNames.map((label,i) => {
                 const key = `${now.getFullYear()}-${String(i+1).padStart(2,"0")}`;
-                const streamGross = streams
-                  .filter(s => (s.date||"").startsWith(key))
-                  .reduce((s,r)=>s+(parseFloat(r.grossRevenue)||0),0);
+                // Match the rest of the dashboard: exclude singles (pass-through) and
+                // "Exclude from Financials" streams (revenue already counted elsewhere).
+                const monthStreamsForGross = streams.filter(s => (s.date||"").startsWith(key) && !s.isSinglesShow && !s.excludeFinancials);
+                const streamGross = monthStreamsForGross.reduce((s,r)=>s+(parseFloat(r.grossRevenue)||0),0);
                 const histGross = historicalData
                   .filter(h => h.yearMonth===key)
                   .reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
                 const total = streamGross + histGross;
-                const streamCount = streams.filter(s=>(s.date||"").startsWith(key)).length;
+                const streamCount = monthStreamsForGross.length;
                 return { label, key, total, streamCount, isFuture: i > now.getMonth() };
               });
               const maxMonth = Math.max(...monthData.map(m=>m.total), 1);
@@ -7506,6 +7507,8 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
     return streams.filter(s => {
       if (!s.date) return false;
       if ((s.channel||"Bazooka Vault") === "Orbital Society") return false; // tracked separately
+      if (s.isSinglesShow) return false;     // singles are pass-through, not break performance
+      if (s.excludeFinancials) return false; // already counted elsewhere — keep out of all performance stats
       const d = parseLocalDate(s.date);
       if (perfPeriod === "week") {
         const day=d.getDay(), diff=day===0?6:day-1;
@@ -7645,7 +7648,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
         const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
         const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
         const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
-        const totalGross = thisMonth.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
+        const totalGross = thisMonth.filter(s=>!s.isSinglesShow && !s.excludeFinancials).reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
         const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0) + histNewBuyers;
         const mmBuckets = { "< 1.4x":0, "1.4–1.5x":0, "1.5–1.7x":0, "1.7x+":0 };
         mmStreams.forEach(s => {
@@ -7660,7 +7663,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
           const bStreams = thisMonth.filter(s => s.breaker === b);
           const bMM = bStreams.filter(s=>parseFloat(s.marketMultiple)>0);
           const bAvgMM = bMM.length > 0 ? bMM.reduce((sum,s)=>sum+(parseFloat(s.marketMultiple)||0),0)/bMM.length : null;
-          const bGross = bStreams.reduce((sum,s)=>sum+(parseFloat(s.grossRevenue)||0),0);
+          const bGross = bStreams.filter(s=>!s.isSinglesShow && !s.excludeFinancials).reduce((sum,s)=>sum+(parseFloat(s.grossRevenue)||0),0);
           return { breaker:b, streams:bStreams.length, gross:bGross, avgMM:bAvgMM };
         }).filter(b => b.streams > 0);
 
