@@ -1112,11 +1112,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(drillRows.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#ef4444", fontSize:14 }}>−{fmt(drillRows.reduce((a,s)=>{const c=calcStream(s);return a+c.commAmt+(c.eventStaffAmt||0)+(c.salesBonus||0);},0))}</td>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#60A5FA", fontSize:14 }}>{drillRows.some(s=>calcStream(s).imcDirectReimb>0) ? "+"+fmt(drillRows.reduce((a,s)=>a+(calcStream(s).imcDirectReimb||0),0)) : "—"}</td>
-                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0))}</td>
+                        <td style={{ padding:"12px 14px", fontWeight:900, color:"#A78BFA", fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+(calcStream(s).bazTrueNet||0),0) - Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0))}</td>
                       </> : <td style={{ padding:"12px 14px", fontWeight:900, color:config.color, fontSize:16 }}>{fmt(drillRows.reduce((a,s)=>a+config.val(s),0))}</td>}
                     </tr>
                   </tfoot>
                 </table>
+                {drillDown==="trueNet" && (() => {
+                  const adj = Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0);
+                  if (!adj) return null;
+                  return <div style={{ padding:"8px 14px", fontSize:11, color:"#A78BFA", background:"rgba(167,139,250,0.06)" }}>✏️ Includes a manual IMC adjustment of {adj>=0?"−":"+"}{fmt(Math.abs(adj))} for this period (applied to the True Net total above).</div>;
+                })()}
               </div>
             </div>
           );
