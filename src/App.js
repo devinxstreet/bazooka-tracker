@@ -999,9 +999,16 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0, imcDirectReimb:0, singlesGross:0, singlesComm:0 });
 
+        // Months that already have real logged streams — don't also count historical
+        // summaries for those months, or true net / gross would double up.
+        const monthsWithStreams = new Set(
+          streams.filter(s=>s.date && !s.isSinglesShow && !s.excludeFinancials)
+                 .map(s=>(s.date||"").slice(0,7))
+        );
         // Merge historical monthly summaries into totals
         const histFiltered = historicalData.filter(h => {
           if (!h.yearMonth) return false;
+          if (monthsWithStreams.has(h.yearMonth)) return false; // real streams take precedence
           const [y,m] = h.yearMonth.split("-").map(Number);
           const d = new Date(y, m-1, 15);
           return inPeriod(d.toISOString().split("T")[0]);
@@ -1427,7 +1434,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const daysInYear = 365;
         const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials && !s.isSinglesShow);
         const skippedStreams = streams.filter(s => !s.date || new Date(s.date+"T12:00:00").getFullYear()!==now.getFullYear());
-        const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())));
+        const ytdMonthsWithStreams = new Set(ytdStreams.map(s=>(s.date||"").slice(0,7)));
+        const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())) && !ytdMonthsWithStreams.has(h.yearMonth));
         const ytdGross   = ytdStreams.reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0)
                          + ytdHist.reduce((sum,h) => sum+(parseFloat(h.grossRevenue)||0), 0);
         const ytdNet     = ytdStreams.reduce((sum,s) => sum+(parseFloat(calcStreamDash(s).netRev)||0), 0)
@@ -1488,7 +1496,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 // "Exclude from Financials" streams (revenue already counted elsewhere).
                 const monthStreamsForGross = streams.filter(s => (s.date||"").startsWith(key) && !s.isSinglesShow && !s.excludeFinancials);
                 const streamGross = monthStreamsForGross.reduce((s,r)=>s+(parseFloat(r.grossRevenue)||0),0);
-                const histGross = historicalData
+                // If this month has real streams, don't also add a historical summary for it (double-count).
+                const histGross = monthStreamsForGross.length > 0 ? 0 : historicalData
                   .filter(h => h.yearMonth===key)
                   .reduce((s,h)=>s+(parseFloat(h.grossRevenue)||0),0);
                 const total = streamGross + histGross;
