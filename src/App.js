@@ -24531,8 +24531,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","wants","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -24570,8 +24570,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [page,          setPage]          = useState(savedUI.page ?? 1);
   const [flippedCard,   setFlippedCard]   = useState(null);
   const [expandedCard,  setExpandedCard]  = useState(null); // card object shown in big modal
+  const [cardEditMode,  setCardEditMode]  = useState(false); // admin editing card fields
+  const [cardEditDraft, setCardEditDraft] = useState({});
+  const [resubmitClaim,   setResubmitClaim]   = useState(null); // {coll, card} for re-uploading a better claim photo
+  const [resubmitting,    setResubmitting]    = useState(false);
   const [modalFoilView, setModalFoilView] = useState("paper"); // "paper" | "foil" for dual-treatment cards
-  useEffect(()=>{ setModalFoilView("paper"); }, [expandedCard]); // reset toggle each time a card opens
+  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); }, [expandedCard]); // reset toggle each time a card opens
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -24587,7 +24591,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
   useEffect(() => {
     if (swancity) return; // swancity stays on /swancity, tabs don't rewrite the URL
     const target = TAB_PATHS[activeTab] || "/cards";
@@ -24846,6 +24850,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
   // -- 1/1 Tracker --
   const [oneOfOneClaims,  setOneOfOneClaims]  = useState([]);
+  const [bojax34Claims,   setBojax34Claims]   = useState([]);
+  const [bojaxModal,      setBojaxModal]      = useState(null); // serial number being claimed
+  const [bojaxName,       setBojaxName]       = useState("");
+  const [bojaxStory,      setBojaxStory]      = useState("");
+  const [bojaxDate,       setBojaxDate]       = useState("");
+  const [bojaxPhoto,      setBojaxPhoto]      = useState(null);
+  const [bojaxSubmitting, setBojaxSubmitting] = useState(false);
   const [oneModal,        setOneModal]        = useState(null);
   const [onePhoto,        setOnePhoto]        = useState(null);
   const [oneStory,        setOneStory]        = useState("");
@@ -24908,6 +24919,14 @@ function PublicCardDatabase({ swancity = false } = {}) {
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"oneof1_claims"), snap => {
       setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")));
+    });
+    return ()=>unsub();
+  }, []);
+
+  // -- /34 BoJax claims (public) — TBJ-B serialized 1/34..34/34 --
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"bojax34_claims"), snap => {
+      setBojax34Claims(snap.docs.map(d=>({id:d.id,...d.data()})));
     });
     return ()=>unsub();
   }, []);
@@ -25127,11 +25146,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
           let usnap;
           try { usnap = await getDocFromServer(uref); }
           catch(se) { usnap = await getDoc(uref); }
-          // --- Access pause: only @bazookabreaks.com team until June 18 (flip ACCESS_PAUSED to false to re-open) ---
+          // --- Access pause: only @bazookabreaks.com team until launch (flip ACCESS_PAUSED to false to re-open) ---
+          // The /swancity page is always public, and its moderator (swancitycards@gmail.com) must stay signed in.
           const ACCESS_PAUSED = true;
-          const isTeam = hasEarlyAccess(u.email);
+          const isSwancityMod = (u.email||"").toLowerCase().trim() === "swancitycards@gmail.com";
+          const isTeam = hasEarlyAccess(u.email) || isSwancityMod || swancity;
           if (ACCESS_PAUSED && !isTeam) {
-            alert("We're putting some finishing touches on things and aren't quite open yet — please check back on June 18th. Thanks for your patience!");
+            alert("We're putting some finishing touches on things and aren't quite open yet — please check back soon. Thanks for your patience!");
             await signOut(auth);
             return;
           }
@@ -25698,6 +25719,91 @@ function PublicCardDatabase({ swancity = false } = {}) {
       } catch(e) {}
       setToast("🧹 Image cleared — you can add the correct one now");
     } catch(e) { alert("Clear failed: "+(e?.message||e)); }
+  }
+
+  // -- Admin manual edit of card fields (power, weapon, treatment, etc.) right on /cards --
+  async function handleCardFieldEdit(card, updates) {
+    if (!card) return;
+    try {
+      const fsId = card.fsId || card.id;
+      const clean = {};
+      Object.entries(updates).forEach(([k,v]) => { clean[k] = (v===""||v==null) ? deleteField() : v; });
+      await setDoc(doc(db,"boba_checklist",fsId), clean, { merge:true });
+      // Update this page immediately (replace deleteField sentinels with the actual value/blank)
+      const localUpdates = {}; Object.entries(updates).forEach(([k,v])=>{ localUpdates[k] = (v===""||v==null)?null:v; });
+      setCards(cs => cs.map(c => c.id===card.id ? { ...c, ...localUpdates } : c));
+      setExpandedCard(ec => ec && ec.id===card.id ? { ...ec, ...localUpdates } : ec);
+      // Refresh the shared snapshot so the edit shows for everyone
+      try {
+        const snap2 = await getDocs(collection(db,"boba_checklist"));
+        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
+        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
+        try { await writeCardSnapshot(all, 300); } catch(e) {}
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
+        try { idbSetCards(all, Date.now()); } catch(e){}
+      } catch(e) {}
+      try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+      setToast("✅ Card updated");
+      setCardEditMode(false);
+    } catch(e) { alert("Save failed: "+(e?.message||e)); }
+  }
+
+  // -- Re-submit a better photo for an existing claim (super or 1/1). Replaces just the photo. --
+  async function resubmitClaimPhoto(coll, card, file) {
+    if (!coll || !card || !file) return;
+    setResubmitting(true);
+    try {
+      const sref = ref(storage, `${coll}/${card.id}_${Date.now()}.jpg`);
+      await uploadBytes(sref, file);
+      const url = await getDownloadURL(sref);
+      await setDoc(doc(db, coll, card.id), { photoUrl: url, photoUpdatedAt: new Date().toISOString() }, { merge: true });
+      setToast("📸 Photo updated — thank you!");
+      setResubmitClaim(null);
+    } catch(e) { alert("Photo update failed: "+(e?.message||e)); }
+    setResubmitting(false);
+  }
+
+  // -- Submit a /34 BoJax claim for a specific serial number (doc id = serial). --
+  async function submitBojaxClaim(serial, photoBase64, name, story, date, adminMode) {
+    if (!user && !swancity) { setSigningIn(true); return; }
+    setBojaxSubmitting(true);
+    try {
+      const bjCard = cards.find(c => (c.cardNum||"").toUpperCase()==="TBJ-B") || {};
+      let photoUrl = null;
+      if (photoBase64 && typeof photoBase64==="string" && photoBase64.startsWith("data:")) {
+        const sref = ref(storage, `bojax34_claims/${serial}_${Date.now()}.jpg`);
+        const bs = atob(photoBase64.split(",")[1]); const ab = new ArrayBuffer(bs.length); const ia = new Uint8Array(ab);
+        for (let i=0;i<bs.length;i++) ia[i]=bs.charCodeAt(i);
+        await uploadBytes(sref, new Blob([ab],{type:"image/jpeg"}));
+        photoUrl = await getDownloadURL(sref);
+      }
+      await setDoc(doc(db,"bojax34_claims",String(serial)), {
+        serial: Number(serial),
+        cardName: bjCard.hero || "BoJax",
+        cardNum: "TBJ-B",
+        cardImage: bjCard.imageUrl || null,
+        photoUrl,
+        submitterName: name || "Anonymous",
+        story: story || "",
+        dateHit: date || "",
+        userId: adminMode ? null : (user?.uid || "anon"),
+        status: adminMode ? "verified" : "pending",
+        ...(adminMode ? { recordedByAdmin: user?.displayName||user?.email||"Admin", reviewedAt:new Date().toISOString() } : {}),
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
+      setBojaxModal(null); setBojaxPhoto(null); setBojaxName(""); setBojaxStory(""); setBojaxDate("");
+      if (!adminMode) { setSuperCelebration({ cardName:`BoJax ${serial}/34`, cardImage: bjCard.imageUrl||null, type:"oneof1" }); }
+    } catch(e) { alert("Claim failed: "+(e?.message||e)); }
+    setBojaxSubmitting(false);
+  }
+
+  async function verifyBojaxClaim(serial, verified) {
+    try { await setDoc(doc(db,"bojax34_claims",String(serial)), { status: verified?"verified":"denied", reviewedAt:new Date().toISOString() }, { merge:true }); } catch(e){ alert("Failed: "+e.message); }
+  }
+  async function removeBojaxClaim(serial) {
+    if (!window.confirm(`Remove the claim for BoJax #${serial}/34?`)) return;
+    try { await deleteDoc(doc(db,"bojax34_claims",String(serial))); } catch(e){ alert("Failed: "+e.message); }
   }
 
   // -- BULK image import, right here on /cards (admin only). Writes to the SAME data /cards reads. --
@@ -27162,6 +27268,28 @@ function PublicCardDatabase({ swancity = false } = {}) {
                     {c.imageUrl && (
                       <button onClick={()=>{ if(window.confirm(`Clear the image on ${c.hero}${c.cardNum?` #${c.cardNum}`:""}? This removes the wrong image so you can add the right one.`)){ handleCardImageClear(c); setExpandedCard({...c, imageUrl:null}); } }} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🧹 Clear Image</button>
                     )}
+                    <button onClick={()=>{ setCardEditDraft({ hero:c.hero||"", power:c.power!=null?String(c.power):"", weapon:c.weapon||"", treatment:c.treatment||"", cardNum:c.cardNum||"", setName:c.setName||"", notation:c.notation||"", variation:c.variation||"", inspiredBy:c.inspiredBy||c.athlete||"" }); setCardEditMode(m=>!m); }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{cardEditMode?"✕ Cancel Edit":"✏️ Edit Info"}</button>
+                  </div>
+                )}
+                {_cardAdmin && cardEditMode && (
+                  <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:420, background:"rgba(123,156,255,0.05)", border:"1px solid rgba(123,156,255,0.25)", borderRadius:12, padding:14, marginTop:4, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                    {[
+                      {k:"hero",label:"Hero Name",full:true},
+                      {k:"power",label:"⚡ Power",type:"number"},
+                      {k:"cardNum",label:"Card #"},
+                      {k:"weapon",label:"Weapon"},
+                      {k:"treatment",label:"Treatment"},
+                      {k:"setName",label:"Set Name",full:true},
+                      {k:"notation",label:"Notation"},
+                      {k:"variation",label:"Variation"},
+                      {k:"inspiredBy",label:"Inspired By",full:true},
+                    ].map(f=>(
+                      <div key={f.k} style={{ gridColumn: f.full?"1 / -1":"auto" }}>
+                        <label style={{ fontSize:10, color:"#7B9CFF", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, display:"block", marginBottom:3 }}>{f.label}</label>
+                        <input type={f.type||"text"} value={cardEditDraft[f.k]??""} onChange={e=>setCardEditDraft(d=>({...d,[f.k]:e.target.value}))} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:7, padding:"7px 9px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                      </div>
+                    ))}
+                    <button onClick={()=>{ const upd={...cardEditDraft}; if(upd.power!=="")upd.power=parseInt(upd.power)||0; handleCardFieldEdit(c, upd); }} style={{ gridColumn:"1 / -1", background:"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:"#fff", border:"none", borderRadius:9, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>💾 Save Changes</button>
                   </div>
                 )}
               </div>
@@ -27190,6 +27318,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         <div style={{ fontSize:16, fontWeight:900, color:"#c084fc", marginBottom:4 }}>🏆 Claimed</div>
                         <div style={{ fontSize:13, color:"#ddd" }}>Pulled by <strong style={{ color:"#fff" }}>{claimerName}</strong>{claim1of1.dateHit?` · ${claim1of1.dateHit}`:""}</div>
                         {claim1of1.story && <div style={{ fontSize:12, color:"#999", marginTop:8, lineHeight:1.5, fontStyle:"italic" }}>"{claim1of1.story}"</div>}
+                        {claim1of1.photoUrl && <img src={claim1of1.photoUrl} alt="claim proof" style={{ width:"100%", maxWidth:200, borderRadius:8, marginTop:10, display:"block" }}/>}
+                        {(swancity || _cardAdmin) && (
+                          <label onClick={e=>e.stopPropagation()} style={{ display:"inline-block", marginTop:10, background:"rgba(192,132,252,0.12)", border:"1px solid rgba(192,132,252,0.4)", color:"#c084fc", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:resubmitting?"wait":"pointer", fontFamily:"inherit" }}>
+                            {resubmitting ? "Uploading…" : "📸 Re-submit better photo"}
+                            <input type="file" accept="image/*" style={{ display:"none" }} disabled={resubmitting} onChange={e=>{ const f=e.target.files?.[0]; if(f){ resubmitClaimPhoto(isSecret1of1?"oneof1_claims":"super_claims", c, f); } e.target.value=""; }}/>
+                          </label>
+                        )}
                       </>
                     ) : claimPending ? (
                       <>
@@ -27833,12 +27968,14 @@ function PublicCardDatabase({ swancity = false } = {}) {
             {swancity ? (<>
               {navItem("supers","⭐ Supers",0)}
               {navItem("1of1","💎 Secret 1/1s",0)}
+              {navItem("bojax34","🅱️ /34 BoJax",0)}
             </>) : (<>
             {navItem("cards","Card Database",0)}
             {navGroup("collect","Collectibility",[
               {id:"rainbow",label:"🌈 Rainbow Progress",badge:0},
               {id:"supers",label:"⭐ Supers",badge:0},
               {id:"1of1",label:"💎 Secret 1/1s",badge:0},
+              {id:"bojax34",label:"🅱️ /34 BoJax",badge:0},
               {id:"wants",label:"🎯 Want List",badge:Object.keys(wantList).length},
             ])}
             {navGroup("play","Deck Builder",[
@@ -28306,6 +28443,111 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 );
               });
               })()}
+            </div>
+          );
+        })()}
+
+        {/* /34 BOJAX TAB */}
+        {activeTab==="bojax34" && (() => {
+          const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
+          const bjCard = cards.find(c => (c.cardNum||"").toUpperCase()==="TBJ-B");
+          const bySerial = {};
+          (bojax34Claims||[]).forEach(cl => { bySerial[Number(cl.serial)] = cl; });
+          const verifiedCount = (bojax34Claims||[]).filter(c=>c.status==="verified").length;
+          const pendingCount  = (bojax34Claims||[]).filter(c=>c.status==="pending").length;
+          const pct = Math.round((verifiedCount/34)*100);
+          return (
+            <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 4px" }}>
+              {/* Header + progress bar */}
+              <div style={{ textAlign:"center", marginBottom:18 }}>
+                <div style={{ fontSize:26, fontWeight:900, color:"#F59E0B", letterSpacing:0.5 }}>🅱️ /34 BoJax Tracker</div>
+                <div style={{ fontSize:13, color:"#888", marginTop:4 }}>The BoJax (TBJ-B) is serial-numbered to just <strong style={{color:"#ccc"}}>34 copies</strong>. Track which ones have surfaced.</div>
+              </div>
+              <div style={{ background:"#111", border:"1px solid #F59E0B33", borderRadius:14, padding:"16px 20px", marginBottom:20 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8 }}>
+                  <span style={{ fontSize:13, fontWeight:800, color:"#F59E0B", textTransform:"uppercase", letterSpacing:1 }}>Found</span>
+                  <span style={{ fontSize:22, fontWeight:900, color:"#fff" }}>{verifiedCount}<span style={{ fontSize:14, color:"#666" }}> / 34</span></span>
+                </div>
+                <div style={{ height:12, background:"#0a0a0a", borderRadius:6, overflow:"hidden", border:"1px solid #222" }}>
+                  <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F59E0B,#E8317A)", borderRadius:6, transition:"width 0.6s ease" }}/>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11, color:"#666" }}>
+                  <span>{pct}% accounted for</span>
+                  {pendingCount>0 && <span style={{ color:"#FBBF24" }}>⏳ {pendingCount} pending verification</span>}
+                  <span>{34-verifiedCount} still out there</span>
+                </div>
+              </div>
+              {/* 34-slot grid */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:12 }}>
+                {Array.from({length:34}, (_,idx)=>{
+                  const serial = idx+1;
+                  const cl = bySerial[serial];
+                  const verified = cl && cl.status==="verified";
+                  const pending  = cl && cl.status==="pending";
+                  const stateColor = verified ? "#F59E0B" : pending ? "#FBBF24" : "#333";
+                  return (
+                    <div key={serial} style={{ background: verified?"rgba(245,158,11,0.1)":pending?"rgba(251,191,36,0.06)":"#0d0d0d", border:`1.5px solid ${stateColor}${verified||pending?"":"55"}`, borderRadius:12, padding:"12px", textAlign:"center", position:"relative" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color: verified?"#F59E0B":pending?"#FBBF24":"#666" }}>{serial}<span style={{ fontSize:11, color:"#555" }}>/34</span></div>
+                      {(verified||pending) && cl.photoUrl && <img src={cl.photoUrl} alt={`#${serial}`} style={{ width:"100%", borderRadius:8, margin:"8px 0", aspectRatio:"3/4", objectFit:"cover" }}/>}
+                      {verified ? (
+                        <>
+                          <div style={{ fontSize:12, fontWeight:800, color:"#fff", marginTop:4 }}>🏆 {cl.submitterName||"Found"}</div>
+                          {cl.dateHit && <div style={{ fontSize:10, color:"#888" }}>{cl.dateHit}</div>}
+                        </>
+                      ) : pending ? (
+                        <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", marginTop:4 }}>⏳ Pending</div>
+                      ) : (
+                        <div style={{ fontSize:11, color:"#555", marginTop:4 }}>🔓 Unclaimed</div>
+                      )}
+                      {/* Claim button */}
+                      {!verified && (
+                        <button onClick={()=>{ if(!user && !swancity){ setSigningIn(true); return; } setBojaxModal(serial); setBojaxName(""); setBojaxStory(""); setBojaxDate(""); setBojaxPhoto(null); }}
+                          style={{ marginTop:8, width:"100%", background: pending?"rgba(251,191,36,0.12)":"linear-gradient(135deg,#F59E0B,#E8317A)", color: pending?"#FBBF24":"#fff", border:"none", borderRadius:8, padding:"6px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                          {pending ? "Claim anyway" : "I pulled this"}
+                        </button>
+                      )}
+                      {/* Admin/swancity controls */}
+                      {isAdminUser && cl && (
+                        <div style={{ display:"flex", gap:4, marginTop:6 }}>
+                          {pending && <button onClick={()=>verifyBojaxClaim(serial,true)} style={{ flex:1, background:"rgba(74,222,128,0.15)", border:"1px solid #4ade8055", color:"#4ade80", borderRadius:6, padding:"4px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Verify</button>}
+                          <button onClick={()=>removeBojaxClaim(serial)} style={{ flex:1, background:"rgba(239,68,68,0.12)", border:"1px solid #ef444455", color:"#ef4444", borderRadius:6, padding:"4px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+                        </div>
+                      )}
+                      {isAdminUser && !cl && (
+                        <button onClick={()=>{ setBojaxModal(serial); setBojaxName(""); setBojaxStory(""); setBojaxDate(""); setBojaxPhoto(null); }} style={{ marginTop:6, width:"100%", background:"rgba(245,158,11,0.08)", border:"1px solid #F59E0B44", color:"#F59E0B", borderRadius:6, padding:"4px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🎯 Record Hit</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* /34 BOJAX CLAIM MODAL */}
+        {bojaxModal!=null && (()=>{
+          const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
+          const adminMode = isAdminUser;
+          return (
+            <div onClick={()=>setBojaxModal(null)} style={{ position:"fixed", inset:0, zIndex:13000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+              <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg,#1a1206,#0d0d12)", border:"1.5px solid #F59E0B55", borderRadius:18, padding:24, maxWidth:440, width:"100%", maxHeight:"90vh", overflowY:"auto" }}>
+                <div style={{ fontSize:20, fontWeight:900, color:"#F59E0B", marginBottom:4 }}>{adminMode?"🎯 Record Hit":"🅱️ Claim BoJax"} #{bojaxModal}/34</div>
+                <div style={{ fontSize:12, color:"#888", marginBottom:16 }}>{adminMode?"Record this serial as found.":"Submit your pull — an admin will verify it."}</div>
+                <label style={{ fontSize:11, color:"#F59E0B", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Your Name / Handle</label>
+                <input value={bojaxName} onChange={e=>setBojaxName(e.target.value)} placeholder="Anonymous" style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12 }}/>
+                <label style={{ fontSize:11, color:"#F59E0B", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Date Hit (optional)</label>
+                <input type="date" value={bojaxDate} onClick={e=>e.target.showPicker&&e.target.showPicker()} onChange={e=>setBojaxDate(e.target.value)} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:16, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12 }}/>
+                <label style={{ fontSize:11, color:"#F59E0B", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Story (optional)</label>
+                <textarea value={bojaxStory} onChange={e=>setBojaxStory(e.target.value)} placeholder="How'd you land it?" rows={2} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12, resize:"vertical" }}/>
+                <label style={{ display:"block", background: bojaxPhoto?"#0a1a0a":"#0a0a0a", border:`2px dashed ${bojaxPhoto?"#F59E0B":"#2a2a2a"}`, borderRadius:12, padding:"18px", textAlign:"center", cursor:"pointer", marginBottom:14 }}>
+                  {bojaxPhoto ? <img src={bojaxPhoto} alt="proof" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8 }}/> : <div style={{ color:"#666", fontSize:13 }}>📸 Tap to add a photo of your card</div>}
+                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onload=ev=>setBojaxPhoto(ev.target.result); r.readAsDataURL(f); } }}/>
+                </label>
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={()=>setBojaxModal(null)} style={{ flex:1, background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"#888", borderRadius:12, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  <button onClick={()=>submitBojaxClaim(bojaxModal, bojaxPhoto, bojaxName, bojaxStory, bojaxDate, adminMode)} disabled={bojaxSubmitting} style={{ flex:2, background:"linear-gradient(135deg,#F59E0B,#E8317A)", color:"#fff", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:bojaxSubmitting?"wait":"pointer", fontFamily:"inherit" }}>{bojaxSubmitting?"Submitting…":adminMode?"🎯 Record Hit":"🅱️ Submit Claim"}</button>
+                </div>
+              </div>
             </div>
           );
         })()}
@@ -32225,7 +32467,7 @@ function AppInner() {
   // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
   if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
