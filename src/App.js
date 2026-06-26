@@ -22715,7 +22715,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8}}>Only the {(evt.plays||[]).length + (evt.bonusPlays||[]).length} Plays on the {evt.name} Checklist are shown below.</div>
                   </div>
                 )}
-                <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
+                <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",paddingRight:4,paddingTop:12,paddingBottom:24}}>
                   {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {pbAvail.map((c)=>{
@@ -22726,7 +22726,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     return (
                       <div key={c.id} onClick={addIt} title={blocked?(playFull?"Play limit reached":"DBS cap reached"):`Add ${c.hero}`}
                         style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,border:`1.5px solid ${blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,background:"#111",transition:"transform 0.15s ease, border-color 0.15s ease"}}
-                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="scale(1.5)";e.currentTarget.style.borderColor=wc;e.currentTarget.style.zIndex="10";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.7)";}}}
+                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="scale(1.28)";e.currentTarget.style.borderColor=wc;e.currentTarget.style.zIndex="10";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.7)";}}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";e.currentTarget.style.zIndex="";e.currentTarget.style.boxShadow="";}}>
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
