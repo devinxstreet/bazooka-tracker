@@ -22726,8 +22726,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     return (
                       <div key={c.id} onClick={addIt} title={blocked?(playFull?"Play limit reached":"DBS cap reached"):`Add ${c.hero}`}
                         style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,border:`1.5px solid ${blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,background:"#111",transition:"transform 0.15s ease, border-color 0.15s ease"}}
-                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}const a=e.currentTarget.querySelector(".pb-ability");if(a)a.style.opacity="1";}}
-                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";const a=e.currentTarget.querySelector(".pb-ability");if(a)a.style.opacity="0";}}>
+                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="scale(1.5)";e.currentTarget.style.borderColor=wc;e.currentTarget.style.zIndex="10";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.7)";}}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";e.currentTarget.style.zIndex="";e.currentTarget.style.boxShadow="";}}>
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                           : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{bonus?"Bonus Play":"Play"}</div></div>}
@@ -22740,16 +22740,6 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                           </div>
                         </div>
                         <div style={{position:"absolute",top:6,left:6,fontSize:8,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:4,padding:"2px 6px",pointerEvents:"none"}}>{bonus?"BPL":"PLAY"}</div>
-                        {c.playAbility && (
-                          <div className="pb-ability" style={{position:"absolute",inset:0,background:"rgba(8,4,10,0.94)",padding:"10px 11px",display:"flex",flexDirection:"column",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",borderRadius:10}}>
-                            <div style={{fontSize:12,fontWeight:900,color:"#fff",marginBottom:2,lineHeight:1.15}}>{c.hero}</div>
-                            <div style={{display:"flex",gap:8,marginBottom:6}}>
-                              {c.playCost!==undefined&&c.playCost!==""&&<span style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>}
-                              {c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:10,color:"#C084FC",fontWeight:700}}>DBS {c.dbs}</span>}
-                            </div>
-                            <div style={{fontSize:11,color:"#f0f0f0",lineHeight:1.4,overflowY:"auto",flex:1}}>{c.playAbility}</div>
-                          </div>
-                        )}
                         {!blocked&&<div className="deck-add-badge" style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(74,222,128,0.95)",color:"#000",fontSize:24,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.5)",zIndex:2}}>+</div>}
                       </div>
                     );
