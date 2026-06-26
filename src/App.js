@@ -22614,6 +22614,7 @@ function guessPlayCategory(playName) {
 
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const [pbEvent, setPbEvent] = useState("");
+  const [pbSetFilter, setPbSetFilter] = useState("");
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
   const evtPlaySet = evt ? new Set([...(evt.plays||[]), ...(evt.bonusPlays||[])].map(s=>s.toLowerCase().trim())) : null;
   const inEvent = c => !evtPlaySet || evtPlaySet.has((c.hero||"").toLowerCase().trim());
@@ -22678,12 +22679,17 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
     return { counts, total, playEntries, bonusEntries, avgDbs, avgCost };
   })();
 
-  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSetFilter&&c.setName!==pbSetFilter)return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+  const pbSets=[...new Set(playCards.map(c=>c.setName).filter(Boolean))].sort();
   return (
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
               <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                   <input value={pbSearch} onChange={e=>setPbSearch(e.target.value)} placeholder="Search play or ability..." style={{...inp,flex:1}}/>
+                  <select value={pbSetFilter} onChange={e=>setPbSetFilter(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbSetFilter?"#4ade80":"rgba(255,255,255,0.4)"}}>
+                    <option value="">All Sets</option>
+                    {pbSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
                   <select value={pbEvent} onChange={e=>setPbEvent(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbEvent?"#F59E0B":"rgba(255,255,255,0.4)"}}>
                     <option value="">All Plays (no event)</option>
                     <optgroup label="── Events ──">
@@ -22805,10 +22811,9 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                 )}
                 {/* ── Playbook Make-Up ── */}
                 {pbResolved.length>0 && (
-                  <div style={{margin:"16px 0",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 14px"}}>
+                  <div onMouseLeave={()=>setExpandedCat(pinnedCat)} style={{margin:"16px 0",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 14px"}}>
                     <div style={{fontSize:10,color:"#9ca3af",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>📊 Playbook Make-Up</div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(86px,1fr))",gap:6,marginBottom:12}}
-                      onMouseLeave={()=>setExpandedCat(pinnedCat)}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(86px,1fr))",gap:6,marginBottom:12}}>
                       {PLAYBOOK_CATEGORIES.map(cat=>{
                         const c=makeup.counts[cat]||{count:0,cards:[]};
                         const pct=Math.round((c.count/makeup.total)*100);
@@ -22817,7 +22822,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         return (
                           <div key={cat}
                             onClick={()=>{ const next=pinnedCat===cat?null:cat; setPinnedCat(next); setExpandedCat(next); }}
-                            onMouseEnter={()=>setExpandedCat(cat)}
+                            onMouseEnter={()=>{ if(!pinnedCat) setExpandedCat(cat); }}
                             title={`${c.count} play${c.count!==1?"s":""} (${pct}%) — hover or click to see which`}
                             style={{background:isOpen?`${col}1f`:"rgba(255,255,255,0.03)",border:`1px solid ${isOpen?col:col+"33"}`,borderRadius:9,padding:"8px 9px",cursor:"pointer",transition:"all 0.15s"}}>
                             <div style={{fontSize:9,fontWeight:800,color:col,lineHeight:1.2,minHeight:22}}>{cat}</div>
@@ -22869,7 +22874,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         </div>
                       ))}
                     </div>
-                    {pbIsAdmin && <div style={{fontSize:9,color:"#555",marginTop:8,fontStyle:"italic"}}>Categories auto-guessed from play names. Expand any category to reassign plays — overrides save for everyone.</div>}
+                    {pbIsAdmin && <div style={{fontSize:9,color:"#555",marginTop:8,fontStyle:"italic"}}>Categories auto-guessed from play names. Click a category to lock it open, then use the dropdowns to reassign plays — overrides save for everyone.</div>}
                   </div>
                 )}
                 {pbResolved.length>0&&(
