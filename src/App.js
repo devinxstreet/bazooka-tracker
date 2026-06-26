@@ -806,6 +806,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
                     <span style={{ fontSize:14, fontWeight:800, color:cfg.color }}>{cfg.title}</span>
                     {q.quoteRef && <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.2)", borderRadius:6, padding:"2px 8px", letterSpacing:0.5 }}>{q.quoteRef}</span>}
+                    {(() => {
+                      const offerVal = parseFloat(q.currentOffer || q.dispOffer || 0) || 0;
+                      const alreadyQuoted = offerVal > 0 || !!q.quotedBy || (q.status && q.status!=="pending");
+                      return alreadyQuoted
+                        ? <span style={{ fontSize:11, fontWeight:800, color:"#4ade80", background:"rgba(74,222,128,0.12)", border:"1px solid rgba(74,222,128,0.35)", borderRadius:6, padding:"2px 9px" }}>✅ Already quoted{offerVal>0?` · $${offerVal.toFixed(2)}`:""}</span>
+                        : <span style={{ fontSize:11, fontWeight:800, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:6, padding:"2px 9px" }}>⚠️ Not quoted yet</span>;
+                    })()}
                   </div>
                   <div style={{ fontSize:12, color:"#888" }}>{cfg.body}</div>
                   {q.quotedBy && <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Quoted by <strong style={{color:"#AAAAAA"}}>{q.quotedBy.split(" ")[0]}</strong></div>}
@@ -2282,6 +2289,37 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
           {activeQuotes.length > 0 && (
             <div style={{ ...S.card, border:"2px solid rgba(232,49,122,0.3)" }}>
               <SectionLabel t="🔗 Active Quote Links" />
+              {(() => {
+                // Running total of dollars committed across all active quotes — "if everyone says yes"
+                const offerOf = q => parseFloat((q.status==="countered" ? q.sellerCounter : q.currentOffer) || q.currentOffer || q.dispOffer || 0) || 0;
+                const open = activeQuotes.filter(q => q.status==="pending" || q.status==="countered");
+                const accepted = activeQuotes.filter(q => q.status==="accepted");
+                const openTotal = open.reduce((s,q)=>s+offerOf(q),0);
+                const acceptedTotal = accepted.reduce((s,q)=>s+offerOf(q),0);
+                const maxExposure = openTotal + acceptedTotal;
+                const fmt = n => "$"+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+                return (
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:12 }}>
+                    <div style={{ flex:1, minWidth:150, background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:10, padding:"10px 14px" }}>
+                      <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>Max if all accept</div>
+                      <div style={{ fontSize:22, fontWeight:900, color:"#fff", lineHeight:1.1 }}>{fmt(maxExposure)}</div>
+                      <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{activeQuotes.length} active quote{activeQuotes.length!==1?"s":""}</div>
+                    </div>
+                    <div style={{ flex:1, minWidth:130, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10, padding:"10px 14px" }}>
+                      <div style={{ fontSize:10, fontWeight:800, color:"#888", textTransform:"uppercase", letterSpacing:1 }}>⏳ Awaiting</div>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#ccc", lineHeight:1.1 }}>{fmt(openTotal)}</div>
+                      <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{open.length} out for response</div>
+                    </div>
+                    {accepted.length>0 && (
+                      <div style={{ flex:1, minWidth:130, background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:10, padding:"10px 14px" }}>
+                        <div style={{ fontSize:10, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:1 }}>✅ Accepted</div>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#4ade80", lineHeight:1.1 }}>{fmt(acceptedTotal)}</div>
+                        <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{accepted.length} committed to buy</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {activeQuotes.map(q => {
                   // Auto-dismiss badge when admin views a responded quote
@@ -22547,6 +22585,33 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
   );
 }
 
+// ── Playbook Make-Up categories ────────────────────────────────────────────
+// 7 categories matching the legacy tracker. Each play is auto-guessed from its
+// name via keyword rules below; admins can override per-play (stored in
+// meta/play_categories) and overrides always win.
+const PLAYBOOK_CATEGORIES = ["Control","Discard Heroes","Hot Dog Recursion","Misc","Opp. Debuff","Play Recursion","Power Buff"];
+const PLAYBOOK_CAT_COLORS = {
+  "Control":"#7B9CFF", "Discard Heroes":"#E8317A", "Hot Dog Recursion":"#FBBF24",
+  "Misc":"#9ca3af", "Opp. Debuff":"#A855F7", "Play Recursion":"#4ade80", "Power Buff":"#F59E0B",
+};
+// keyword → category (checked in order; first match wins). Lowercased contains-match.
+const PLAYBOOK_CAT_RULES = [
+  ["Hot Dog Recursion", ["hot dog","htd","weiner","weenie","dog gone","roller dog","relish","protein","meal","dinner","feast","lunch","sweet relish","gambler's feast","momentum meal","make up meal","victory dinner"]],
+  ["Play Recursion",    ["play re-order","re-order","reorder","play reset","deck burn","deep in the playbook","tear a page","roll some plays","roll for","four-flip","flip ya for","plays or dogs","trade-up","toss and trade","copy cat","new plays","more plays","draw","reload","recovery","recover","back from the dumps","clean slate"]],
+  ["Power Buff",        ["pump","power pick","high stakes pump","add firepower","heavy swing","big swinger","steel smash","steel roll","steel flipper","steel helmet","might of the underdog","indestructible","line drive","high fastball","firework","glow","buff","boost"]],
+  ["Opp. Debuff",       ["forced retreat","emergency shutdown","pulling the plug","ice blast","ice roll","hex flipper","debuff","competitive disadvantage","turn the tide","sack streak","loan shark","cursed coin","dice trap","three strikes","nasty or nada"]],
+  ["Discard Heroes",    ["discard","blind substitution","lineup randomizer","sacrifice","sack","burn a hero","dump a hero"]],
+  ["Control",           ["crystal ball","change the future","pre-game spy","pre-game ritual","pre-game","good guess","please be low","win the toss","heads-up","heads up","leave it to chance","leave it to fate","press your luck","luck of the draw","spy","scout","look at","peek","control","re-org","last-minute re-org"]],
+];
+function guessPlayCategory(playName) {
+  const n = (playName||"").toLowerCase();
+  if (!n) return "Misc";
+  for (const [cat, kws] of PLAYBOOK_CAT_RULES) {
+    if (kws.some(k => n.includes(k))) return cat;
+  }
+  return "Misc";
+}
+
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const [pbEvent, setPbEvent] = useState("");
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
@@ -22575,6 +22640,44 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
     if(bonusCount===0&&playCount>5) tips.push({t:"info",m:"No Bonus Plays yet — they're unlimited and add flexibility."});
     return tips.slice(0,5);
   })();
+
+  // ── Playbook Make-Up: category breakdown of the current playbook ──────────
+  const pbIsAdmin = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const [catOverrides, setCatOverrides] = useState({}); // { playName: category }
+  const [expandedCat, setExpandedCat] = useState(null);
+  const [pinnedCat, setPinnedCat] = useState(null);
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db,"meta","play_categories"),
+      snap => setCatOverrides(snap.exists() ? (snap.data().map || {}) : {}),
+      () => {});
+    return () => unsub();
+  }, []);
+  const catOf = card => {
+    const key = (card.playName || card.hero || "").trim();
+    if (catOverrides[key]) return catOverrides[key];
+    return guessPlayCategory(card.playName || card.hero || "");
+  };
+  async function setPlayCategory(card, category) {
+    const key = (card.playName || card.hero || "").trim();
+    if (!key) return;
+    const next = { ...catOverrides, [key]: category };
+    setCatOverrides(next);
+    try { await setDoc(doc(db,"meta","play_categories"), { map: next }, { merge:true }); }
+    catch(e){ alert("Couldn't save category override: " + (e?.message||e)); }
+  }
+  const makeup = (() => {
+    const counts = {}; PLAYBOOK_CATEGORIES.forEach(c => counts[c] = { count:0, cards:[] });
+    pbResolved.forEach(e => { const cat = catOf(e.card); (counts[cat] || (counts[cat]={count:0,cards:[]})).count++; counts[cat].cards.push(e); });
+    const total = pbResolved.length || 1;
+    const playEntries = pbResolved.filter(e => e.type==="play");
+    const bonusEntries = pbResolved.filter(e => e.type==="bonus");
+    const dbsVals = pbResolved.map(e => parseFloat(e.card.dbs)||0).filter(v => v>0);
+    const costVals = pbResolved.map(e => parseFloat(e.card.playCost)).filter(v => !isNaN(v));
+    const avgDbs = dbsVals.length ? dbsVals.reduce((s,v)=>s+v,0)/dbsVals.length : 0;
+    const avgCost = costVals.length ? costVals.reduce((s,v)=>s+v,0)/costVals.length : 0;
+    return { counts, total, playEntries, bonusEntries, avgDbs, avgCost };
+  })();
+
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   return (
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
@@ -22698,6 +22801,75 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:11.5,lineHeight:1.45,color:col}}><span style={{flexShrink:0}}>{icon}</span><span>{tip.m}</span></div>
                       );})}
                     </div>
+                  </div>
+                )}
+                {/* ── Playbook Make-Up ── */}
+                {pbResolved.length>0 && (
+                  <div style={{margin:"16px 0",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 14px"}}>
+                    <div style={{fontSize:10,color:"#9ca3af",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>📊 Playbook Make-Up</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(86px,1fr))",gap:6,marginBottom:12}}
+                      onMouseLeave={()=>setExpandedCat(pinnedCat)}>
+                      {PLAYBOOK_CATEGORIES.map(cat=>{
+                        const c=makeup.counts[cat]||{count:0,cards:[]};
+                        const pct=Math.round((c.count/makeup.total)*100);
+                        const col=PLAYBOOK_CAT_COLORS[cat];
+                        const isOpen=expandedCat===cat;
+                        return (
+                          <div key={cat}
+                            onClick={()=>{ const next=pinnedCat===cat?null:cat; setPinnedCat(next); setExpandedCat(next); }}
+                            onMouseEnter={()=>setExpandedCat(cat)}
+                            title={`${c.count} play${c.count!==1?"s":""} (${pct}%) — hover or click to see which`}
+                            style={{background:isOpen?`${col}1f`:"rgba(255,255,255,0.03)",border:`1px solid ${isOpen?col:col+"33"}`,borderRadius:9,padding:"8px 9px",cursor:"pointer",transition:"all 0.15s"}}>
+                            <div style={{fontSize:9,fontWeight:800,color:col,lineHeight:1.2,minHeight:22}}>{cat}</div>
+                            <div style={{fontSize:22,fontWeight:900,color:c.count>0?"#fff":"#555",lineHeight:1.1,marginTop:2}}>{c.count}<span style={{fontSize:10,color:"#666",fontWeight:700}}> play{c.count!==1?"s":""}</span></div>
+                            <div style={{fontSize:9,color:"#666",marginTop:1}}>{pct}% of mix</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* expanded category → its plays (Galileo's request) */}
+                    {expandedCat && (
+                      <div style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${PLAYBOOK_CAT_COLORS[expandedCat]}33`,borderRadius:9,padding:"8px 10px",marginBottom:12}}>
+                        <div style={{fontSize:10,fontWeight:800,color:PLAYBOOK_CAT_COLORS[expandedCat],marginBottom:6}}>{expandedCat} — {(makeup.counts[expandedCat]?.cards||[]).length} play{(makeup.counts[expandedCat]?.cards||[]).length!==1?"s":""}</div>
+                        {(makeup.counts[expandedCat]?.cards||[]).length===0
+                          ? <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>No plays in this category yet.</div>
+                          : (makeup.counts[expandedCat].cards).map((e,i)=>{
+                              const c=e.card;
+                              return (
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:i?"1px solid #1a1a1a":"none"}}>
+                                  {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:22,height:29,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:11,fontWeight:700,color:"#eee",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playName||c.hero}</div>
+                                    <div style={{fontSize:9,color:"#666"}}>{e.type==="bonus"?"Bonus Play":"Play"}{c.dbs?` · DBS ${c.dbs}`:""}</div>
+                                  </div>
+                                  {pbIsAdmin && (
+                                    <select value={catOf(c)} onClick={ev=>ev.stopPropagation()} onChange={ev=>setPlayCategory(c,ev.target.value)}
+                                      title="Reassign category (admin)"
+                                      style={{background:"#0d0d12",color:"#bbb",border:"1px solid #2a2a2a",borderRadius:6,padding:"3px 5px",fontSize:10,fontFamily:"inherit",cursor:"pointer",maxWidth:120}}>
+                                      {PLAYBOOK_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+                                    </select>
+                                  )}
+                                </div>
+                              );
+                            })}
+                      </div>
+                    )}
+                    {/* stats row */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))",gap:6}}>
+                      {[
+                        {l:"# Plays",v:makeup.playEntries.length},
+                        {l:"# Bonus",v:makeup.bonusEntries.length},
+                        {l:"DBS",v:`${Math.round(totalDbs)}/${PUBLIC_DBS_CAP}`},
+                        {l:"Avg DBS",v:makeup.avgDbs.toFixed(1)},
+                        {l:"Avg Cost",v:makeup.avgCost.toFixed(1)},
+                      ].map(s=>(
+                        <div key={s.l} style={{background:"rgba(232,49,122,0.06)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:8,padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#E8317A"}}>{s.l}</div>
+                          <div style={{fontSize:13,fontWeight:900,color:"#fff",marginTop:1}}>{s.v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {pbIsAdmin && <div style={{fontSize:9,color:"#555",marginTop:8,fontStyle:"italic"}}>Categories auto-guessed from play names. Expand any category to reassign plays — overrides save for everyone.</div>}
                   </div>
                 )}
                 {pbResolved.length>0&&(
