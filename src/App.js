@@ -873,7 +873,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 const isToday = d.toDateString() === new Date().toDateString();
                 const isTomorrow = d.toDateString() === new Date(Date.now()+86400000).toDateString();
                 const dayLabel = isToday ? "🔴 Today" : isTomorrow ? "🟡 Tomorrow" : d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
-                const sessionIcon = {day:"☀️",night:"🌙",weekend:"📅",event:"🎉"}[p.sessionType]||"📺";
+                const sessionIcon = {day:"☀️",night:"🌙",weekend:"📅",singles:"🃏",event:"🎉"}[p.sessionType]||"📺";
                 const bc = BC[p.breaker]?.text || "#E8317A";
                 return (
                   <div key={p.id||i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:isToday?"rgba(232,49,122,0.06)":"#0d0d0d", border:`1px solid ${isToday?"rgba(232,49,122,0.3)":"#1a1a1a"}`, borderRadius:10 }}>
@@ -934,7 +934,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {(stub.streams||[]).map((s,i)=>(
                     <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
                       <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{({day:"☀️",night:"🌙",weekend:"📅",event:"🎉"})[s.sessionType]||""}</span>:""}</td>
+                      <td style={{ ...S.td, color:"#888" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{({day:"☀️",night:"🌙",weekend:"📅",singles:"🃏",event:"🎉"})[s.sessionType]||""}</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{s.isEventOnly||s.gross===0?"—":fmt(s.gross)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.isEventOnly||!s.netRev?"—":fmt(s.netRev)}</td>
                       <td style={{ ...S.td, color:"#888" }}>{s.rate===-1?"🎪 Event":s.rate!=null?(s.rate*100).toFixed(0)+"%":"—"}</td>
@@ -4781,6 +4781,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <option value="day">{"\u2600\uFE0F Day Break (Mon-Thurs)"}</option>
               <option value="night">{"\uD83C\uDF19 Night Break (Mon-Thurs)"}</option>
               <option value="weekend">{"\uD83D\uDCC5 Weekend Break (Fri-Sun)"}</option>
+              <option value="singles">{"\uD83C\uDCCF Singles Show"}</option>
               <option value="event">{"\uD83C\uDF89 Event"}</option>
             </select>
           </div>
@@ -6505,7 +6506,7 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [brand, setBrand] = useState("boba");
   const streams2 = brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand);
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const SESSION_TYPES = ["day","night","weekend","event"];
+  const SESSION_TYPES = ["day","night","weekend","singles","event"];
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
 
   // By day of week
@@ -6521,7 +6522,7 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
 
   // By session type
   const bySession = ["day","night","weekend","event",""].map(t=>{
-    const label=t==="day"?"☀️ Day":t==="night"?"🌙 Night":t==="weekend"?"📅 Weekend":t==="event"?"🎉 Event":"📌 Untagged";
+    const label=t==="day"?"☀️ Day":t==="night"?"🌙 Night":t==="weekend"?"📅 Weekend":t==="singles"?"🃏 Singles":t==="event"?"🎉 Event":"📌 Untagged";
     const ds=streams2.filter(s=>s.sessionType===t||(t===""&&!s.sessionType));
     if(!ds.length) return null;
     const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
@@ -9223,6 +9224,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
 
 function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], cardPools=[], userRole }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const canBuildCalendar = userRole?.role === "Admin"; // only admins add/edit/delete planned streams; reps view only
   const fmt2 = v => "$" + parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 
   // -- State --
@@ -9381,6 +9383,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   function nextMonth() { if(curMonth===11){setCurYear(y=>y+1);setCurMonth(0);}else setCurMonth(m=>m+1); }
 
   function openModal(ds, plan=null) {
+    if (!canBuildCalendar) return; // reps can view the calendar but not build/edit it
     setModalDate(ds);
     if (plan) { setEditingId(plan.id); setForm({breaker:plan.breaker||BREAKERS[0],channel:plan.channel||"Bazooka Vault",products:plan.products||[{id:uid(),type:"",qty:"1"}],estRevenue:plan.estRevenue||"",estMultiple:plan.estMultiple||"",sessionType:plan.sessionType||"",notes:plan.notes||"",streamName:plan.streamName||"",repeat:"none",repeatDays:[],repeatUntil:"",staffOnDuty:plan.staffOnDuty||[],startTime:plan.startTime||"",endTime:plan.endTime||""}); }
     else { setEditingId(null); setForm(EMPTY_PLAN); }
@@ -9423,6 +9426,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   }
 
   async function savePlan() {
+    if (!canBuildCalendar) { alert("Only admins can build the sales calendar."); return; }
     if (!modalDate) return;
     setSaving(true);
     const { repeat, repeatDays, repeatUntil, ...planData } = form;
@@ -9440,6 +9444,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     closeModal(); setSaving(false);
   }
   async function deletePlan(id, deleteAll=false) {
+    if (!canBuildCalendar) { alert("Only admins can edit the sales calendar."); return; }
     const plan = plans.find(p=>p.id===id);
     if (!plan) return;
     if (deleteAll && plan.recurringFrom) {
@@ -9467,6 +9472,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     return vacations.filter(v => v.startDate <= last && v.endDate >= first);
   }
   async function saveVacation() {
+    if (!canBuildCalendar) { alert("Only admins can edit the sales calendar."); return; }
     if (!vacForm.startDate || !vacForm.endDate || !vacForm.breaker) return;
     setSavingVac(true);
     const id = editVacId || uid();
@@ -9475,6 +9481,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     setSavingVac(false);
   }
   async function deleteVacation(id) {
+    if (!canBuildCalendar) { alert("Only admins can edit the sales calendar."); return; }
     if (window.confirm("Remove this time-off entry?")) await deleteDoc(doc(db,"breaker_vacations",id));
   }
 
@@ -9512,6 +9519,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   }
 
   async function copyWeek() {
+    if (!canBuildCalendar) { alert("Only admins can build the sales calendar."); return; }
     if (!copyWeekSrc || !copyWeekDst) return;
     setCopyingWeek(true);
     const srcStart = new Date(copyWeekSrc+"T12:00:00");
@@ -9834,10 +9842,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <div style={{marginTop:12,borderTop:"1px solid #1a1a1a",paddingTop:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mVacs.length>0?8:0}}>
                 <span style={{fontSize:11,fontWeight:700,color:"#555"}}>🏖 Time Off</span>
-                <button onClick={()=>{setVacForm({breaker:BREAKERS[0],startDate:dateStr(y,m,1),endDate:dateStr(y,m,1),note:""});setEditVacId(null);setVacModal(true);}}
+                {canBuildCalendar && <button onClick={()=>{setVacForm({breaker:BREAKERS[0],startDate:dateStr(y,m,1),endDate:dateStr(y,m,1),note:""});setEditVacId(null);setVacModal(true);}}
                   style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:7,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
                   + Add Time Off
-                </button>
+                </button>}
               </div>
               {mVacs.length > 0 && (
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -9852,10 +9860,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                           {v.note&&<span style={{fontSize:10,color:"#444"}}>{v.note}</span>}
                         </div>
                         <div style={{display:"flex",gap:4}}>
-                          <button onClick={()=>{setVacForm({breaker:v.breaker,startDate:v.startDate,endDate:v.endDate,note:v.note||""});setEditVacId(v.id);setVacModal(true);}}
+                          {canBuildCalendar && <><button onClick={()=>{setVacForm({breaker:v.breaker,startDate:v.startDate,endDate:v.endDate,note:v.note||""});setEditVacId(v.id);setVacModal(true);}}
                             style={{background:"none",border:"1px solid #333",color:"#555",borderRadius:5,padding:"2px 7px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
                           <button onClick={()=>deleteVacation(v.id)}
-                            style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button>
+                            style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button></>}
                         </div>
                       </div>
                     );
@@ -11160,9 +11168,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     <div style={{fontSize:11,color:"#555"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                    {canBuildCalendar && <><button onClick={()=>{setEditingId(p.id);setForm({breaker:p.breaker||BREAKERS[0],products:p.products||[{id:uid(),type:"",qty:"1"}],estRevenue:p.estRevenue||"",sessionType:p.sessionType||"",notes:p.notes||"",streamName:p.streamName||"",repeat:"none",repeatDays:[],repeatUntil:""});}} style={{background:"#222",border:"1px solid #333",color:"#888",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
                     <button onClick={()=>deletePlan(p.id,false)} style={{background:"none",border:"1px solid #E8317A33",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ This</button>
-                    {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}
+                    {(p.isRecurring||p.recurringFrom)&&<button onClick={()=>deletePlan(p.id,true)} style={{background:"none",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✕ All</button>}</>}
                   </div>
                 </div>
               ))}
@@ -11222,6 +11230,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <option value="day">☀️ Day Break</option>
                   <option value="night">🌙 Night Break</option>
                   <option value="weekend">📅 Weekend Break</option>
+                  <option value="singles">🃏 Singles Show</option>
                   <option value="event">🎉 Event</option>
                 </select>
               </div>
@@ -11525,7 +11534,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <span style={{fontSize:13,fontWeight:700,color:"#F0F0F0",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
             <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#F0F0F0",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
             <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
-            <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>
+            {canBuildCalendar && <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>}
             <button onClick={()=>{
               const todayStr2 = dateStr(today.getFullYear(),today.getMonth(),today.getDate());
               const dow = new Date(todayStr2+"T12:00:00").getDay();
