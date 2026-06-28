@@ -9562,6 +9562,44 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     }, 0);
   }
   function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
+  // Admin estimate: per-breaker commission from scheduled (not-yet-run) streams.
+  // Uses the same rate ladder as live payroll, floored at 35% on Bazooka's 30% net.
+  // Singles shows pay the breaker 100% of net. Estimated revenue stands in for gross;
+  // fees/coupons/expenses aren't known at planning time, so this is a planning floor.
+  function estCommissionForPlan(p) {
+    // estimated gross for this stream (same logic as projectedRevenue)
+    const mkt = planMktValue(p);
+    let estGross;
+    if (mkt > 0) {
+      const storedMult = parseFloat(p.estMultiple);
+      const effMult = (storedMult >= 0.5 && storedMult <= 5) ? storedMult : 1.5;
+      estGross = mkt * effMult;
+    } else {
+      estGross = parseFloat(p.estRevenue) || 0;
+    }
+    if (estGross <= 0) return { breaker: p.breaker, comm: 0, isSingles: false };
+    const isSingles = p.sessionType === "singles" || !!p.isSinglesShow;
+    // Net base after fees/coupons/etc. ~ 81% of gross (matches typical Whatnot take).
+    const NET_FACTOR = 0.81;
+    const netBase = estGross * NET_FACTOR;
+    if (isSingles) return { breaker: p.breaker, comm: netBase, isSingles: true };
+    // rate from estMultiple via the real ladder; floor 35%
+    const mm = parseFloat(p.estMultiple) || 0;
+    const rate = mm>=1.8?0.55:mm>=1.7?0.50:mm>=1.6?0.45:mm>=1.5?0.40:0.35;
+    const bazNet = netBase * 0.30;       // Bazooka's 30% share after IMC 70%
+    return { breaker: p.breaker, comm: bazNet * rate, rate, isSingles: false };
+  }
+  function projectedRepCommissions(planList) {
+    const byBreaker = {};
+    let total = 0;
+    planList.forEach(p => {
+      const { breaker, comm } = estCommissionForPlan(p);
+      if (!breaker) return;
+      byBreaker[breaker] = (byBreaker[breaker] || 0) + comm;
+      total += comm;
+    });
+    return { byBreaker, total };
+  }
   function totalMonthMkt(y,m) { return monthPlans(y,m).reduce((s,p)=>s+planMktValue(p),0); }
   // Always returns revenue based on current SKU prices when products exist
   function liveRevenue(p) {
@@ -9671,6 +9709,35 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             </div>
           </div>
         )}
+
+        {/* Admin-only: projected rep commissions from scheduled streams */}
+        {canSeeFinancials && !compact && mPlans.length > 0 && (() => {
+          const { byBreaker, total } = projectedRepCommissions(mPlans);
+          const rows = Object.entries(byBreaker).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+          if (rows.length === 0) return null;
+          return (
+            <div style={{ marginBottom:14, background:"rgba(232,49,122,0.04)", border:"1px solid rgba(232,49,122,0.18)", borderRadius:10, padding:"12px 14px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <span style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>💸 Projected Rep Commissions</span>
+                <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>{fmt2(total)}</span>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:8 }}>
+                {rows.map(([breaker, amt]) => {
+                  const col = BC[breaker] || "#999";
+                  return (
+                    <div key={breaker} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${col}33`, borderRadius:8, padding:"8px 10px" }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:col, marginBottom:2 }}>{breaker}</div>
+                      <div style={{ fontSize:16, fontWeight:900, color:"#fff", lineHeight:1.1 }}>{fmt2(amt)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize:9, color:"#555", marginTop:9, fontStyle:"italic", lineHeight:1.5 }}>
+                Estimate only. Assumes ~81% of gross is net after fees/coupons, then 35% minimum commission on Bazooka's 30% net (higher if a market multiple is set on the stream); singles shows pay the breaker full net. Actual pay depends on final revenue, fees, and expenses.
+              </div>
+            </div>
+          );
+        })()}
 
         {/* DOW headers */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
