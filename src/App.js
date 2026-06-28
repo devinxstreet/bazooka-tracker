@@ -18977,8 +18977,34 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       const visualHints = data.visualHints || null;
 
       let match = null;
+      // When the card number maps to MULTIPLE cards (shared set number across
+      // weapons/treatments), don't trust a single weapon guess — confirm with
+      // treatment too, and show the picker if it can't be pinned cleanly.
+      if (identifiedNum) {
+        const numMatches = cards.filter(c => normNum(c.cardNum)===identifiedNum && (!heroName || heroMatch(c.hero, heroName)));
+        if (numMatches.length > 1) {
+          const wpnCanon = weapon ? canonWeapon(weapon) : "";
+          const treatLc = treatment || "";
+          // score each by how many strong signals agree (weapon + treatment)
+          const scored = numMatches.map(c => {
+            let s = 0;
+            if (wpnCanon && canonWeapon(c.weapon)===wpnCanon) s++;
+            if (treatLc && c.treatment?.toLowerCase()===treatLc) s += 2; // treatment is the stronger signal
+            return { c, s };
+          }).sort((a,b)=>b.s-a.s);
+          // accept only if there's a clear, confident winner (treatment agreed, no tie)
+          if (scored[0].s >= 2 && scored[0].s > (scored[1]?.s ?? -1)) {
+            match = scored[0].c;
+          } else {
+            // ambiguous — let the user pick among the shared-number cards
+            const cands = numMatches.slice().sort((a,b)=>(a.treatment||"").localeCompare(b.treatment||""));
+            setPhotoScan({ status:"candidates", candidates: cands, detected: data, scanPhoto: photoScan?.scanPhoto });
+            return;
+          }
+        }
+      }
       // 1. Card number + hero + weapon (all three agree -- most reliable)
-      if (identifiedNum && heroName) {
+      if (!match && identifiedNum && heroName) {
         match = cards.find(c =>
           normNum(c.cardNum)===identifiedNum &&
           heroMatch(c.hero, heroName) &&
