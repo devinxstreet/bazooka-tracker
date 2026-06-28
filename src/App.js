@@ -26881,8 +26881,28 @@ function PublicCardDatabase({ swancity = false } = {}) {
       const heroCards = iHero ? cards.filter(c=>heroMatch(c.hero,iHero)) : [];
 
       if(heroCards.length){
-        // 1. Hero + exact card number (pins the exact variant)
-        if(iNum) match=heroCards.find(c=>normNum(c.cardNum)===iNum);
+        // 1. Hero + exact card number. If several cards share this number (same
+        //    set number across weapons/treatments), disambiguate by treatment
+        //    (strong signal) then weapon — only auto-pick a confident winner.
+        if(iNum){
+          const numCards=heroCards.filter(c=>normNum(c.cardNum)===iNum);
+          if(numCards.length===1){ match=numCards[0]; }
+          else if(numCards.length>1){
+            // Try each strong signal in order; take it if it resolves to exactly one card.
+            const byTreat = iTreat ? numCards.filter(c=>c.treatment?.toLowerCase()===iTreat) : [];
+            const byWeap  = iWeap  ? numCards.filter(c=>canonWeapon(c.weapon)===canonWeapon(iWeap)) : [];
+            const byPow   = iPow   ? numCards.filter(c=>String(c.power||"").replace(/[^0-9]/g,"")===iPow) : [];
+            if(byTreat.length===1) match=byTreat[0];
+            else if(byWeap.length===1) match=byWeap[0];
+            else if(byPow.length===1) match=byPow[0];
+            else {
+              // combine weapon+treatment to narrow, then weapon+power
+              const wt = numCards.filter(c=>(!iWeap||canonWeapon(c.weapon)===canonWeapon(iWeap))&&(!iTreat||c.treatment?.toLowerCase()===iTreat));
+              if(wt.length===1) match=wt[0];
+              // else leave null -> candidate suggester shows the shared-number cards
+            }
+          }
+        }
         // 2. Hero + fuzzy card number (off by 1 char — handles a misread digit)
         if(!match&&iNum){const cands=heroCards.filter(c=>lev(normNum(c.cardNum),iNum)<=1);if(cands.length===1)match=cands[0];}
         // 3. Hero + treatment + weapon all agree (no number needed)
