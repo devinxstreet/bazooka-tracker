@@ -9862,10 +9862,18 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                         : bg ? `linear-gradient(135deg,${bg.from}cc,${bg.to}cc)` : "rgba(255,255,255,0.08)",
                       border: missed ? "1px solid rgba(251,191,36,0.4)" : `1px solid ${bg?bg.dot+"44":"rgba(255,255,255,0.12)"}`,
                       borderLeft: bg ? `3px solid ${bg.dot}` : undefined,
-                      borderRadius:4, padding:"3px 5px", marginBottom:2,
+                      borderRadius:4, padding:compact?"2px 4px":"3px 5px", marginBottom:2,
                       overflow:"hidden", whiteSpace:"nowrap",
                       animationDelay:`${(pi+1)*0.05}s`,
                     }}>
+                      {/* Compact (quarter view): just the breaker, single line */}
+                      {compact ? (
+                        <div style={{ display:"flex", alignItems:"center", gap:3, overflow:"hidden" }}>
+                          {bg && <div style={{width:4,height:4,borderRadius:"50%",background:bg.dot,flexShrink:0}}/>}
+                          <span style={{fontWeight:900,fontSize:8,letterSpacing:"0.2px",overflow:"hidden",textOverflow:"ellipsis"}}>{p.breaker||"TBD"}</span>
+                          {totalBoxes>0 && <span style={{opacity:0.6,fontSize:7,marginLeft:"auto",flexShrink:0}}>{totalBoxes}×</span>}
+                        </div>
+                      ) : (<>
                       {/* Row 1: breaker + time */}
                       <div style={{ display:"flex", alignItems:"center", gap:3, marginBottom: (products.length>0||p.channel)?2:0 }}>
                         {bg && <div style={{width:5,height:5,borderRadius:"50%",background:bg.dot,flexShrink:0,boxShadow:`0 0 3px ${bg.dot}`}}/>}
@@ -9892,10 +9900,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       {p.streamName && !products.length && (
                         <div style={{fontSize:7,opacity:0.6,overflow:"hidden",textOverflow:"ellipsis"}}>{p.streamName}</div>
                       )}
+                      </>)}
                     </div>
                   );
                 })}
                 {dayPlans.length>3&&!compact&&<div style={{fontSize:7,color:"#444",marginTop:1}}>+{dayPlans.length-3} more</div>}
+                {dayPlans.length>1&&compact&&<div style={{fontSize:7,color:"#666",marginTop:1,fontWeight:700}}>+{dayPlans.length-1} more</div>}
 
                 {/* Revenue micro-label */}
                 {!compact && dayActRev>0 && canSeeFinancials && (
@@ -11733,7 +11743,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       )}
 
       {viewMode==="quarter"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr":"repeat(3,1fr)",gap:14,alignItems:"start"}}>
           {quarterMonths.map(({y,m})=>(
             <div key={`${y}-${m}`}>
               {renderCalendar(y,m,true)}
