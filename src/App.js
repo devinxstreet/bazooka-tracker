@@ -19033,6 +19033,23 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       }
 
       if (!match) {
+        // No single confident match — but if we read a hero (and maybe weapon),
+        // surface ALL cards matching hero+weapon (or hero) so the user can pick.
+        let cands = [];
+        if (heroName && weapon) {
+          cands = cards.filter(c => heroMatch(c.hero, heroName) && c.weapon?.toLowerCase()===weapon);
+        }
+        if (cands.length === 0 && heroName) {
+          cands = cards.filter(c => heroMatch(c.hero, heroName));
+        }
+        // de-dupe and sort by set then card number for a tidy grid
+        const seen = new Set();
+        cands = cands.filter(c => { if(seen.has(c.id)) return false; seen.add(c.id); return true; })
+                     .sort((a,b)=> (a.setName||"").localeCompare(b.setName||"") || normNum(a.cardNum).localeCompare(normNum(b.cardNum)));
+        if (cands.length > 0) {
+          setPhotoScan({ status:"candidates", candidates: cands, detected: data, scanPhoto: photoScan?.scanPhoto });
+          return;
+        }
         setPhotoScan({ status:"nomatch", card:null, identified: data });
         if (!scanModal) setTimeout(() => setPhotoScan(null), 5000);
         return;
