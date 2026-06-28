@@ -11263,7 +11263,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 const mkt = (form.products||[]).reduce((s,pr)=>s+(parseFloat(skuPrices[pr.type])||0)*(parseInt(pr.qty)||0),0);
                 return mkt > 0 ? (
                   <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
-                    {[[1.5,"1.5x","#FBBF24"],[1.7,"1.7x","#4ade80"],[1.9,"1.9x 🔥","#E8317A"]].map(([mult,label,color])=>(
+                    {[[1.3,"1.3x","#FBBF24"],[1.5,"1.5x","#4ade80"],[1.7,"1.7x 🔥","#E8317A"]].map(([mult,label,color])=>(
                       <button key={mult} onClick={()=>setForm(p=>({...p,estRevenue:(mkt*mult).toFixed(2),estMultiple:String(mult)}))}
                         style={{background:parseFloat(form.estMultiple)===mult?`${color}30`:`${color}15`,color,border:`1px solid ${parseFloat(form.estMultiple)===mult?color:color+"44"}`,borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                         {label} = {fmt2(mkt*mult)}{parseFloat(form.estMultiple)===mult?" ✓":""}
