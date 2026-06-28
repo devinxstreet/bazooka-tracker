@@ -18985,9 +18985,27 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           (!weapon || c.weapon?.toLowerCase()===weapon)
         );
       }
-      // 2. Card number + hero (no weapon requirement)
+      // 2. Card number + hero. If multiple cards share this number+hero (e.g. same
+      //    set number across weapons), use the read weapon to disambiguate, and if
+      //    it's still ambiguous, fall through to the candidate picker rather than
+      //    grabbing the wrong one.
       if (!match && identifiedNum && heroName) {
-        match = cards.find(c => normNum(c.cardNum)===identifiedNum && heroMatch(c.hero, heroName));
+        const numHero = cards.filter(c => normNum(c.cardNum)===identifiedNum && heroMatch(c.hero, heroName));
+        if (numHero.length === 1) {
+          match = numHero[0];
+        } else if (numHero.length > 1) {
+          const wpnCanon = weapon ? canonWeapon(weapon) : "";
+          const byWeapon = wpnCanon ? numHero.filter(c => canonWeapon(c.weapon)===wpnCanon) : [];
+          if (byWeapon.length === 1) {
+            match = byWeapon[0];           // weapon breaks the tie cleanly
+          } else {
+            // still ambiguous — show these as candidates to pick from
+            const cands = (byWeapon.length>1 ? byWeapon : numHero)
+              .slice().sort((a,b)=>(a.treatment||"").localeCompare(b.treatment||""));
+            setPhotoScan({ status:"candidates", candidates: cands, detected: data, scanPhoto: photoScan?.scanPhoto });
+            return;
+          }
+        }
       }
       // 3. Hero + treatment + weapon (all three agree)
       if (!match && heroName && treatment && weapon) {
@@ -19021,10 +19039,23 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           }
         }
       }
-      // 5. Card number alone -- only if hero also matches loosely (prevent wrong-number matches)
+      // 5. Card number alone -- disambiguate by weapon if several share the number.
       if (!match && identifiedNum) {
-        const byNum = cards.find(c => normNum(c.cardNum)===identifiedNum);
-        if (byNum && (!heroName || heroMatch(byNum.hero, heroName))) match = byNum;
+        let byNum = cards.filter(c => normNum(c.cardNum)===identifiedNum && (!heroName || heroMatch(c.hero, heroName)));
+        if (byNum.length === 1) {
+          match = byNum[0];
+        } else if (byNum.length > 1) {
+          const wpnCanon = weapon ? canonWeapon(weapon) : "";
+          const byWeapon = wpnCanon ? byNum.filter(c => canonWeapon(c.weapon)===wpnCanon) : [];
+          if (byWeapon.length === 1) {
+            match = byWeapon[0];
+          } else if (byNum.length > 0) {
+            const cands = (byWeapon.length>1 ? byWeapon : byNum)
+              .slice().sort((a,b)=>(a.treatment||"").localeCompare(b.treatment||""));
+            setPhotoScan({ status:"candidates", candidates: cands, detected: data, scanPhoto: photoScan?.scanPhoto });
+            return;
+          }
+        }
       }
       // 6. Hero only -- only if exactly one card matches
       if (!match && heroName) {
@@ -19033,16 +19064,18 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       }
 
       if (!match) {
-        // No single confident match — but if we read a hero (and maybe weapon),
-        // surface ALL cards matching hero+weapon (or hero) so the user can pick.
+        // No single confident match — surface all cards matching the read hero AND
+        // weapon so the user can pick the exact treatment.
+        const wpn = (weapon||"").toLowerCase().trim();
+        const wpnCanon = wpn ? canonWeapon(wpn) : "";
         let cands = [];
-        if (heroName && weapon) {
-          cands = cards.filter(c => heroMatch(c.hero, heroName) && c.weapon?.toLowerCase()===weapon);
+        if (heroName && wpn) {
+          cands = cards.filter(c => heroMatch(c.hero, heroName) && canonWeapon(c.weapon)===wpnCanon);
         }
-        if (cands.length === 0 && heroName) {
+        // fallback: if no weapon was read, match on hero alone
+        if (cands.length === 0 && heroName && !wpn) {
           cands = cards.filter(c => heroMatch(c.hero, heroName));
         }
-        // de-dupe and sort by set then card number for a tidy grid
         const seen = new Set();
         cands = cands.filter(c => { if(seen.has(c.id)) return false; seen.add(c.id); return true; })
                      .sort((a,b)=> (a.setName||"").localeCompare(b.setName||"") || normNum(a.cardNum).localeCompare(normNum(b.cardNum)));
