@@ -9567,6 +9567,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   // Singles shows pay the breaker 100% of net. Estimated revenue stands in for gross;
   // fees/coupons/expenses aren't known at planning time, so this is a planning floor.
   function estCommissionForPlan(p) {
+    // Owners (Dev/Derrik) don't draw rep commission — they take owner profit instead.
+    const OWNER_BREAKERS = ["Dev","Devin","Derrik"];
+    if (OWNER_BREAKERS.includes(p.breaker)) return { breaker: p.breaker, comm: 0, isOwner: true };
     // estimated gross for this stream (same logic as projectedRevenue)
     const mkt = planMktValue(p);
     let estGross;
@@ -9653,7 +9656,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     };
 
     return (
-      <div style={{ ...S2.card, padding:compact?"12px":"16px 20px" }}>
+      <div style={{ ...S2.card, padding:compact?"10px":"16px 20px", minWidth:0, overflow:"hidden" }}>
         <style>{`
           @keyframes todayPulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,49,122,0.4)} 50%{box-shadow:0 0 0 4px rgba(232,49,122,0)} }
           @keyframes chipSlide { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
@@ -9787,7 +9790,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             return (
               <div key={day} className="cal-day" onClick={()=>openModal(ds)}
                 style={{
-                  minHeight:compact?44:74,
+                  minHeight:compact?40:74,
+                  minWidth:0,
+                  overflow:"hidden",
                   background:heatBg,
                   border:`1px solid ${borderCol}`,
                   borderRadius:8,
@@ -9842,7 +9847,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     }}>
                       <span style={{opacity:0.8}}>✅</span>
                       {a.breaker&&<span style={{opacity:0.7}}>{a.breaker}</span>}
-                      {a.streamName&&<span style={{opacity:0.9}}>{a.streamName}</span>}
+                      {!compact&&a.streamName&&<span style={{opacity:0.9}}>{a.streamName}</span>}
                     </div>
                   );
                 })}
@@ -11745,7 +11750,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       {viewMode==="quarter"&&(
         <div style={{display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr":"repeat(3,1fr)",gap:14,alignItems:"start"}}>
           {quarterMonths.map(({y,m})=>(
-            <div key={`${y}-${m}`}>
+            <div key={`${y}-${m}`} style={{minWidth:0}}>
               {renderCalendar(y,m,true)}
               {canSeeFinancials&&(()=>{
                 const mPlans=monthPlans(y,m),mActuals=monthActuals(y,m);
