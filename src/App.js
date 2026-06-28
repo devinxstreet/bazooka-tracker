@@ -52,7 +52,7 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
-const BREAKERS = ["Dev","Dre","Krystal","BigU"];
+const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Resolve which breaker a logged-in user is — tolerant of display-name vs breaker-name
 // differences (e.g. "Big U" vs "BigU"), checking first name, full name, and email.
 function resolveBreaker(user) {
@@ -272,6 +272,8 @@ const ROLES = {
   "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
   "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
   "bigu":    { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
+  "vinny":   { role:"Streamer",      label:"Streamer",           color:"#F472B6", bg:"#FDE7F1" },
+  "stephen": { role:"Streamer",      label:"Streamer",           color:"#CA8A04", bg:"#FEF9E7" },
   "alison":  { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"#F0F0F0", bg:"#E8F0FB" },
@@ -295,6 +297,8 @@ const BC = {
   Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
   Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
   BigU:    { bg:"#1a0e00", text:"#FB923C", border:"#9a3412" },
+  Vinny:   { bg:"#1a0008", text:"#F472B6", border:"#9d174d" },
+  Stephen: { bg:"#14140a", text:"#FACC15", border:"#854d0e" },
   "Orbital Society": { bg:"#0a1a10", text:"#34d399", border:"#065f46" },
 };
 const CAN_DELETE        = ["Admin"];
@@ -9589,7 +9593,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF" };
+  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C", Vinny:"#F472B6", Stephen:"#FACC15" };
 
   // -- Calendar grid --
   function renderCalendar(y, m, compact=false) {
