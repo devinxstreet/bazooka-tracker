@@ -4348,7 +4348,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const isAdminOrStreamer = ["Admin","Streamer"].includes(userRole?.role);
   const userName       = user?.displayName || "";
-  const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().includes(b.toLowerCase())) || "";
+  const matchedBreaker = BREAKERS.find(b => userName.toLowerCase().replace(/\s+/g,"").includes(b.toLowerCase().replace(/\s+/g,""))) || "";
   const [windowWidth,  setWindowWidth]  = useState(window.innerWidth);
   useEffect(()=>{ const h=()=>setWindowWidth(window.innerWidth); window.addEventListener("resize",h,{passive:true}); return()=>window.removeEventListener("resize",h); },[]);
   const isMobile = windowWidth < 768;
@@ -7550,7 +7550,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
 function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user, userRole, streams=[], buyers=[], historicalData=[] }) {
   const isAdmin        = userRole?.role === "Admin";
   const currentUser    = user?.displayName?.split(" ")[0] || "";
-  const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().includes(b.toLowerCase()));
+  const matchedBreaker = BREAKERS.find(b => currentUser.toLowerCase().replace(/\s+/g,"").includes(b.toLowerCase().replace(/\s+/g,"")));
   const visibleBreakers = isAdmin ? BREAKERS : (matchedBreaker ? [matchedBreaker] : []);
   const now  = new Date();
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -14446,8 +14446,8 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
             // Color-code performance by MM
             const mm = parseFloat(s.marketMultiple)||0;
-            const mmColor = mm>=1.8?"#4ade80":mm>=1.7?"#86efac":mm>=1.5?"#FBBF24":mm>0?"#E8317A":"#555";
-            const mmBg    = mm>=1.8?"rgba(74,222,128,0.08)":mm>=1.7?"rgba(134,239,172,0.06)":mm>=1.5?"rgba(251,191,36,0.08)":mm>0?"rgba(232,49,122,0.06)":"transparent";
+            const mmColor = mm>=1.5?"#4ade80":mm>=1.3?"#FBBF24":mm>0?"#E8317A":"#555";
+            const mmBg    = mm>=1.5?"rgba(74,222,128,0.08)":mm>=1.3?"rgba(251,191,36,0.08)":mm>0?"rgba(232,49,122,0.06)":"transparent";
             const accentColor = isEventOnly?"#A78BFA":isSplitRep?"#FBBF24":"#4ade80";
 
             return (
