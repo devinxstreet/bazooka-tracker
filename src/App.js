@@ -9561,7 +9561,14 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
       return s + (parseFloat(p.estRevenue)||0);
     }, 0);
   }
-  function actualRevenue(actuals) { return actuals.reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0); }
+  // Match the Financial Overview's "breaks only" gross scope: exclude singles
+  // shows and any streams flagged out of financials, so calendar pace/projection
+  // numbers line up with the official gross instead of over-counting.
+  function actualRevenue(actuals) {
+    return actuals
+      .filter(a => !a.isSinglesShow && !a.excludeFinancials)
+      .reduce((s,a)=>s+(parseFloat(a.grossRevenue)||0),0);
+  }
   // Admin estimate: per-breaker commission from scheduled (not-yet-run) streams.
   // Uses the same rate ladder as live payroll, floored at 35% on Bazooka's 30% net.
   // Singles shows pay the breaker 100% of net. Estimated revenue stands in for gross;
