@@ -9853,7 +9853,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 })}
 
                 {/* Plans */}
-                {dayPlans.slice(0,compact?1:3).map((p,pi)=>{
+                {dayPlans.slice(0,compact?1:6).map((p,pi)=>{
                   const bg = BREAKER_GRADIENTS[p.breaker];
                   const missed = isMissed && !streams.find(s=>s.date===ds&&s.breaker===p.breaker);
                   const products = (p.products||[]).filter(x=>x.type&&x.qty);
@@ -9909,7 +9909,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     </div>
                   );
                 })}
-                {dayPlans.length>3&&!compact&&<div style={{fontSize:7,color:"#444",marginTop:1}}>+{dayPlans.length-3} more</div>}
+                {dayPlans.length>6&&!compact&&<div style={{fontSize:7,color:"#444",marginTop:1}}>+{dayPlans.length-6} more</div>}
                 {dayPlans.length>1&&compact&&<div style={{fontSize:7,color:"#666",marginTop:1,fontWeight:700}}>+{dayPlans.length-1} more</div>}
 
                 {/* Revenue micro-label */}
