@@ -16149,7 +16149,7 @@ const PLAYER_NOTES = {
   "Captain Hook": { player:"Jack Morris", team:"Detroit Tigers", notes:"Hall of Famer and the ace of three World Series champions. Famous for his 10-inning shutout in Game 7 of the 1991 World Series — one of the greatest pitching performances ever.", lines:["\"That Game 7 ten-inning shutout is the stuff of legend\""] },
   "Highway to Helton": { player:"Todd Helton", team:"Colorado Rockies", notes:"Hall of Famer and the greatest player in Rockies history. A batting champion and 5x All-Star with a sweet left-handed swing.", lines:["\"The greatest Rockie ever — a Hall of Fame hitter\""] },
   "Tommy G": { player:"Tom Glavine", team:"Atlanta Braves", notes:"Hall of Famer with 305 wins and 2 Cy Young Awards. World Series MVP and a cornerstone of the Braves' historic pitching dynasty.", lines:["\"305 wins, two Cy Youngs, and a World Series MVP\""] },
-  "Boston Stongboy": { player:"Jim Rice", team:"Boston Red Sox", notes:"Hall of Famer and 1978 AL MVP. One of the most feared sluggers of his era and a Red Sox icon for his entire career.", lines:["\"An MVP and one of the most feared bats of his time\""] },
+  "Boston Strongboy": { player:"Jim Rice", team:"Boston Red Sox", notes:"Hall of Famer and 1978 AL MVP. One of the most feared sluggers of his era and a Red Sox icon for his entire career.", lines:["\"An MVP and one of the most feared bats of his time\""] },
   "Robin Hood": { player:"Robin Yount", team:"Milwaukee Brewers", notes:"Hall of Famer, 2x MVP, and a 3,000-hit club member. Spent his entire career with Milwaukee, starring at both shortstop and center field.", lines:["\"Two MVPs, 3,000 hits, and a lifelong Brewer\""] },
   "Mr. Clean": { player:"Steve Garvey", team:"Los Angeles Dodgers", notes:"1974 NL MVP, 10x All-Star, and World Series champion. A model of durability and consistency at first base — once played 1,207 straight games.", lines:["\"An MVP and an iron man at first base\""] },
   "Rollin'": { player:"Scott Rolen", team:"St. Louis Cardinals", notes:"Hall of Famer, World Series champion, and 8x Gold Glover. One of the greatest defensive third basemen ever with a powerful bat.", lines:["\"Eight Gold Gloves and a Hall of Fame glove at third\""] },
@@ -16847,6 +16847,42 @@ function FixTreatmentTypos() {
   );
 }
 
+function FixHeroTypos() {
+  const [running, setRunning] = useState(false);
+  const [result,  setResult]  = useState(null);
+
+  // wrong hero name in DB -> correct hero name. Add more pairs here anytime.
+  const HERO_FIXES = [
+    { from: "Boston Stongboy", to: "Boston Strongboy" },
+  ];
+
+  async function run() {
+    if (!window.confirm("Scan all cards and fix known hero-name typos (Boston Stongboy → Boston Strongboy)?")) return;
+    setRunning(true); setResult(null);
+    const snap = await getDocs(collection(db,"boba_checklist"));
+    const map = Object.fromEntries(HERO_FIXES.map(f=>[f.from, f.to]));
+    const toFix = snap.docs.filter(d => map[(d.data().hero||"").trim()] !== undefined);
+    const CHUNK = 400;
+    let fixed = 0;
+    for (let i=0; i<toFix.length; i+=CHUNK) {
+      const batch = writeBatch(db);
+      toFix.slice(i,i+CHUNK).forEach(d => batch.set(doc(db,"boba_checklist",d.id), { hero: map[(d.data().hero||"").trim()] }, {merge:true}));
+      await batch.commit();
+      fixed += Math.min(CHUNK, toFix.length-i);
+    }
+    setRunning(false);
+    setResult(fixed);
+    try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <Btn onClick={run} disabled={running} variant="green">{running ? "Fixing..." : "🦸 Fix Hero Name Typos"}</Btn>
+      {result !== null && <div style={{ fontSize:12, color:"#4ade80" }}>✅ Fixed {result} cards (Boston Strongboy)</div>}
+    </div>
+  );
+}
+
 function GenerateMissing8s() {
   const [scanning,  setScanning]  = useState(false);
   const [preview,   setPreview]   = useState(null);  // { toCreate: [] }
@@ -17468,6 +17504,15 @@ function DataCleanup() {
           Finds cards with misspelled treatments and corrects them: "Halltime Alts" → "Halftime Alts", "Pixel Helemt Alt" → "Pixel Helmet Alt".
         </div>
         <FixTreatmentTypos/>
+      </div>
+
+      {/* Fix hero name typos */}
+      <div style={{ ...S.card }}>
+        <SectionLabel t="🦸 Fix Hero Name Typos"/>
+        <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>
+          Finds cards with misspelled hero names and corrects them everywhere (checklist, /cards, /sell, collector database): "Boston Stongboy" → "Boston Strongboy".
+        </div>
+        <FixHeroTypos/>
       </div>
 
       {/* Swan City bulk import */}
