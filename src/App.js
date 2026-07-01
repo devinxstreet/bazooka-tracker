@@ -13644,6 +13644,12 @@ function StubRow({ stub, S, onDeletePayStub }) {
 
 function Commission({ streams, onSave, onDelete, user, userRole, historicalData=[], onSavePayStub, payStubs=[], onDeletePayStub }) {
   const isAdmin    = ["Admin"].includes(userRole?.role);
+  const [isMobileC, setIsMobileC] = useState(typeof window!=="undefined" && window.innerWidth < 768);
+  useEffect(()=>{
+    const onR=()=>setIsMobileC(window.innerWidth<768);
+    window.addEventListener("resize",onR);
+    return ()=>window.removeEventListener("resize",onR);
+  },[]);
   const curUser    = user?.displayName?.split(" ")[0] || "";
   const myBreaker  = resolveBreaker(user);
 
@@ -14299,6 +14305,44 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               <div style={{ fontSize:24, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</div>
             </div>
             <div style={{ fontSize:11, color:"#888", marginBottom:12 }}>Owed to BigU at end of month — he pays these upfront, we reimburse 100%</div>
+            {isMobileC ? (
+              /* Mobile: stacked cards, one per stream */
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {biguStreams.map(s=>{
+                  const mags=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, tl=parseFloat(s.topLoaders)||0;
+                  const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
+                  const tot=mags+pack+tl+giveaway+insurance;
+                  const line=(lbl,v)=> v>0 ? (
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
+                      <span style={{ color:"#777" }}>{lbl}</span><span style={{ color:"#F0F0F0" }}>${v.toFixed(2)}</span>
+                    </div>
+                  ) : null;
+                  return (
+                    <div key={s.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:10, padding:"10px 12px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#F0F0F0" }}>{s.streamName||s.breakType||"Break"}</div>
+                          <div style={{ fontSize:10, color:"#666" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                        </div>
+                        <div style={{ fontSize:16, fontWeight:900, color:"#FBBF24" }}>${tot.toFixed(2)}</div>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                        {line("MagPros",mags)}
+                        {line("Packaging",pack)}
+                        {line("Top Loaders",tl)}
+                        {line("Giveaway Cards",giveaway)}
+                        {line("Insurance Cards",insurance)}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", borderTop:"1px solid rgba(251,191,36,0.3)", paddingTop:10, marginTop:2 }}>
+                  <span style={{ fontSize:12, fontWeight:800, color:"#888" }}>TOTAL OWED TO BIGU</span>
+                  <span style={{ fontSize:18, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</span>
+                </div>
+              </div>
+            ) : (
+            <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", fontSize:11, borderCollapse:"collapse" }}>
               <thead><tr style={{ borderBottom:"1px solid rgba(251,191,36,0.2)" }}>
                 {["Date","Stream","MagPros","Packaging","Top Loaders","Giveaway Cards","Insurance Cards","Total"].map(h=>(
@@ -14325,10 +14369,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 })}
                 <tr style={{ borderTop:"1px solid rgba(251,191,36,0.3)" }}>
                   <td colSpan={5} style={{ padding:"8px 8px", color:"#888", fontWeight:700 }}>TOTAL OWED TO BIGU</td>
-                  <td style={{ padding:"8px 8px", color:"#FBBF24", fontWeight:900, fontSize:16 }}>${totalReimb.toFixed(2)}</td>
+                  <td colSpan={3} style={{ padding:"8px 8px", color:"#FBBF24", fontWeight:900, fontSize:16, textAlign:"right" }}>${totalReimb.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
+            </div>
+            )}
           </div>
         );
       })()}
