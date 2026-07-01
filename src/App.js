@@ -11515,7 +11515,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             return `<tr><td style="padding:10px 14px;font-weight:700;color:#333;white-space:nowrap;vertical-align:top;width:110px;">${DOW_FULL[i]}<br/><span style="font-weight:400;font-size:12px;color:#888;">${ds.slice(5).replace("-","/")}</span></td><td style="padding:10px 14px;">${items}</td></tr>`;
           }).join("");
           const endSun = weekDays[6];
-          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div><table>${rows}</table></body></html>`;
+          const html = `<!DOCTYPE html><html><head><title>Bazooka Breaks — Week of ${shareWeekStart}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111;}h1{font-size:22px;font-weight:900;color:#E8317A;margin-bottom:4px;}h2{font-size:14px;font-weight:400;color:#888;margin:0 0 20px;}table{width:100%;border-collapse:collapse;}tr{border-bottom:1px solid #eee;}td{vertical-align:top;}@media print{body{padding:12px;}button{display:none!important;}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;"><div><h1>Bazooka Breaks</h1><h2>Week of ${shareWeekStart} – ${endSun}</h2></div><button onclick="window.print()" style="background:#E8317A;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px;">🖨️ Print</button><button onclick="window.close(); if(!window.closed){ document.body.innerHTML='<p style=\\'font-family:sans-serif;padding:40px;text-align:center;color:#888\\'>You can close this tab now.</p>'; }" style="background:#333;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">← Close</button></div><table>${rows}</table></body></html>`;
           const w = window.open("","_blank");
           w.document.write(html);
           w.document.close();
@@ -14146,9 +14146,11 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   .payout-label { font-size:16px; font-weight:700; color:#4ade80; }
                   .payout-amt { font-size:32px; font-weight:900; color:#4ade80; }
                   .footer { text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
-                  .print-btn { background:#E8317A; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; }
+                  .print-btn { background:#E8317A; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; margin-right:8px; }
+                  .close-btn { background:#333; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-bottom:24px; }
                 </style></head><body>
                 <button class="no-print print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+                <button class="no-print close-btn" onclick="window.close(); if(!window.closed){ history.length>1 ? history.back() : (document.body.innerHTML='<p style=\\'font-family:sans-serif;padding:40px;text-align:center;color:#888\\'>You can close this tab now.</p>'); }">← Close</button>
                 <div class="header">
                   <div>
                     <div class="logo">BAZOOKA</div>
