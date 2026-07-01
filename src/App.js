@@ -598,6 +598,29 @@ function GlobalStyles() {
         .mobile-2col { grid-template-columns: 1fr 1fr !important; }
         .mobile-hide { display: none !important; }
         input, select, textarea { font-size: 16px !important; }
+
+        /* --- Broad mobile safety net (catches inline-styled layouts app-wide) --- */
+        /* React serializes inline styles as kebab-case in the DOM, so match that. */
+        [style*="grid-template-columns"][style*="repeat(3"],
+        [style*="grid-template-columns"][style*="repeat(4"] {
+          grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+        }
+        [style*="grid-template-columns"][style*="repeat(5"],
+        [style*="grid-template-columns"][style*="repeat(6"],
+        [style*="grid-template-columns"][style*="repeat(7"],
+        [style*="grid-template-columns"][style*="repeat(8"] {
+          grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+        }
+        /* 3- and 4-across fr grids (e.g. "1fr 1fr 1fr") -> 2 across */
+        [style*="1fr 1fr 1fr"] { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+        /* keep grid children from forcing overflow */
+        [style*="grid-template-columns"] > * { min-width: 0 !important; }
+        /* tables never overflow the viewport */
+        table { display: block !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
+        /* long money/number values shouldn't blow out their card */
+        .stat-card > div:first-child { font-size: 20px !important; overflow: hidden; text-overflow: ellipsis; }
+        /* opt-out hook: add class "no-mobile-collapse" to preserve a grid as-is */
+        .no-mobile-collapse { grid-template-columns: inherit !important; }
       }
       .mobile-show { display: inline !important; }
       .nav-tab-label { display: inline; }
@@ -14442,7 +14465,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         const hasSingles = (totals.singlesRev||0) > 0;
         const cols = (isAdmin?6:4) + (hasSingles?1:0);
         return (
-          <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols},1fr)`, gap:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobileC?"repeat(2,1fr)":`repeat(${cols},1fr)`, gap:12 }}>
             {[
               { l:"Total Streams",     v:filteredStreams.length,                                    c:"#F0F0F0" },
               { l:"💵 Break Commission",  v:fmt(totals.comm),                                       c:"#4ade80" },
@@ -14455,7 +14478,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               ] : []),
             ].map(({l,v,c}) => (
               <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
-                <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+                <div style={{ fontSize:isMobileC?20:26, fontWeight:900, color:c, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{v}</div>
                 <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
               </div>
             ))}
