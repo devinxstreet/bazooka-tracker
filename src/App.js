@@ -4393,6 +4393,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const EMPTY_RECAP = { grossRevenue:"", whatnotFees:"", coupons:"", whatnotPromo:"", magpros:"", packagingMaterial:"", topLoaders:"", magprosQty:"", packagingQty:"", topLoadersQty:"", chaserCards:"", chaserCardIds:"", marketMultiple:"", newBuyers:"", binOnly:false, isEvent:false, isSinglesShow:false, biguGiveawayCards:"", biguInsuranceCards:"", biguChaserCards:"", biguShipping:"", breakType:"auction", sessionType:"", commissionOverride:"", streamNotes:"", zionRevenue:"", collabPartner:"", collabPct:"", streamSkuPrices:{}, streamName:"", tips:"", salesBonus:"", salesBonusNote:"", imcReimbursement:"", imcReimbNote:"", eventStaff:[], splitRep:"", splitPct:"50", externalChannel:false, channel:"Bazooka Vault", excludeFinancials:false, manualCommission:"" };
   const EMPTY_USAGE = { doubleMega:"", hobby:"", jumbo:"", misc:"", miscNotes:"" };
   const [recap,       setRecap]       = useState(EMPTY_RECAP);
+  const [linkedPlanId, setLinkedPlanId] = useState(null);
   const [prodUsage,   setProdUsage]   = useState(EMPTY_USAGE);
   const [recapSaving, setRecapSaving] = useState(false);
   const [recapSaved,  setRecapSaved]  = useState(false);
@@ -4783,12 +4784,29 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
                 {dayPlans.map(p=>(
                   <button key={p.id} onClick={()=>{
-                    rf("streamName")(p.streamName||recap.streamName||"");
-                    rf("sessionType")(p.sessionType||recap.sessionType||"");
+                    if (p.streamName) rf("streamName")(p.streamName);
+                    if (p.sessionType) rf("sessionType")(p.sessionType);
+                    if (p.estMultiple) rf("marketMultiple")(String(p.estMultiple));
+                    // Seed the recap's per-product quantity fields (prod_<TYPE>) from the plan
+                    const plannedProducts = (p.products||[]).filter(pr=>pr.type);
+                    if (plannedProducts.length > 0) {
+                      setRecap(prev => {
+                        const next = { ...prev };
+                        plannedProducts.forEach(pr => {
+                          const key = `prod_${pr.type}`;
+                          next[key] = String((parseInt(next[key])||0) + (parseInt(pr.qty)||0));
+                        });
+                        if (p.streamName) next.streamName = p.streamName;
+                        if (p.sessionType) next.sessionType = p.sessionType;
+                        if (p.estMultiple) next.marketMultiple = String(p.estMultiple);
+                        return next;
+                      });
+                    }
+                    setLinkedPlanId(p.id);
                     // Never overwrite the breaker — the recap breaker stays as-is
                   }}
-                    style={{background:"rgba(123,156,255,0.1)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.25)",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                    {p.streamName||p.breaker||"Planned Stream"}
+                    style={{background: linkedPlanId===p.id ? "rgba(74,222,128,0.15)" : "rgba(123,156,255,0.1)", color: linkedPlanId===p.id ? "#4ade80" : "#7B9CFF", border:`1px solid ${linkedPlanId===p.id ? "rgba(74,222,128,0.4)" : "rgba(123,156,255,0.25)"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"}}>
+                    {linkedPlanId===p.id ? "✓ Linked · " : ""}{p.streamName||p.breaker||"Planned Stream"}
                     {p.sessionType?` · ${p.sessionType}`:""}
                     {(p.products||[]).filter(pr=>pr.type).length>0?` · ${p.products.filter(pr=>pr.type).map(pr=>pr.qty+"× "+pr.type).join(", ")}` :""}
                   </button>
