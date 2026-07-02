@@ -9359,8 +9359,9 @@ function BreakPlanner({ skuPrices={}, userRole }) {
   );
 }
 
-function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], cardPools=[], userRole }) {
+function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], cardPools=[], userRole, user }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
+  const myBreaker = resolveBreaker(user); // rep's own breaker (null for admins/unknown)
   const canBuildCalendar = userRole?.role === "Admin"; // only admins add/edit/delete planned streams; reps view only
   const fmt2 = v => "$" + parseFloat(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -9853,16 +9854,22 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
           </div>
         )}
 
-        {/* Admin-only: projected rep commissions from scheduled streams */}
-        {canSeeFinancials && !compact && mPlans.length > 0 && (() => {
+        {/* Projected commission from scheduled streams — admins see all, reps see their own */}
+        {(canSeeFinancials || myBreaker) && !compact && mPlans.length > 0 && (() => {
           const { byBreaker, total } = projectedRepCommissions(mPlans);
-          const rows = Object.entries(byBreaker).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+          let rows = Object.entries(byBreaker).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+          const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
+          if (!canSeeFinancials) {
+            // rep: only their own row
+            rows = rows.filter(([b])=>norm(b)===norm(myBreaker));
+          }
           if (rows.length === 0) return null;
+          const shownTotal = canSeeFinancials ? total : rows.reduce((s,[,v])=>s+v,0);
           return (
             <div style={{ marginBottom:14, background:"rgba(232,49,122,0.04)", border:"1px solid rgba(232,49,122,0.18)", borderRadius:10, padding:"12px 14px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                <span style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>💸 Projected Rep Commissions</span>
-                <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>{fmt2(total)}</span>
+                <span style={{ fontSize:11, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>💸 {canSeeFinancials ? "Projected Rep Commissions" : "Your Projected Commission"}</span>
+                <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>{fmt2(shownTotal)}</span>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:8 }}>
                 {rows.map(([breaker, amt]) => {
@@ -10470,6 +10477,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   }
 
   function renderTomorrowAlert() {
+    if (!canSeeFinancials) return null; // reps don't see inventory alerts
     const tmrw = new Date(today); tmrw.setDate(today.getDate()+1);
     const tmrwStr = dateStr(tmrw.getFullYear(), tmrw.getMonth(), tmrw.getDate());
     const tmrwPlans = plansForDate(tmrwStr);
@@ -13718,7 +13726,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       {streamTab === "cards"      && <BreakLog      inventory={inventory} breaks={breaks} onAdd={onAdd} onBulkAdd={onBulkAdd} onDeleteBreak={onDeleteBreak} user={user} userRole={userRole} streams={streams} onSaveStream={onSaveStream} productUsage={productUsage} onSaveProductUsage={onSaveProductUsage} shipments={shipments} cardsOnly={true} cardPools={cardPools}/>}
       {streamTab === "commission" && <Commission    streams={streams} onSave={onSaveStream} onDelete={onDeleteStream} user={user} userRole={userRole} historicalData={historicalData} onSavePayStub={onSavePayStub} payStubs={payStubs} onDeletePayStub={onDeletePayStub}/>}
       {streamTab === "planner"    && <BreakPlanner  skuPrices={skuPrices} userRole={userRole}/>}
-      {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole}/>}
+      {streamTab === "calendar"   && <StreamCalendar streams={streams} skuPrices={skuPrices} inventory={inventory} breaks={breaks} cardPools={cardPools} userRole={userRole} user={user}/>}
       {streamTab === "herobreak"  && <HeroBreakBuilder userRole={userRole} bobaCards={bobaCards}/>}
       {streamTab === "breakspots" && <BreakSpots bobaCards={bobaCards}/>}
       {streamTab === "shownotes"  && <ShowNotes userRole={userRole}/>}
