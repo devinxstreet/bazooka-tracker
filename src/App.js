@@ -3753,7 +3753,11 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
   const [bulkLogSel,  setBulkLogSel]  = useState(new Set());
   const [bulkLogForm, setBulkLogForm] = useState({ breaker:BREAKERS[0], date:todayLocal(), usage:"Giveaway" });
   const [selected, setSelected] = useState(new Set());
-  const [invTab,   setInvTab]   = useState(defaultTab);
+  const [invTab,   setInvTab]   = useState(() => {
+    // Non-admins can't see pools/product/lots — fall back to cards.
+    if (["pools","product","lots"].includes(defaultTab) && !["Admin","Procurement"].includes(userRole?.role)) return "cards";
+    return defaultTab;
+  });
   useEffect(()=>{setInvTab(defaultTab);},[defaultTab]);
   const [editCostId,  setEditCostId]  = useState(null);
   const [editCostVal, setEditCostVal] = useState("");
@@ -3854,7 +3858,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
       <div style={S.card}>
         <div style={{ display:"none" }}>
-          {[["cards","\uD83D\uDCE6 Cards"],["pools","\uD83D\uDDC3 Card Pools"],...(["Admin","Procurement"].includes(userRole?.role)?[["lots","\uD83D\uDDC2 Lot History"]]:[]),["product","\uD83C\uDF81 Product"]].map(([id,label]) => (
+          {[["cards","\uD83D\uDCE6 Cards"],...(["Admin","Procurement"].includes(userRole?.role)?[["pools","\uD83D\uDDC3 Card Pools"],["lots","\uD83D\uDDC2 Lot History"],["product","\uD83C\uDF81 Product"]]:[])].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"#9CA3AF", border:`1.5px solid ${invTab===id?"#E8317A":"#E5E7EB"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
         </div>
@@ -4149,9 +4153,9 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       </div>
 
       {invTab==="customers" && <Sellers inventory={inventory} breaks={breaks} userRole={userRole}/>}
-      {invTab==="product"   && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
+      {invTab==="product" && ["Admin","Procurement"].includes(userRole?.role) && <ProductInventory shipments={shipments} productUsage={productUsage} onSaveShipment={onSaveShipment} onDeleteShipment={onDeleteShipment} onDeleteProductUsage={onDeleteProductUsage} user={user} userRole={userRole} skuPrices={skuPrices} onSaveSkuPrices={onSaveSkuPrices} streams={streams} skuPriceHistory={skuPriceHistory}/>}
 
-      {invTab==="pools" && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards} inventory={inventory} breaks={breaks}/>}
+      {invTab==="pools" && ["Admin","Procurement"].includes(userRole?.role) && <CardPools cardPools={cardPools} onSavePool={onSavePool} onDeletePool={onDeletePool} onLogPoolOut={onLogPoolOut} onAddToPool={onAddToPool} userRole={userRole} canSeeFinancials={canSeeFinancials} bobaCards={bobaCards} inventory={inventory} breaks={breaks}/>}
 
       {invTab==="cards" && <>
 
@@ -12908,21 +12912,31 @@ function BreakSpots() {
   const fmt = v => v;
   const [setName,    setSetName]    = useState("");
   const [pastedList, setPastedList] = useState("");
-  const [savedSets,  setSavedSets]  = useState({});
+  const [savedSets,  setSavedSets]  = useState(() => {
+    // Instant paint from cache; refresh from Firestore in the background.
+    try { const c = localStorage.getItem("breakSpots_cache_v1"); return c ? JSON.parse(c) : {}; }
+    catch { return {}; }
+  });
+  const [loading,    setLoading]    = useState(true);
   const [copied,     setCopied]     = useState(false);
   const [activeSet,  setActiveSet]  = useState(null);
   const [shuffle,    setShuffle]    = useState(false);
   const [saving,     setSaving]     = useState(false);
 
-  // Load from Firestore on mount
+  // Load from Firestore on mount (cache-first so the tab paints immediately)
   useEffect(() => {
     getDoc(doc(db,"config","breakSpots")).then(snap => {
-      if (snap.exists()) setSavedSets(snap.data().sets||{});
-    }).catch(()=>{});
+      if (snap.exists()) {
+        const sets = snap.data().sets||{};
+        setSavedSets(sets);
+        try { localStorage.setItem("breakSpots_cache_v1", JSON.stringify(sets)); } catch {}
+      }
+    }).catch(()=>{}).finally(()=>setLoading(false));
   }, []);
 
   async function persistSets(updated) {
     setSavedSets(updated);
+    try { localStorage.setItem("breakSpots_cache_v1", JSON.stringify(updated)); } catch {}
     await setDoc(doc(db,"config","breakSpots"), { sets: updated }, { merge:true });
   }
 
@@ -13002,6 +13016,10 @@ function BreakSpots() {
       </div>
 
       {/* ── Set selector + copy panel ── */}
+      {loading && allSetNames.length === 0 && (
+        <div style={{ ...S.card, textAlign:"center", color:"#888", fontSize:13, padding:"20px" }}>Loading saved spot lists…</div>
+      )}
+
       {allSetNames.length > 0 && (
         <div style={{ ...S.card }}>
           <SectionLabel t="Copy for Whatnot"/>
