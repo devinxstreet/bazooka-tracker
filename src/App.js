@@ -4448,17 +4448,16 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         }
         // Auto-calculate market multiple when product counts or gross revenue change (not BIN)
         const isProductField = PRODUCT_TYPES.some(pt => k === `prod_${pt}`);
-        if ((isProductField || k === "grossRevenue" || k === "coupons") && !updated.binOnly) {
+        if ((isProductField || k === "grossRevenue") && !updated.binOnly) {
           const gross = parseFloat(k === "grossRevenue" ? v : updated.grossRevenue) || 0;
-          const coupons = parseFloat(k === "coupons" ? v : updated.coupons) || 0;
-          const trueGross = gross + coupons;
+          // Gross already includes coupons — do NOT add them back (that double-counts).
           const totalMktVal = PRODUCT_TYPES.reduce((sum, pt) => {
             const qty   = parseInt(k === `prod_${pt}` ? v : updated[`prod_${pt}`]) || 0;
             const price = parseFloat(updated.streamSkuPrices?.[pt] ?? skuPrices[pt]) || 0;
             return sum + (qty * price);
           }, 0);
-          if (trueGross > 0 && totalMktVal > 0) {
-            updated.marketMultiple = (trueGross / totalMktVal).toFixed(2);
+          if (gross > 0 && totalMktVal > 0) {
+            updated.marketMultiple = (gross / totalMktVal).toFixed(2);
           }
         }
         return updated;
