@@ -989,8 +989,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           if (!dateStr) return false;
           const d = parseLocalDate(dateStr);
           if (financialPeriod === "custom") {
-            const s = customStart ? new Date(customStart) : new Date(0);
-            const e = customEnd   ? new Date(customEnd+"T23:59:59") : new Date();
+            const s = customStart ? parseLocalDate(customStart) : new Date(0);
+            s.setHours(0,0,0,0);
+            const e = customEnd ? parseLocalDate(customEnd) : new Date();
+            e.setHours(23,59,59,999);
             return d >= s && d <= e;
           }
           if (financialPeriod === "week") {
@@ -10929,9 +10931,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
     const revTiers = [
       { mult:1.0, label:"1.0x", sublabel:"At Market",   color:"#6B7280", bg:"rgba(107,114,128,0.06)", border:"rgba(107,114,128,0.2)" },
-      { mult:1.5, label:"1.5x", sublabel:"Minimum",     color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
-      { mult:1.7, label:"1.7x", sublabel:"Good",        color:"#86efac", bg:"rgba(134,239,172,0.06)", border:"rgba(134,239,172,0.2)" },
-      { mult:1.9, label:"1.9x", sublabel:"🔥 Great",    color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
+      { mult:1.3, label:"1.3x", sublabel:"Minimum",     color:"#FBBF24", bg:"rgba(251,191,36,0.06)",  border:"rgba(251,191,36,0.2)"  },
+      { mult:1.5, label:"1.5x", sublabel:"Good",        color:"#86efac", bg:"rgba(134,239,172,0.06)", border:"rgba(134,239,172,0.2)" },
+      { mult:1.7, label:"1.7x", sublabel:"🔥 Great",    color:"#4ade80", bg:"rgba(74,222,128,0.06)",  border:"rgba(74,222,128,0.2)"  },
     ];
 
     return (
