@@ -69,7 +69,16 @@ function resolveBreaker(user) {
     return first===nb || first.includes(nb) || nb.includes(first) || dn.includes(nb) || em.includes(nb);
   });
 }
-const LOCATIONS = ["BZKA HQ","BIGU HQ"];
+const LOCATIONS = ["BZKA HQ","BIGU HQ","VINNY HQ","STEPHEN HQ"];
+// Which HQ each breaker's cards live at — remote streamers can only log chasers
+// physically at their location.
+const BREAKER_LOCATION = {
+  dev:"BZKA HQ", dre:"BZKA HQ", krystal:"BZKA HQ",
+  bigu:"BIGU HQ", vinny:"VINNY HQ", stephen:"STEPHEN HQ",
+};
+function locationForBreaker(name){
+  return BREAKER_LOCATION[(name||"").toLowerCase().replace(/\s+/g,"")] || null;
+}
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
@@ -4867,8 +4876,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           ))}
         </div>}
 
-        {/* Tips — 100% to rep (buyer tips passed through) */}
-        <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
+        {/* Tips — 100% to rep (buyer tips passed through) — Admin only */}
+        {userRole?.role === "Admin" && <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#FBBF24", marginBottom:2 }}>💵 Tips</div>
@@ -4877,7 +4886,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <input type="number" step="0.01" value={recap.tips||""} onChange={e=>rf("tips")(e.target.value)} placeholder="0.00" style={{ ...S.inp, width:130, color:"#FBBF24", fontWeight:700 }}/>
             {parseFloat(recap.tips)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>+${parseFloat(recap.tips).toFixed(2)} to rep</div>}
           </div>
-        </div>
+        </div>}
 
         {/* Sales Bonus — Admin only */}
         {userRole?.role === "Admin" && <div style={{ background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:8, padding:"10px 14px", marginBottom:10 }}>
@@ -4917,7 +4926,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
             {(() => {
               const usedIdSet = new Set(breaks.map(b=>b.inventoryId));
-              const available = inventory.filter(c => !usedIdSet.has(c.id) && c.cardStatus!=="in_transit");
+              const recapLoc = locationForBreaker(recap.breaker||breaker);
+              const available = inventory.filter(c => {
+                if (usedIdSet.has(c.id) || c.cardStatus==="in_transit") return false;
+                // Remote streamers (non-admins) can only log chasers physically at
+                // their own HQ. Admins see all locations.
+                if (!canSeeFinancials && recapLoc) return (c.location||"") === recapLoc;
+                return true;
+              });
               const selectedChasers = recap.chaserCardIds ? recap.chaserCardIds.split(",").filter(Boolean) : [];
               const totalCost = selectedChasers.reduce((sum,id)=>{ const card=inventory.find(c=>c.id===id); return sum+(card?.costPerCard||0); }, 0);
               const visibleCards = chaserSearch.trim()
@@ -7738,6 +7754,56 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       </div>
 
       {/* Combined Team Recap */}
+      {/* Streamer (rep) view: everyone's market multiple + your own numbers */}
+      {!isAdmin && matchedBreaker && thisMonth.length > 0 && (() => {
+        const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
+        // Everyone's MM this period (all breakers) — reps CAN see this
+        const byBreakerMM = {};
+        mmStreams.forEach(s => {
+          const b = s.breaker || "—";
+          if (!byBreakerMM[b]) byBreakerMM[b] = { sum:0, n:0 };
+          byBreakerMM[b].sum += parseFloat(s.marketMultiple); byBreakerMM[b].n++;
+        });
+        const mmRows = Object.entries(byBreakerMM).map(([b,v])=>({ b, mm:v.sum/v.n, n:v.n })).sort((a,b)=>b.mm-a.mm);
+        // Your own detailed numbers
+        const mine = thisMonth.filter(s => (s.breaker||"").toLowerCase().replace(/\s+/g,"") === matchedBreaker.toLowerCase().replace(/\s+/g,""));
+        const myGross = mine.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+        const myComm  = mine.reduce((s,x)=>s+(calcStream(x).commission||0),0);
+        const myNewBuyers = mine.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+        const myMMs = mine.filter(x=>parseFloat(x.marketMultiple)>0);
+        const myAvgMM = myMMs.length ? myMMs.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/myMMs.length : 0;
+        const mmColor = m => m>=1.5?"#4ade80":m>=1.3?"#FBBF24":"#E8317A";
+        return (
+          <div style={{ ...S.card, marginBottom:16 }}>
+            <SectionLabel t={`📊 Your Month — ${matchedBreaker}`} />
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+              {[
+                { l:"Your Gross",      v:`$${myGross.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#E8317A" },
+                { l:"Your Commission", v:`$${myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#4ade80" },
+                { l:"Your Streams",    v:mine.length, c:"#F0F0F0" },
+                { l:"Your Avg MM",     v:myAvgMM>0?`${myAvgMM.toFixed(2)}x`:"--", c:mmColor(myAvgMM) },
+              ].map(({l,v,c})=>(
+                <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
+                  <div style={{ fontSize:24, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:11, fontWeight:800, color:"#888", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Team Market Multiple — This Period</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {mmRows.map(({b,mm,n})=>(
+                <div key={b} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background: b===matchedBreaker ? "rgba(232,49,122,0.08)" : "rgba(255,255,255,0.02)", border:`1px solid ${b===matchedBreaker ? "rgba(232,49,122,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:8 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color: b===matchedBreaker ? "#E8317A" : "#ccc" }}>{b}{b===matchedBreaker?" (you)":""}</span>
+                  <span style={{ fontSize:11, color:"#666" }}>{n} stream{n!==1?"s":""}</span>
+                  <span style={{ fontSize:15, fontWeight:900, color:mmColor(mm) }}>{mm.toFixed(2)}x</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>You can see everyone's market multiple, but only your own revenue and commission.</div>
+          </div>
+        );
+      })()}
+
       {isAdmin && (thisMonth.length > 0 || historicalData?.length > 0) && (() => {
         // Include historical data in totals for accurate all-time/year numbers
         const histInPeriod = (historicalData||[]).filter(h => {
@@ -13591,8 +13657,8 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
     { id:"commission",  label:"\uD83D\uDCB5 Commission",       roles:["Admin","Streamer","StreamerLite"] },
     { id:"breakspots",  label:"🎯 Break Spots",                roles:["Admin","Streamer","StreamerLite"] },
     { id:"shownotes",   label:"📝 Show Notes",                 roles:["Admin","Streamer","StreamerLite"] },
-    { id:"wotftools",   label:"🌟 WotF Seller Tools",          roles:["Admin","Streamer","StreamerLite"] },
-    { id:"bobatools",   label:"⚔️ BoBA Seller Tools",          roles:["Admin","Streamer","StreamerLite"] },
+    { id:"wotftools",   label:"🌟 WotF Seller Tools",          roles:["Admin"] },
+    { id:"bobatools",   label:"⚔️ BoBA Seller Tools",          roles:["Admin"] },
     { id:"planner",     label:"\uD83E\uDDEE Break Planner",    roles:["Admin","Streamer","StreamerLite"] },
     { id:"calendar",    label:"\uD83D\uDCC5 Bazooka Calendar",  roles:["Admin","Streamer","StreamerLite"] },
     { id:"herobreak",   label:"\uD83C\uDFC8 Hero Breaks",      roles:["Admin","Streamer","StreamerLite"] },
@@ -33397,13 +33463,13 @@ function AppInner() {
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
-    { id:"chases",     label:"Chases",       icon:"🃏",           roles:["Admin","Streamer"] },
-    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
+    { id:"chases",     label:"Chases",       icon:"🃏",           roles:["Admin"] },
+    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
-    { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","Streamer","StreamerLite"] },
-    { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Streamer","Viewer"] },
-    { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin","Streamer"] },
+    { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","StreamerLite"] },
+    { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Viewer"] },
+    { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin"] },
     { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
@@ -33619,8 +33685,8 @@ function AppInner() {
                   {label:"\uD83D\uDCB0 Commission",sub:"Rep commissions",action:()=>{setTab("streams");setStreamTabDefault("commission");setHoverTab(null);}},
                   {label:"🎯 Break Spots",sub:"Build & copy hero lists",action:()=>{setTab("streams");setStreamTabDefault("breakspots");setHoverTab(null);}},
                   {label:"📝 Show Notes",sub:"Templates for Whatnot",action:()=>{setTab("streams");setStreamTabDefault("shownotes");setHoverTab(null);}},
-                  {label:"🌟 WotF Seller Tools",sub:"Game primer, hype lines, FAQ",action:()=>{setTab("streams");setStreamTabDefault("wotftools");setHoverTab(null);}},
-                  {label:"⚔️ BoBA Seller Tools",sub:"Weapons, hype lines, FAQ",action:()=>{setTab("streams");setStreamTabDefault("bobatools");setHoverTab(null);}},
+                  {label:"🌟 WotF Seller Tools",sub:"Game primer, hype lines, FAQ",adminOnly:true,action:()=>{setTab("streams");setStreamTabDefault("wotftools");setHoverTab(null);}},
+                  {label:"⚔️ BoBA Seller Tools",sub:"Weapons, hype lines, FAQ",adminOnly:true,action:()=>{setTab("streams");setStreamTabDefault("bobatools");setHoverTab(null);}},
                   {label:"\uD83E\uDDEE Break Planner",sub:"Plan your breaks",action:()=>{setTab("streams");setStreamTabDefault("planner");setHoverTab(null);}},
                   {label:"\uD83D\uDCC5 Bazooka Calendar",sub:"Plan & track months",action:()=>{setTab("streams");setStreamTabDefault("calendar");setHoverTab(null);}},
                   {label:"\uD83C\uDFC8 Hero Breaks",sub:"Build & export hero breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");setHoverTab(null);}},
@@ -33680,7 +33746,7 @@ function AppInner() {
                     </button>
                     {hoverTab?.id===t.id&&menuItems.length>1&&(
                       <div onMouseEnter={()=>{}} onMouseLeave={()=>setHoverTab(null)} style={{position:"fixed",top:`${hoverTab?.y??0}px`,left:`${hoverTab?.x??0}px`,background:"#0d0d0d",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px",minWidth:190,zIndex:99999,boxShadow:"0 16px 48px rgba(0,0,0,0.8)"}}>
-                        {menuItems.map((item,idx)=>(
+                        {menuItems.filter(item=>!item.adminOnly || effectiveRole?.role==="Admin").map((item,idx)=>(
                           <button key={idx} onClick={item.action}
                             style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",borderRadius:8,padding:"8px 12px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",transition:"background 0.1s"}}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(232,49,122,0.08)"}
