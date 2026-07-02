@@ -705,6 +705,65 @@ function LoginScreen() {
   );
 }
 
+// Rep's month panel — own stats + everyone's market multiple (with streams + boxes).
+// Shown on the rep Dashboard. Reps see all breakers' MM but only their own $.
+function RepMonthPanel({ streams=[], matchedBreaker }) {
+  if (!matchedBreaker) return null;
+  const now = new Date();
+  const thisMonth = streams.filter(s => {
+    if (!s.date) return false;
+    const d = parseLocalDate(s.date);
+    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  });
+  if (thisMonth.length === 0) return null;
+  const boxesOf = s => PRODUCT_TYPES.reduce((sum,pt)=>sum+(parseInt(s[`prod_${pt}`])||0),0);
+  const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
+  const byBreaker = {};
+  mmStreams.forEach(s => {
+    const b = s.breaker || "—";
+    if (!byBreaker[b]) byBreaker[b] = { sum:0, n:0, boxes:0 };
+    byBreaker[b].sum += parseFloat(s.marketMultiple); byBreaker[b].n++; byBreaker[b].boxes += boxesOf(s);
+  });
+  const mmRows = Object.entries(byBreaker).map(([b,v])=>({ b, mm:v.sum/v.n, n:v.n, boxes:v.boxes })).sort((a,b)=>b.mm-a.mm);
+  const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
+  const mine = thisMonth.filter(s => norm(s.breaker) === norm(matchedBreaker));
+  const myGross = mine.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const myComm  = mine.reduce((s,x)=>s+(calcStream(x).commission||0),0);
+  const myMMs = mine.filter(x=>parseFloat(x.marketMultiple)>0);
+  const myAvgMM = myMMs.length ? myMMs.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/myMMs.length : 0;
+  const mmColor = m => m>=1.5?"#4ade80":m>=1.3?"#FBBF24":"#E8317A";
+  return (
+    <div style={{ ...S.card, marginBottom:16 }}>
+      <SectionLabel t={`📊 Your Month — ${matchedBreaker}`} />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+        {[
+          { l:"Your Gross",      v:`$${myGross.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#E8317A" },
+          { l:"Your Commission", v:`$${myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#4ade80" },
+          { l:"Your Streams",    v:mine.length, c:"#F0F0F0" },
+          { l:"Your Avg MM",     v:myAvgMM>0?`${myAvgMM.toFixed(2)}x`:"--", c:mmColor(myAvgMM) },
+        ].map(({l,v,c})=>(
+          <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
+            <div style={{ fontSize:24, fontWeight:900, color:c }}>{v}</div>
+            <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize:11, fontWeight:800, color:"#888", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Team Market Multiple — This Month</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {mmRows.map(({b,mm,n,boxes})=>(
+          <div key={b} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background: b===matchedBreaker ? "rgba(232,49,122,0.08)" : "rgba(255,255,255,0.02)", border:`1px solid ${b===matchedBreaker ? "rgba(232,49,122,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:8 }}>
+            <span style={{ fontSize:13, fontWeight:700, color: b===matchedBreaker ? "#E8317A" : "#ccc", flex:1 }}>{b}{b===matchedBreaker?" (you)":""}</span>
+            <span style={{ fontSize:11, color:"#666", width:80, textAlign:"right" }}>{n} stream{n!==1?"s":""}</span>
+            <span style={{ fontSize:11, color:"#7B9CFF", width:90, textAlign:"right" }}>{boxes} box{boxes!==1?"es":""}</span>
+            <span style={{ fontSize:15, fontWeight:900, color:mmColor(mm), width:70, textAlign:"right" }}>{mm.toFixed(2)}x</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>You can see everyone's market multiple, but only your own revenue and commission.</div>
+    </div>
+  );
+}
+
 function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments, plannedStreams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
@@ -937,6 +996,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           </div>
         );
       })()}
+
+      {/* Rep's month panel — own stats + team market multiple (reps only) */}
+      {!canSeeFinancials && myBreaker && <RepMonthPanel streams={streams} matchedBreaker={myBreaker} />}
 
       {/* -- PAY STUB NOTIFICATIONS -- */}
       {myStubs.length > 0 && myStubs.map(stub => (
@@ -1736,6 +1798,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       </div>
       )}
 
+      {canSeeFinancials && (<>
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ padding:"16px 20px 12px" }}>
           <SectionLabel t="Inventory by Card Type" />
@@ -1805,6 +1868,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           })}
         </div>
       </div>
+      </>)}
 
       {/* Historical Data -- Admin only */}
       {canSeeFinancials && (() => {
@@ -7756,55 +7820,6 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       </div>
 
       {/* Combined Team Recap */}
-      {/* Streamer (rep) view: everyone's market multiple + your own numbers */}
-      {!isAdmin && matchedBreaker && thisMonth.length > 0 && (() => {
-        const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
-        // Everyone's MM this period (all breakers) — reps CAN see this
-        const byBreakerMM = {};
-        mmStreams.forEach(s => {
-          const b = s.breaker || "—";
-          if (!byBreakerMM[b]) byBreakerMM[b] = { sum:0, n:0 };
-          byBreakerMM[b].sum += parseFloat(s.marketMultiple); byBreakerMM[b].n++;
-        });
-        const mmRows = Object.entries(byBreakerMM).map(([b,v])=>({ b, mm:v.sum/v.n, n:v.n })).sort((a,b)=>b.mm-a.mm);
-        // Your own detailed numbers
-        const mine = thisMonth.filter(s => (s.breaker||"").toLowerCase().replace(/\s+/g,"") === matchedBreaker.toLowerCase().replace(/\s+/g,""));
-        const myGross = mine.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
-        const myComm  = mine.reduce((s,x)=>s+(calcStream(x).commission||0),0);
-        const myNewBuyers = mine.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
-        const myMMs = mine.filter(x=>parseFloat(x.marketMultiple)>0);
-        const myAvgMM = myMMs.length ? myMMs.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/myMMs.length : 0;
-        const mmColor = m => m>=1.5?"#4ade80":m>=1.3?"#FBBF24":"#E8317A";
-        return (
-          <div style={{ ...S.card, marginBottom:16 }}>
-            <SectionLabel t={`📊 Your Month — ${matchedBreaker}`} />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
-              {[
-                { l:"Your Gross",      v:`$${myGross.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#E8317A" },
-                { l:"Your Commission", v:`$${myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#4ade80" },
-                { l:"Your Streams",    v:mine.length, c:"#F0F0F0" },
-                { l:"Your Avg MM",     v:myAvgMM>0?`${myAvgMM.toFixed(2)}x`:"--", c:mmColor(myAvgMM) },
-              ].map(({l,v,c})=>(
-                <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
-                  <div style={{ fontSize:24, fontWeight:900, color:c }}>{v}</div>
-                  <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize:11, fontWeight:800, color:"#888", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Team Market Multiple — This Period</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {mmRows.map(({b,mm,n})=>(
-                <div key={b} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background: b===matchedBreaker ? "rgba(232,49,122,0.08)" : "rgba(255,255,255,0.02)", border:`1px solid ${b===matchedBreaker ? "rgba(232,49,122,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:8 }}>
-                  <span style={{ fontSize:13, fontWeight:700, color: b===matchedBreaker ? "#E8317A" : "#ccc" }}>{b}{b===matchedBreaker?" (you)":""}</span>
-                  <span style={{ fontSize:11, color:"#666" }}>{n} stream{n!==1?"s":""}</span>
-                  <span style={{ fontSize:15, fontWeight:900, color:mmColor(mm) }}>{mm.toFixed(2)}x</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>You can see everyone's market multiple, but only your own revenue and commission.</div>
-          </div>
-        );
-      })()}
 
       {isAdmin && (thisMonth.length > 0 || historicalData?.length > 0) && (() => {
         // Include historical data in totals for accurate all-time/year numbers
@@ -33466,7 +33481,7 @@ function AppInner() {
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
     { id:"chases",     label:"Chases",       icon:"🃏",           roles:["Admin"] },
-    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin","Streamer"] },
+    { id:"performance",label:"Performance",  icon:"\uD83D\uDCC8", roles:["Admin"] },
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","StreamerLite"] },
