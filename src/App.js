@@ -1647,6 +1647,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         );
       })()}
 
+      {canSeeFinancials && (
       <div style={{ ...S.card, border: alerts.length > 0 ? "2px solid #FCA5A5" : "2px solid #D6F4E3" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <SectionLabel t="Inventory Health Check" />
@@ -1733,6 +1734,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         </div>
         )}
       </div>
+      )}
 
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
         <div style={{ padding:"16px 20px 12px" }}>
