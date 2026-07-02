@@ -53,6 +53,10 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
+// Remote breakers front their own supplies/shipping and get reimbursed — same
+// treatment as BigU across recap, commission math, True Net, and the report.
+const REMOTE_BREAKERS = ["bigu","vinny","stephen"];
+function isRemoteBreaker(name){ return REMOTE_BREAKERS.includes((name||"").toLowerCase().replace(/\s+/g,"")); }
 // Resolve which breaker a logged-in user is — tolerant of display-name vs breaker-name
 // differences (e.g. "Big U" vs "BigU"), checking first name, full name, and email.
 function resolveBreaker(user) {
@@ -84,7 +88,7 @@ function calcStream(s, targetBreaker=null) {
   const imcNet       = isSingles ? 0 : externalCh ? 0 : splitBase * 0.70;
   const collabAmt    = 0;
   const bazOwnShare  = isSingles ? 0 : bazNet;
-  const isBigU        = (s.breaker||"").toLowerCase() === "bigu";
+  const isBigU        = isRemoteBreaker(s.breaker);
   // BigU pays his own mags/packaging/topLoaders and gets reimbursed separately —
   // don't deduct those from his commission. Still report to IMC for 70% reimbursement.
   const repExpBase    = isBigU
@@ -5009,9 +5013,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             </div>
 
             {/* BigU-only: giveaway + insurance card reimbursement */}
-            {(recap.breaker||breaker||"").toLowerCase()==="bigu" && (canSeeFinancials || matchedBreaker.toLowerCase()==="bigu") && (
+            {isRemoteBreaker(recap.breaker||breaker) && (canSeeFinancials || isRemoteBreaker(matchedBreaker)) && (
               <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", marginBottom:10, textTransform:"uppercase", letterSpacing:1 }}>🔄 BigU Reimbursables — Cards</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"#FBBF24", marginBottom:10, textTransform:"uppercase", letterSpacing:1 }}>🔄 {recap.breaker||breaker||"Remote"} Reimbursables — Cards</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                   <div>
                     <label style={{ ...S.lbl, color:"#FBBF24" }}>Giveaway Cards ($)</label>
@@ -5343,8 +5347,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"\u2212 "+fmt(rc.salesBonus), c:"#991b1b" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
-                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 BigU Reimb (Mags/Pack)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
-                    ...(canSeeFinancials && (recap.breaker||"").toLowerCase()==="bigu" && (parseFloat(recap.biguShipping)||0)>0 ? [{ l:"📦 Shipping reimb (50% of "+fmt(parseFloat(recap.biguShipping)||0)+")", v:"+ "+fmt((parseFloat(recap.biguShipping)||0)*0.5), c:"#FBBF24" }] : []),
+                    ...(canSeeFinancials && isRemoteBreaker(recap.breaker) && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 "+(recap.breaker||"Remote")+" Reimb (Mags/Pack)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
+                    ...(canSeeFinancials && isRemoteBreaker(recap.breaker) && (parseFloat(recap.biguShipping)||0)>0 ? [{ l:"📦 Shipping reimb (50% of "+fmt(parseFloat(recap.biguShipping)||0)+")", v:"+ "+fmt((parseFloat(recap.biguShipping)||0)*0.5), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ IMC Expense Reimb (70%)", v:"+ "+fmt(rc.imcReimb||0), c:"#60A5FA" }] : []),
@@ -14334,21 +14338,21 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         </div>
       )}
 
-      {/* -- BIGU EXPENSE REIMBURSEMENT -- */}
-      {isAdmin && (() => {
+      {/* -- REMOTE BREAKER EXPENSE REIMBURSEMENT (one card per remote breaker) -- */}
+      {isAdmin && BREAKERS.filter(b=>isRemoteBreaker(b)).map(remoteBreaker => {
         const biguStreams = filteredStreams.filter(s =>
-          (s.breaker||"").toLowerCase()==="bigu" &&
+          (s.breaker||"").toLowerCase().replace(/\s+/g,"") === remoteBreaker.toLowerCase().replace(/\s+/g,"") &&
           ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0))>0
         );
         if (!biguStreams.length) return null;
         const totalReimb = biguStreams.reduce((sum,s)=>sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0),0);
         return (
-          <div style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
+          <div key={remoteBreaker} style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontSize:14, fontWeight:800, color:"#FBBF24" }}>🔄 BigU Expense Reimbursement</div>
+              <div style={{ fontSize:14, fontWeight:800, color:"#FBBF24" }}>🔄 {remoteBreaker} Expense Reimbursement</div>
               <div style={{ fontSize:24, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</div>
             </div>
-            <div style={{ fontSize:11, color:"#888", marginBottom:12 }}>Owed to BigU at end of month — he pays these upfront, we reimburse 100%</div>
+            <div style={{ fontSize:11, color:"#888", marginBottom:12 }}>Owed to {remoteBreaker} at end of month — he pays these upfront, we reimburse 100%</div>
             {isMobileC ? (
               /* Mobile: stacked cards, one per stream */
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -14381,7 +14385,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   );
                 })}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", borderTop:"1px solid rgba(251,191,36,0.3)", paddingTop:10, marginTop:2 }}>
-                  <span style={{ fontSize:12, fontWeight:800, color:"#888" }}>TOTAL OWED TO BIGU</span>
+                  <span style={{ fontSize:12, fontWeight:800, color:"#888" }}>TOTAL OWED TO {remoteBreaker.toUpperCase()}</span>
                   <span style={{ fontSize:18, fontWeight:900, color:"#FBBF24" }}>${totalReimb.toFixed(2)}</span>
                 </div>
               </div>
@@ -14412,7 +14416,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   );
                 })}
                 <tr style={{ borderTop:"1px solid rgba(251,191,36,0.3)" }}>
-                  <td colSpan={5} style={{ padding:"8px 8px", color:"#888", fontWeight:700 }}>TOTAL OWED TO BIGU</td>
+                  <td colSpan={5} style={{ padding:"8px 8px", color:"#888", fontWeight:700 }}>TOTAL OWED TO {remoteBreaker.toUpperCase()}</td>
                   <td colSpan={3} style={{ padding:"8px 8px", color:"#FBBF24", fontWeight:900, fontSize:16, textAlign:"right" }}>${totalReimb.toFixed(2)}</td>
                 </tr>
               </tbody>
@@ -14421,7 +14425,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             )}
           </div>
         );
-      })()}
+      })}
 
       {/* -- PAY STUB HISTORY -- */}
       {isAdmin && payStubs.length > 0 && (
