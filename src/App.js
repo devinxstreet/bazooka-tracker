@@ -727,21 +727,28 @@ function RepMonthPanel({ streams=[], matchedBreaker }) {
   const mmRows = Object.entries(byBreaker).map(([b,v])=>({ b, mm:v.sum/v.n, n:v.n, boxes:v.boxes })).sort((a,b)=>b.mm-a.mm);
   const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
   const mine = thisMonth.filter(s => norm(s.breaker) === norm(matchedBreaker));
-  const myGross = mine.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
-  const myComm  = mine.reduce((s,x)=>s+(calcStream(x).commission||0),0);
-  const myMMs = mine.filter(x=>parseFloat(x.marketMultiple)>0);
+  // Split singles (pass-through income) out from commission so they're not conflated.
+  const mineBreaks  = mine.filter(s => !s.isSinglesShow);
+  const mineSingles = mine.filter(s => s.isSinglesShow);
+  const myGross = mineBreaks.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+  const myComm  = mineBreaks.reduce((s,x)=>s+(calcStream(x).commission||0),0);
+  const mySingles = mineSingles.reduce((s,x)=>s+(calcStream(x).commission||0),0); // singles pass-through to breaker
+  const hasSingles = mineSingles.length > 0;
+  const myMMs = mineBreaks.filter(x=>parseFloat(x.marketMultiple)>0);
   const myAvgMM = myMMs.length ? myMMs.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/myMMs.length : 0;
   const mmColor = m => m>=1.5?"#4ade80":m>=1.3?"#FBBF24":"#E8317A";
+  const statCards = [
+    { l:"Your Gross",      v:`$${myGross.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#E8317A" },
+    { l:"Your Commission", v:`$${myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#4ade80" },
+    ...(hasSingles ? [{ l:"🃏 Singles Rev (pass-through)", v:`$${mySingles.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#FBBF24" }] : []),
+    { l:"Your Streams",    v:mine.length, c:"#F0F0F0" },
+    { l:"Your Avg MM",     v:myAvgMM>0?`${myAvgMM.toFixed(2)}x`:"--", c:mmColor(myAvgMM) },
+  ];
   return (
     <div style={{ ...S.card, marginBottom:16 }}>
       <SectionLabel t={`📊 Your Month — ${matchedBreaker}`} />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
-        {[
-          { l:"Your Gross",      v:`$${myGross.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#E8317A" },
-          { l:"Your Commission", v:`$${myComm.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`, c:"#4ade80" },
-          { l:"Your Streams",    v:mine.length, c:"#F0F0F0" },
-          { l:"Your Avg MM",     v:myAvgMM>0?`${myAvgMM.toFixed(2)}x`:"--", c:mmColor(myAvgMM) },
-        ].map(({l,v,c})=>(
+      <div style={{ display:"grid", gridTemplateColumns:`repeat(${statCards.length},1fr)`, gap:12, marginBottom:20 }}>
+        {statCards.map(({l,v,c})=>(
           <div key={l} className="stat-card" style={{ ...S.card, textAlign:"center" }}>
             <div style={{ fontSize:24, fontWeight:900, color:c }}>{v}</div>
             <div style={{ fontSize:10, color:"#AAAAAA", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
