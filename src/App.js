@@ -748,6 +748,7 @@ function LoginScreen() {
 // Shows the current week (building) and last week (pending this Friday's payout).
 // myComm already rolls in break commission + singles pass-through + tips.
 function RepWeekPanel({ streams=[], matchedBreaker }) {
+  const [expanded, setExpanded] = useState(null); // "last" | "this" | null
   if (!matchedBreaker) return null;
   const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
   const mine = streams.filter(s => norm(s.breaker) === norm(matchedBreaker));
@@ -766,8 +767,9 @@ function RepWeekPanel({ streams=[], matchedBreaker }) {
   const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
   const lastSun = new Date(thisMon); lastSun.setDate(thisMon.getDate()-1); lastSun.setHours(23,59,59,999);
 
-  const streamsInRange = (start, end) => mine.filter(s => { if(!s.date) return false; const d = parseLocalDate(s.date); return d >= start && d <= end; });
-  const sumWeek = (start, end) => streamsInRange(start,end).reduce((sum, s) => sum + (calcStream(s).myComm || 0), 0);
+  const streamsInRange = (start, end) => mine
+    .filter(s => { if(!s.date) return false; const d = parseLocalDate(s.date); return d >= start && d <= end; })
+    .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 
   const thisWeekList = streamsInRange(thisMon, thisSun);
   const lastWeekList = streamsInRange(lastMon, lastSun);
@@ -784,24 +786,59 @@ function RepWeekPanel({ streams=[], matchedBreaker }) {
 
   if (thisWeekN === 0 && lastWeekN === 0) return null;
 
+  // Per-stream breakdown list for an expanded week
+  const breakdown = (list, accent) => (
+    <div style={{ marginTop:12, borderTop:`1px solid ${accent}33`, paddingTop:10, display:"flex", flexDirection:"column", gap:6 }}>
+      {list.length === 0 && <div style={{ fontSize:11, color:"#666", fontStyle:"italic" }}>No streams logged in this week yet.</div>}
+      {list.map(s => {
+        const c = calcStream(s);
+        const isSingles = c.isSingles;
+        const d = parseLocalDate(s.date);
+        return (
+          <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, fontSize:12 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <span style={{ color:"var(--bz-ink)", fontWeight:700 }}>{s.streamName || s.breakType || "Break"}</span>
+              {isSingles && <span style={{ marginLeft:6, fontSize:9, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:4, padding:"1px 5px", fontWeight:800 }}>🃏 Singles</span>}
+              {parseFloat(s.tips)>0 && <span style={{ marginLeft:6, fontSize:9, color:"#4ade80" }}>+tips</span>}
+            </div>
+            <span style={{ color:"var(--bz-ink-3)", fontSize:10, whiteSpace:"nowrap" }}>{d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</span>
+            <span style={{ color:accent, fontWeight:800, minWidth:72, textAlign:"right" }}>{fmt$(c.myComm||0)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const weekCard = (key, list, total, n, mon, sun, opts) => {
+    const isOpen = expanded === key;
+    return (
+      <div style={{ background:opts.bg, border:`1px solid ${opts.border}`, borderRadius:12, padding:"16px 18px" }}>
+        <div style={{ fontSize:10, fontWeight:800, color:opts.accent, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{opts.label}</div>
+        <div style={{ fontSize:28, fontWeight:900, color:opts.accent, lineHeight:1 }}>{fmt$(total)}</div>
+        <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:8 }}>Week of {weekRange(mon,sun)} · {n} stream{n!==1?"s":""}</div>
+        <div style={{ fontSize:12, fontWeight:700, color:opts.payColor, marginTop:4 }}>{opts.payLabel}</div>
+        {n > 0 && (
+          <button onClick={()=>setExpanded(isOpen?null:key)} style={{ marginTop:10, background:"transparent", border:`1px solid ${opts.accent}55`, color:opts.accent, borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {isOpen ? "▾ Hide streams" : `▸ See ${n} stream${n!==1?"s":""}`}
+          </button>
+        )}
+        {isOpen && breakdown(list, opts.accent)}
+      </div>
+    );
+  };
+
   return (
     <div style={{ ...S.card, marginBottom:16 }}>
       <SectionLabel t="💸 Your Pay Weeks" />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginTop:4 }}>
-        {/* Last week — pending this Friday */}
-        <div style={{ background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:10, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Pending Payout</div>
-          <div style={{ fontSize:28, fontWeight:900, color:"#4ade80", lineHeight:1 }}>{fmt$(lastWeekPay)}</div>
-          <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:8 }}>Week of {weekRange(lastMon,lastSun)} · {lastWeekN} stream{lastWeekN!==1?"s":""}</div>
-          <div style={{ fontSize:12, fontWeight:700, color:"#4ade80", marginTop:4 }}>💵 Paid Friday {fmtD(fridayAfter(lastSun))}</div>
-        </div>
-        {/* Current week — still building */}
-        <div style={{ background:"rgba(232,49,122,0.05)", border:"1px solid rgba(232,49,122,0.25)", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>This Week (Building)</div>
-          <div style={{ fontSize:28, fontWeight:900, color:"#E8317A", lineHeight:1 }}>{fmt$(thisWeekPay)}</div>
-          <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:8 }}>Week of {weekRange(thisMon,thisSun)} · {thisWeekN} stream{thisWeekN!==1?"s":""}</div>
-          <div style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-2)", marginTop:4 }}>📅 Pays Friday {fmtD(fridayAfter(thisSun))}</div>
-        </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginTop:4, alignItems:"start" }}>
+        {weekCard("last", lastWeekList, lastWeekPay, lastWeekN, lastMon, lastSun, {
+          bg:"rgba(74,222,128,0.06)", border:"rgba(74,222,128,0.3)", accent:"#4ade80",
+          label:"Pending Payout", payColor:"#4ade80", payLabel:`💵 Paid Friday ${fmtD(fridayAfter(lastSun))}`
+        })}
+        {weekCard("this", thisWeekList, thisWeekPay, thisWeekN, thisMon, thisSun, {
+          bg:"rgba(232,49,122,0.05)", border:"rgba(232,49,122,0.25)", accent:"#E8317A",
+          label:"This Week (Building)", payColor:"var(--bz-ink-2)", payLabel:`📅 Pays Friday ${fmtD(fridayAfter(thisSun))}`
+        })}
       </div>
       <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>Includes break commission, singles pass-through, and tips. Estimate — final pay confirmed on your pay stub.</div>
     </div>
