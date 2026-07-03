@@ -33288,6 +33288,7 @@ function AppInner() {
   }, []);
 
   const [dataLoaded, setDataLoaded] = useState({}); // tracks which tab groups have been subscribed
+  const persistentUnsubs = useRef([]); // keep lazy-loaded listeners alive across tab changes
 
   // Always-on listeners — needed by dashboard and multiple tabs
   useEffect(() => {
@@ -33380,8 +33381,14 @@ function AppInner() {
     }
 
     if (unsubs.length === 0) return;
-    return () => unsubs.forEach(u => u());
+    // Keep these listeners alive for the rest of the session instead of tearing
+    // them down on every tab change (which was killing already-loaded data like
+    // saved comps). They're cleaned up when the app unmounts.
+    persistentUnsubs.current.push(...unsubs);
   }, [user, tab]);
+
+  // Clean up all persistent listeners on unmount only.
+  useEffect(() => () => { persistentUnsubs.current.forEach(u => { try { u(); } catch(e){} }); persistentUnsubs.current = []; }, []);
 
   // Keyboard shortcut for global search
   useEffect(() => {
