@@ -5702,7 +5702,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             ).toFixed(2);
             const formDate = date ? new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : "";
             const params = new URLSearchParams({
-              [`entry.546325134`]:  "Bazooka Vault",
+              [`entry.546325134`]:  "Bazooka",
               [`entry.53983190`]:   formDate,
               [`entry.1397101824`]: hobby||"0",
               [`entry.473640875`]:  jumbo||"0",
