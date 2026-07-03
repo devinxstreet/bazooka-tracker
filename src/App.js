@@ -33766,63 +33766,6 @@ function AppInner() {
             </div>
           </div>
 
-          {/* Sub-nav (current tab's menu items) */}
-          {(() => {
-            const SUBS = ({
-              "comp": [
-                {label:"Builder",action:()=>{setTab("comp");setCompMode("builder");}},
-                {label:"Quick Mode",action:()=>{setTab("comp");setCompMode("quick");}},
-                {label:"History",action:()=>{setTab("comp");setCompMode("history");}},
-              ],
-              "inventory": [
-                {label:"Cards",action:()=>{setTab("inventory");setInvTabDefault("cards");}},
-                ...(["Admin","Procurement"].includes(effectiveRole?.role)?[
-                  {label:"Card Pools",action:()=>{setTab("inventory");setInvTabDefault("pools");}},
-                  {label:"Lot History",action:()=>{setTab("inventory");setInvTabDefault("lots");}},
-                  {label:"Product",action:()=>{setTab("inventory");setInvTabDefault("product");}},
-                ]:[]),
-              ],
-              "streams": [
-                {label:"Stream Recap",action:()=>{setTab("streams");setStreamTabDefault("recap");}},
-                {label:"Commission",action:()=>{setTab("streams");setStreamTabDefault("commission");}},
-                {label:"Break Spots",action:()=>{setTab("streams");setStreamTabDefault("breakspots");}},
-                {label:"Show Notes",action:()=>{setTab("streams");setStreamTabDefault("shownotes");}},
-                ...(effectiveRole?.role==="Admin"?[
-                  {label:"WotF Tools",action:()=>{setTab("streams");setStreamTabDefault("wotftools");}},
-                  {label:"BoBA Tools",action:()=>{setTab("streams");setStreamTabDefault("bobatools");}},
-                ]:[]),
-                {label:"Break Planner",action:()=>{setTab("streams");setStreamTabDefault("planner");}},
-                {label:"Calendar",action:()=>{setTab("streams");setStreamTabDefault("calendar");}},
-                {label:"Hero Breaks",action:()=>{setTab("streams");setStreamTabDefault("herobreak");}},
-              ],
-              "buyers": [
-                {label:"Buyers",action:()=>{setTab("buyers");setBuyerTabDefault("table");}},
-                {label:"By State",action:()=>{setTab("buyers");setBuyerTabDefault("map");}},
-                {label:"By Time Zone",action:()=>{setTab("buyers");setBuyerTabDefault("zones");}},
-              ],
-              "performance": [
-                {label:"Stats",action:()=>{setTab("performance");setPeriodDefault("month");setPerfTabDefault("stats");}},
-                {label:"Weekly Report",action:()=>{setTab("performance");setPerfTabDefault("weekly");}},
-                {label:"Rep Report Card",action:()=>{setTab("performance");setPerfTabDefault("reportcard");}},
-                {label:"Leaderboard",action:()=>{setTab("performance");setPerfTabDefault("leaderboard");}},
-                {label:"MM Trend",action:()=>{setTab("performance");setPerfTabDefault("mmtrend");}},
-                {label:"Time Analysis",action:()=>{setTab("performance");setPerfTabDefault("timeslots");}},
-                {label:"Retention",action:()=>{setTab("performance");setPerfTabDefault("retention");}},
-                {label:"Buyer Funnel",action:()=>{setTab("performance");setPerfTabDefault("newbuyers");}},
-                {label:"Revenue Conc.",action:()=>{setTab("performance");setPerfTabDefault("concentration");}},
-                {label:"Set Performance",action:()=>{setTab("performance");setPerfTabDefault("sets");}},
-                {label:"Goals",action:()=>{setTab("performance");setPerfTabDefault("goals");}},
-              ],
-            })[tab]||[];
-            if (!SUBS.length) return null;
-            return (
-              <div className="bz-sub">
-                {SUBS.map((s,i)=>(
-                  <button key={i} className="bz-subitem" onClick={s.action}>{s.label}</button>
-                ))}
-              </div>
-            );
-          })()}
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
