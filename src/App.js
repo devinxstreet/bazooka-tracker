@@ -3908,7 +3908,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
       })()}
 
       <div style={S.card}>
-        <div style={{ display:"none" }}>
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
           {[["cards","\uD83D\uDCE6 Cards"],...(["Admin","Procurement"].includes(userRole?.role)?[["pools","\uD83D\uDDC3 Card Pools"],["lots","\uD83D\uDDC2 Lot History"],["product","\uD83C\uDF81 Product"]]:[])].map(([id,label]) => (
             <button key={id} onClick={()=>setInvTab(id)} style={{ background:invTab===id?"#1A1A2E":"transparent", color:invTab===id?"#E8317A":"var(--bz-ink-2)", border:`1.5px solid ${invTab===id?"#E8317A":"var(--bz-line)"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
