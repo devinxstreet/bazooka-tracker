@@ -13030,7 +13030,9 @@ function BreakSpots() {
   async function persistSets(updated) {
     setSavedSets(updated);
     try { localStorage.setItem("breakSpots_cache_v1", JSON.stringify(updated)); } catch {}
-    await setDoc(doc(db,"config","breakSpots"), { sets: updated }, { merge:true });
+    // Write the full sets object (no merge) so deleted sets are actually removed —
+    // merge:true only adds/updates keys and would resurrect deleted lists.
+    await setDoc(doc(db,"config","breakSpots"), { sets: updated });
   }
 
   async function saveSet() {
