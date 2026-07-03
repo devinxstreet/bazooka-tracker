@@ -4513,6 +4513,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   const [chaserSearch, setChaserSearch] = useState("");
   const [streamBulkSel, setStreamBulkSel] = useState(new Set());
   const [streamLogBreaker, setStreamLogBreaker] = useState("");
+  const [streamLogMonth, setStreamLogMonth] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; // default: current month
+  });
   const [streamLogCollapsed, setStreamLogCollapsed] = useState(false);
 
   // Stream recap state
@@ -5675,12 +5679,23 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       {!cardsOnly && (() => {
         const calcS = (s) => calcStream(s);
         const myStreams = (canSeeFinancials ? streams : streams.filter(s => s.breaker === matchedBreaker))
-          .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker);
+          .filter(s => !streamLogBreaker || s.breaker === streamLogBreaker)
+          .filter(s => !streamLogMonth || (s.date||"").startsWith(streamLogMonth));
         return (
           <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
             <div style={{ padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap", cursor:"pointer" }} onClick={()=>setStreamLogCollapsed(p=>!p)}>
               <SectionLabel t={`Stream Log (${myStreams.length})`} />
               <div style={{ display:"flex", gap:8, alignItems:"center" }} onClick={e=>e.stopPropagation()}>
+                {(() => {
+                  const months = [...new Set((canSeeFinancials ? streams : streams.filter(s=>s.breaker===matchedBreaker)).map(s=>(s.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+                  const fmtMonth = ym => { const [y,m]=ym.split("-"); return new Date(+y,+m-1,1).toLocaleDateString("en-US",{month:"short",year:"numeric"}); };
+                  return (
+                    <select value={streamLogMonth} onChange={e=>setStreamLogMonth(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
+                      <option value="">All Months</option>
+                      {months.map(ym=><option key={ym} value={ym}>{fmtMonth(ym)}</option>)}
+                    </select>
+                  );
+                })()}
                 {canSeeFinancials && (
                   <select value={streamLogBreaker} onChange={e=>setStreamLogBreaker(e.target.value)} style={{ ...S.inp, width:"auto", fontSize:11, padding:"4px 10px", cursor:"pointer" }}>
                     <option value="">All Breakers</option>
