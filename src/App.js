@@ -995,18 +995,28 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       {!canSeeFinancials && myBreaker && (() => {
         const today = new Date(); today.setHours(0,0,0,0);
         const in7 = new Date(today); in7.setDate(today.getDate()+7);
+        const normName = n => String(n||"").toLowerCase().replace(/\s+/g,"");
         const upcoming = plannedStreams
           .filter(p => {
             const d = parseLocalDate(p.date);
-            return d >= today && d <= in7 && p.breaker === myBreaker;
+            return d >= today && d <= in7 && normName(p.breaker) === normName(myBreaker);
           })
           .sort((a,b) => a.date.localeCompare(b.date));
-        if (!upcoming.length) return (
+        if (!upcoming.length) {
+          const anyMineEver = plannedStreams.some(p => normName(p.breaker) === normName(myBreaker));
+          return (
           <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:14, padding:"18px 20px" }}>
             <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>📅 Your Next 7 Days</div>
-            <div style={{ fontSize:12, color:"var(--bz-ink-3)", padding:"16px 0", textAlign:"center" }}>No streams scheduled — check with your team</div>
+            <div style={{ fontSize:12, color:"var(--bz-ink-3)", padding:"16px 0", textAlign:"center" }}>
+              {plannedStreams.length === 0
+                ? "Loading your schedule…"
+                : anyMineEver
+                  ? "Nothing scheduled in the next 7 days"
+                  : "No streams scheduled — check with your team"}
+            </div>
           </div>
-        );
+          );
+        }
         return (
           <div style={{ background:"var(--bz-s1)", border:"1px solid #1a1a2e", borderRadius:14, padding:"18px 20px" }}>
             <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:14 }}>📅 Your Next 7 Days · <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>{upcoming.length} stream{upcoming.length!==1?"s":""} scheduled</span></div>
@@ -13005,15 +13015,16 @@ function BreakSpots() {
   const [shuffle,    setShuffle]    = useState(false);
   const [saving,     setSaving]     = useState(false);
 
-  // Load from Firestore on mount (cache-first so the tab paints immediately)
+  // Live subscription so every user always sees the same shared spot lists in
+  // real time — when Dev saves a set, reps see it immediately.
   useEffect(() => {
-    getDoc(doc(db,"config","breakSpots")).then(snap => {
-      if (snap.exists()) {
-        const sets = snap.data().sets||{};
-        setSavedSets(sets);
-        try { localStorage.setItem("breakSpots_cache_v1", JSON.stringify(sets)); } catch {}
-      }
-    }).catch(()=>{}).finally(()=>setLoading(false));
+    const unsub = onSnapshot(doc(db,"config","breakSpots"), snap => {
+      const sets = (snap.exists() ? snap.data().sets : {}) || {};
+      setSavedSets(sets);
+      try { localStorage.setItem("breakSpots_cache_v1", JSON.stringify(sets)); } catch {}
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
   }, []);
 
   async function persistSets(updated) {
@@ -33791,9 +33802,9 @@ function AppInner() {
                 <kbd style={{background:"var(--bz-s3)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"var(--bz-ink-3)",fontFamily:"inherit"}}>K</kbd>
               </button>
               {userRole.role === "Admin" && (
-                <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:8,color:"var(--bz-ink-2)",fontSize:11,padding:"6px 8px",fontFamily:"inherit",cursor:"pointer"}}>
+                <select value={viewAs} onChange={e=>setViewAs(e.target.value)} style={{background:viewAs?"var(--bz-pink)":"var(--bz-s1)",border:`1px solid ${viewAs?"var(--bz-pink-hot)":"var(--bz-line)"}`,borderRadius:8,color:viewAs?"#fff":"var(--bz-ink-2)",fontSize:11,fontWeight:viewAs?800:400,padding:"6px 8px",fontFamily:"inherit",cursor:"pointer"}} title={viewAs?"Previewing as another role — select Real Role to exit":"Preview another role"}>
                   <option value="">-- Real Role --</option>
-                  {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} ({k})</option>)}
+                  {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{viewAs?"👁 ":""}{v.label} ({k})</option>)}
                 </select>
               )}
               <div style={{display:"flex",alignItems:"center",gap:8}}>
