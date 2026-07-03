@@ -824,6 +824,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [viewStub,  setViewStub]  = useState(null);
   const [viewQuote, setViewQuote] = useState(null);
   const [lightbox,  setLightbox]  = useState(null);
+  const [quotesCollapsed, setQuotesCollapsed] = useState(true); // lot submissions collapsed by default
   const [financialPeriod, setFinancialPeriod] = useState("year");
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
@@ -932,6 +933,18 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       )}
 
       {/* -- QUOTE NOTIFICATIONS (Admin) -- */}
+      {quoteNotifs.length > 0 && (
+        <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:14, overflow:"hidden" }}>
+          <div onClick={()=>setQuotesCollapsed(c=>!c)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", cursor:"pointer" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:20 }}>📬</span>
+              <span style={{ fontSize:14, fontWeight:800, color:"#7B9CFF" }}>New Lot Submissions</span>
+              <span style={{ fontSize:11, fontWeight:800, color:"#fff", background:"#7B9CFF", borderRadius:20, padding:"2px 9px" }}>{quoteNotifs.length}</span>
+            </div>
+            <span style={{ fontSize:12, color:"var(--bz-ink-3)", fontWeight:700 }}>{quotesCollapsed ? "▸ Show" : "▾ Hide"}</span>
+          </div>
+          {!quotesCollapsed && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12, padding:"0 16px 16px" }}>
       {quoteNotifs.map(q => {
         const cfg = {
           accepted: { icon:"\uD83C\uDF89", color:"#4ade80", bg:"#0a1a0a", border:"#4ade8033", title:"Offer Accepted!", body:`${q.seller?.name||"Seller"} accepted your offer of $${parseFloat(q.dispOffer||0).toFixed(2)}` },
@@ -990,6 +1003,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           </div>
         );
       })}
+          </div>
+          )}
+        </div>
+      )}
 
       {/* -- UPCOMING STREAMS (reps only) -- */}
       {!canSeeFinancials && myBreaker && (() => {
