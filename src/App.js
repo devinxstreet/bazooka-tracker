@@ -31735,6 +31735,7 @@ function PublicSellPage() {
 
   if (submitted) return (
     <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"var(--bz-ink)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <style>{`:root{ --bz-bg:#0b0709; --bz-s1:#130d11; --bz-s2:#1a1218; --bz-s3:#241820; --bz-line:rgba(255,255,255,0.06); --bz-line-2:rgba(255,255,255,0.11); --bz-ink:#f6eef2; --bz-ink-2:#b9a9b2; --bz-ink-3:#7a6b74; --bz-pink:#E8317A; --bz-pink-hot:#ff4d94; --bz-green:#34d399; --bz-amber:#fbbf24; --bz-blue:#7c9cff; --bz-violet:#a78bfa; }`}</style>
       <div style={{ maxWidth:520, width:"100%", textAlign:"center" }}>
         <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
         <div style={{ fontSize:24, fontWeight:900, color:"#4ade80", marginBottom:8 }}>Lot Submitted!</div>
@@ -31751,6 +31752,14 @@ function PublicSellPage() {
 
   return (
     <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 90% 50% at 50% 0%, rgba(232,49,122,0.12), transparent 60%), radial-gradient(ellipse 70% 50% at 80% 30%, rgba(123,47,247,0.1), transparent 60%), #08000a", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"var(--bz-ink)", padding:"40px 16px 60px" }}>
+      <style>{`:root{
+        --bz-bg:#0b0709; --bz-s1:#130d11; --bz-s2:#1a1218; --bz-s3:#241820;
+        --bz-line:rgba(255,255,255,0.06); --bz-line-2:rgba(255,255,255,0.11);
+        --bz-ink:#f6eef2; --bz-ink-2:#b9a9b2; --bz-ink-3:#7a6b74;
+        --bz-pink:#E8317A; --bz-pink-hot:#ff4d94; --bz-pink-dim:rgba(232,49,122,0.14); --bz-pink-line:rgba(232,49,122,0.30);
+        --bz-green:#34d399; --bz-amber:#fbbf24; --bz-blue:#7c9cff; --bz-violet:#a78bfa;
+        --bz-radius:16px; --bz-radius-sm:11px;
+      }`}</style>
       <div style={{ maxWidth:680, margin:"0 auto" }}>
 
         {/* Header */}
@@ -31978,10 +31987,19 @@ function PublicQuote({ quoteId }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#000", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"var(--bz-ink)", padding:"24px 16px" }}>
+      <style>{`:root{
+        --bz-bg:#0b0709; --bz-s1:#130d11; --bz-s2:#1a1218; --bz-s3:#241820;
+        --bz-line:rgba(255,255,255,0.06); --bz-line-2:rgba(255,255,255,0.11);
+        --bz-ink:#f6eef2; --bz-ink-2:#b9a9b2; --bz-ink-3:#7a6b74;
+        --bz-pink:#E8317A; --bz-pink-hot:#ff4d94; --bz-pink-dim:rgba(232,49,122,0.14); --bz-pink-line:rgba(232,49,122,0.30);
+        --bz-green:#34d399; --bz-amber:#fbbf24; --bz-blue:#7c9cff; --bz-violet:#a78bfa;
+        --bz-radius:16px; --bz-radius-sm:11px;
+      }`}</style>
       <div style={{ maxWidth:680, margin:"0 auto" }}>
         {/* Header */}
         <div style={{ background:"var(--bz-bg)", borderRadius:16, padding:"28px 32px", marginBottom:16, textAlign:"center", border:"1px solid var(--bz-line)" }}>
-          <div style={{ fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:"clamp(40px,7vw,60px)", width:"auto", maxWidth:"80%", objectFit:"contain", display:"block", margin:"0 auto 8px", filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.35))" }} onError={e=>{ e.currentTarget.style.display="none"; e.currentTarget.nextSibling.style.display="block"; }}/>
+          <div style={{ display:"none", fontSize:32, fontWeight:900, color:"#E8317A", letterSpacing:4, marginBottom:4 }}>BAZOOKA</div>
           <div style={{ fontSize:11, color:"var(--bz-ink-3)", fontStyle:"italic" }}>Bo Jackson Battle Arena · Lot Purchase Offer</div>
         </div>
 
