@@ -4900,8 +4900,13 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
 
         {/* Link to planned stream */}
         {(() => {
-          // Only show plans that match the selected date AND breaker — never show cross-breaker plans
-          const dayPlans = plannedStreams.filter(p => p.date===date && p.breaker===breaker);
+          // Match plans on date + breaker, tolerant of format/whitespace/case differences.
+          const normDate = d => String(d||"").split("T")[0].trim();
+          const normName = n => String(n||"").toLowerCase().replace(/\s+/g,"");
+          const dayPlans = plannedStreams.filter(p =>
+            normDate(p.date) === normDate(date) &&
+            normName(p.breaker) === normName(breaker)
+          );
           if (!date || !breaker || dayPlans.length === 0) return null;
           return (
             <div style={{marginBottom:14,padding:"10px 14px",background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -9841,10 +9846,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     const actRev = actualRevenue(mActuals);
 
     const BREAKER_GRADIENTS = {
-      Dev:     { from:"#4f46e5", to:"#7c3aed", dot:"#818cf8" },
-      Dre:     { from:"#7c3aed", to:"#a855f7", dot:"#c084fc" },
-      Krystal: { from:"#0d9488", to:"#0891b2", dot:"#2dd4bf" },
-      BigU:    { from:"#c2410c", to:"#ea580c", dot:"#fb923c" },
+      Dev:     { from:"#1e40af", to:"#3B82F6", dot:"#3B82F6" },  // Blue
+      Dre:     { from:"#6b21a8", to:"#A855F7", dot:"#A855F7" },  // Purple
+      Krystal: { from:"#15803d", to:"#22C55E", dot:"#22C55E" },  // Green
+      BigU:    { from:"#9a3412", to:"#F97316", dot:"#F97316" },  // Orange
+      Vinny:   { from:"#991b1b", to:"#EF4444", dot:"#EF4444" },  // Red
+      Stephen: { from:"#a16207", to:"#FBBF24", dot:"#FBBF24" },  // Gold
       "Orbital Society": { from:"#065f46", to:"#0d9488", dot:"#34d399" },
     };
 
