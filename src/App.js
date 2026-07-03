@@ -2471,7 +2471,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
         </div>, document.body
       )}
       <div style={S.card}>
-        <div style={{ display:"none" }}>
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
           {[["builder","\uD83E\uDDEE Builder"],["quick","\u26A1 Quick Mode"],...(["Admin","Procurement"].includes(userRole?.role)?[["history","\uD83D\uDCCB History"]]:[] )].map(([mode,label]) => (
             <button key={mode} onClick={()=>setCompMode(mode)} style={{ background:compMode===mode?"#1A1A2E":"transparent", color:compMode===mode?"#E8317A":"var(--bz-ink-2)", border:`1.5px solid ${compMode===mode?"#E8317A":"var(--bz-line)"}`, borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
           ))}
@@ -6221,7 +6221,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
 
       {/* Analytics tabs */}
       <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-        <div style={{ display:"none", borderBottom:"1px solid var(--bz-line)" }}>
+        <div style={{ display:"flex", borderBottom:"1px solid var(--bz-line)" }}>
           {[["table","\uD83D\uDC65 Buyers"],["map","\uD83D\uDDFA\uFE0F By State"],["zones","\uD83D\uDD50 By Time Zone"]].map(([id,label])=>(
             <button key={id} onClick={()=>setActiveTab(id)}
               style={{ background:activeTab===id?"#1A1A2E":"transparent", color:activeTab===id?"#E8317A":"#555", border:"none", borderBottom:activeTab===id?"2px solid #E8317A":"2px solid transparent", padding:"10px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
