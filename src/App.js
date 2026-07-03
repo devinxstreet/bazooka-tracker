@@ -33137,9 +33137,9 @@ function AppInner() {
   const [user,          setUser]          = useState(null);
   const [authReady,     setAuthReady]     = useState(false);
   const [viewAs,        setViewAs]        = useState("");
-  const [inventory,     setInventory]     = useState([]);
-  const [breaks,        setBreaks]        = useState([]);
-  const [streams,       setStreams]       = useState([]);
+  const [inventory,     setInventory]     = useState(() => { try { const c = localStorage.getItem("bz_inventory_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
+  const [breaks,        setBreaks]        = useState(() => { try { const c = localStorage.getItem("bz_breaks_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
+  const [streams,       setStreams]       = useState(() => { try { const c = localStorage.getItem("bz_streams_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
   const [plannedStreams, setPlannedStreams] = useState([]);
   const [comps,         setComps]         = useState([]);
   const [quotes,        setQuotes]        = useState([]);
@@ -33147,15 +33147,15 @@ function AppInner() {
   const [csvImports,    setCsvImports]    = useState([]);
   const [shipments,     setShipments]     = useState([]);
   const [productUsage,  setProductUsage]  = useState([]);
-  const [skuPrices,     setSkuPrices]     = useState({});
+  const [skuPrices,     setSkuPrices]     = useState(() => { try { const c = localStorage.getItem("bz_skuprices_v1"); return c ? JSON.parse(c) : {}; } catch { return {}; } });
   const [skuPriceHistory,setSkuPriceHistory]=useState([]);
   const [cardPools,     setCardPools]     = useState([]);
   const [lotTracking,   setLotTracking]   = useState({});
   const [lotNotes,      setLotNotes]      = useState({});
-  const [historicalData,setHistoricalData]=useState([]);
+  const [historicalData,setHistoricalData]=useState(() => { try { const c = localStorage.getItem("bz_histdata_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
   const [payStubs,      setPayStubs]      = useState([]);
   const [imcFormUrl,         setImcFormUrl]         = useState("");
-  const [imcAdjustmentsData, setImcAdjustmentsData] = useState({});
+  const [imcAdjustmentsData, setImcAdjustmentsData] = useState(() => { try { const c = localStorage.getItem("bz_imcadj_v1"); return c ? JSON.parse(c) : {}; } catch { return {}; } });
   const [bobaCards,     setBobaCards]     = useState([]);
   const [toast,         setToast]         = useState(null);
   const [scanStatus,    setScanStatus]    = useState(null);
@@ -33232,8 +33232,10 @@ function AppInner() {
     if (!(user.email||"").toLowerCase().trim().endsWith("@bazookabreaks.com")) {
       // Wipe any locally-cached financial data so a non-team user can't view a stale copy.
       try {
-        ["bz_inventory_v1","bz_breaks_v1","bz_streams_v1"].forEach(k=>localStorage.removeItem(k));
+        ["bz_inventory_v1","bz_breaks_v1","bz_streams_v1","bz_histdata_v1","bz_skuprices_v1","bz_imcadj_v1"].forEach(k=>localStorage.removeItem(k));
       } catch(e) {}
+      // Also clear any cache-seeded state so a non-team user can't see a stale copy.
+      setInventory([]); setBreaks([]); setStreams([]); setHistoricalData([]); setSkuPrices({}); setImcAdjustmentsData({});
       return;
     }
     const INV_CACHE = "bz_inventory_v1";
@@ -33266,9 +33268,9 @@ function AppInner() {
       // Load all quotes
       onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
       // historical_data at startup so Dashboard YTD is correct immediately
-      onSnapshot(collection(db,"historical_data"), snap => setHistoricalData(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")))),
-      onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()) setSkuPrices(snap.data()); }),
-      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()) setImcAdjustmentsData(snap.data()); }),
+      onSnapshot(collection(db,"historical_data"), snap => { const hd = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")); setHistoricalData(hd); try { localStorage.setItem("bz_histdata_v1", JSON.stringify(hd)); } catch(e) {} }),
+      onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()){ setSkuPrices(snap.data()); try { localStorage.setItem("bz_skuprices_v1", JSON.stringify(snap.data())); } catch(e) {} } }),
+      onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()){ setImcAdjustmentsData(snap.data()); try { localStorage.setItem("bz_imcadj_v1", JSON.stringify(snap.data())); } catch(e) {} } }),
     ];
     return () => unsubs.forEach(u => u());
   }, [user]);
