@@ -83,11 +83,14 @@ const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of T
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
 // ── SINGLE CANONICAL STREAM CALC ─────────────────────────────────────────────
+// A stream is "singles" (100% pass-through) if flagged either way — via the
+// isSinglesShow boolean or the sessionType dropdown. Keep these in sync.
+function isSinglesStream(s){ return !!(s && (s.isSinglesShow || s.sessionType === "singles")); }
 function calcStream(s, targetBreaker=null) {
   const gross        = parseFloat(s.grossRevenue)||0;
   const fees         = parseFloat(s.whatnotFees)||0;
   const coupons      = parseFloat(s.coupons)||0;
-  const isSingles     = !!(s.isSinglesShow);
+  const isSingles     = !!(s.isSinglesShow) || s.sessionType === "singles";
   const streamExp    = (parseFloat(s.whatnotPromo)||0)+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.chaserCards)||0);
   const splitBase    = gross - fees - coupons;
   const externalCh   = !!s.externalChannel;
@@ -149,8 +152,8 @@ function getStreamBrand(s) {
 }
 const OFFICE_STAFF = [
   { id:"devin",   name:"Devin",   color:"#E8317A", role:"CEO" },
-  { id:"dre",     name:"Dre",     color:"#C084FC", role:"Streamer" },
-  { id:"krystal", name:"Krystal", color:"#2DD4BF", role:"Streamer" },
+  { id:"dre",     name:"Dre",     color:"#A855F7", role:"Streamer" },
+  { id:"krystal", name:"Krystal", color:"#22C55E", role:"Streamer" },
   { id:"jake",    name:"Jake",    color:"#FBBF24", role:"Shipping" },
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
@@ -282,11 +285,11 @@ const PAYMENT_METHODS = ["PayPal","Zelle"];
 const ROLES = {
   "devin":   { role:"Admin",         label:"CEO",                color:"#E8317A", bg:"#FFF0F5" },
   "derrik":  { role:"Admin",         label:"CFO",                color:"#E8317A", bg:"#FFF0F5" },
-  "dre":     { role:"Streamer",      label:"Streamer",           color:"#E8317A", bg:"#F3EAF9" },
-  "krystal": { role:"Streamer",      label:"Streamer",           color:"#0D6E6E", bg:"#E0F7F4" },
+  "dre":     { role:"Streamer",      label:"Streamer",           color:"#A855F7", bg:"#F3EAF9" },
+  "krystal": { role:"Streamer",      label:"Streamer",           color:"#22C55E", bg:"#E0F7F4" },
   "bigu":    { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
-  "vinny":   { role:"Streamer",      label:"Streamer",           color:"#F472B6", bg:"#FDE7F1" },
-  "stephen": { role:"Streamer",      label:"Streamer",           color:"#CA8A04", bg:"#FEF9E7" },
+  "vinny":   { role:"Streamer",      label:"Streamer",           color:"#EF4444", bg:"#FDECEC" },
+  "stephen": { role:"Streamer",      label:"Streamer",           color:"#FBBF24", bg:"#FEF9E7" },
   "alison":  { role:"Streamer",      label:"Streamer",           color:"#F97316", bg:"#FFF3E8" },
   "orbitalsociety": { role:"Streamer", label:"Orbital Society", color:"#34d399", bg:"#ECFDF5" },
   "john":    { role:"Procurement",   label:"Procurement Mgr",    color:"var(--bz-ink)", bg:"#E8F0FB" },
@@ -306,12 +309,12 @@ const CC = {
   "Chaser Cards":     { bg:"#2a1520", text:"#E8317A",  border:"#E8317A" },
 };
 const BC = {
-  Dev:     { bg:"#0a0a1a", text:"#7B9CFF", border:"#3730a3" },
-  Dre:     { bg:"#12081a", text:"#C084FC", border:"#6b21a8" },
-  Krystal: { bg:"#08181a", text:"#2DD4BF", border:"#115e59" },
-  BigU:    { bg:"#1a0e00", text:"#FB923C", border:"#9a3412" },
-  Vinny:   { bg:"#1a0008", text:"#F472B6", border:"#9d174d" },
-  Stephen: { bg:"#14140a", text:"#FACC15", border:"#854d0e" },
+  Dev:     { bg:"#0a0e1a", text:"#3B82F6", border:"#1e40af" },
+  Dre:     { bg:"#12081a", text:"#A855F7", border:"#6b21a8" },
+  Krystal: { bg:"#08181a", text:"#22C55E", border:"#15803d" },
+  BigU:    { bg:"#1a0e00", text:"#F97316", border:"#9a3412" },
+  Vinny:   { bg:"#1a0006", text:"#EF4444", border:"#991b1b" },
+  Stephen: { bg:"#1a1400", text:"#FBBF24", border:"#a16207" },
   "Orbital Society": { bg:"#0a1a10", text:"#34d399", border:"#065f46" },
 };
 const CAN_DELETE        = ["Admin"];
@@ -762,8 +765,8 @@ function RepMonthPanel({ streams=[], matchedBreaker }) {
   const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
   const mine = thisMonth.filter(s => norm(s.breaker) === norm(matchedBreaker));
   // Split singles (pass-through income) out from commission so they're not conflated.
-  const mineBreaks  = mine.filter(s => !s.isSinglesShow);
-  const mineSingles = mine.filter(s => s.isSinglesShow);
+  const mineBreaks  = mine.filter(s => !isSinglesStream(s));
+  const mineSingles = mine.filter(s => isSinglesStream(s));
   const myGross = mineBreaks.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
   const myComm  = mineBreaks.reduce((s,x)=>s+(calcStream(x).commission||0),0);
   const mySingles = mineSingles.reduce((s,x)=>s+(calcStream(x).commission||0),0); // singles pass-through to breaker
@@ -1154,7 +1157,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         // Months that already have real logged streams — don't also count historical
         // summaries for those months, or true net / gross would double up.
         const monthsWithStreams = new Set(
-          streams.filter(s=>s.date && !s.isSinglesShow && !s.excludeFinancials)
+          streams.filter(s=>s.date && !isSinglesStream(s) && !s.excludeFinancials)
                  .map(s=>(s.date||"").slice(0,7))
         );
         // Merge historical monthly summaries into totals
@@ -1206,8 +1209,8 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           // Financial drill-downs exclude "Exclude from Financials" AND singles streams (singles have their own area).
           // Commission drill-down still shows excluded streams (reps get paid) but not singles (those pay in the singles area).
           const drillRows = drillDown==="commission"
-            ? filtered.filter(s=>!s.isSinglesShow)
-            : filtered.filter(s=>!s.excludeFinancials && !s.isSinglesShow);
+            ? filtered.filter(s=>!isSinglesStream(s))
+            : filtered.filter(s=>!s.excludeFinancials && !isSinglesStream(s));
           return (
             <div style={{ ...S.card, border:`1px solid #2a2a2a`, marginTop:0, padding:0, overflow:"hidden" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid var(--bz-line)" }}>
@@ -1583,7 +1586,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         const now = new Date();
         const dayOfYear  = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
         const daysInYear = 365;
-        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials && !s.isSinglesShow);
+        const ytdStreams  = streams.filter(s => new Date(s.date+"T12:00:00").getFullYear()===now.getFullYear() && !s.excludeFinancials && !isSinglesStream(s));
         const skippedStreams = streams.filter(s => !s.date || new Date(s.date+"T12:00:00").getFullYear()!==now.getFullYear());
         const ytdMonthsWithStreams = new Set(ytdStreams.map(s=>(s.date||"").slice(0,7)));
         const ytdHist    = historicalData.filter(h => h.yearMonth?.startsWith(String(now.getFullYear())) && !ytdMonthsWithStreams.has(h.yearMonth));
@@ -1645,7 +1648,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 const key = `${now.getFullYear()}-${String(i+1).padStart(2,"0")}`;
                 // Match the rest of the dashboard: exclude singles (pass-through) and
                 // "Exclude from Financials" streams (revenue already counted elsewhere).
-                const monthStreamsForGross = streams.filter(s => (s.date||"").startsWith(key) && !s.isSinglesShow && !s.excludeFinancials);
+                const monthStreamsForGross = streams.filter(s => (s.date||"").startsWith(key) && !isSinglesStream(s) && !s.excludeFinancials);
                 const streamGross = monthStreamsForGross.reduce((s,r)=>s+(parseFloat(r.grossRevenue)||0),0);
                 // If this month has real streams, don't also add a historical summary for it (double-count).
                 const histGross = monthStreamsForGross.length > 0 ? 0 : historicalData
@@ -7731,7 +7734,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
     return streams.filter(s => {
       if (!s.date) return false;
       if ((s.channel||"Bazooka Vault") === "Orbital Society") return false; // tracked separately
-      if (s.isSinglesShow) return false;     // singles are pass-through, not break performance
+      if (isSinglesStream(s)) return false;     // singles are pass-through, not break performance
       if (s.excludeFinancials) return false; // already counted elsewhere — keep out of all performance stats
       const d = parseLocalDate(s.date);
       if (perfPeriod === "week") {
@@ -7873,7 +7876,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
         const histNewBuyers = histInPeriod.reduce((s,h)=>s+(parseInt(h.newBuyers)||0),0);
         const mmStreams = thisMonth.filter(s => parseFloat(s.marketMultiple) > 0 && (s.channel||"Bazooka Vault") !== "Orbital Society");
         const avgMM = mmStreams.length > 0 ? mmStreams.reduce((sum,s) => sum+(parseFloat(s.marketMultiple)||0),0)/mmStreams.length : null;
-        const totalGross = thisMonth.filter(s=>!s.isSinglesShow && !s.excludeFinancials).reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
+        const totalGross = thisMonth.filter(s=>!isSinglesStream(s) && !s.excludeFinancials).reduce((sum,s) => sum+(parseFloat(s.grossRevenue)||0), 0) + histGross;
         const totalNewBuyers = thisMonth.reduce((sum,s) => sum+(parseInt(s.newBuyers)||0), 0) + histNewBuyers;
         const mmBuckets = { "< 1.4x":0, "1.4–1.5x":0, "1.5–1.7x":0, "1.7x+":0 };
         mmStreams.forEach(s => {
@@ -7888,7 +7891,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
           const bStreams = thisMonth.filter(s => s.breaker === b);
           const bMM = bStreams.filter(s=>parseFloat(s.marketMultiple)>0);
           const bAvgMM = bMM.length > 0 ? bMM.reduce((sum,s)=>sum+(parseFloat(s.marketMultiple)||0),0)/bMM.length : null;
-          const bGross = bStreams.filter(s=>!s.isSinglesShow && !s.excludeFinancials).reduce((sum,s)=>sum+(parseFloat(s.grossRevenue)||0),0);
+          const bGross = bStreams.filter(s=>!isSinglesStream(s) && !s.excludeFinancials).reduce((sum,s)=>sum+(parseFloat(s.grossRevenue)||0),0);
           return { breaker:b, streams:bStreams.length, gross:bGross, avgMM:bAvgMM };
         }).filter(b => b.streams > 0);
 
@@ -9811,7 +9814,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
 
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C", Vinny:"#F472B6", Stephen:"#FACC15" };
+  const BC = { Dev:"#3B82F6", Dre:"#A855F7", Krystal:"#22C55E", BigU:"#F97316", Vinny:"#EF4444", Stephen:"#FBBF24" };
 
   // -- Calendar grid --
   function renderCalendar(y, m, compact=false) {
@@ -30680,7 +30683,7 @@ function PublicChaseTracker() {
     setTimeout(()=>{ setSubmitForm(null); setSubmitted(false); setFormData({discord:"",message:"",photo:null}); }, 3500);
   }
 
-  const BC = { Dev:"#7B9CFF", Dre:"#C084FC", Krystal:"#2DD4BF", BigU:"#FB923C" };
+  const BC = { Dev:"#3B82F6", Dre:"#A855F7", Krystal:"#22C55E", BigU:"#F97316", Vinny:"#EF4444", Stephen:"#FBBF24" };
   const grouped = chases.reduce((acc,c)=>{ const b=c.breaker||"Unknown"; if(!acc[b])acc[b]=[]; acc[b].push(c); return acc; },{});
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#38BDF8", Glow:"#4ade80", Hex:"#A78BFA", Gum:"#EC4899", Super:"#FBBF24", Steel:"#94A3B8", Brawl:"#EF4444" };
   const getWeaponColor = (name) => { for(const [w,c] of Object.entries(WEAPON_COLORS)) if(name.toLowerCase().includes(w.toLowerCase())) return c; return "#888"; };
