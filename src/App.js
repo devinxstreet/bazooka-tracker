@@ -1023,10 +1023,15 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <div style={{ fontSize:22 }}>{sessionIcon}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)" }}>{p.streamName||p.breaker}</div>
-                      <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>
-                        {p.startTime && <span style={{ color:"var(--bz-ink-2)", marginRight:8 }}>🕐 {p.startTime}{p.endTime?` – ${p.endTime}`:""}</span>}
-                        {p.sessionType && <span style={{ marginRight:8 }}>{p.sessionType}</span>}
-                        {p.sets && p.sets.length > 0 && <span style={{ color:"#7B9CFF" }}>{p.sets.join(", ")}</span>}
+                      <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2, display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
+                        {p.startTime && <span style={{ color:"var(--bz-ink-2)" }}>🕐 {p.startTime}{p.endTime?` – ${p.endTime}`:""}</span>}
+                        <span style={{ color:"#34d399" }}>📺 {p.channel||"Bazooka Vault"}</span>
+                        {p.sessionType && <span style={{ color:"var(--bz-ink-2)", textTransform:"capitalize" }}>{p.sessionType}</span>}
+                        {(p.products||[]).filter(pr=>pr.type).length > 0 && (
+                          <span style={{ color:"#7B9CFF", fontWeight:700 }}>
+                            {p.products.filter(pr=>pr.type).map(pr=>`${pr.qty}× ${pr.type}`).join(" · ")}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{ textAlign:"right" }}>
@@ -4845,7 +4850,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Breaker + Channel + Date + Break Type — Admin sees full controls, streamers see read-only */}
         {userRole?.role === "Admin" ? (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
-          <SelectInput label="Breaker" value={breaker} onChange={v=>{setBreaker(v);}} options={BREAKERS}/>
+          <SelectInput label="Breaker" value={breaker} onChange={v=>{ setBreaker(v); setLinkedPlanId(null); }} options={BREAKERS}/>
           <div>
             <label style={S.lbl}>Channel</label>
             <select value={recap.channel||"Bazooka Vault"} onChange={e=>rf("channel")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
@@ -4873,7 +4878,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           {!breaker ? (
             <div style={{ marginBottom:10 }}>
               <label style={{ ...S.lbl, color:"#FBBF24" }}>Who are you? (select your name to save)</label>
-              <select value={breaker} onChange={e=>setBreaker(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+              <select value={breaker} onChange={e=>{setBreaker(e.target.value);setLinkedPlanId(null);}} style={{ ...S.inp, cursor:"pointer" }}>
                 <option value="">— Select your name —</option>
                 {BREAKERS.map(b=><option key={b} value={b}>{b}</option>)}
               </select>
@@ -4906,7 +4911,8 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   <button key={p.id} onClick={()=>{
                     if (p.streamName) rf("streamName")(p.streamName);
                     if (p.sessionType) rf("sessionType")(p.sessionType);
-                    if (p.estMultiple) rf("marketMultiple")(String(p.estMultiple));
+                    // NOTE: do NOT copy the plan's estMultiple — market multiple must be
+                    // calculated from actual gross ÷ product market value once gross is entered.
                     // Seed the recap's per-product quantity fields (prod_<TYPE>) from the plan
                     const plannedProducts = (p.products||[]).filter(pr=>pr.type);
                     if (plannedProducts.length > 0) {
@@ -4918,7 +4924,14 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                         });
                         if (p.streamName) next.streamName = p.streamName;
                         if (p.sessionType) next.sessionType = p.sessionType;
-                        if (p.estMultiple) next.marketMultiple = String(p.estMultiple);
+                        // Recalculate market multiple from actual gross ÷ product market value
+                        const gross = parseFloat(next.grossRevenue)||0;
+                        const totalMktVal = PRODUCT_TYPES.reduce((sum,pt)=>{
+                          const qty = parseInt(next[`prod_${pt}`])||0;
+                          const price = parseFloat(next.streamSkuPrices?.[pt] ?? skuPrices[pt])||0;
+                          return sum + qty*price;
+                        }, 0);
+                        if (gross > 0 && totalMktVal > 0) next.marketMultiple = (gross/totalMktVal).toFixed(2);
                         return next;
                       });
                     }
@@ -5755,7 +5768,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
       <div style={S.card}>
         <SectionLabel t="Log Card Out" />
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr", gap:12, marginBottom:12 }}>
-          <SelectInput label="Breaker"    value={breaker} onChange={setBreaker} options={BREAKERS}/>
+          <SelectInput label="Breaker"    value={breaker} onChange={v=>{setBreaker(v);setLinkedPlanId(null);}} options={BREAKERS}/>
           <TextInput   label="Date" type="date" value={date} onChange={setDate}/>
           <SelectInput label="Usage Type" value={usage}   onChange={setUsage}   options={USAGE_TYPES}/>
         </div>
