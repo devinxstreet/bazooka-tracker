@@ -744,6 +744,70 @@ function LoginScreen() {
 
 // Rep's month panel — own stats + everyone's market multiple (with streams + boxes).
 // Shown on the rep Dashboard. Reps see all breakers' MM but only their own $.
+// Rep's weekly commission — Mon–Sun weeks, paid the following Friday.
+// Shows the current week (building) and last week (pending this Friday's payout).
+// myComm already rolls in break commission + singles pass-through + tips.
+function RepWeekPanel({ streams=[], matchedBreaker }) {
+  if (!matchedBreaker) return null;
+  const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
+  const mine = streams.filter(s => norm(s.breaker) === norm(matchedBreaker));
+
+  // Monday of the week containing `d` (local, at midnight)
+  const mondayOf = (d) => {
+    const x = new Date(d); x.setHours(0,0,0,0);
+    const dow = x.getDay();            // 0=Sun..6=Sat
+    const diff = (dow === 0 ? -6 : 1 - dow); // shift back to Monday
+    x.setDate(x.getDate() + diff);
+    return x;
+  };
+  const now = new Date();
+  const thisMon = mondayOf(now);
+  const thisSun = new Date(thisMon); thisSun.setDate(thisMon.getDate()+6); thisSun.setHours(23,59,59,999);
+  const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+  const lastSun = new Date(thisMon); lastSun.setDate(thisMon.getDate()-1); lastSun.setHours(23,59,59,999);
+
+  const streamsInRange = (start, end) => mine.filter(s => { if(!s.date) return false; const d = parseLocalDate(s.date); return d >= start && d <= end; });
+  const sumWeek = (start, end) => streamsInRange(start,end).reduce((sum, s) => sum + (calcStream(s).myComm || 0), 0);
+
+  const thisWeekList = streamsInRange(thisMon, thisSun);
+  const lastWeekList = streamsInRange(lastMon, lastSun);
+  const thisWeekPay = thisWeekList.reduce((sum,s)=>sum+(calcStream(s).myComm||0),0);
+  const lastWeekPay = lastWeekList.reduce((sum,s)=>sum+(calcStream(s).myComm||0),0);
+  const thisWeekN = thisWeekList.length;
+  const lastWeekN = lastWeekList.length;
+
+  // Payout Fridays: last week is paid this coming Friday; current week pays the Friday after.
+  const fridayAfter = (sunday) => { const f = new Date(sunday); f.setDate(f.getDate()+5); return f; }; // Sun + 5 = Friday
+  const fmtD = d => d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  const fmt$ = n => `$${n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const weekRange = (a,b) => `${fmtD(a)} – ${fmtD(b)}`;
+
+  if (thisWeekN === 0 && lastWeekN === 0) return null;
+
+  return (
+    <div style={{ ...S.card, marginBottom:16 }}>
+      <SectionLabel t="💸 Your Pay Weeks" />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginTop:4 }}>
+        {/* Last week — pending this Friday */}
+        <div style={{ background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:12, padding:"16px 18px" }}>
+          <div style={{ fontSize:10, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Pending Payout</div>
+          <div style={{ fontSize:28, fontWeight:900, color:"#4ade80", lineHeight:1 }}>{fmt$(lastWeekPay)}</div>
+          <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:8 }}>Week of {weekRange(lastMon,lastSun)} · {lastWeekN} stream{lastWeekN!==1?"s":""}</div>
+          <div style={{ fontSize:12, fontWeight:700, color:"#4ade80", marginTop:4 }}>💵 Paid Friday {fmtD(fridayAfter(lastSun))}</div>
+        </div>
+        {/* Current week — still building */}
+        <div style={{ background:"rgba(232,49,122,0.05)", border:"1px solid rgba(232,49,122,0.25)", borderRadius:12, padding:"16px 18px" }}>
+          <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>This Week (Building)</div>
+          <div style={{ fontSize:28, fontWeight:900, color:"#E8317A", lineHeight:1 }}>{fmt$(thisWeekPay)}</div>
+          <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:8 }}>Week of {weekRange(thisMon,thisSun)} · {thisWeekN} stream{thisWeekN!==1?"s":""}</div>
+          <div style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-2)", marginTop:4 }}>📅 Pays Friday {fmtD(fridayAfter(thisSun))}</div>
+        </div>
+      </div>
+      <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>Includes break commission, singles pass-through, and tips. Estimate — final pay confirmed on your pay stub.</div>
+    </div>
+  );
+}
+
 function RepMonthPanel({ streams=[], matchedBreaker }) {
   if (!matchedBreaker) return null;
   const now = new Date();
@@ -825,7 +889,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [viewQuote, setViewQuote] = useState(null);
   const [lightbox,  setLightbox]  = useState(null);
   const [quotesCollapsed, setQuotesCollapsed] = useState(true); // lot submissions collapsed by default
-  const [financialPeriod, setFinancialPeriod] = useState("year");
+  const [financialPeriod, setFinancialPeriod] = useState("month");
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
   const [drillDown,       setDrillDown]       = useState(null);
@@ -1074,6 +1138,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
       })()}
 
       {/* Rep's month panel — own stats + team market multiple (reps only) */}
+      {!canSeeFinancials && myBreaker && <RepWeekPanel streams={streams} matchedBreaker={myBreaker} />}
       {!canSeeFinancials && myBreaker && <RepMonthPanel streams={streams} matchedBreaker={myBreaker} />}
 
       {/* -- PAY STUB NOTIFICATIONS -- */}
@@ -13940,7 +14005,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
     : streams.filter(s => s.breaker === myBreaker || (s.eventStaff||[]).some(es => es.breaker === myBreaker) || s.splitRep === myBreaker);
 
   // Period filter -- available to everyone
-  const [period,        setPeriod]        = useState("all");
+  const [period,        setPeriod]        = useState("month");
   const [customFrom,    setCustomFrom]    = useState("");
   const [customTo,      setCustomTo]      = useState("");
   const [breakerFilter, setBreakerFilter] = useState("all");
@@ -33164,7 +33229,7 @@ function AppInner() {
   const [sideOpen,      setSideOpen]  = useState(false);
   const [invTabDefault,  setInvTabDefault]  = useState("cards");
   const [buyerTabDefault,setBuyerTabDefault]= useState("table");
-  const [periodDefault,  setPeriodDefault]  = useState("year");
+  const [periodDefault,  setPeriodDefault]  = useState("month");
   const [perfTabDefault, setPerfTabDefault] = useState("stats");
   const [checklistDefault,setChecklistDefault]=useState("cards");
   const [streamTabDefault,setStreamTabDefault] = useState("recap");
