@@ -768,8 +768,8 @@ function RepMonthPanel({ streams=[], matchedBreaker }) {
   const mineBreaks  = mine.filter(s => !isSinglesStream(s));
   const mineSingles = mine.filter(s => isSinglesStream(s));
   const myGross = mineBreaks.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
-  const myComm  = mineBreaks.reduce((s,x)=>s+(calcStream(x).commission||0),0);
-  const mySingles = mineSingles.reduce((s,x)=>s+(calcStream(x).commission||0),0); // singles pass-through to breaker
+  const myComm  = mineBreaks.reduce((s,x)=>s+(calcStream(x).myComm||0),0);
+  const mySingles = mineSingles.reduce((s,x)=>s+(calcStream(x).myComm||0),0); // singles pass-through to breaker
   const hasSingles = mineSingles.length > 0;
   const myMMs = mineBreaks.filter(x=>parseFloat(x.marketMultiple)>0);
   const myAvgMM = myMMs.length ? myMMs.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/myMMs.length : 0;
