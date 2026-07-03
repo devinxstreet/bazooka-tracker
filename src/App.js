@@ -845,6 +845,57 @@ function RepWeekPanel({ streams=[], matchedBreaker }) {
   );
 }
 
+// Quote/comp history. Streamers see only comps they submitted (savedBy match);
+// admins see everyone's.
+function RepQuoteHistory({ comps=[], user, userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const norm = x => (x||"").toLowerCase().replace(/\s+/g,"");
+  const me = norm(user?.displayName);
+  const mine = isAdmin ? comps : comps.filter(c => norm(c.savedBy) === me || norm(c.quotedBy) === me);
+  const sorted = [...mine].sort((a,b)=> new Date(b.dateAdded||0) - new Date(a.dateAdded||0));
+  const fmt$ = n => `$${(parseFloat(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const statusChip = (s) => {
+    const map = { accepted:["#4ade80","Accepted"], declined:["#E8317A","Declined"], countered:["#FBBF24","Countered"], pending:["#7B9CFF","Pending"] };
+    const [c,l] = map[s] || ["#888", s||"—"];
+    return <span style={{ fontSize:10, fontWeight:800, color:c, background:`${c}18`, border:`1px solid ${c}44`, borderRadius:20, padding:"2px 10px" }}>{l}</span>;
+  };
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ ...S.card }}>
+        <SectionLabel t={isAdmin ? "📋 All Quote History" : "📋 Your Quote History"} />
+        <div style={{ fontSize:12, color:"var(--bz-ink-3)", marginBottom:14 }}>
+          {isAdmin ? "Every comp submitted across the team." : "Comps you've submitted."} · {sorted.length} total
+        </div>
+        {sorted.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px", color:"var(--bz-ink-3)", fontSize:13 }}>No quotes yet.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {sorted.map(c => (
+              <div key={c.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                <div style={{ flex:1, minWidth:180 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)" }}>{c.seller || "Unknown seller"}</span>
+                    {statusChip(c.status)}
+                  </div>
+                  <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:3 }}>
+                    {c.date || (c.dateAdded ? new Date(c.dateAdded).toLocaleDateString() : "")} · {c.totalCards||0} card{c.totalCards!==1?"s":""}
+                    {isAdmin && c.savedBy ? ` · by ${c.savedBy.split(" ")[0]}` : ""}
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:16, fontWeight:900, color:"#E8317A" }}>{fmt$(c.offer)}</div>
+                  <div style={{ fontSize:10, color:"var(--bz-ink-3)" }}>offer · MV {fmt$(c.totalMarket)}</div>
+                </div>
+                {c.id && <a href={`/quote/${c.id}`} target="_blank" rel="noreferrer" style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", textDecoration:"none", border:"1px solid rgba(123,156,255,0.3)", borderRadius:7, padding:"5px 12px" }}>View ↗</a>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RepMonthPanel({ streams=[], matchedBreaker }) {
   if (!matchedBreaker) return null;
   const now = new Date();
@@ -3964,6 +4015,8 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
 
       {/* Restock Alerts */}
       {(() => {
+        return null; // Inventory low-stock alerts removed per request
+        // eslint-disable-next-line no-unreachable
         const USAGE_TO_CT2 = { "Giveaway":"Giveaway Cards","Insurance":"Insurance Cards","First-Timer Pack":"First-Timer Cards","Chaser Pull":"Chaser Cards","Chaser":"Chaser Cards" };
         const totalStreams = streams.length || 1;
         const burnPerStream = {};
@@ -33401,7 +33454,7 @@ function AppInner() {
     if (!user) return;
     const unsubs = [];
 
-    if ((tab === "comp" || tab === "dashboard") && !dataLoaded.comp) {
+    if ((tab === "comp" || tab === "dashboard" || tab === "history") && !dataLoaded.comp) {
       setDataLoaded(p=>({...p, comp:true}));
       unsubs.push(onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))));
       unsubs.push(onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))));
@@ -33736,7 +33789,8 @@ function AppInner() {
   const ALL_TABS = [
     { id:"dashboard",  label:"Dashboard",   icon:"\uD83D\uDCCA", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
     { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Viewer"] },
-    { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
+    { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Procurement","Shipping","Viewer"] },
+    { id:"history",    label:"History",      icon:"\uD83D\uDCCB", roles:["Streamer"] },
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
     { id:"buyers",     label:"Buyers",       icon:"\uD83D\uDC65", roles:["Admin"] },
     { id:"campaigns",  label:"Campaigns",    icon:"🎯",           roles:["Admin"] },
@@ -33967,6 +34021,7 @@ function AppInner() {
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
         {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="history"    && <RepQuoteHistory comps={comps} user={effectiveUser} userRole={effectiveRole} />}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
         {tab==="buyers"     && <BuyersCRM defaultTab={buyerTabDefault}   buyers={buyers} csvImports={csvImports} onDeleteImport={handleDeleteCsvImport} onClearAll={handleClearAllBuyers} userRole={effectiveRole} streams={streams}/>}
