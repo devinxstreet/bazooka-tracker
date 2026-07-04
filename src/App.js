@@ -33788,7 +33788,7 @@ function AppInner() {
   // -- NAV TABS -------------------------------------------------
   const ALL_TABS = [
     { id:"dashboard",  label:"Dashboard",   icon:"\uD83D\uDCCA", roles:["Admin","Streamer","Procurement","Shipping","Viewer"] },
-    { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Viewer"] },
+    { id:"comp",       label:"Lot Comp",     icon:"\uD83E\uDDEE", roles:["Admin","Procurement","Viewer","Streamer"] },
     { id:"inventory",  label:"Inventory",   icon:"\uD83D\uDCE6", roles:["Admin","Procurement","Shipping","Viewer"] },
     { id:"history",    label:"History",      icon:"\uD83D\uDCCB", roles:["Streamer"] },
     { id:"streams",    label:"Streams",      icon:"\uD83C\uDFAF", roles:["Admin","Streamer","StreamerLite"] },
