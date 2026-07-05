@@ -158,6 +158,13 @@ const OFFICE_STAFF = [
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
 const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"];
+// Effective channel for a stream. Explicit channel wins; otherwise BigU's streams
+// default to Bazooka Breaks, everyone else to Bazooka Vault.
+function channelOf(s){
+  if (s && s.channel) return s.channel;
+  if (s && (s.breaker||"").toLowerCase().replace(/\s+/g,"") === "bigu") return "Bazooka Breaks";
+  return "Bazooka Vault";
+}
 
 // Canonical weapon names — collapse case/punctuation dupes (ALT==Alt, FIRE==Fire, etc.)
 const WEAPON_CANON = { alt:"Alt", fire:"Fire", glow:"Glow", gum:"Gum", hex:"Hex", ice:"Ice", steel:"Steel", super:"Super", brawl:"Brawl", cyber:"Cyber", medal:"Medal", metallic:"Metallic" };
@@ -8186,7 +8193,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
 
             {/* Market Multiple by Channel */}
             {(() => {
-              const channels = [...new Set(thisMonth.map(s=>s.channel||"Bazooka Vault"))].sort();
+              const channels = [...new Set(thisMonth.map(s=>channelOf(s)))].sort();
               if (channels.length < 2) return null;
               const mmCol = v => !v?"#555":v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
               return (
@@ -8194,7 +8201,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
                   <div style={{ fontSize:11, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📺 Market Multiple by Channel</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {channels.map(ch => {
-                      const chStreams = thisMonth.filter(s=>(s.channel||"Bazooka Vault")===ch);
+                      const chStreams = thisMonth.filter(s=>channelOf(s)===ch);
                       const chMM = chStreams.filter(s=>parseFloat(s.marketMultiple)>0);
                       const chAvg = chMM.length>0 ? chMM.reduce((s,x)=>s+parseFloat(x.marketMultiple),0)/chMM.length : null;
                       const chGross = chStreams.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
