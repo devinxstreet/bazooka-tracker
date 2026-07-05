@@ -158,11 +158,13 @@ const OFFICE_STAFF = [
   { id:"cameron", name:"Cameron", color:"#F97316", role:"Shipping" },
 ];
 const CHANNELS = ["Bazooka Vault", "Bazooka Breaks", "Orbital Society"];
-// Effective channel for a stream. Explicit channel wins; otherwise BigU's streams
-// default to Bazooka Breaks, everyone else to Bazooka Vault.
+// Effective channel for a stream. BigU always counts as Bazooka Breaks (except
+// Orbital Society, which is tracked separately). For everyone else, an explicit
+// channel wins, otherwise Bazooka Vault.
 function channelOf(s){
+  const isBigU = s && (s.breaker||"").toLowerCase().replace(/\s+/g,"") === "bigu";
+  if (isBigU) return s.channel === "Orbital Society" ? "Orbital Society" : "Bazooka Breaks";
   if (s && s.channel) return s.channel;
-  if (s && (s.breaker||"").toLowerCase().replace(/\s+/g,"") === "bigu") return "Bazooka Breaks";
   return "Bazooka Vault";
 }
 
@@ -1214,7 +1216,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                       <div style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)" }}>{p.streamName||p.breaker}</div>
                       <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2, display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
                         {p.startTime && <span style={{ color:"var(--bz-ink-2)" }}>🕐 {p.startTime}{p.endTime?` – ${p.endTime}`:""}</span>}
-                        <span style={{ color:"#34d399" }}>📺 {p.channel||"Bazooka Vault"}</span>
+                        <span style={{ color:"#34d399" }}>📺 {channelOf(p)}</span>
                         {p.sessionType && <span style={{ color:"var(--bz-ink-2)", textTransform:"capitalize" }}>{p.sessionType}</span>}
                         {(p.products||[]).filter(pr=>pr.type).length > 0 && (
                           <span style={{ color:"#7B9CFF", fontWeight:700 }}>
@@ -4736,7 +4738,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     : streams.find(s =>
         s.breaker === breaker &&
         s.date === date &&
-        (s.channel||"Bazooka Vault") === (recap.channel||"Bazooka Vault")
+        channelOf(s) === channelOf({channel:recap.channel, breaker})
       );
 
   // Load existing stream into form when breaker/date changes
@@ -5049,7 +5051,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
           <SelectInput label="Breaker" value={breaker} onChange={v=>{ setBreaker(v); setLinkedPlanId(null); }} options={BREAKERS}/>
           <div>
             <label style={S.lbl}>Channel</label>
-            <select value={recap.channel||"Bazooka Vault"} onChange={e=>rf("channel")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
+            <select value={recap.channel || channelOf({breaker})} onChange={e=>rf("channel")(e.target.value)} style={{ ...S.inp, cursor:"pointer" }}>
               {CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}
             </select>
             {FLAT_RATE_CHANNELS.includes(recap.channel) && <div style={{ fontSize:10, color:"#7B9CFF", marginTop:3 }}>⚡ Flat 50% rate</div>}
@@ -12100,7 +12102,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                       });
                     });
                     const breakers = [...new Set(w.plans.map(p=>p.breaker).filter(Boolean))];
-                    const channels = [...new Set(w.plans.map(p=>p.channel||"Bazooka Vault"))];
+                    const channels = [...new Set(w.plans.map(p=>channelOf(p)))];
                     const streamCount = w.plans.length;
 
                     return (
