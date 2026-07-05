@@ -545,10 +545,13 @@ function GlobalStyles() {
       .bz-fin-card:hover{border-color:var(--bz-line-2)!important;transform:translateY(-2px);box-shadow:var(--bz-shadow);}
       .bz-mobile-menu{display:none;}
       @media (max-width:900px){
-        .bz-side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,0.6);}
+        .bz-side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,0.6);background:#140d11!important;z-index:60;}
         .bz-side.open{transform:translateX(0);}
         .bz-mobile-menu{display:inline-flex!important;align-items:center;justify-content:center;}
         .bz-shell{display:block;}
+        .bz-topbar{padding:10px 14px;gap:8px;}
+        .bz-topbar .bz-search{display:none!important;}
+        .bz-main{width:100%;}
       }
       * { box-sizing: border-box; }
       html, body { overflow-x: hidden; max-width: 100vw; }
@@ -33950,7 +33953,7 @@ function AppInner() {
       {/* Nav */}
       {/* ===== FACELIFT SIDEBAR SHELL ===== */}
       <div className="bz-shell">
-        {sideOpen && <div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:45,display:"none"}} className="bz-overlay"/>}
+        {sideOpen && <div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:45}} className="bz-overlay"/>}
         {/* Sidebar */}
         <aside className={"bz-side"+(sideOpen?" open":"")}>
           <div className="bz-brand">
@@ -33998,7 +34001,7 @@ function AppInner() {
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <button onClick={()=>setGOpen(p=>!p)}
+              <button onClick={()=>setGOpen(p=>!p)} className="bz-search"
                 style={{display:"flex",alignItems:"center",gap:7,background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:10,padding:"7px 12px",fontSize:12,color:"var(--bz-ink-3)",cursor:"pointer",fontFamily:"inherit"}}>
                 <span style={{fontSize:13}}>{"🔍"}</span><span>Search</span>
                 <kbd style={{background:"var(--bz-s3)",borderRadius:4,padding:"1px 6px",fontSize:10,color:"var(--bz-ink-3)",fontFamily:"inherit"}}>K</kbd>
