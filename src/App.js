@@ -15363,6 +15363,12 @@ function PublicPlaybookBuilder() {
   const [pbSort, setPbSort] = useState("name");
   const [pbName, setPbName] = useState("My Playbook");
   const [user, setUser] = useState(null);
+  const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const [dbsEdits, setDbsEdits] = useState({}); // cardId -> in-progress value
+  async function savePbDbs(cardId, val) {
+    const v = val === "" ? "" : (parseFloat(val)||0);
+    try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
+  }
   const [savedPlaybooks, setSavedPlaybooks] = useState([]);
   const [pbLoadId, setPbLoadId] = useState(null);
   const [pbSaving, setPbSaving] = useState(false);
@@ -15511,7 +15517,17 @@ function PublicPlaybookBuilder() {
                           <span style={{ color:"var(--bz-ink-3)" }}>#{c.cardNum}</span>
                           {c.setName&&<span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
                           {c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
-                          {c.dbs!==undefined&&<span style={{ color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
+                          {_pbAdmin
+                            ? <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:"#A855F7", fontWeight:700 }}>DBS:
+                                <input
+                                  type="number"
+                                  value={dbsEdits[c.id]!==undefined ? dbsEdits[c.id] : (c.dbs!==undefined?c.dbs:"")}
+                                  onChange={e=>setDbsEdits(p=>({...p,[c.id]:e.target.value}))}
+                                  onBlur={e=>{ if(dbsEdits[c.id]!==undefined && String(dbsEdits[c.id])!==String(c.dbs??"")) savePbDbs(c.id, e.target.value); }}
+                                  onClick={e=>e.stopPropagation()}
+                                  style={{ width:46, background:"#1a1030", border:"1px solid #A855F755", color:"#C084FC", borderRadius:4, padding:"1px 4px", fontSize:10, fontFamily:"inherit", textAlign:"center" }}/>
+                              </span>
+                            : (c.dbs!==undefined&&<span style={{ color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>)}
                           {c.weapon&&<span style={{ color:wc, fontWeight:700 }}>{c.weapon}</span>}
                         </div>
                         {c.playAbility&&<div style={{ fontSize:10, color:"var(--bz-ink-2)", fontStyle:"italic", lineHeight:1.4 }}>{c.playAbility}</div>}
@@ -26093,6 +26109,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [showTrackerBuilder, setShowTrackerBuilder] = useState(false);
   const [builderName,      setBuilderName]      = useState("");
   const [builderTreatments,setBuilderTreatments]= useState([]);
+  const [expandedTrackerHero, setExpandedTrackerHero] = useState(null);
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
@@ -30968,9 +30985,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   const treatSet = new Set(tracker.treatments);
                   const heroes = [...new Set(cards.filter(c=>c.hero).map(c=>c.hero))].sort();
                   const rows = heroes.map(hero => {
-                    const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment));
+                    const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment))
+                      .sort((a,b)=>String(a.weapon||"").localeCompare(String(b.weapon||"")));
                     const ownedMatch = hc.filter(c => owned[c.id]);
-                    return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, exists: hc.length>0 };
+                    return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, allCards: hc, exists: hc.length>0 };
                   });
                   const inSet = rows.filter(r=>r.exists);
                   const done = inSet.filter(r=>r.complete).length;
@@ -30982,7 +31000,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
                         <div>
                           <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
-                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero</div>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero · tap a hero to flip through cards</div>
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
@@ -30993,15 +31011,53 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
                         <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
                       </div>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
-                        {shown.map(r => (
-                          <div key={r.hero} style={{ background:r.complete?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.06)"}`, borderRadius:9, padding:"10px 12px" }}>
-                            <span style={{ fontSize:12, fontWeight:800, color:r.complete?"#fff":"rgba(255,255,255,0.4)" }}>{r.complete?"✅ ":""}{r.hero}</span>
-                            {r.complete
-                              ? <div style={{ fontSize:10, color:"#4ade80", marginTop:4 }}>Have: {r.ownedCards.map(c=>[c.weapon,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" ")).join(", ")}</div>
-                              : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>{r.need} option{r.need!==1?"s":""}</div>}
-                          </div>
-                        ))}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10 }}>
+                        {shown.map(r => {
+                          const isExp = expandedTrackerHero === r.hero;
+                          // Representative card for the tile: prefer an owned one, else first
+                          const rep = r.ownedCards[0] || r.allCards[0];
+                          return (
+                            <div key={r.hero} style={{ gridColumn: isExp ? "1 / -1" : "auto" }}>
+                              {!isExp ? (
+                                <div onClick={()=>setExpandedTrackerHero(r.hero)} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
+                                  <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
+                                    {rep?.imageUrl
+                                      ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:0.4, filter:r.complete?"none":"grayscale(70%)" }}/>
+                                      : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:11, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{r.hero}</div>}
+                                    <div style={{ position:"absolute", top:6, right:6, background:r.complete?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.7)", color:"#fff", borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:800 }}>{r.complete?"✅":"—"}</div>
+                                    <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"14px 8px 6px" }}>
+                                      <div style={{ fontSize:11, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.hero}</div>
+                                      <div style={{ fontSize:9, color:r.complete?"#4ade80":"rgba(255,255,255,0.4)" }}>{r.ownedCards.length}/{r.need} owned</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ background:"rgba(255,255,255,0.03)", border:"1.5px solid rgba(232,49,122,0.3)", borderRadius:14, padding:"14px 16px", marginBottom:4 }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                                    <div style={{ fontSize:15, fontWeight:900, color:"#fff" }}>{r.complete?"✅ ":""}{r.hero} <span style={{ fontSize:12, fontWeight:600, color:r.complete?"#4ade80":"rgba(255,255,255,0.4)" }}>· {r.ownedCards.length}/{r.need} owned</span></div>
+                                    <button onClick={()=>setExpandedTrackerHero(null)} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕ Close</button>
+                                  </div>
+                                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))", gap:10 }}>
+                                    {r.allCards.map(c => {
+                                      const have = !!owned[c.id];
+                                      return (
+                                        <div key={c.id} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden" }}>
+                                          <div style={{ position:"relative", aspectRatio:"3/4" }}>
+                                            {c.imageUrl
+                                              ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:have?1:0.35, filter:have?"drop-shadow(0 0 10px rgba(74,222,128,0.4))":"grayscale(75%)" }}/>
+                                              : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:10, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{[c.weapon,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" ")}</div>}
+                                            <div style={{ position:"absolute", top:5, right:5, background:have?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.75)", color:"#fff", borderRadius:20, padding:"1px 7px", fontSize:9, fontWeight:800 }}>{have?"✓ Have":"Missing"}</div>
+                                          </div>
+                                          <div style={{ padding:"6px 8px", fontSize:10, fontWeight:700, color:have?"#fff":"rgba(255,255,255,0.4)", textAlign:"center" }}>{c.weapon||"—"}{c.cardNum?` #${c.cardNum}`:""}</div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -34254,7 +34310,6 @@ function AppInner() {
     { id:"finance",    label:"Finance",      icon:"\uD83D\uDCB0", roles:["Admin"] },
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","StreamerLite"] },
-    { id:"checklist",  label:"BoBA",         icon:"🃏", roles:["Admin","Viewer"] },
     { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin"] },
     { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
