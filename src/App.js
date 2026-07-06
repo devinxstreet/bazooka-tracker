@@ -23603,8 +23603,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
                   pbView==="list"?
                   <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 90px",gap:8,padding:"6px 12px",fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid rgba(255,255,255,0.1)",position:"sticky",top:0,background:"#0d0d0d",zIndex:2}}>
-                      <span>Play</span><span style={{textAlign:"center"}}>Type</span><span style={{textAlign:"center"}}>Cost</span><span style={{textAlign:"center"}}>DBS</span>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 60px 55px 80px 70px",gap:8,padding:"6px 12px",fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid rgba(255,255,255,0.1)",position:"sticky",top:0,background:"#0d0d0d",zIndex:2}}>
+                      <span>Play</span><span style={{textAlign:"center"}}>Type</span><span style={{textAlign:"center"}}>Cost</span><span style={{textAlign:"center"}}>DBS</span><span style={{textAlign:"center"}}>Add</span>
                     </div>
                     {pbAvail.map((c)=>{
                       const playable=isPlay(c), bonus=isBonus(c);
@@ -23612,10 +23612,10 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       const blocked=(playable&&(playFull||wouldExceed))||(bonus&&wouldExceed);
                       const addIt=()=>{ if(blocked)return; if(playable)setPbCards(p=>[...p,{id:c.id,type:"play"}]); else if(bonus)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); };
                       return (
-                        <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 90px",gap:8,alignItems:"center",padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                          <div onClick={addIt} style={{cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:700,color:"var(--bz-ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero}</div>
-                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playAbility}</div>}
+                        <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr 60px 55px 80px 70px",gap:8,alignItems:"center",padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                          <div style={{minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:800,color:"#f6eef2",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero||"(unnamed play)"}</div>
+                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.45)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playAbility}</div>}
                           </div>
                           <span style={{textAlign:"center",fontSize:10,fontWeight:800,color:bonus?"#7B9CFF":"#E8317A"}}>{bonus?"BPL":"PLAY"}</span>
                           <span style={{textAlign:"center",fontSize:12,color:"#FBBF24",fontWeight:700}}>{c.playCost!==undefined&&c.playCost!==""?c.playCost:"—"}</span>
@@ -23624,9 +23624,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                               ? <input type="number" value={dbsEdits[c.id]!==undefined?dbsEdits[c.id]:(c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
                                   onChange={e=>setDbsEdits(p=>({...p,[c.id]:e.target.value}))}
                                   onBlur={e=>{ if(dbsEdits[c.id]!==undefined && String(dbsEdits[c.id])!==String(c.dbs??"")) savePbDbs(c.id,e.target.value); }}
+                                  onWheel={e=>e.currentTarget.blur()}
                                   placeholder="—"
-                                  style={{width:60,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:5,padding:"4px 6px",fontSize:12,fontWeight:800,fontFamily:"inherit",textAlign:"center"}}/>
+                                  style={{width:64,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:5,padding:"4px 6px",fontSize:12,fontWeight:800,fontFamily:"inherit",textAlign:"center"}}/>
                               : <span style={{fontSize:12,fontWeight:800,color:"#C084FC"}}>{c.dbs!==undefined&&c.dbs!==""?c.dbs:"—"}</span>}
+                          </div>
+                          <div style={{textAlign:"center"}}>
+                            <button onClick={addIt} disabled={blocked} title={blocked?(playFull?"Play limit reached":"DBS cap reached"):`Add ${c.hero}`} style={{background:blocked?"rgba(255,255,255,0.05)":"rgba(74,222,128,0.15)",border:`1px solid ${blocked?"#333":"rgba(74,222,128,0.5)"}`,color:blocked?"#555":"#4ade80",borderRadius:6,padding:"4px 10px",fontSize:14,fontWeight:900,cursor:blocked?"not-allowed":"pointer",fontFamily:"inherit",lineHeight:1}}>+</button>
                           </div>
                         </div>
                       );
