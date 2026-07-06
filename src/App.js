@@ -403,7 +403,7 @@ function makeS(dark) {
   return {
     card: { background:T.card, border:`1px solid ${T.cardBorder}`, borderRadius:14, padding:"18px 20px" },
     inp:  { background:T.inp, border:`1px solid ${T.inpBorder}`, borderRadius:8, padding:"8px 12px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s ease" },
-    lbl:  { fontSize:9, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:5 },
+    lbl:  { fontSize:9, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:5 },
     th:   { padding:"8px 12px", background:"var(--bz-bg)", color:"#E8317A", fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.12)" },
     td:   { padding:"9px 12px", borderBottom:`1px solid ${T.tdBorder}`, fontSize:13, color:T.text },
     T,
@@ -429,7 +429,7 @@ function Badge({ children, bg="#F3F4F6", color="var(--bz-ink-2)" }) {
 }
 function ZoneBadge({ pct }) {
   const z = getZone(pct);
-  if (!z) return <span style={{ color:"#444", fontSize:11 }}>—</span>;
+  if (!z) return <span style={{ color:"#8a8a8a", fontSize:11 }}>—</span>;
   const cls = pct >= 0.70 ? "zone-red" : pct >= 0.65 ? "zone-yellow" : "";
   return <span className={cls} style={{ background:z.bg, color:z.color, border:`1px solid ${z.color}33`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700, whiteSpace:"nowrap", display:"inline-block" }}>{z.label} · {(pct*100).toFixed(1)}%</span>;
 }
@@ -483,7 +483,7 @@ function EmptyState({ icon="—", title, body }) {
     <div style={{ textAlign:"center", padding:"48px 24px" }}>
       <div style={{ fontSize:36, marginBottom:12, opacity:0.3 }}>{icon}</div>
       {title && <div style={{ fontSize:15, fontWeight:700, color:"var(--bz-ink-3)", marginBottom:6 }}>{title}</div>}
-      {body  && <div style={{ fontSize:12, color:"#444", lineHeight:1.6, maxWidth:320, margin:"0 auto" }}>{body}</div>}
+      {body  && <div style={{ fontSize:12, color:"#8a8a8a", lineHeight:1.6, maxWidth:320, margin:"0 auto" }}>{body}</div>}
     </div>
   );
 }
@@ -801,7 +801,7 @@ function RepWeekPanel({ streams=[], matchedBreaker }) {
   // Per-stream breakdown list for an expanded week
   const breakdown = (list, accent) => (
     <div style={{ marginTop:12, borderTop:`1px solid ${accent}33`, paddingTop:10, display:"flex", flexDirection:"column", gap:6 }}>
-      {list.length === 0 && <div style={{ fontSize:11, color:"#666", fontStyle:"italic" }}>No streams logged in this week yet.</div>}
+      {list.length === 0 && <div style={{ fontSize:11, color:"#999", fontStyle:"italic" }}>No streams logged in this week yet.</div>}
       {list.map(s => {
         const c = calcStream(s);
         const isSingles = c.isSingles;
@@ -852,7 +852,7 @@ function RepWeekPanel({ streams=[], matchedBreaker }) {
           label:"This Week (Building)", payColor:"var(--bz-ink-2)", payLabel:`📅 Pays Friday ${fmtD(fridayAfter(thisSun))}`
         })}
       </div>
-      <div style={{ fontSize:10, color:"#555", marginTop:10, fontStyle:"italic" }}>Includes break commission, singles pass-through, and tips. Estimate — final pay confirmed on your pay stub.</div>
+      <div style={{ fontSize:10, color:"#8a8a8a", marginTop:10, fontStyle:"italic" }}>Includes break commission, singles pass-through, and tips. Estimate — final pay confirmed on your pay stub.</div>
     </div>
   );
 }
@@ -961,7 +961,7 @@ function RepMonthPanel({ streams=[], matchedBreaker }) {
         {mmRows.map(({b,mm,n,boxes})=>(
           <div key={b} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background: b===matchedBreaker ? "rgba(232,49,122,0.08)" : "rgba(255,255,255,0.02)", border:`1px solid ${b===matchedBreaker ? "rgba(232,49,122,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius:8 }}>
             <span style={{ fontSize:13, fontWeight:700, color: b===matchedBreaker ? "#E8317A" : "#ccc", flex:1 }}>{b}{b===matchedBreaker?" (you)":""}</span>
-            <span style={{ fontSize:11, color:"#666", width:80, textAlign:"right" }}>{n} stream{n!==1?"s":""}</span>
+            <span style={{ fontSize:11, color:"#999", width:80, textAlign:"right" }}>{n} stream{n!==1?"s":""}</span>
             <span style={{ fontSize:11, color:"#7B9CFF", width:90, textAlign:"right" }}>{boxes} box{boxes!==1?"es":""}</span>
             <span style={{ fontSize:15, fontWeight:900, color:mmColor(mm), width:70, textAlign:"right" }}>{mm.toFixed(2)}x</span>
           </div>
@@ -1161,7 +1161,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               </div>
               <div style={{ display:"flex", gap:8 }}>
                 <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>{"View Quote \u2197"}</a>
-                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#666", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2713 Dismiss"}</button>
+                <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#999", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2713 Dismiss"}</button>
               </div>
             </div>
           </div>
@@ -1258,7 +1258,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           <div style={{ display:"flex", alignItems:"center", gap:16, flexShrink:0 }}>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:28, fontWeight:900, color:"#4ade80" }}>{fmt(stub.totalComm)}</div>
-              <div style={{ fontSize:10, color:"#666", textTransform:"uppercase", letterSpacing:1 }}>Commission Earned</div>
+              <div style={{ fontSize:10, color:"#999", textTransform:"uppercase", letterSpacing:1 }}>Commission Earned</div>
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={()=>setViewStub(viewStub===stub.id?null:stub.id)} style={{ background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -1910,7 +1910,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, marginBottom:12 }}>
                   {metrics.map(({key,l})=>(
                     <div key={key}>
-                      <label style={{ fontSize:10, fontWeight:700, color:"#444", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>{l}</label>
+                      <label style={{ fontSize:10, fontWeight:700, color:"#8a8a8a", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>{l}</label>
                       <input type="number" value={goalForm[key]||""} onChange={e=>setGoalForm(p=>({...p,[key]:e.target.value}))}
                         placeholder="0" style={{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"7px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }}/>
                     </div>
@@ -1940,7 +1940,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                         <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:5, overflow:"hidden" }}>
                           <div style={{ height:"100%", width:`${ytdPct}%`, background:onTrack?"#4ade80":c, borderRadius:2, transition:"width 0.6s ease" }}/>
                         </div>
-                        <div style={{ fontSize:9, color:"#444", marginTop:2 }}>
+                        <div style={{ fontSize:9, color:"#8a8a8a", marginTop:2 }}>
                           {count ? Math.round(goal).toLocaleString() : fmt(goal)} goal
                         </div>
                       </>
@@ -2713,9 +2713,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             {q.lastUpdatedBy && q.lastUpdatedBy !== q.quotedBy && (
                               <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>· Updated by <strong style={{ color:"var(--bz-ink-2)" }}>{q.lastUpdatedBy.split(" ")[0]}</strong></span>
                             )}
-                            {q.createdAt && <span style={{ fontSize:11, color:"#444" }}>· {new Date(q.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
+                            {q.createdAt && <span style={{ fontSize:11, color:"#8a8a8a" }}>· {new Date(q.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                           </div>
-                          <div style={{ fontSize:11, color:"#666" }}>
+                          <div style={{ fontSize:11, color:"#999" }}>
                             {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
                             {q.status==="countered" && <> · Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
                             {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
@@ -2735,7 +2735,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           {/* View tracking */}
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
                             {(q.viewCount||0) === 0
-                              ? <span style={{ fontSize:11, color:"#444" }}>{"\uD83D\uDC41 Not opened yet"}</span>
+                              ? <span style={{ fontSize:11, color:"#8a8a8a" }}>{"\uD83D\uDC41 Not opened yet"}</span>
                               : <span style={{ fontSize:11, color:(q.viewCount||0)>=5?"#FBBF24":"#7B9CFF", fontWeight:700 }}>
                                   {"\uD83D\uDC41 Opened "}{q.viewCount} time{q.viewCount!==1?"s":""}
                                   {q.lastViewedAt && <span style={{color:"var(--bz-ink-3)",fontWeight:400}}> · Last: {new Date(q.lastViewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
@@ -2789,16 +2789,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                               return (
                                 <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
                                   <div style={{ background:"#1a1a1a", border:`1px solid ${zone.c}44`, borderRadius:7, padding:"5px 10px", fontSize:11 }}>
-                                    <span style={{ color:"#666" }}>Your counter: </span>
+                                    <span style={{ color:"#999" }}>Your counter: </span>
                                     <strong style={{ color:zone.c }}>{pct?pct.toFixed(1)+"%":"--"}</strong>
                                     <span style={{ color:"var(--bz-ink-3)", marginLeft:4 }}>{zone.l}</span>
                                   </div>
                                   {origPct && <div style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
-                                    <span style={{ color:"#666" }}>Our offer: </span>
+                                    <span style={{ color:"#999" }}>Our offer: </span>
                                     <strong style={{ color:"#E8317A" }}>{origPct.toFixed(1)}%</strong>
                                   </div>}
                                   {sellerPct && <div style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
-                                    <span style={{ color:"#666" }}>Their ask: </span>
+                                    <span style={{ color:"#999" }}>Their ask: </span>
                                     <strong style={{ color:"#FBBF24" }}>{sellerPct.toFixed(1)}%</strong>
                                   </div>}
                                 </div>
@@ -3155,7 +3155,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                               <span style={{color:"var(--bz-ink-3)"}}>#{c.cardNum}</span>
                                               {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
                                               {c.treatment&&<span style={{color:"var(--bz-ink-2)"}}>{c.treatment}</span>}
-                                              {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
+                                              {c.setName&&<span style={{color:"#8a8a8a",fontStyle:"italic"}}>{c.setName}</span>}
                                             </div>
                                             {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
                                           </div>
@@ -3208,7 +3208,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                         <span style={{color:"var(--bz-ink-3)"}}>#{c.cardNum}</span>
                                         {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
                                         {c.treatment&&<span style={{color:"var(--bz-ink-2)"}}>{c.treatment}</span>}
-                                        {c.setName&&<span style={{color:"#444",fontStyle:"italic"}}>{c.setName}</span>}
+                                        {c.setName&&<span style={{color:"#8a8a8a",fontStyle:"italic"}}>{c.setName}</span>}
                                       </div>
                                       {(c.mktValue||c.marketValue)&&<div style={{fontSize:10,color:"#4ade80",marginTop:2}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</div>}
                                     </div>
@@ -3222,18 +3222,18 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     )}
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
                       <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Type</div>
+                        <div style={{ fontSize:11, color:"#999", marginBottom:4 }}>Type</div>
                         <select value={r.cardType} onChange={e=>upd(r.id,"cardType",e.target.value)} style={{ ...mInp, cursor:"pointer" }}>
                           <option value="">Type...</option>
                           {CARD_TYPES.map(ct=><option key={ct} value={ct}>{ct.replace(" Cards","")}</option>)}
                         </select>
                       </div>
                       <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Qty</div>
+                        <div style={{ fontSize:11, color:"#999", marginBottom:4 }}>Qty</div>
                         <input type="number" value={r.qty} onChange={e=>upd(r.id,"qty",e.target.value)} placeholder="1" min="1" style={mInp}/>
                       </div>
                       <div>
-                        <div style={{ fontSize:11, color:"#666", marginBottom:4 }}>Value/Card</div>
+                        <div style={{ fontSize:11, color:"#999", marginBottom:4 }}>Value/Card</div>
                         <input type="number" value={r.mktVal} onChange={e=>upd(r.id,"mktVal",e.target.value)} placeholder="0.00" style={mInp}/>
                       </div>
                     </div>
@@ -3345,8 +3345,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                         <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>{c.hero}</div>
                                         <div style={{display:"flex",gap:5,fontSize:10}}>
                                           {c.weapon&&<span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
-                                          {c.treatment&&<span style={{color:"#666"}}>{c.treatment}</span>}
-                                          {c.cardNum&&<span style={{color:"#444"}}>#{c.cardNum}</span>}
+                                          {c.treatment&&<span style={{color:"#999"}}>{c.treatment}</span>}
+                                          {c.cardNum&&<span style={{color:"#8a8a8a"}}>#{c.cardNum}</span>}
                                         </div>
                                       </div>
                                       {(c.mktValue||c.marketValue)&&<span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>${parseFloat(c.mktValue||c.marketValue).toFixed(2)}</span>}
@@ -3760,7 +3760,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
         ].map(({l,v,c})=>(
           <div key={l} style={{ ...S.card, textAlign:"center" }}>
             <div style={{ fontSize:28, fontWeight:900, color:c }}>{v}</div>
-            <div style={{ fontSize:10, color:"#666", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
+            <div style={{ fontSize:10, color:"#999", textTransform:"uppercase", letterSpacing:1, marginTop:4 }}>{l}</div>
           </div>
         ))}
       </div>
@@ -5295,11 +5295,11 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                             style={{ ...S.inp, padding:"5px 10px", fontSize:12, flex:1 }}
                           />
                           {chaserSearch && <button onClick={()=>setChaserSearch("")} style={{ background:"none", border:"none", color:"var(--bz-ink-2)", cursor:"pointer", fontSize:14, flexShrink:0 }}>{"\u2715"}</button>}
-                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>{visibleCards.length} card{visibleCards.length!==1?"s":""}</span>
+                          <span style={{ fontSize:11, color:"#999", whiteSpace:"nowrap" }}>{visibleCards.length} card{visibleCards.length!==1?"s":""}</span>
                         </div>
                         <div style={{ maxHeight:200, overflowY:"auto", border:"1px solid var(--bz-line-2)", borderRadius:8, background:"var(--bz-s1)" }}>
                           {visibleCards.length === 0
-                            ? <div style={{ padding:"12px 16px", color:"#666", fontSize:12 }}>No cards match "{chaserSearch}"</div>
+                            ? <div style={{ padding:"12px 16px", color:"#999", fontSize:12 }}>No cards match "{chaserSearch}"</div>
                             : visibleCards.map(c => {
                                 const isSel = selectedChasers.includes(c.id);
                           const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"var(--bz-ink-3)"};
@@ -6494,7 +6494,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                         <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
                           <span style={{ color:"#7B9CFF", fontWeight:700, fontSize:12 }}>@{b.username}</span>
                           {b.fullName && <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{b.fullName}</span>}
-                          {b.city && <span style={{ fontSize:11, color:"#444" }}>{b.city}</span>}
+                          {b.city && <span style={{ fontSize:11, color:"#8a8a8a" }}>{b.city}</span>}
                           <span style={{ marginLeft:"auto", color:"#4ade80", fontWeight:700, fontSize:12 }}>{fmt(b.totalSpend)}</span>
                         </div>
                       ))}
@@ -6690,7 +6690,7 @@ function RepReportCard({ streams=[], isAdmin }) {
                   <div style={{width:"100%",height:`${barH}%`,background:col,borderRadius:"3px 3px 0 0",minHeight: w.mm?4:0,opacity:0.8}}/>
                 </div>
                 <div style={{fontSize:9,color:"var(--bz-ink-3)"}}>{w.label}</div>
-                {w.streams>0&&<div style={{fontSize:9,color:"#444"}}>{w.streams}s</div>}
+                {w.streams>0&&<div style={{fontSize:9,color:"#8a8a8a"}}>{w.streams}s</div>}
               </div>
             );
           })}
@@ -7147,7 +7147,7 @@ function CampaignTracker({ buyers=[], streams=[] }) {
     <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
       <div style={{ fontSize:22, fontWeight:900, color, lineHeight:1 }}>{value}</div>
       {sub && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>{sub}</div>}
-      <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:"1px", marginTop:6 }}>{label}</div>
+      <div style={{ fontSize:9, color:"#8a8a8a", textTransform:"uppercase", letterSpacing:"1px", marginTop:6 }}>{label}</div>
     </div>
   );
 
@@ -7182,7 +7182,7 @@ function CampaignTracker({ buyers=[], streams=[] }) {
             {importing?"⏳ Importing...":"📂 Import Whatnot CSV"}
             <input type="file" accept=".csv" style={{ display:"none" }} disabled={importing} onChange={e=>{ if(e.target.files[0]) importCSV(e.target.files[0]); e.target.value=""; }}/>
           </label>
-          <div style={{ fontSize:11, color:"#444" }}>Only updates coupon data — won't duplicate spend</div>
+          <div style={{ fontSize:11, color:"#8a8a8a" }}>Only updates coupon data — won't duplicate spend</div>
         </div>
         {importMsg && <div style={{ marginTop:8, fontSize:12, color:importMsg.startsWith("✅")?"#4ade80":importMsg.startsWith("⚠️")?"#FBBF24":"#ef4444", padding:"6px 10px", background:"var(--bz-bg)", borderRadius:6 }}>{importMsg}</div>}
       </div>
@@ -7216,7 +7216,7 @@ function CampaignTracker({ buyers=[], streams=[] }) {
         <div style={{ ...S.card, textAlign:"center", padding:"40px 20px" }}>
           <div style={{ fontSize:32, opacity:0.3, marginBottom:10 }}>🎯</div>
           <div style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink-3)" }}>No buyers tagged yet</div>
-          <div style={{ fontSize:12, color:"#444", marginTop:4 }}>Import a Whatnot CSV above or manually search and tag buyers</div>
+          <div style={{ fontSize:12, color:"#8a8a8a", marginTop:4 }}>Import a Whatnot CSV above or manually search and tag buyers</div>
         </div>
       )}
     </div>
@@ -8549,7 +8549,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
         ) : (
           <div style={{ fontSize:12, color:"var(--bz-ink-3)" }}>Loading member counts…</div>
         )}
-        <div style={{ fontSize:10, color:"#444", marginTop:12 }}>Counts everyone who has signed in. "New" is based on first sign-in date (tracked going forward).</div>
+        <div style={{ fontSize:10, color:"#8a8a8a", marginTop:12 }}>Counts everyone who has signed in. "New" is based on first sign-in date (tracked going forward).</div>
       </div>
 
       <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:14, padding:"18px 20px" }}>
@@ -8614,7 +8614,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
         {entries.length === 0 ? (
           <div style={{ textAlign:"center", padding:"40px 0", color:"var(--bz-ink-3)" }}>
             <div style={{ fontSize:32, marginBottom:8 }}>📡</div>
-            <div style={{ fontSize:13, fontWeight:700, color:"#444" }}>No snapshots yet</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"#8a8a8a" }}>No snapshots yet</div>
             <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:4 }}>Log your first follower counts to start tracking growth</div>
           </div>
         ) : <>
@@ -9130,7 +9130,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                     </div>
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap", flex:1 }}>
                       {usedProducts.length === 0
-                        ? <span style={{ fontSize:12, color:"#444" }}>No products logged</span>
+                        ? <span style={{ fontSize:12, color:"#8a8a8a" }}>No products logged</span>
                         : usedProducts.map(pt => (
                             <span key={pt} style={{ fontSize:12, color:"var(--bz-ink)", background:"rgba(153,27,27,0.15)", border:"1px solid rgba(153,27,27,0.3)", borderRadius:6, padding:"2px 10px", fontWeight:700 }}>
                               {pt.includes(" - ") ? pt.split(" - ").pop() : pt}: <span style={{color:"#E8317A"}}>−{u[pt]}</span>
@@ -9567,7 +9567,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
             <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} · {targetPct}% of Market Value</div>
             <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:6 }}>Price per spot to hit your target</div>
             <div style={{ fontSize:56, fontWeight:900, color:zone.c, letterSpacing:-1 }}>${spotPrice.toFixed(2)}</div>
-            <div style={{ fontSize:13, color:"#666", marginTop:6 }}>{numSpots} spots \u00D7 ${spotPrice.toFixed(2)} = <strong style={{color:"var(--bz-ink)"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
+            <div style={{ fontSize:13, color:"#999", marginTop:6 }}>{numSpots} spots \u00D7 ${spotPrice.toFixed(2)} = <strong style={{color:"var(--bz-ink)"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
           </div>
 
           {/* Financial breakdown */}
@@ -9626,7 +9626,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
           <div style={{ ...S.card, background:"#0a0f1a", border:"1px solid #7B9CFF33", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{"\uD83D\uDEA8 Break-Even Spot Price (1.0x)"}</div>
-              <div style={{ fontSize:12, color:"#666" }}>At this price you're just recovering market value -- no profit</div>
+              <div style={{ fontSize:12, color:"#999" }}>At this price you're just recovering market value -- no profit</div>
             </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:28, fontWeight:900, color:"#7B9CFF" }}>${breakEvenSpot.toFixed(2)}</div>
@@ -10345,8 +10345,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     </div>
                   );
                 })}
-                {dayPlans.length>6&&!compact&&<div style={{fontSize:7,color:"#444",marginTop:1}}>+{dayPlans.length-6} more</div>}
-                {dayPlans.length>1&&compact&&<div style={{fontSize:7,color:"#666",marginTop:1,fontWeight:700}}>+{dayPlans.length-1} more</div>}
+                {dayPlans.length>6&&!compact&&<div style={{fontSize:7,color:"#8a8a8a",marginTop:1}}>+{dayPlans.length-6} more</div>}
+                {dayPlans.length>1&&compact&&<div style={{fontSize:7,color:"#999",marginTop:1,fontWeight:700}}>+{dayPlans.length-1} more</div>}
 
                 {/* Revenue micro-label */}
                 {!compact && dayActRev>0 && canSeeFinancials && (
@@ -10379,13 +10379,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{fontSize:12,fontWeight:700,color:bc}}>{v.breaker}</span>
                           <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>{v.startDate.slice(5).replace("-","/")} → {v.endDate.slice(5).replace("-","/")} · {days} day{days!==1?"s":""}</span>
-                          {v.note&&<span style={{fontSize:10,color:"#444"}}>{v.note}</span>}
+                          {v.note&&<span style={{fontSize:10,color:"#8a8a8a"}}>{v.note}</span>}
                         </div>
                         <div style={{display:"flex",gap:4}}>
                           {canBuildCalendar && <><button onClick={()=>{setVacForm({breaker:v.breaker,startDate:v.startDate,endDate:v.endDate,note:v.note||""});setEditVacId(v.id);setVacModal(true);}}
                             style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:5,padding:"2px 7px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
                           <button onClick={()=>deleteVacation(v.id)}
-                            style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button></>}
+                            style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:12,padding:"0 4px"}}>✕</button></>}
                         </div>
                       </div>
                     );
@@ -10451,7 +10451,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   />
                   {isOverridden && (
                     <button onClick={()=>saveBurnRate(ct,"")} title="Reset to historical avg"
-                      style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>↩</button>
+                      style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:12,padding:"0 2px",fontFamily:"inherit"}}>↩</button>
                   )}
                   <span style={{fontSize:10,color:"var(--bz-ink-3)",marginLeft:2}}>
                     {isOverridden ? "manual" : histRate>0 ? "avg" : "no data"}
@@ -10606,7 +10606,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <span>{fmt2(mkt)} mkt value</span>
                   {skuPrices[pt]&&<span>{fmt2(parseFloat(skuPrices[pt]))} /box</span>}
                 </div>
-                {avgBoxesPerStream[pt]>0&&<div style={{fontSize:10,color:"#444",marginTop:3}}>~{avgBoxesPerStream[pt].toFixed(1)}/stream historically</div>}
+                {avgBoxesPerStream[pt]>0&&<div style={{fontSize:10,color:"#8a8a8a",marginTop:3}}>~{avgBoxesPerStream[pt].toFixed(1)}/stream historically</div>}
               </div>
             );
           })}
@@ -12382,7 +12382,7 @@ function BobaPrimerSection({ data, isAdmin, save }) {
       ) : data.primer ? (
         <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"var(--bz-ink-2)", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>{data.primer}</div>
       ) : (
-        <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet"}</div>
+        <div style={{ textAlign:"center", padding:"28px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet"}</div>
       )}
     </div>
   );
@@ -12421,7 +12421,7 @@ function BobaWeaponsSection({ data, isAdmin, save }) {
           <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveWeapon} disabled={!draft.name.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
         </div>
       )}
-      {(data.weapons||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add the weapon types":"No weapons documented yet"}</div>}
+      {(data.weapons||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin?"Add the weapon types":"No weapons documented yet"}</div>}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {(data.weapons||[]).map((w,i)=>{
           const wc = WEAPON_COLORS[w.name]||"#888";
@@ -12434,7 +12434,7 @@ function BobaWeaponsSection({ data, isAdmin, save }) {
                 </div>
                 <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                   {w.tip && <button onClick={()=>copy(w.tip,i)} style={{ background:`${wc}18`, border:`1px solid ${wc}33`, color:wc, borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy Tip</button>}
-                  {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteWeapon(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
+                  {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteWeapon(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
                 </div>
               </div>
               {w.description && <div style={{ fontSize:12, color:"var(--bz-ink-2)", lineHeight:1.6, marginBottom:w.tip?6:0 }}>{w.description}</div>}
@@ -12471,7 +12471,7 @@ function BobaHypeLinesSection({ data, isAdmin, save }) {
             </button>
           ))}
         </div>
-      ) : <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?<Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn>:"No hype lines yet"}</div>}
+      ) : <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin?<Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn>:"No hype lines yet"}</div>}
     </div>
   );
 }
@@ -12499,7 +12499,7 @@ function BobaFAQSection({ data, isAdmin, save }) {
           <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
         </div>
       )}
-      {(data.faq||[]).length===0&&!adding&&<div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
+      {(data.faq||[]).length===0&&!adding&&<div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {(data.faq||[]).map((item,i)=>(
           <div key={item.id||i} style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, overflow:"hidden" }}>
@@ -12507,7 +12507,7 @@ function BobaFAQSection({ data, isAdmin, save }) {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>{openIdx===i?"▼":"▶"}</span><span style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{item.q}</span></div>
               {isAdmin && <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
-                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
               </div>}
             </div>
             {openIdx===i && <div style={{ padding:"0 16px 14px", borderTop:"1px solid var(--bz-line)" }}>
@@ -12563,7 +12563,7 @@ function BobaSetGuidesSection({ data, isAdmin, save }) {
         </div>
       )}
 
-      {(data.sets||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add set guides":"No set guides yet"}</div>}
+      {(data.sets||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin?"Add set guides":"No set guides yet"}</div>}
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {(data.sets||[]).map((s,i)=>{
@@ -12578,7 +12578,7 @@ function BobaSetGuidesSection({ data, isAdmin, save }) {
                 <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                   {isAdmin && <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:6 }}>
                     <button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
-                    <button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                    <button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
                   </div>}
                   <span style={{ color:"var(--bz-ink-3)", fontSize:12 }}>{isOpen?"▲":"▼"}</span>
                 </div>
@@ -12779,7 +12779,7 @@ function WotFPrimerSection({ data, isAdmin, save }) {
       ) : data.primer ? (
         <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"16px 18px", whiteSpace:"pre-wrap", fontSize:13, color:"var(--bz-ink-2)", lineHeight:1.8, maxHeight:360, overflowY:"auto" }}>{data.primer}</div>
       ) : (
-        <div style={{ textAlign:"center", padding:"28px 0", color:"#444", fontSize:12 }}>
+        <div style={{ textAlign:"center", padding:"28px 0", color:"#8a8a8a", fontSize:12 }}>
           {isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Write Game Primer</Btn> : "No game primer added yet — ask an admin"}
         </div>
       )}
@@ -12823,7 +12823,7 @@ function WotFSetsSection({ data, isAdmin, save }) {
           </div>
         </div>
       )}
-      {(data.sets||[]).length === 0 && !adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? "Click + Add Set to document your first set" : "No sets documented yet"}</div>}
+      {(data.sets||[]).length === 0 && !adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin ? "Click + Add Set to document your first set" : "No sets documented yet"}</div>}
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {(data.sets||[]).map((s,i) => (
           <div key={s.id||i} style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"14px 16px" }}>
@@ -12831,7 +12831,7 @@ function WotFSetsSection({ data, isAdmin, save }) {
               <div><div style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)" }}>{s.name}</div>{s.description && <div style={{ fontSize:12, color:"var(--bz-ink-3)", marginTop:2 }}>{s.description}</div>}</div>
               <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                 {s.notes && <button onClick={()=>copy(s.notes,i)} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.2)", color:"#4ade80", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy</button>}
-                {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
+                {isAdmin && <><button onClick={()=>startEdit(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✏️</button><button onClick={()=>deleteSet(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button></>}
               </div>
             </div>
             {s.notes && <div style={{ fontSize:12, color:"var(--bz-ink-2)", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{s.notes}</div>}
@@ -12867,7 +12867,7 @@ function WotFHypeLinesSection({ data, isAdmin, save }) {
           ))}
         </div>
       ) : (
-        <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn> : "No hype lines added yet"}</div>
+        <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin ? <Btn onClick={()=>setEditing(true)}>+ Add Hype Lines</Btn> : "No hype lines added yet"}</div>
       )}
     </div>
   );
@@ -12900,7 +12900,7 @@ function WotFFAQSection({ data, isAdmin, save }) {
           <div style={{ display:"flex", gap:8, marginTop:10 }}><Btn onClick={saveQA} disabled={!draft.q.trim()||!draft.a.trim()}>💾 Save</Btn><Btn variant="ghost" onClick={()=>{ setAdding(false); setEditIdx(null); }}>Cancel</Btn></div>
         </div>
       )}
-      {(data.faq||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#444", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
+      {(data.faq||[]).length===0&&!adding && <div style={{ textAlign:"center", padding:"20px 0", color:"#8a8a8a", fontSize:12 }}>{isAdmin?"Add common viewer questions":"No FAQ entries yet"}</div>}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {(data.faq||[]).map((item,i) => (
           <div key={item.id||i} style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, overflow:"hidden" }}>
@@ -12908,7 +12908,7 @@ function WotFFAQSection({ data, isAdmin, save }) {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>{openIdx===i?"▼":"▶"}</span><span style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{item.q}</span></div>
               {isAdmin && <div style={{ display:"flex", gap:6 }} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>{ setDraft({...item}); setEditIdx(i); setAdding(false); }} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
-                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                <button onClick={()=>deleteQA(i)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
               </div>}
             </div>
             {openIdx===i && (
@@ -13133,7 +13133,7 @@ function ShowNotes({ userRole }) {
                   <button onClick={()=>startEdit(name)}
                     style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"var(--bz-ink-3)", borderRadius:"0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit">✏️</button>
                   <button onClick={()=>deleteNote(name)}
-                    style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#444", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Delete">✕</button>
+                    style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Delete">✕</button>
                 </>}
               </div>
             ))}
@@ -13169,7 +13169,7 @@ function ShowNotes({ userRole }) {
           <div style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink-3)", marginBottom:6 }}>No show notes templates yet</div>
           {isAdmin
             ? <Btn onClick={()=>setEditing(true)}>+ Create First Template</Btn>
-            : <div style={{ fontSize:12, color:"#444" }}>Ask an admin to add show notes templates</div>}
+            : <div style={{ fontSize:12, color:"#8a8a8a" }}>Ask an admin to add show notes templates</div>}
         </div>
       )}
 
@@ -13333,7 +13333,7 @@ function BreakSpots() {
                   {name} <span style={{ fontSize:10, opacity:0.6 }}>({(savedSets[name]||[]).length})</span>
                 </button>
                 <button onClick={()=>deleteSet(name)}
-                  style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#444", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
               </div>
             ))}
           </div>
@@ -13795,13 +13795,13 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
                     style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 10px", background:"rgba(0,0,0,0.3)", borderRadius:7, fontFamily:"monospace" }}>
                     <span style={{ fontSize:11, color:"var(--bz-ink-3)", minWidth:28 }}>#{i+1}</span>
                     <span style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", flex:1 }}>{h.hero}</span>
-                    <span style={{ fontSize:11, color:"#666" }}>{h.inspired}</span>
+                    <span style={{ fontSize:11, color:"#999" }}>{h.inspired}</span>
                     <span style={{ fontSize:10, color:cfg.color }}>{h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : "🔵"}</span>
                     {h.power>0 && <span style={{ fontSize:11, fontWeight:700, color:powerColor(h.power) }}>⚡{h.power}</span>}
                     <button onClick={()=>{
                       const line = `Spot ${i+1}: ${h.hero} (${h.inspired})${h.power?` ⚡${h.power}`:""}`;
                       navigator.clipboard?.writeText(line);
-                    }} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:11, padding:"0 4px" }} title="Copy this line">⎘</button>
+                    }} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:11, padding:"0 4px" }} title="Copy this line">⎘</button>
                   </div>
                 );
               })}
@@ -13872,7 +13872,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
                     {/* Tier badge + set name if multiple sets */}
                     <div style={{ fontSize:9, fontWeight:800, color:cfg.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <span>{h.tier === "Featured Auto" ? "⭐ FA" : h.tier === "Highlighted" ? "💜 HL" : cfg?.badge || h.tier}</span>
-                      {selectedSets.size > 1 && h.setName && <span style={{ color:"#444", fontWeight:600, fontSize:8 }}>{h.setName.length > 12 ? h.setName.slice(0,12)+"…" : h.setName}</span>}
+                      {selectedSets.size > 1 && h.setName && <span style={{ color:"#8a8a8a", fontWeight:600, fontSize:8 }}>{h.setName.length > 12 ? h.setName.slice(0,12)+"…" : h.setName}</span>}
                     </div>
 
                     {/* Hero name */}
@@ -14039,7 +14039,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontWeight:800, fontSize:13, color:"var(--bz-ink)" }}>{stub.breaker}</span>
-              <span style={{ fontSize:11, color:"#666" }}>{stub.period}</span>
+              <span style={{ fontSize:11, color:"#999" }}>{stub.period}</span>
               {!stub.read && <span style={{ background:"#E8317A22", color:"#E8317A", border:"1px solid #E8317A44", borderRadius:20, padding:"1px 8px", fontSize:10, fontWeight:700 }}>Unread</span>}
             </div>
             <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>
@@ -14666,7 +14666,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
                   <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"5px 12px" }}>
-                    <span style={{ fontSize:11, color:"#666" }}>PDF View:</span>
+                    <span style={{ fontSize:11, color:"#999" }}>PDF View:</span>
                     <button onClick={()=>setStubAdminView(false)} style={{ background:!stubAdminView?"#E8317A":"transparent", color:!stubAdminView?"#fff":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Rep</button>
                     <button onClick={()=>setStubAdminView(true)} style={{ background:stubAdminView?"#1A1A2E":"transparent", color:stubAdminView?"#E8317A":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Admin</button>
                   </div>
@@ -14676,9 +14676,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                     <div>
                       <span style={{ fontWeight:800, color:"#E8317A", fontSize:14 }}>{targetBreaker}</span>
-                      <span style={{ color:"#666", fontSize:12, marginLeft:10 }}>{periodLabel}</span>
+                      <span style={{ color:"#999", fontSize:12, marginLeft:10 }}>{periodLabel}</span>
                     </div>
-                    <span style={{ fontSize:12, color:"#666" }}>{stubStreams.length} stream{stubStreams.length!==1?"s":""}</span>
+                    <span style={{ fontSize:12, color:"#999" }}>{stubStreams.length} stream{stubStreams.length!==1?"s":""}</span>
                   </div>
                   {stubStreams.length === 0
                     ? <div style={{ color:"var(--bz-ink-3)", fontSize:12, padding:"12px 0" }}>No streams found for this period.</div>
@@ -14702,7 +14702,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                           ].map(({l,v,c})=>(
                             <div key={l} style={{ textAlign:"center", background:"var(--bz-s1)", borderRadius:8, padding:"10px" }}>
                               <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
-                              <div style={{ fontSize:9, color:"#666", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
+                              <div style={{ fontSize:9, color:"#999", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                             </div>
                           ))}
                         </div>
@@ -14771,7 +14771,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                         <div>
                           <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{s.streamName||s.breakType||"Break"}</div>
-                          <div style={{ fontSize:10, color:"#666" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                          <div style={{ fontSize:10, color:"#999" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                         </div>
                         <div style={{ fontSize:16, fontWeight:900, color:"#FBBF24" }}>${tot.toFixed(2)}</div>
                       </div>
@@ -14844,7 +14844,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div>
               {/* Filter by breaker */}
               <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
-                <span style={{ fontSize:11, color:"#666" }}>Filter:</span>
+                <span style={{ fontSize:11, color:"#999" }}>Filter:</span>
                 <button onClick={()=>setStubHistFilter("")} style={{ background:!stubHistFilter?"#1A1A2E":"transparent", color:!stubHistFilter?"#E8317A":"#888", border:`1.5px solid ${!stubHistFilter?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All</button>
                 {BREAKERS.map(b=>(
                   <button key={b} onClick={()=>setStubHistFilter(b)} style={{ background:stubHistFilter===b?"#1A1A2E":"transparent", color:stubHistFilter===b?"#E8317A":"#888", border:`1.5px solid ${stubHistFilter===b?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{b}</button>
@@ -15233,7 +15233,7 @@ function PublicDeckBuilder() {
             {savedDecks.map(d=>(
               <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
                 <button onClick={()=>loadDeck(d)} style={{ background:"none", border:"none", color:deckLoadId===d.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{d.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({d.cardCount})</span></button>
-                <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
+                <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
               </div>
             ))}
           </div>
@@ -15485,7 +15485,7 @@ function PublicPlaybookBuilder() {
             {savedPlaybooks.map(p=>(
               <div key={p.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
                 <button onClick={()=>loadPlaybook(p)} style={{ background:"none", border:"none", color:pbLoadId===p.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{p.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
-                <button onClick={()=>deletePlaybook(p.id)} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
+                <button onClick={()=>deletePlaybook(p.id)} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
               </div>
             ))}
           </div>
@@ -15515,7 +15515,7 @@ function PublicPlaybookBuilder() {
                         <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:2, fontSize:10 }}>
                           <span style={{ color:"var(--bz-ink-3)" }}>#{c.cardNum}</span>
-                          {c.setName&&<span style={{ color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
+                          {c.setName&&<span style={{ color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}
                           {c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                           {_pbAdmin
                             ? <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:"#A855F7", fontWeight:700 }}>DBS:
@@ -15576,8 +15576,8 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#444",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
                 <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button></div>
               </div>
             )}
@@ -15711,7 +15711,7 @@ function BobaShowcase({ uid }) {
                 <span style={{ color:"#E8317A" }}>{ownerName ? `${ownerName}'s` : "BAZOOKA"}</span>
                 <span style={{ color:"var(--bz-ink)" }}> Collection</span>
               </div>
-              <div style={{ fontSize:11, color:"#444", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
+              <div style={{ fontSize:11, color:"#8a8a8a", marginTop:4 }}>Bo Jackson Battle Arena · Bazooka Breaks, LLC</div>
               {(ownerSocials.discord || ownerSocials.whatnot) && (
                 <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
                   {ownerSocials.discord && <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:"rgba(88,101,242,0.12)", border:"1px solid rgba(88,101,242,0.35)", color:"#8b9cff", borderRadius:8, padding:"4px 10px", fontSize:12, fontWeight:700 }}>💬 {ownerSocials.discord}</span>}
@@ -15732,7 +15732,7 @@ function BobaShowcase({ uid }) {
               { label:"Power Score",  value:Math.round(totalPower).toLocaleString(), color:"#E8317A", icon:"\uD83D\uDCA5" },
             ].map(({ label, value, color, icon }) => (
               <div key={label} style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"12px 14px" }}>
-                <div style={{ fontSize:10, color:"#444", marginBottom:4 }}>{icon} {label}</div>
+                <div style={{ fontSize:10, color:"#8a8a8a", marginBottom:4 }}>{icon} {label}</div>
                 <div style={{ fontSize:20, fontWeight:900, color }}>{value}</div>
               </div>
             ))}
@@ -15806,7 +15806,7 @@ function BobaShowcase({ uid }) {
 
             <div style={{ display:"flex", gap:16, marginTop:16, justifyContent:"center", flexWrap:"wrap" }}>
               {RARITY_TIERS.map(r => (
-                <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#444" }}>
+                <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#8a8a8a" }}>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:r.color }}/>
                   <span style={{ color:r.color, fontWeight:700 }}>{r.label}</span>
                   <span>({r.minPower === 0 ? "<130" : `${r.minPower}+`} power)</span>
@@ -15824,7 +15824,7 @@ function BobaShowcase({ uid }) {
               <ShowcaseCard c={spotlight} onClick={()=>{}} large />
             </div>
             <div style={{ flex:1, minWidth:260 }}>
-              <div style={{ fontSize:11, color:"#444", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>
+              <div style={{ fontSize:11, color:"#8a8a8a", marginBottom:6, letterSpacing:1, textTransform:"uppercase" }}>
                 {spotlight.setName} · #{spotlight.cardNum}
               </div>
               <div style={{ fontSize:38, fontWeight:900, color:"var(--bz-ink)", lineHeight:1.1, marginBottom:12 }}>{spotlight.hero}</div>
@@ -15841,7 +15841,7 @@ function BobaShowcase({ uid }) {
               </div>
               {spotlight.power && (
                 <div style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:10, color:"#444", marginBottom:4, letterSpacing:1 }}>POWER</div>
+                  <div style={{ fontSize:10, color:"#8a8a8a", marginBottom:4, letterSpacing:1 }}>POWER</div>
                   <div style={{ fontSize:56, fontWeight:900, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#E8317A", lineHeight:1 }}>{spotlight.power}</div>
                 </div>
               )}
@@ -16259,7 +16259,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
                       <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", left:-4, right:-4, bottom:"calc(100% + 6px)", zIndex:100, background:"rgba(12,12,16,0.98)", border:`1.5px solid ${wc}66`, borderRadius:10, padding:"12px 13px", boxShadow:"0 12px 40px rgba(0,0,0,0.7)", backdropFilter:"blur(8px)" }}>
                         {bio.team && <div style={{ fontSize:11, fontWeight:800, color:"#7B9CFF", marginBottom:6 }}>🏟️ {bio.team}</div>}
                         <div style={{ fontSize:11, color:"#ddd", lineHeight:1.55 }}>{bio.notes}</div>
-                        {bio.player && <div style={{ fontSize:9, color:"#666", marginTop:8, fontStyle:"italic" }}>Inspired by {bio.player}</div>}
+                        {bio.player && <div style={{ fontSize:9, color:"#999", marginTop:8, fontStyle:"italic" }}>Inspired by {bio.player}</div>}
                       </div>
                     )}
                   </div>
@@ -16324,7 +16324,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
           <div style={{ display:"flex", gap:5, alignItems:"center" }}>
             {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
             {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰{lotCount>0?` ${lotCount}`:""}</button>}
-            {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
+            {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
           </div>
           <QtyControls/>
         </div>
@@ -17115,7 +17115,7 @@ function CompanyDirectory({ userRole }) {
                     {isAdmin && (
                       <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                         <button onClick={()=>startEdit(p)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
-                        <button onClick={()=>deletePerson(p.id,p.name)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#444", borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                        <button onClick={()=>deletePerson(p.id,p.name)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
                       </div>
                     )}
                   </div>
@@ -18139,12 +18139,12 @@ function ManualOverrideEditor({ overrides, setOverrides }) {
           {Object.entries(overrides).map(([file,cardNum])=>(
             <div key={file} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"var(--bz-bg)", borderRadius:6, padding:"5px 10px", fontSize:11 }}>
               <span><span style={{ color:"var(--bz-ink-2)" }}>{file}</span> → <span style={{ color:"#7B9CFF", fontWeight:700 }}>{cardNum}</span></span>
-              <button onClick={()=>remove(file)} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:12 }}>✕</button>
+              <button onClick={()=>remove(file)} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:12 }}>✕</button>
             </div>
           ))}
         </div>
       )}
-      {Object.entries(overrides).length === 0 && <div style={{ fontSize:11, color:"#444" }}>No overrides yet</div>}
+      {Object.entries(overrides).length === 0 && <div style={{ fontSize:11, color:"#8a8a8a" }}>No overrides yet</div>}
     </div>
   );
 }
@@ -20376,7 +20376,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               <div style={{ fontSize:13, color:"#E8317A", marginBottom:8 }}>{"\u26A0\uFE0F"}{collectionImportResult.skipped} rows skipped (no match found)</div>
             )}
             {collectionImportResult.skippedRows.length > 0 && (
-              <div style={{ maxHeight:120, overflowY:"auto", background:"var(--bz-bg)", borderRadius:6, padding:"8px 10px", fontSize:10, color:"#666", marginBottom:12 }}>
+              <div style={{ maxHeight:120, overflowY:"auto", background:"var(--bz-bg)", borderRadius:6, padding:"8px 10px", fontSize:10, color:"#999", marginBottom:12 }}>
                 {collectionImportResult.skippedRows.map((r,i)=><div key={i}>{r}</div>)}
               </div>
             )}
@@ -20780,7 +20780,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         </div>
                       )}
                       {!r.complete && (
-                        <div style={{ fontSize:10, color:"#555", marginTop:4 }}>{r.need} option{r.need!==1?"s":""} available</div>
+                        <div style={{ fontSize:10, color:"#8a8a8a", marginTop:4 }}>{r.need} option{r.need!==1?"s":""} available</div>
                       )}
                     </div>
                   ))}
@@ -20927,7 +20927,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                             <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":ownedCount>0?"#FBBF24":"#555" }}>
                               {ownedCount}/{total} cards{complete ? " -- RAINBOW! \uD83C\uDF08" : ""}
                             </span>
-                            <span style={{ color:"#444", fontSize:12 }}>{isExpanded?"\u25B2":"\u25BC"}</span>
+                            <span style={{ color:"#8a8a8a", fontSize:12 }}>{isExpanded?"\u25B2":"\u25BC"}</span>
                           </div>
                         </div>
                         {/* Per-set mini progress when on All Sets and hero spans multiple sets */}
@@ -21041,7 +21041,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           <span style={{ fontSize:11, fontWeight:700, color:complete?"#4ade80":pct>0?"#FBBF24":"#555" }}>
                             {ownedCount}/{tcards.length} · {pct}%
                           </span>
-                          <span style={{ color:"#444", fontSize:12 }}>{isExp?"\u25B2":"\u25BC"}</span>
+                          <span style={{ color:"#8a8a8a", fontSize:12 }}>{isExp?"\u25B2":"\u25BC"}</span>
                         </div>
                       </div>
                       <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
@@ -21590,7 +21590,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               <>
                                 <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:4 }}>🏆 {claim.submitterName||"Anonymous"}</div>
                                 {claim.story && <div style={{ fontSize:10, color:"var(--bz-ink-2)", fontStyle:"italic", lineHeight:1.5, marginBottom:4 }}>"{claim.story}"</div>}
-                                {claim.dateHit && <div style={{ fontSize:10, color:"#444" }}>{claim.dateHit}</div>}
+                                {claim.dateHit && <div style={{ fontSize:10, color:"#8a8a8a" }}>{claim.dateHit}</div>}
                               </>
                             )}
                             {isPending && <div style={{ fontSize:11, color:"var(--bz-ink-2)", marginBottom:6 }}>⏳ {claim.submitterName||"Anonymous"} — awaiting review</div>}
@@ -22377,7 +22377,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                             </div>
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
                               <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>#{c.cardNum}</span>
-                              {c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}
+                              {c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}
                               {c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                               {c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
                               {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
@@ -22478,8 +22478,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
-                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#999", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
                                 style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button>
@@ -22502,8 +22502,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#444", fontStyle:"italic" }}>{c.setName}</span>}</div>
-                                {c.playAbility && <div style={{ fontSize:10, color:"#666", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
+                                {c.playAbility && <div style={{ fontSize:10, color:"#999", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
                                 style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button>
@@ -22564,7 +22564,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               </div>
             ))}
           </div>
-          <div style={{ textAlign:"center", padding:"24px 0", fontSize:12, color:"#444" }}>
+          <div style={{ textAlign:"center", padding:"24px 0", fontSize:12, color:"#8a8a8a" }}>
             Loading cards...
           </div>
         </div>
@@ -23698,7 +23698,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         {savedPlaybooks.map(p=>(
                           <div key={p.id} style={{display:"flex",alignItems:"center",gap:3,background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
                             <button onClick={()=>loadPbTab(p)} style={{background:"none",border:"none",color:pbLoadId===p.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{p.name} <span style={{color:"var(--bz-ink-3)",fontWeight:400}}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
-                            <button onClick={()=>deletePbTab(p.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
+                            <button onClick={()=>deletePbTab(p.id)} style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                           </div>
                         ))}
                       </div>
@@ -23756,8 +23756,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                             title={`${c.count} play${c.count!==1?"s":""} (${pct}%) — hover or click to see which`}
                             style={{background:isOpen?`${col}1f`:"rgba(255,255,255,0.03)",border:`1px solid ${isOpen?col:col+"33"}`,borderRadius:9,padding:"8px 9px",cursor:"pointer",transition:"all 0.15s"}}>
                             <div style={{fontSize:9,fontWeight:800,color:col,lineHeight:1.2,minHeight:22}}>{cat}</div>
-                            <div style={{fontSize:22,fontWeight:900,color:c.count>0?"#fff":"#555",lineHeight:1.1,marginTop:2}}>{c.count}<span style={{fontSize:10,color:"#666",fontWeight:700}}> play{c.count!==1?"s":""}</span></div>
-                            <div style={{fontSize:9,color:"#666",marginTop:1}}>{pct}% of mix</div>
+                            <div style={{fontSize:22,fontWeight:900,color:c.count>0?"#fff":"#555",lineHeight:1.1,marginTop:2}}>{c.count}<span style={{fontSize:10,color:"#999",fontWeight:700}}> play{c.count!==1?"s":""}</span></div>
+                            <div style={{fontSize:9,color:"#999",marginTop:1}}>{pct}% of mix</div>
                           </div>
                         );
                       })}
@@ -23767,7 +23767,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       <div style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${PLAYBOOK_CAT_COLORS[expandedCat]}33`,borderRadius:9,padding:"8px 10px",marginBottom:12}}>
                         <div style={{fontSize:10,fontWeight:800,color:PLAYBOOK_CAT_COLORS[expandedCat],marginBottom:6}}>{expandedCat} — {(makeup.counts[expandedCat]?.cards||[]).length} play{(makeup.counts[expandedCat]?.cards||[]).length!==1?"s":""}</div>
                         {(makeup.counts[expandedCat]?.cards||[]).length===0
-                          ? <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>No plays in this category yet.</div>
+                          ? <div style={{fontSize:11,color:"#999",fontStyle:"italic"}}>No plays in this category yet.</div>
                           : (makeup.counts[expandedCat].cards).map((e,i)=>{
                               const c=e.card;
                               return (
@@ -23775,7 +23775,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                                   {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:22,height:29,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
                                   <div style={{flex:1,minWidth:0}}>
                                     <div style={{fontSize:11,fontWeight:700,color:"#eee",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playName||c.hero}</div>
-                                    <div style={{fontSize:9,color:"#666"}}>{e.type==="bonus"?"Bonus Play":"Play"}{c.dbs?` · DBS ${c.dbs}`:""}</div>
+                                    <div style={{fontSize:9,color:"#999"}}>{e.type==="bonus"?"Bonus Play":"Play"}{c.dbs?` · DBS ${c.dbs}`:""}</div>
                                   </div>
                                   {pbIsAdmin && (
                                     <select value={catOf(c)} onClick={ev=>ev.stopPropagation()} onChange={ev=>setPlayCategory(c,ev.target.value)}
@@ -23980,7 +23980,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         }} style={{background:done?"linear-gradient(135deg,#4ade80,#22c55e)":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:done?"#062b13":"#fff",borderRadius:8,padding:"7px 15px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                           ⚡ {done?"Build this deck":`Build with these ${deckProgress.have}`}
                         </button>
-                        <span style={{fontSize:10.5,color:"#666"}}>loads them into My Deck → name it → Save</span>
+                        <span style={{fontSize:10.5,color:"#999"}}>loads them into My Deck → name it → Save</span>
                       </div>
                     )}
                     {progressExpanded && deckProgress.cards && (
@@ -24126,7 +24126,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
                           <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"var(--bz-ink-3)",fontWeight:400}}>({d.cardCount})</span></button>
                           <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length){ setFanMode("grid"); setFanDeck({name:d.name,cards:objs}); } }} title="Expand to view this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>⛶</button>
-                          <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
+                          <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
                     </div>
@@ -24541,7 +24541,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                         {c.imageUrl&&<img src={c.imageUrl} alt="" style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}}/>}
                         <div style={{padding:"7px 9px"}}>
                           <div style={{fontSize:12,fontWeight:800,color:"var(--bz-ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero}</div>
-                          <div style={{fontSize:9,color:"#666"}}>#{c.cardNum} · {c.treatment}</div>
+                          <div style={{fontSize:9,color:"#999"}}>#{c.cardNum} · {c.treatment}</div>
                           {c.weapon&&<span style={{fontSize:9,color:wc,fontWeight:700}}>{c.weapon}</span>}
                         </div>
                       </button>
@@ -25326,7 +25326,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
       <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:16, width:"min(460px,100%)", maxHeight:"86vh", overflowY:"auto", padding:"20px 22px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
           <div>
-            <div style={{ fontSize:11, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
+            <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
             <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{card.hero}</div>
             <div style={{ fontSize:11, color:"#777" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
           </div>
@@ -25349,7 +25349,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
         {/* Existing copies */}
         {lots.length>0 && (
           <div style={{ margin:"12px 0" }}>
-            <div style={{ fontSize:11, color:"#666", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
+            <div style={{ fontSize:11, color:"#999", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
             {lots.map((l,i)=>(
               <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
                 {l.photoUrl && (
@@ -25364,7 +25364,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
                     {l.cost!=null && <span style={{ color:"#E8317A" }}> · ${l.cost}</span>}
                     {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
                   </div>
-                  <div style={{ fontSize:10, color:"#666" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
+                  <div style={{ fontSize:10, color:"#999" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
                 </div>
                 <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                 <button onClick={()=>onRemove(l.id)} style={{ background:"none", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>×</button>
@@ -25420,7 +25420,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10005, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(6px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:18, width:"min(420px,100%)", padding:"24px 26px" }}>
-        <div style={{ fontSize:11, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:4 }}>Rate your seller</div>
+        <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:4 }}>Rate your seller</div>
         <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:2 }}>{sale.sellerName||"Seller"}</div>
         <div style={{ fontSize:12, color:"#777", marginBottom:18 }}>{sale.cardName}{sale.price?` · $${Number(sale.price).toFixed(2)}`:""}</div>
 
@@ -25485,7 +25485,7 @@ function SellerBadge({ uid, name, marketSales=[], inline=true, onViewProfile }) 
           {onViewProfile && uid && <button onClick={e=>{ e.stopPropagation(); onViewProfile(uid); setOpen(false); }} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:8, width:"100%" }}>View Full Profile →</button>}
           {stats?.handle && <div style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, marginBottom:8 }}>{stats.handle}</div>}
           {!stats ? (
-            <div style={{ fontSize:12, color:"#666" }}>Loading…</div>
+            <div style={{ fontSize:12, color:"#999" }}>Loading…</div>
           ) : (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -25499,14 +25499,14 @@ function SellerBadge({ uid, name, marketSales=[], inline=true, onViewProfile }) 
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:12, color:"var(--bz-ink-2)" }}>Seller rating</span>
                 {stats.rating!=null ? (
-                  <span style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>{stats.rating.toFixed(1)} ⭐ <span style={{ color:"#666", fontWeight:600, fontSize:11 }}>· {stats.reviewCount}</span></span>
+                  <span style={{ fontSize:13, fontWeight:800, color:"#FBBF24" }}>{stats.rating.toFixed(1)} ⭐ <span style={{ color:"#999", fontWeight:600, fontSize:11 }}>· {stats.reviewCount}</span></span>
                 ) : (
                   <span style={{ fontSize:11, fontWeight:700, color:"#7B9CFF", background:"rgba(123,156,255,0.12)", border:"1px solid rgba(123,156,255,0.3)", borderRadius:20, padding:"2px 8px" }}>New collector</span>
                 )}
               </div>
               {written.length>0 && (
                 <div style={{ marginTop:6, borderTop:"1px solid #2a2a2a", paddingTop:10 }}>
-                  <div style={{ fontSize:10, color:"#666", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Recent reviews</div>
+                  <div style={{ fontSize:10, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Recent reviews</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {written.slice(0,6).map((r,i)=>(
                       <div key={i} style={{ background:"#1a1a1a", borderRadius:8, padding:"8px 10px" }}>
@@ -25570,22 +25570,22 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
         <div style={{ ...card, borderColor:"rgba(232,49,122,0.25)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Purchases</div>
           <div style={{ fontSize:24, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(totalPurchases)}</div>
-          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>{purchases.length} buy{purchases.length===1?"":"s"}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{purchases.length} buy{purchases.length===1?"":"s"}</div>
         </div>
         <div style={{ ...card, borderColor:"rgba(74,222,128,0.25)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Sales</div>
           <div style={{ fontSize:24, fontWeight:900, color:"#4ade80", marginTop:4 }}>{money(totalSales)}</div>
-          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>{sales.length} sale{sales.length===1?"":"s"}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{sales.length} sale{sales.length===1?"":"s"}</div>
         </div>
         <div style={{ ...card, borderColor:netProfit>=0?"rgba(74,222,128,0.25)":"rgba(239,68,68,0.25)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Net Profit</div>
           <div style={{ fontSize:24, fontWeight:900, color:netProfit>=0?"#4ade80":"#EF4444", marginTop:4 }}>{money(netProfit)}</div>
-          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>sales − purchases</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>sales − purchases</div>
         </div>
         <div style={{ ...card, borderColor:"rgba(123,156,255,0.25)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Est. Holdings</div>
           <div style={{ fontSize:24, fontWeight:900, color:"#7B9CFF", marginTop:4 }}>{money(currentValue)}</div>
-          <div style={{ fontSize:11, color:"#666", marginTop:2 }}>current value owned</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>current value owned</div>
         </div>
       </div>
 
@@ -25593,7 +25593,7 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
       <div style={{ ...card, marginBottom:16 }}>
         <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:12 }}>Month-by-Month P&L</div>
         {monthRows.length===0 ? (
-          <div style={{ fontSize:13, color:"#666" }}>No activity yet. Add card costs (💰 Details) and make marketplace sales to populate this.</div>
+          <div style={{ fontSize:13, color:"#999" }}>No activity yet. Add card costs (💰 Details) and make marketplace sales to populate this.</div>
         ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
@@ -25624,12 +25624,12 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
         <div style={card}>
           <div style={{ fontSize:14, fontWeight:800, color:"#E8317A", marginBottom:10 }}>Purchases</div>
-          {purchases.length===0 ? <div style={{ fontSize:12, color:"#666" }}>No purchases logged. Use 💰 Details on a card to add cost.</div> :
+          {purchases.length===0 ? <div style={{ fontSize:12, color:"#999" }}>No purchases logged. Use 💰 Details on a card to add cost.</div> :
             purchases.slice(0,20).map(p=>(
               <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderTop:"1px solid var(--bz-line)" }}>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:"#ddd", fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
-                  <div style={{ fontSize:10, color:"#666" }}>{(LOT_METHODS.find(m=>m.v===p.method)?.l||p.method)} · {p.when}</div>
+                  <div style={{ fontSize:10, color:"#999" }}>{(LOT_METHODS.find(m=>m.v===p.method)?.l||p.method)} · {p.when}</div>
                 </div>
                 <div style={{ fontSize:13, fontWeight:800, color:"#E8317A", whiteSpace:"nowrap", marginLeft:8 }}>{money(p.cost)}</div>
               </div>
@@ -25638,12 +25638,12 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
         </div>
         <div style={card}>
           <div style={{ fontSize:14, fontWeight:800, color:"#4ade80", marginBottom:10 }}>Sales</div>
-          {sales.length===0 ? <div style={{ fontSize:12, color:"#666" }}>No marketplace sales yet.</div> :
+          {sales.length===0 ? <div style={{ fontSize:12, color:"#999" }}>No marketplace sales yet.</div> :
             sales.slice(0,20).map(s=>(
               <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderTop:"1px solid var(--bz-line)" }}>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:"#ddd", fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.name}</div>
-                  <div style={{ fontSize:10, color:"#666" }}>to {s.buyerName||"buyer"} · {s.when}</div>
+                  <div style={{ fontSize:10, color:"#999" }}>to {s.buyerName||"buyer"} · {s.when}</div>
                 </div>
                 <div style={{ fontSize:13, fontWeight:800, color:"#4ade80", whiteSpace:"nowrap", marginLeft:8 }}>{money(Number(s.price))}</div>
               </div>
@@ -25651,7 +25651,7 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
           }
         </div>
       </div>
-      <div style={{ fontSize:10, color:"#444", marginTop:16, textAlign:"center" }}>Purchases come from costs you enter on your cards. Sales come from completed marketplace transactions where you were the seller. Trades and gifts (no cost) are excluded from spend.</div>
+      <div style={{ fontSize:10, color:"#8a8a8a", marginTop:16, textAlign:"center" }}>Purchases come from costs you enter on your cards. Sales come from completed marketplace transactions where you were the seller. Trades and gifts (no cost) are excluded from spend.</div>
     </div>
   );
 }
@@ -25739,7 +25739,7 @@ function OnboardingModal({ user, onComplete, inp }) {
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>This is your handle across Bazooka — on your profile, the leaderboard, and the marketplace. Pick something good, it's yours.</div>
 
             <div style={{ position:"relative", marginBottom:8 }}>
-              <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", fontSize:16, color:"#666", fontWeight:700 }}>@</span>
+              <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", fontSize:16, color:"#999", fontWeight:700 }}>@</span>
               <input autoFocus value={username} onChange={e=>setUsername(clean(e.target.value))} placeholder="yourhandle" maxLength={20}
                 style={{...inp, width:"100%", paddingLeft:32, fontSize:16, boxSizing:"border-box",
                   borderColor: status==="available"?"#4ade80":status==="taken"?"#EF4444":undefined }}/>
@@ -25907,9 +25907,9 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
       </div>
 
       {!rows ? (
-        <div style={{ textAlign:"center", padding:60, color:"#666" }}>Loading rankings…</div>
+        <div style={{ textAlign:"center", padding:60, color:"#999" }}>Loading rankings…</div>
       ) : top.length===0 ? (
-        <div style={{ textAlign:"center", padding:60, color:"#666" }}>No rankings yet in this category. Be the first!</div>
+        <div style={{ textAlign:"center", padding:60, color:"#999" }}>No rankings yet in this category. Be the first!</div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {top.map((r,i)=>{
@@ -25940,7 +25940,7 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
             <div style={{ fontSize:18, fontWeight:900, color:"#E8317A" }}>{(myRow?.[cat]||0).toLocaleString()}</div>
           </div>
         ) : myRank===-1 ? (
-          <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#666" }}>You're not ranked in this category yet — start collecting to climb on. 🚀</div>
+          <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#999" }}>You're not ranked in this category yet — start collecting to climb on. 🚀</div>
         ) : null
       )}
     </div>
@@ -29031,7 +29031,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                     {subFolders.map(sf=>{ const known=bulkImg.setName?treatments.some(t=>t.replace(/[\s-]/g,"").toLowerCase()===sf.replace(/[\s-]/g,"").toLowerCase()||t.replace(/[\s-]/g,"").toLowerCase().includes(sf.replace(/[\s-]/g,"").toLowerCase())):true; return <span key={sf} style={{fontSize:11,fontWeight:700,color:known?"#4ade80":"#FBBF24",background:known?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",border:`1px solid ${known?"#4ade8044":"#FBBF2444"}`,borderRadius:6,padding:"3px 9px"}}>{known?"":"⚠️ "}{sf}</span>; })}
                   </div>
-                  <div style={{fontSize:10,color:"#666",marginTop:6}}>⚠️ = folder name doesn't match a known treatment in this set; those images fall back to name/vision matching.</div>
+                  <div style={{fontSize:10,color:"#999",marginTop:6}}>⚠️ = folder name doesn't match a known treatment in this set; those images fall back to name/vision matching.</div>
                 </div>
               ) : (<>
               <div style={{fontSize:11,fontWeight:800,color:bulkImg.treatment?"#4ade80":"#888",marginBottom:6}}>{bulkImg.treatment?"✅":"○"} Treatment {bulkImg.treatment?"":"(optional — helps for noisy foils)"}</div>
@@ -29520,7 +29520,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         {unmatched.slice(0,40).map((r,i)=>(
                           <div key={i} style={{fontSize:11,color:"#999",padding:"2px 0"}}>{r.csv.hero||"?"} · {r.csv.parallel||""} {r.csv.weapon?`(${r.csv.weapon})`:""} {r.csv.cardNum?`#${r.csv.cardNum}`:""}{r.csv.setName?` — ${r.csv.setName}`:""}</div>
                         ))}
-                        {unmatched.length>40 && <div style={{fontSize:11,color:"#666",marginTop:4}}>…and {unmatched.length-40} more</div>}
+                        {unmatched.length>40 && <div style={{fontSize:11,color:"#999",marginTop:4}}>…and {unmatched.length-40} more</div>}
                       </div>
                     </div>
                   )}
@@ -29559,7 +29559,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         <div key={f.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${borderC}`,borderRadius:10,padding:"10px 12px"}}>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)"}}>{f.label}{f.required&&<span style={{color:"#E8317A",marginLeft:4}}>*</span>}</div>
-                            <div style={{fontSize:10,color:"#666"}}>{f.hint}</div>
+                            <div style={{fontSize:10,color:"#999"}}>{f.hint}</div>
                           </div>
                           <span style={{color:"var(--bz-ink-3)",fontSize:14}}>←</span>
                           <select value={idx>=0?String(idx):""} onChange={e=>{ const v=e.target.value===""?-1:parseInt(e.target.value); setImportColMap(prev=>({...prev,[f.key]:v})); }} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:missingReq?"rgba(232,49,122,0.5)":isSet?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.15)"}}>
@@ -29597,7 +29597,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       <div key={cs} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:"rgba(255,255,255,0.02)",border:`1px solid ${borderC}`,borderRadius:10,padding:"10px 12px"}}>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cs}</div>
-                          <div style={{fontSize:10,color:"#666"}}>{countFor(cs)} card{countFor(cs)!==1?"s":""}</div>
+                          <div style={{fontSize:10,color:"#999"}}>{countFor(cs)} card{countFor(cs)!==1?"s":""}</div>
                         </div>
                         <span style={{color:"var(--bz-ink-3)",fontSize:14}}>→</span>
                         <select value={importSetMap[cs]||""} onChange={e=>setImportSetMap(prev=>({...prev,[cs]:e.target.value}))} style={{...inp,flex:1.2,minWidth:0,cursor:"pointer",fontSize:12,borderColor:isMapped?"rgba(74,222,128,0.4)":isSkip?"rgba(123,156,255,0.4)":"rgba(251,191,36,0.4)"}}>
@@ -29646,7 +29646,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 : <div style={{width:96,height:96,borderRadius:"50%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,fontWeight:900,color:"#fff"}}>{(myUsername||user.displayName||user.email||"?").charAt(myUsername?1:0).toUpperCase()}</div>}
               <div style={{textAlign:"center"}}>
                 <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
-                <div style={{fontSize:12,color:"#666"}}>{user.email}</div>
+                <div style={{fontSize:12,color:"#999"}}>{user.email}</div>
               </div>
               <label style={{display:"block",width:"100%",cursor:editPicUploading?"wait":"pointer"}}>
                 <div style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:800,textAlign:"center",opacity:editPicUploading?0.6:1}}>
@@ -29959,7 +29959,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   <div style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6}}>
                     <div style={{padding:"8px 12px 10px",borderBottom:"1px solid var(--bz-line)",marginBottom:4}}>
                       <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
-                      <div style={{fontSize:10,color:"#666",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
+                      <div style={{fontSize:10,color:"#999",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
                     </div>
                     {[
                       {label:"✏️ Edit Profile",act:()=>setEditProfileOpen(true)},
@@ -30211,7 +30211,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", height:32, boxSizing:"border-box" }}>
                           {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:18, height:24, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                           <span style={{ fontSize:12, fontWeight:700, color:"#C084FC", whiteSpace:"nowrap" }}>{cl.cardName}</span>
-                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#999", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
                           <span style={{ fontSize:11, color:"var(--bz-ink-2)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>by {cl.submitterName||"Anonymous"}</span>
                         </div>
                       ))}
@@ -30356,7 +30356,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               {isV && <>
                                 <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", marginBottom:claim.story?4:6 }}>🏆 {claim.submitterName||claim.userName||"Anonymous"}</div>
                                 {claim.story && <div style={{ fontSize:10, color:"var(--bz-ink-2)", fontStyle:"italic", lineHeight:1.5, marginBottom:4 }}>"{claim.story}"</div>}
-                                {claim.dateHit && <div style={{ fontSize:10, color:"#444", marginBottom:6 }}>{claim.dateHit}</div>}
+                                {claim.dateHit && <div style={{ fontSize:10, color:"#8a8a8a", marginBottom:6 }}>{claim.dateHit}</div>}
                               </>}
                               {isP && <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {!isV&&!isP && <div style={{ fontSize:10, fontWeight:700, color:"#C084FC", marginBottom:6, letterSpacing:0.5 }}>💎 Available</div>}
@@ -30417,12 +30417,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
               <div style={{ background:"var(--bz-s1)", border:"1px solid #F59E0B33", borderRadius:14, padding:"16px 20px", marginBottom:20 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8 }}>
                   <span style={{ fontSize:13, fontWeight:800, color:"#F59E0B", textTransform:"uppercase", letterSpacing:1 }}>Found</span>
-                  <span style={{ fontSize:22, fontWeight:900, color:"#fff" }}>{verifiedCount}<span style={{ fontSize:14, color:"#666" }}> / 34</span></span>
+                  <span style={{ fontSize:22, fontWeight:900, color:"#fff" }}>{verifiedCount}<span style={{ fontSize:14, color:"#999" }}> / 34</span></span>
                 </div>
                 <div style={{ height:12, background:"var(--bz-bg)", borderRadius:6, overflow:"hidden", border:"1px solid var(--bz-line)" }}>
                   <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F59E0B,#E8317A)", borderRadius:6, transition:"width 0.6s ease" }}/>
                 </div>
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11, color:"#666" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11, color:"#999" }}>
                   <span>{pct}% accounted for</span>
                   {pendingCount>0 && <span style={{ color:"#FBBF24" }}>⏳ {pendingCount} pending verification</span>}
                   <span>{34-verifiedCount} still out there</span>
@@ -30530,7 +30530,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 <label style={{ fontSize:11, color:"#F59E0B", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Story (optional)</label>
                 <textarea value={bojaxStory} onChange={e=>setBojaxStory(e.target.value)} placeholder="How'd you land it?" rows={2} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12, resize:"vertical" }}/>
                 <label style={{ display:"block", background: bojaxPhoto?"#0a1a0a":"#0a0a0a", border:`2px dashed ${bojaxPhoto?"#F59E0B":"#2a2a2a"}`, borderRadius:12, padding:"18px", textAlign:"center", cursor:"pointer", marginBottom:14 }}>
-                  {bojaxPhoto ? <img src={bojaxPhoto} alt="proof" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8 }}/> : <div style={{ color:"#666", fontSize:13 }}>📸 Tap to add a photo of your card</div>}
+                  {bojaxPhoto ? <img src={bojaxPhoto} alt="proof" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8 }}/> : <div style={{ color:"#999", fontSize:13 }}>📸 Tap to add a photo of your card</div>}
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onload=ev=>setBojaxPhoto(ev.target.result); r.readAsDataURL(f); } }}/>
                 </label>
                 <div style={{ display:"flex", gap:10 }}>
@@ -30738,7 +30738,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", height:32, boxSizing:"border-box" }}>
                           {cl.photoUrl && <img src={cl.photoUrl} alt="" style={{ width:18, height:24, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                           <span style={{ fontSize:12, fontWeight:700, color:"#FBBF24", whiteSpace:"nowrap" }}>{cl.cardName}</span>
-                          <span style={{ fontSize:11, color:"#666", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
+                          <span style={{ fontSize:11, color:"#999", whiteSpace:"nowrap" }}>#{cl.cardNum}</span>
                           <span style={{ fontSize:11, color:"var(--bz-ink-2)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>by {cl.submitterName||cl.userName||"Anonymous"}</span>
                         </div>
                       ))}
@@ -30852,7 +30852,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:6}}>#{c.cardNum} · 1/1 Super</div>
                               {isVerified&&<div style={{fontSize:11,fontWeight:700,color:"#F59E0B",marginBottom:claim.story?4:6}}>🏆 {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {isVerified&&claim.story&&<div style={{fontSize:10,color:"var(--bz-ink-2)",fontStyle:"italic",lineHeight:1.5,marginBottom:4}}>"{claim.story}"</div>}
-                              {isVerified&&claim.dateHit&&<div style={{fontSize:10,color:"#444",marginBottom:6}}>{claim.dateHit}</div>}
+                              {isVerified&&claim.dateHit&&<div style={{fontSize:10,color:"#8a8a8a",marginBottom:6}}>{claim.dateHit}</div>}
                               {isPending&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:6}}>⏳ {claim.submitterName||claim.userName||"Anonymous"}</div>}
                               {!isVerified&&!isPending&&<div style={{fontSize:10,fontWeight:700,color:"#FBBF24",marginBottom:6,letterSpacing:0.5}}>⭐ Available</div>}
                               {isDenied&&myClaim&&<div style={{fontSize:10,color:"#E8317A",marginBottom:6}}>❌ Denied{claim.denialReason?`: ${claim.denialReason}`:""}</div>}
@@ -31807,7 +31807,7 @@ function PublicChaseTracker() {
                 <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${color}44,${color}11)`, border:`2px solid ${color}66`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:900, color, boxShadow:`0 0 24px ${color}33`, flexShrink:0 }}>{breaker[0]}</div>
                 <div>
                   <div style={{ fontSize:20, fontWeight:900, color }}>{breaker}</div>
-                  <div style={{ fontSize:11, color:"#444" }}>{breakerChases.length} active chase{breakerChases.length!==1?"s":""} · {breakerChases.reduce((s,c)=>s+(c.cards||[]).filter(x=>!x.owned).length,0)} cards needed</div>
+                  <div style={{ fontSize:11, color:"#8a8a8a" }}>{breakerChases.length} active chase{breakerChases.length!==1?"s":""} · {breakerChases.reduce((s,c)=>s+(c.cards||[]).filter(x=>!x.owned).length,0)} cards needed</div>
                 </div>
                 <div style={{ flex:1, height:1, background:`linear-gradient(90deg,${color}33,transparent)`, marginLeft:8 }}/>
               </div>
@@ -31840,7 +31840,7 @@ function PublicChaseTracker() {
                           </div>
                           <div style={{ textAlign:"right", flexShrink:0, marginLeft:8 }}>
                             <div style={{ fontSize:18, fontWeight:900, color:pct===100?"#FBBF24":pct>=85?"#EC4899":pct>=71?"#A78BFA":pct>=57?"#4ade80":pct>=42?"#38BDF8":pct>=28?"#F97316":pct>=14?"#EF4444":"#94A3B8" }}>{pct.toFixed(0)}%</div>
-                            <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:1 }}>{owned.length}/{cards.length}</div>
+                            <div style={{ fontSize:9, color:"#8a8a8a", textTransform:"uppercase", letterSpacing:1 }}>{owned.length}/{cards.length}</div>
                           </div>
                         </div>
 
@@ -31986,7 +31986,7 @@ function PublicChaseTracker() {
                     {submitting ? "Sending..." : "Send →"}
                   </button>
                   <button onClick={()=>{ setSubmitForm(null); setFormData({discord:"",message:"",photo:null}); }}
-                    style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"#666", borderRadius:10, padding:"13px 18px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                    style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"#999", borderRadius:10, padding:"13px 18px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
                     ✕
                   </button>
                 </div>
@@ -32383,7 +32383,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                           {weapon && <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"2px 7px" }}>{weapon}</span>}
                           {treatment && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"2px 7px" }}>{treatment}</span>}
                         </div>
-                        {cardNum && <div style={{ fontSize:10, color:"#444", marginTop:3 }}>#{cardNum}</div>}
+                        {cardNum && <div style={{ fontSize:10, color:"#8a8a8a", marginTop:3 }}>#{cardNum}</div>}
                       </div>
 
                       {/* Checkbox */}
@@ -32678,7 +32678,7 @@ function PublicSellPage() {
             <div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>Search by hero name, card #, or treatment</div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"3fr 1fr 1fr auto", gap:8, marginBottom:8 }}>
-            {["Card Name","Qty","Your Asking Price",""].map(h=><div key={h} style={{ fontSize:10, fontWeight:700, color:"#444", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>)}
+            {["Card Name","Qty","Your Asking Price",""].map(h=><div key={h} style={{ fontSize:10, fontWeight:700, color:"#8a8a8a", textTransform:"uppercase", letterSpacing:1 }}>{h}</div>)}
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {rows.map((r,i)=>(
@@ -33044,7 +33044,7 @@ function PublicQuote({ quoteId }) {
               <div style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-3)", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>📦 Ship your cards to</div>
               <div style={{ fontSize:14, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>Devin — Bazooka Breaks<br/>425 Prosperity Dr<br/>Warsaw, IN 46582</div>
             </div>
-            <div style={{ fontSize:13, color:"#666", lineHeight:1.7 }}>
+            <div style={{ fontSize:13, color:"#999", lineHeight:1.7 }}>
               Use top loaders and a tracked shipping method. Once sent, share your tracking number with us on Discord at <strong style={{ color:"var(--bz-ink-2)" }}>BubbleGumKing</strong> or via Whatnot.<br/><br/>
               Payment of <strong style={{ color:"#4ade80" }}>${offer.toFixed(2)}</strong> will be sent as soon as possible — thank you!
             </div>
@@ -33114,7 +33114,7 @@ function PublicQuote({ quoteId }) {
                       <span style={{ fontSize:10, fontWeight:800, color:color, background:`${color}18`, borderRadius:10, padding:"1px 8px" }}>Step {step}</span>
                       <span style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink)" }}>{title}</span>
                     </div>
-                    <div style={{ fontSize:13, color:"#666", lineHeight:1.6 }}>{body}</div>
+                    <div style={{ fontSize:13, color:"#999", lineHeight:1.6 }}>{body}</div>
                     {extra}
                   </div>
                 </div>
@@ -33970,9 +33970,9 @@ function BugAdmin({ user }) {
               <span style={{fontSize:10.5,color:"#7B9CFF"}}>📸 Click to open full screenshot</span>
             </a>
           )}
-          <div style={{fontSize:10.5,color:"#666",lineHeight:1.6,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>
+          <div style={{fontSize:10.5,color:"#999",lineHeight:1.6,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>
             📍 {b.page||"?"} · 📱 {b.screen||"?"} · {new Date(b.createdAt).toLocaleString()}<br/>
-            <span style={{color:"#444"}}>{b.userAgent}</span>
+            <span style={{color:"#8a8a8a"}}>{b.userAgent}</span>
           </div>
         </div>
       ))}
@@ -34066,7 +34066,7 @@ function BugReporter({ user }) {
               <>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>🐛 Report a Bug</div>
-                  <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+                  <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"#999",fontSize:22,cursor:"pointer",fontFamily:"inherit"}}>×</button>
                 </div>
                 <div style={{fontSize:12,color:"#999",marginBottom:14,lineHeight:1.5}}>What broke, what did you expect, and what happened instead? Your page & device info are captured automatically.</div>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-2)",marginBottom:6}}>How bad is it?</div>
@@ -34883,7 +34883,7 @@ function AppInner() {
               <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid var(--bz-line)" }}>
                 <span style={{ fontSize:20 }}>{"\uD83D\uDD0D"}</span>
                 <input autoFocus value={gSearch} onChange={e=>setGSearch(e.target.value)} placeholder="Search inventory by name, seller, type, status..." style={{ flex:1, background:"transparent", border:"none", color:"var(--bz-ink)", fontSize:15, fontFamily:"inherit", outline:"none" }}/>
-                <span style={{ fontSize:11, color:"#444" }}>ESC to close</span>
+                <span style={{ fontSize:11, color:"#8a8a8a" }}>ESC to close</span>
               </div>
               <div style={{ maxHeight:400, overflowY:"auto" }}>
                 {q.length < 2 ? <div style={{ padding:"24px", textAlign:"center", color:"var(--bz-ink-3)", fontSize:12 }}>Type at least 2 characters to search</div> :
