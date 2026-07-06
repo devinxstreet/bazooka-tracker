@@ -1376,18 +1376,20 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           return acc;
         }, { gross:0, imc:0, comm:0, baz:0, trueNet:0 });
 
-        // Recap totals use STREAMS ONLY so they always match the drill-down (which is streams-only).
-        // Historical monthly summaries are shown in their own Historical section, not merged here.
+        // Include historical monthly summaries (real revenue from before streams
+        // were logged in-tool) for months that have no stream data. This keeps the
+        // Financial Overview YTD consistent with the Year-End Projections YTD.
         const totals = {
-          gross:         streamTotals.gross,
-          imc:           streamTotals.imc,
+          gross:         streamTotals.gross          + histTotals.gross,
+          imc:           streamTotals.imc            + histTotals.imc,
           comm:          streamTotals.comm,
-          baz:           streamTotals.baz,
-          trueNet:       streamTotals.trueNet,
+          baz:           streamTotals.baz            + histTotals.baz,
+          trueNet:       streamTotals.trueNet        + histTotals.trueNet,
           expenses:      streamTotals.expenses || 0,
           imcDirectReimb: streamTotals.imcDirectReimb || 0,
           singlesGross:  streamTotals.singlesGross || 0,
           singlesComm:   streamTotals.singlesComm || 0,
+          histGross:     histTotals.gross, // for drill-down note
         };
 
         const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
@@ -1469,6 +1471,25 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     </tr>
                   </tfoot>
                 </table>
+                {(() => {
+                  // Historical monthly data (months with no streams) is included in the
+                  // headline totals but not in this stream table — show it here so the
+                  // numbers reconcile.
+                  const histVal = {
+                    gross:   histTotals.gross,
+                    imc:     histTotals.imc,
+                    bazooka: histTotals.baz,
+                    trueNet: histTotals.trueNet,
+                  }[drillDown];
+                  if (!histVal) return null;
+                  const streamSum = drillRows.reduce((a,s)=>a+config.val(s),0);
+                  return (
+                    <div style={{ padding:"10px 14px", fontSize:12, background:"rgba(123,156,255,0.06)", borderTop:"1px solid var(--bz-line)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ color:"#7B9CFF" }}>📁 + Historical (pre-tool months, imported summaries)</span>
+                      <span style={{ color:"#7B9CFF", fontWeight:800 }}>{fmt(histVal)}</span>
+                    </div>
+                  );
+                })()}
                 {drillDown==="trueNet" && (() => {
                   const adj = Object.entries(imcAdjustments).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0);
                   if (!adj) return null;
@@ -18863,6 +18884,14 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [expandedHero,   setExpandedHero]   = useState(null);
   const [expandedTreat,  setExpandedTreat]  = useState(null);
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
+  const [rainbowMode,      setRainbowMode]      = useState("full"); // "full" | "custom"
+  const [customTrackers,   setCustomTrackers]   = useState(() => {
+    try { const c = localStorage.getItem("customTrackers_v1"); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
+  const [activeTrackerId,  setActiveTrackerId]  = useState(null);
+  const [showTrackerBuilder, setShowTrackerBuilder] = useState(false);
+  const [builderName,      setBuilderName]      = useState("");
+  const [builderTreatments,setBuilderTreatments]= useState([]);
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all"); // all | owned | missing
   const [sortBy,           setSortBy]           = useState("cardNum");
@@ -18951,6 +18980,11 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       if (snap.exists()) setOwned(snap.data()); else setOwned({});
     });
     const uWants = onSnapshot(doc(db,"boba_owned",wantsDocId), snap => { if(snap.exists()) setWantList(snap.data()); else setWantList({}); });
+    const uTrackers = onSnapshot(doc(db,"boba_trackers",ownedDocId), snap => {
+      const list = (snap.exists() && Array.isArray(snap.data().trackers)) ? snap.data().trackers : [];
+      setCustomTrackers(list);
+      try { localStorage.setItem("customTrackers_v1", JSON.stringify(list)); } catch {}
+    });
     const u3 = onSnapshot(collection(db,"boba_imports"), snap => {
       setImports(snap.docs.map(d=>d.data()).sort((a,b)=>b.importedAt?.localeCompare(a.importedAt)));
     });
@@ -18968,7 +19002,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const uOne = onSnapshot(collection(db,"oneof1_claims"), snap => {
       setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)));
     });
-    return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); uOne(); };
+    return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); uOne(); uTrackers(); };
   }, []);
 
   // Infinite scroll -- load more when user scrolls near bottom
@@ -19722,6 +19756,28 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download="boba-have-list.csv"; a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function saveCustomTracker() {
+    const name = builderName.trim();
+    if (!name || builderTreatments.length === 0) return;
+    const tid = (activeTrackerId && showTrackerBuilder==="edit") ? activeTrackerId : uid();
+    const tracker = { id: tid, name, treatments: builderTreatments };
+    const exists = customTrackers.find(t => t.id === tracker.id);
+    const next = exists ? customTrackers.map(t => t.id===tracker.id ? tracker : t) : [...customTrackers, tracker];
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    try { await setDoc(doc(db,"boba_trackers",ownedDocId), { trackers: next }); } catch(e) {}
+    setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]);
+    setActiveTrackerId(tracker.id);
+  }
+  async function deleteCustomTracker(id) {
+    if (!window.confirm("Delete this tracker?")) return;
+    const next = customTrackers.filter(t => t.id !== id);
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    try { await setDoc(doc(db,"boba_trackers",ownedDocId), { trackers: next }); } catch(e) {}
+    if (activeTrackerId === id) setActiveTrackerId(null);
   }
 
   async function setOwnedQty(cardId, qty) {
@@ -20655,6 +20711,108 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
       {/* Rainbow Tracker */}
       {viewMode === "rainbow" && !loading && cards.length > 0 && (() => {
+        // ── Mode toggle: Full Rainbow vs Custom Trackers ──
+        const modeToggle = (
+          <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
+            {[["full","🌈 Full Rainbow"],["custom","🎯 Custom Trackers"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setRainbowMode(v)} style={{ background:rainbowMode===v?"var(--bz-pink)":"transparent", color:rainbowMode===v?"#fff":"var(--bz-ink-2)", border:`1.5px solid ${rainbowMode===v?"var(--bz-pink)":"#333"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+            ))}
+          </div>
+        );
+
+        if (rainbowMode === "custom") {
+          const allTreatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+          const active = customTrackers.find(t => t.id === activeTrackerId);
+
+          // Build the tracker view: one row per hero, complete if any owned card matches the chosen treatment(s)
+          const renderTracker = (tracker) => {
+            const treatSet = new Set(tracker.treatments);
+            const heroes = [...new Set(cards.filter(c=>c.hero).map(c=>c.hero))].sort();
+            const rows = heroes.map(hero => {
+              const heroTreatCards = cards.filter(c => c.hero===hero && treatSet.has(c.treatment));
+              const ownedMatch = heroTreatCards.filter(c => owned[c.id]);
+              return { hero, need: heroTreatCards.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, exists: heroTreatCards.length>0 };
+            });
+            const inSet = rows.filter(r=>r.exists);
+            const done = inSet.filter(r=>r.complete).length;
+            const pct = inSet.length ? Math.round(done/inSet.length*100) : 0;
+            return (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
+                  <div>
+                    <div style={{ fontSize:16, fontWeight:900, color:"var(--bz-ink)" }}>{tracker.name}</div>
+                    <div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{tracker.treatments.join(" · ")} · one per hero</div>
+                  </div>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
+                    <button onClick={()=>{ setBuilderName(tracker.name); setBuilderTreatments(tracker.treatments); setActiveTrackerId(tracker.id); setShowTrackerBuilder("edit"); }} style={{ background:"transparent", border:"1px solid #333", color:"var(--bz-ink-3)", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
+                    <button onClick={()=>deleteCustomTracker(tracker.id)} style={{ background:"transparent", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
+                  </div>
+                </div>
+                <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
+                  <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
+                  {inSet.map(r => (
+                    <div key={r.hero} style={{ background:r.complete?"rgba(74,222,128,0.08)":"var(--bz-s1)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"#1a1a1a"}`, borderRadius:9, padding:"10px 12px" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+                        <span style={{ fontSize:12, fontWeight:800, color:r.complete?"var(--bz-ink)":"#666" }}>{r.complete?"✅ ":""}{r.hero}</span>
+                      </div>
+                      {r.complete && r.ownedCards[0] && (
+                        <div style={{ fontSize:10, color:"#4ade80", marginTop:4 }}>
+                          Have: {r.ownedCards.map(c=>[c.weapon,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" ")).join(", ")}
+                        </div>
+                      )}
+                      {!r.complete && (
+                        <div style={{ fontSize:10, color:"#555", marginTop:4 }}>{r.need} option{r.need!==1?"s":""} available</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div>
+              {modeToggle}
+              {/* Tracker builder modal-ish */}
+              {showTrackerBuilder ? (
+                <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-pink-line, rgba(232,49,122,0.3))", borderRadius:12, padding:"18px 20px", marginBottom:16 }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)", marginBottom:12 }}>{showTrackerBuilder==="edit"?"Edit Tracker":"New Custom Tracker"}</div>
+                  <input value={builderName} onChange={e=>setBuilderName(e.target.value)} placeholder="Tracker name (e.g. Gold Coin — One Per Hero)" style={{ ...S.inp, width:"100%", marginBottom:12 }}/>
+                  <div style={{ fontSize:11, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Treatments to count (pick one or more)</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, maxHeight:200, overflowY:"auto", marginBottom:14 }}>
+                    {allTreatments.map(t => {
+                      const sel = builderTreatments.includes(t);
+                      return (
+                        <button key={t} onClick={()=>setBuilderTreatments(sel?builderTreatments.filter(x=>x!==t):[...builderTreatments,t])} style={{ background:sel?"var(--bz-pink)":"transparent", color:sel?"#fff":"var(--bz-ink-2)", border:`1px solid ${sel?"var(--bz-pink)":"#333"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{sel?"✓ ":""}{t}</button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={saveCustomTracker} disabled={!builderName.trim()||builderTreatments.length===0} style={{ background:(!builderName.trim()||builderTreatments.length===0)?"#333":"var(--bz-pink)", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Save Tracker</button>
+                    <button onClick={()=>{ setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]); }} style={{ background:"transparent", border:"1px solid #333", color:"var(--bz-ink-3)", borderRadius:8, padding:"8px 18px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
+                  {customTrackers.map(t => (
+                    <button key={t.id} onClick={()=>setActiveTrackerId(t.id)} style={{ background:activeTrackerId===t.id?"#1A1A2E":"var(--bz-s1)", color:activeTrackerId===t.id?"#E8317A":"var(--bz-ink-2)", border:`1.5px solid ${activeTrackerId===t.id?"#E8317A":"#333"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t.name}</button>
+                  ))}
+                  <button onClick={()=>{ setShowTrackerBuilder("new"); setBuilderName(""); setBuilderTreatments([]); setActiveTrackerId(null); }} style={{ background:"transparent", border:"1.5px dashed var(--bz-pink)", color:"var(--bz-pink)", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ New Tracker</button>
+                </div>
+              )}
+              {!showTrackerBuilder && (
+                active ? renderTracker(active) :
+                customTrackers.length === 0
+                  ? <div style={{ textAlign:"center", padding:"50px 20px", color:"var(--bz-ink-3)", fontSize:13 }}>Build a custom tracker to chase one hero per hero in any treatment — like a gold coin of every hero.</div>
+                  : <div style={{ textAlign:"center", padding:"40px", color:"var(--bz-ink-3)", fontSize:13 }}>Pick a tracker above to view your progress.</div>
+              )}
+            </div>
+          );
+        }
+
         const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
           .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
         const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
@@ -20698,6 +20856,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {modeToggle}
             {/* Summary */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
               {[
