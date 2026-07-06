@@ -22856,7 +22856,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
   );
 }
 
-function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing}) {
+function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing}) {
   return (
           <div>
             {/* My listings */}
@@ -23097,7 +23097,7 @@ function MarketTab({ user, myListings, listings, WEAPON_COLORS, allMyOffers, mar
                             <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{l.isOBO?"Offers only":l.listType==="trade"?"Trade only":l.listType==="either"?"Sale or Trade":"For Sale"}</div>
                           </div>
                           <div style={{textAlign:"right"}}>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by <SellerBadge uid={l.sellerUid} name={l.sellerName} marketSales={marketSales}/></div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>by <SellerBadge uid={l.sellerUid} name={l.sellerName} marketSales={marketSales} onViewProfile={onViewProfile}/></div>
                             {l.offerCount>0&&<div style={{fontSize:10,color:"#FBBF24"}}>{l.offerCount} offer{l.offerCount!==1?"s":""}</div>}
                           </div>
                         </div>
@@ -25371,7 +25371,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
   );
 }
 
-function SellerBadge({ uid, name, marketSales=[], inline=true }) {
+function SellerBadge({ uid, name, marketSales=[], inline=true, onViewProfile }) {
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState(null); // { collectionCount, deals, rating, reviewCount, reviews }
   const [loading, setLoading] = useState(false);
@@ -25408,6 +25408,7 @@ function SellerBadge({ uid, name, marketSales=[], inline=true }) {
       {open && (
         <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:250, maxHeight:340, overflowY:"auto", background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
           <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:2 }}>{name||"Collector"}</div>
+          {onViewProfile && uid && <button onClick={e=>{ e.stopPropagation(); onViewProfile(uid); setOpen(false); }} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:8, width:"100%" }}>View Full Profile →</button>}
           {stats?.handle && <div style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, marginBottom:8 }}>{stats.handle}</div>}
           {!stats ? (
             <div style={{ fontSize:12, color:"#666" }}>Loading…</div>
@@ -25731,7 +25732,7 @@ function OnboardingModal({ user, onComplete, inp }) {
 const LB_TIERS = [[0,"Rookie","#7B9CFF"],[25,"Collector","#4ade80"],[100,"Veteran","#FBBF24"],[300,"Elite","#E8317A"],[750,"Legend","#A855F7"],[1500,"Hall of Fame","#FFD700"]];
 function lbTier(count){ return [...LB_TIERS].reverse().find(t=>count>=t[0]) || LB_TIERS[0]; }
 
-function Leaderboard({ user, marketSales=[] }) {
+function Leaderboard({ user, marketSales=[], onViewProfile }) {
   const [rows, setRows] = useState(null);
   const [cat, setCat] = useState("collectionCount");
   const CATS = [
@@ -25793,7 +25794,7 @@ function Leaderboard({ user, marketSales=[] }) {
             const isMe = user && r.uid===user.uid;
             const tier = lbTier(r.collectionCount);
             return (
-              <div key={r.uid} style={{ display:"flex", alignItems:"center", gap:12, background:isMe?"rgba(232,49,122,0.1)":"#111", border:`1px solid ${isMe?"rgba(232,49,122,0.4)":"#222"}`, borderRadius:12, padding:"10px 14px" }}>
+              <div key={r.uid} onClick={()=>onViewProfile&&onViewProfile(r.uid)} style={{ display:"flex", alignItems:"center", gap:12, background:isMe?"rgba(232,49,122,0.1)":"#111", border:`1px solid ${isMe?"rgba(232,49,122,0.4)":"#222"}`, borderRadius:12, padding:"10px 14px", cursor:onViewProfile?"pointer":"default", transition:"background 0.15s" }} onMouseEnter={e=>{if(onViewProfile)e.currentTarget.style.background=isMe?"rgba(232,49,122,0.16)":"#1a1a1a";}} onMouseLeave={e=>{e.currentTarget.style.background=isMe?"rgba(232,49,122,0.1)":"#111";}}>
                 <div style={{ width:30, textAlign:"center", fontSize:i<3?20:14, fontWeight:900, color:i<3?"#FBBF24":"#666" }}>{medal(i)}</div>
                 {r.photoURL
                   ? <img src={r.photoURL} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", border:"1px solid var(--bz-line-2)" }}/>
@@ -25820,6 +25821,129 @@ function Leaderboard({ user, marketSales=[] }) {
           <div style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#666" }}>You're not ranked in this category yet — start collecting to climb on. 🚀</div>
         ) : null
       )}
+    </div>
+  );
+}
+
+// Profile modal — click a name on the leaderboard/marketplace to view someone's
+// public profile: collection count, review history, public rainbows, and
+// friend/message actions.
+function ProfileModal({ profileUid, onClose, currentUser, cards=[], onAddFriend, onMessage, isFriend, friendPending }) {
+  const [data, setData] = useState(null);
+  const [pubCards, setPubCards] = useState({});
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [uSnap, pubSnap, revSnap] = await Promise.all([
+          getDoc(doc(db,"users",profileUid)),
+          getDoc(doc(db,"boba_public",profileUid)),
+          getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",profileUid))),
+        ]);
+        if (!alive) return;
+        setData(uSnap.exists() ? uSnap.data() : {});
+        setPubCards(pubSnap.exists() ? pubSnap.data() : {});
+        setReviews(revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+      } catch(e) { if(alive){ setData({}); } }
+      if (alive) setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [profileUid]);
+
+  const name = data?.username ? `@${data.username}` : (data?.displayName ? data.displayName.split(" ")[0] : "Collector");
+  const photoURL = data?.photoURL || "";
+  const collectionCount = data?.collectionCount || 0;
+  const rainbowCount = data?.rainbowCount || 0;
+  const oneOfOneCount = data?.oneOfOneCount || 0;
+  const isSelf = currentUser && currentUser.uid === profileUid;
+  const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+(r.rating||0),0)/reviews.length) : 0;
+
+  // Public cards grouped for a public "rainbow" style show — just card thumbnails/heroes owned publicly
+  const pubCardIds = Object.keys(pubCards).filter(id=>pubCards[id]);
+  const pubCardObjs = pubCardIds.map(id => cards.find(c=>c.id===id)).filter(Boolean);
+  const pubByHero = {};
+  pubCardObjs.forEach(c => { if(!c.hero) return; (pubByHero[c.hero]=pubByHero[c.hero]||[]).push(c); });
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:2147483600, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"40px 16px", overflowY:"auto", backdropFilter:"blur(6px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#130d11", border:"1px solid rgba(232,49,122,0.25)", borderRadius:18, maxWidth:540, width:"100%", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            {photoURL
+              ? <img src={photoURL} alt="" style={{ width:56, height:56, borderRadius:"50%", objectFit:"cover", border:"2px solid rgba(232,49,122,0.4)" }}/>
+              : <div style={{ width:56, height:56, borderRadius:"50%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:"#fff" }}>{name.replace("@","").charAt(0).toUpperCase()}</div>}
+            <div>
+              <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>{name}{isSelf && <span style={{ fontSize:11, color:"#4ade80", marginLeft:8 }}>(you)</span>}</div>
+              {reviews.length > 0 && <div style={{ fontSize:12, color:"#FBBF24", marginTop:2 }}>{"★".repeat(Math.round(avgRating))}{"☆".repeat(5-Math.round(avgRating))} <span style={{ color:"rgba(255,255,255,0.4)" }}>({reviews.length} review{reviews.length!==1?"s":""})</span></div>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.5)", fontSize:22, cursor:"pointer", lineHeight:1 }}>×</button>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.4)" }}>Loading profile…</div>
+        ) : (
+          <>
+            {/* Stat row */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:18 }}>
+              {[["Cards",collectionCount,"#E8317A"],["Rainbows",rainbowCount,"#FBBF24"],["1/1s",oneOfOneCount,"#C084FC"]].map(([l,v,c])=>(
+                <div key={l} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:10, padding:"12px", textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:c }}>{v}</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            {!isSelf && currentUser && (
+              <div style={{ display:"flex", gap:10, marginBottom:18 }}>
+                <button onClick={()=>onAddFriend(profileUid, data)} disabled={isFriend||friendPending} style={{ flex:1, background:isFriend?"rgba(74,222,128,0.15)":friendPending?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#E8317A,#7B2FF7)", color:isFriend?"#4ade80":"#fff", border:"none", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:(isFriend||friendPending)?"default":"pointer", fontFamily:"inherit" }}>
+                  {isFriend ? "✓ Friends" : friendPending ? "Request Sent" : "+ Add Friend"}
+                </button>
+                <button onClick={()=>onMessage(profileUid, data)} style={{ flex:1, background:"rgba(123,156,255,0.15)", color:"#7B9CFF", border:"1px solid rgba(123,156,255,0.4)", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💬 Message</button>
+              </div>
+            )}
+
+            {/* Public collection (rainbows they've made public) */}
+            {pubCardObjs.length > 0 && (
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Public Collection · {pubCardObjs.length} cards</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(64px,1fr))", gap:6, maxHeight:240, overflowY:"auto" }}>
+                  {pubCardObjs.slice(0,60).map(c => (
+                    <div key={c.id} title={[c.hero,c.treatment,c.weapon].filter(Boolean).join(" · ")} style={{ aspectRatio:"3/4", borderRadius:6, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)" }}>
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:9, color:"rgba(255,255,255,0.4)", padding:2, textAlign:"center" }}>{c.hero}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Review history */}
+            <div>
+              <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Review History</div>
+              {reviews.length === 0 ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontStyle:"italic", padding:"8px 0" }}>No reviews yet.</div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:200, overflowY:"auto" }}>
+                  {reviews.slice(0,20).map(r => (
+                    <div key={r.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"10px 12px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:12, color:"#FBBF24" }}>{"★".repeat(r.rating||0)}{"☆".repeat(5-(r.rating||0))}</span>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}</span>
+                      </div>
+                      {r.comment && <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", marginTop:4 }}>{r.comment}</div>}
+                      {r.buyerName && <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:3 }}>— {r.buyerName}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -26121,6 +26245,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [marketSales,   setMarketSales]   = useState([]);
   // -- Comp modal --
   const [compCard,      setCompCard]      = useState(null); // card being comped
+  const [viewProfileUid, setViewProfileUid] = useState(null); // uid of profile being viewed
   const [privacyAnim,   setPrivacyAnim]   = useState(null); // cardId showing lock animation
   const [listPrice,     setListPrice]     = useState("");
   const [listType,      setListType]      = useState("sale"); // sale|trade|either
@@ -27708,6 +27833,36 @@ function PublicCardDatabase({ swancity = false } = {}) {
   }
 
   // -- Friends --
+  async function addFriendByUid(toUid, toProfile) {
+    if (!user || !toUid || toUid === user.uid) return;
+    try {
+      const existSnap = await getDocs(query(collection(db,"friend_requests"), where("from","==",user.uid), where("to","==",toUid)));
+      if (!existSnap.empty) return;
+      const id = uid();
+      await setDoc(doc(db,"friend_requests",id), { id, from:user.uid, fromEmail:user.email, fromName:user.displayName||user.email, to:toUid, toEmail:toProfile?.email||"", toName:toProfile?.displayName||toProfile?.username||"Collector", status:"pending", createdAt:new Date().toISOString() });
+      await setDoc(doc(db,"boba_profiles",user.uid), { email:user.email, displayName:user.displayName||user.email, photoURL:user.photoURL||"" }, { merge:true });
+    } catch(e) { console.error("add friend failed", e); }
+  }
+  async function messageUser(toUid, toProfile) {
+    if (!user || !toUid) return;
+    const threadId = ["dm", ...[user.uid, toUid].sort()].join("_");
+    try {
+      const tSnap = await getDoc(doc(db,"deal_threads",threadId));
+      if (!tSnap.exists()) {
+        await setDoc(doc(db,"deal_threads",threadId), {
+          id: threadId, kind:"dm",
+          participants:[user.uid, toUid],
+          participantNames:{ [user.uid]: user.displayName||user.email, [toUid]: toProfile?.username?`@${toProfile.username}`:(toProfile?.displayName||"Collector") },
+          messages:[], createdAt:new Date().toISOString(), status:"open",
+        });
+      }
+      const full = (await getDoc(doc(db,"deal_threads",threadId))).data();
+      setActiveThread({ id:threadId, ...full });
+      setViewProfileUid(null);
+      setActiveTab("messages");
+    } catch(e) { console.error("open dm failed", e); }
+  }
+
   async function sendFriendRequest() {
     if(!user||!addEmail.trim())return;
     setAddStatus(null);
@@ -28975,6 +29130,18 @@ function PublicCardDatabase({ swancity = false } = {}) {
       `}</style>
 
       {/* Comp Modal */}
+      {viewProfileUid && (
+        <ProfileModal
+          profileUid={viewProfileUid}
+          onClose={()=>setViewProfileUid(null)}
+          currentUser={user}
+          cards={cards}
+          onAddFriend={addFriendByUid}
+          onMessage={messageUser}
+          isFriend={friends.some(f => f.from===viewProfileUid || f.to===viewProfileUid)}
+          friendPending={sentReqs.some(r => r.to===viewProfileUid)}
+        />
+      )}
       <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS} cards={cards}
           listings={listings}
           />
@@ -31028,6 +31195,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
         {activeTab==="market"&&(
           <MarketTab
             user={user} myListings={myListings} listings={listings}
+            onViewProfile={setViewProfileUid}
             WEAPON_COLORS={WEAPON_COLORS} allMyOffers={allMyOffers}
             marketSales={marketSales} trackingInputs={trackingInputs}
             setTrackingInputs={setTrackingInputs} setListModal={setListModal}
@@ -31115,7 +31283,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           <AccountingLedger lots={lots} marketSales={marketSales} user={user} cards={cards} />
         )}
         {activeTab==="leaderboard"&&(
-          <Leaderboard user={user} marketSales={marketSales} />
+          <Leaderboard user={user} marketSales={marketSales} onViewProfile={setViewProfileUid} />
         )}
       </div>{/* end tab content */}
     </div>
