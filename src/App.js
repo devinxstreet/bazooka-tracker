@@ -25963,7 +25963,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
-  const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment | treatmentWeapon
+  const [rainbowGroupBy,   setRainbowGroupBy]   = useState("hero"); // hero | treatment | treatmentWeapon | custom
+  const [customTrackers,   setCustomTrackers]   = useState(() => { try { const c = localStorage.getItem("customTrackers_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
+  const [activeTrackerId,  setActiveTrackerId]  = useState(null);
+  const [showTrackerBuilder, setShowTrackerBuilder] = useState(false);
+  const [builderName,      setBuilderName]      = useState("");
+  const [builderTreatments,setBuilderTreatments]= useState([]);
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
@@ -26524,6 +26529,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
           ]);
           setOwned(ownSnap.exists() ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
+          try {
+            const trkSnap = await getDoc(doc(db,"boba_trackers",u.uid));
+            const list = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
+            setCustomTrackers(list);
+            try { localStorage.setItem("customTrackers_v1", JSON.stringify(list)); } catch {}
+          } catch(e){}
           setWantList(wSnap.exists() ? wSnap.data() : {});
           setPublicCards(prvSnap.exists() ? prvSnap.data() : {});
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
@@ -26690,6 +26701,28 @@ function PublicCardDatabase({ swancity = false } = {}) {
   }, []);
 
   // -- Helpers --
+  async function saveCustomTracker() {
+    const name = builderName.trim();
+    if (!name || builderTreatments.length === 0) return;
+    const tid = (activeTrackerId && showTrackerBuilder==="edit") ? activeTrackerId : (Date.now().toString(36)+Math.random().toString(36).slice(2,7));
+    const tracker = { id: tid, name, treatments: builderTreatments };
+    const exists = customTrackers.find(t => t.id === tracker.id);
+    const next = exists ? customTrackers.map(t => t.id===tracker.id ? tracker : t) : [...customTrackers, tracker];
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
+    setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]);
+    setActiveTrackerId(tracker.id);
+  }
+  async function deleteCustomTracker(id) {
+    if (!window.confirm("Delete this tracker?")) return;
+    const next = customTrackers.filter(t => t.id !== id);
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
+    if (activeTrackerId === id) setActiveTrackerId(null);
+  }
+
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -29357,12 +29390,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
         <div style={{position:"absolute",bottom:0,left:"40%",width:500,height:200,background:"radial-gradient(ellipse,rgba(123,156,255,0.06),transparent 70%)",pointerEvents:"none"}}/>
 
         <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"16px 14px 0":"24px 24px 0",position:"relative"}}>
-          <div style={{display:"flex",alignItems:isMobile?"center":"flex-end",justifyContent:"space-between",flexWrap:"nowrap",gap:12,marginBottom:isMobile?16:24}}>
+          <div style={{display:"flex",alignItems:isMobile?"center":"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:12,rowGap:14,marginBottom:isMobile?16:24}}>
             <div style={{opacity:headerLoaded?1:0,transform:headerLoaded?"none":"translateY(20px)",transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)",minWidth:0}}>
               <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:"clamp(40px,7vw,84px)",width:"auto",maxWidth:"min(420px,60vw)",objectFit:"contain",display:"block",filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.3))"}}/>
               {!isMobile && <div style={{fontSize:11,fontWeight:700,color:"#E8317A",letterSpacing:4,textTransform:"uppercase",marginTop:6}}>BoBA Collector's Database</div>}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:isMobile?8:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s",flexShrink:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:isMobile?8:10,opacity:headerLoaded?1:0,transition:"opacity 0.8s ease 0.2s",flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
               {swancity ? (
                 user ? null : (
                   <button onClick={()=>setSigningIn(true)} style={{background:"rgba(245,158,11,0.12)",color:"#F59E0B",border:"1px solid rgba(245,158,11,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Sign in</button>
@@ -30743,7 +30776,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                 {/* Group-by toggle */}
                 <div style={{ display:"flex", background:"rgba(255,255,255,0.04)", borderRadius:20, padding:3, gap:2 }}>
-                  {[["hero","\uD83E\uDDB8 By Hero"],["treatment","\uD83C\uDFA8 By Treatment"],["treatmentWeapon","\u2694\uFE0F Treatment + Weapon"]].map(([v,l])=>(
+                  {[["hero","\uD83E\uDDB8 By Hero"],["treatment","\uD83C\uDFA8 By Treatment"],["treatmentWeapon","\u2694\uFE0F Treatment + Weapon"],["custom","\uD83C\uDFAF Custom"]].map(([v,l])=>(
                     <button key={v} onClick={()=>{ setRainbowGroupBy(v); setExpandedHero(null); setSearch(""); }} style={{ background:rainbowGroupBy===v?"rgba(232,49,122,0.9)":"transparent", color:rainbowGroupBy===v?"#fff":"rgba(255,255,255,0.4)", border:"none", borderRadius:17, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}>{l}</button>
                   ))}
                 </div>
@@ -30760,7 +30793,89 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>{visibleGroups.length} {rainbowGroupBy === "hero" ? "heroes" : rainbowGroupBy === "treatmentWeapon" ? "rainbows" : "treatments"}</span>
               </div>
 
+              {/* Custom tracker mode: one-per-hero in chosen treatment(s) */}
+              {rainbowGroupBy === "custom" && (() => {
+                const allTreatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+                const active = customTrackers.find(t => t.id === activeTrackerId);
+                const renderTracker = (tracker) => {
+                  const treatSet = new Set(tracker.treatments);
+                  const heroes = [...new Set(cards.filter(c=>c.hero).map(c=>c.hero))].sort();
+                  const rows = heroes.map(hero => {
+                    const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment));
+                    const ownedMatch = hc.filter(c => owned[c.id]);
+                    return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, exists: hc.length>0 };
+                  });
+                  const inSet = rows.filter(r=>r.exists);
+                  const done = inSet.filter(r=>r.complete).length;
+                  const pct = inSet.length ? Math.round(done/inSet.length*100) : 0;
+                  const q = (search||"").toLowerCase();
+                  const shown = inSet.filter(r => !q || r.hero.toLowerCase().includes(q));
+                  return (
+                    <div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
+                        <div>
+                          <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero</div>
+                        </div>
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
+                          <button onClick={()=>{ setBuilderName(tracker.name); setBuilderTreatments(tracker.treatments); setActiveTrackerId(tracker.id); setShowTrackerBuilder("edit"); }} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
+                          <button onClick={()=>deleteCustomTracker(tracker.id)} style={{ background:"transparent", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
+                        </div>
+                      </div>
+                      <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
+                        <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
+                        {shown.map(r => (
+                          <div key={r.hero} style={{ background:r.complete?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.06)"}`, borderRadius:9, padding:"10px 12px" }}>
+                            <span style={{ fontSize:12, fontWeight:800, color:r.complete?"#fff":"rgba(255,255,255,0.4)" }}>{r.complete?"✅ ":""}{r.hero}</span>
+                            {r.complete
+                              ? <div style={{ fontSize:10, color:"#4ade80", marginTop:4 }}>Have: {r.ownedCards.map(c=>[c.weapon,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" ")).join(", ")}</div>
+                              : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>{r.need} option{r.need!==1?"s":""}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+                return (
+                  <div>
+                    {showTrackerBuilder ? (
+                      <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:12, padding:"18px 20px", marginBottom:16 }}>
+                        <div style={{ fontSize:14, fontWeight:800, marginBottom:12 }}>{showTrackerBuilder==="edit"?"Edit Tracker":"New Custom Tracker"}</div>
+                        <input value={builderName} onChange={e=>setBuilderName(e.target.value)} placeholder="Tracker name (e.g. Gold Coin — One Per Hero)" style={{...inp, width:"100%", marginBottom:12}}/>
+                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Treatments to count (pick one or more)</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, maxHeight:220, overflowY:"auto", marginBottom:14 }}>
+                          {allTreatments.map(t => { const sel = builderTreatments.includes(t); return (
+                            <button key={t} onClick={()=>setBuilderTreatments(sel?builderTreatments.filter(x=>x!==t):[...builderTreatments,t])} style={{ background:sel?"#E8317A":"transparent", color:sel?"#fff":"rgba(255,255,255,0.5)", border:`1px solid ${sel?"#E8317A":"rgba(255,255,255,0.15)"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{sel?"✓ ":""}{t}</button>
+                          ); })}
+                        </div>
+                        <div style={{ display:"flex", gap:8 }}>
+                          <button onClick={saveCustomTracker} disabled={!builderName.trim()||builderTreatments.length===0} style={{ background:(!builderName.trim()||builderTreatments.length===0)?"rgba(255,255,255,0.1)":"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Save Tracker</button>
+                          <button onClick={()=>{ setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]); }} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", borderRadius:8, padding:"8px 18px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
+                        {customTrackers.map(t => (
+                          <button key={t.id} onClick={()=>setActiveTrackerId(t.id)} style={{ background:activeTrackerId===t.id?"rgba(232,49,122,0.15)":"rgba(255,255,255,0.03)", color:activeTrackerId===t.id?"#E8317A":"rgba(255,255,255,0.5)", border:`1.5px solid ${activeTrackerId===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t.name}</button>
+                        ))}
+                        <button onClick={()=>{ setShowTrackerBuilder("new"); setBuilderName(""); setBuilderTreatments([]); setActiveTrackerId(null); }} style={{ background:"transparent", border:"1.5px dashed #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ New Tracker</button>
+                      </div>
+                    )}
+                    {!showTrackerBuilder && (
+                      active ? renderTracker(active)
+                        : customTrackers.length === 0
+                          ? <div style={{ textAlign:"center", padding:"50px 20px", color:"rgba(255,255,255,0.4)", fontSize:13 }}>Build a custom tracker to chase one hero per hero in any treatment — like a gold coin of every hero.</div>
+                          : <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.4)", fontSize:13 }}>Pick a tracker above to view your progress.</div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Rows */}
+              {rainbowGroupBy !== "custom" && (
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {visibleGroups.map(({ key, total, ownedCount, complete, bySecondary }) => {
                   const pct = total > 0 ? Math.round(ownedCount/total*100) : 0;
@@ -30846,6 +30961,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   </div>
                 )}
               </div>
+              )}
             </div>
           );
         })()}
