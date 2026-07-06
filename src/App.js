@@ -23485,6 +23485,12 @@ function guessPlayCategory(playName) {
 }
 
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
+  const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+  const [dbsEdits, setDbsEdits] = useState({});
+  async function savePbDbs(cardId, val) {
+    const v = val === "" ? "" : (parseFloat(val)||0);
+    try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
+  }
   const [pbEvent, setPbEvent] = useState("");
   const [pbSetFilter, setPbSetFilter] = useState("");
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
@@ -23608,7 +23614,17 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                           <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.hero}</div>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,gap:4}}>
                             {c.playCost!==undefined&&c.playCost!==""?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}
-                            {c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:11,fontWeight:900,color:"#C084FC",textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.dbs}</span>}
+                            {_pbAdmin
+                              ? <input type="number"
+                                  value={dbsEdits[c.id]!==undefined ? dbsEdits[c.id] : (c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
+                                  onChange={e=>setDbsEdits(p=>({...p,[c.id]:e.target.value}))}
+                                  onBlur={e=>{ if(dbsEdits[c.id]!==undefined && String(dbsEdits[c.id])!==String(c.dbs??"")) savePbDbs(c.id,e.target.value); }}
+                                  onClick={e=>e.stopPropagation()}
+                                  onMouseDown={e=>e.stopPropagation()}
+                                  title="DBS (admin editable)"
+                                  placeholder="DBS"
+                                  style={{width:42,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:4,padding:"1px 3px",fontSize:11,fontWeight:900,fontFamily:"inherit",textAlign:"center"}}/>
+                              : (c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:11,fontWeight:900,color:"#C084FC",textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.dbs}</span>)}
                           </div>
                         </div>
                         <div style={{position:"absolute",top:6,left:6,fontSize:8,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:4,padding:"2px 6px",pointerEvents:"none"}}>{bonus?"BPL":"PLAY"}</div>
