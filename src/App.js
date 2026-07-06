@@ -29246,22 +29246,29 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       const cardLots = lotsForCard(c.id);
                       const qty = owned[c.id]||1;
                       if (cardLots.length === 0) return (
-                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:8, textAlign:"center" }}>You own {qty} — add cost/acquisition details with the 💰 lot button to track each copy.</div>
+                        <div style={{ marginTop:8, textAlign:"center" }}>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>You own {qty}. Add cost & acquisition details to track each copy.</div>
+                          <button onClick={()=>setLotModal({card:c})} style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"7px 16px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💰 Add copy details</button>
+                        </div>
                       );
                       const fmt$ = n => n===null||n===undefined||n===""?"—":`$${(parseFloat(n)||0).toFixed(2)}`;
                       return (
                         <div style={{ marginTop:10, background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, overflow:"hidden" }}>
-                          <div style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>Your Copies ({cardLots.length})</div>
+                          <div style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>Your Copies ({cardLots.length}) · tap to edit</div>
                           {cardLots.map((l,i) => (
-                            <div key={l.id||i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:12 }}>
+                            <div key={l.id||i} onClick={()=>setLotModal({card:c})} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:12, cursor:"pointer" }} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ color:"#fff", fontWeight:700 }}>Copy {i+1}{l.value?` · worth ${fmt$(l.value)}`:""}</div>
                                 <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10 }}>Paid {fmt$(l.cost)}{l.method?` · ${l.method}`:""}{l.date?` · ${l.date}`:""}{l.notes?` · ${l.notes}`:""}</div>
                               </div>
                               {l.value&&l.cost&&<span style={{ fontSize:11, fontWeight:800, color:(parseFloat(l.value)-parseFloat(l.cost))>=0?"#4ade80":"#E8317A" }}>{(parseFloat(l.value)-parseFloat(l.cost))>=0?"+":""}{fmt$(parseFloat(l.value)-parseFloat(l.cost))}</span>}
+                              <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>✎</span>
                             </div>
                           ))}
-                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", padding:"8px 12px", fontStyle:"italic" }}>💡 Trade the higher-value copy to keep your cost basis low.</div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px" }}>
+                            <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>💡 Trade the higher-value copy to keep cost low.</span>
+                            <button onClick={()=>setLotModal({card:c})} style={{ background:"rgba(74,222,128,0.12)", border:"1px solid rgba(74,222,128,0.4)", color:"#4ade80", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ Add copy</button>
+                          </div>
                         </div>
                       );
                     })()}
