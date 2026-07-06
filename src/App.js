@@ -25322,7 +25322,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
   const totalVal  = lots.reduce((s,l)=>s+(l.value||0),0);
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10002, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(4px)" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:13500, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:16, width:"min(460px,100%)", maxHeight:"86vh", overflowY:"auto", padding:"20px 22px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
           <div>
