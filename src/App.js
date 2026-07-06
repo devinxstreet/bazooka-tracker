@@ -25767,6 +25767,7 @@ function lbTier(count){ return [...LB_TIERS].reverse().find(t=>count>=t[0]) || L
 function Leaderboard({ user, marketSales=[], onViewProfile }) {
   const [rows, setRows] = useState(null);
   const [cat, setCat] = useState("collectionCount");
+  const [userSearch, setUserSearch] = useState("");
   const CATS = [
     { key:"collectionCount", label:"📦 Total Cards" },
     { key:"uniqueCount",     label:"🃏 Unique Cards" },
@@ -25808,6 +25809,53 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
     <div style={{ maxWidth:720, margin:"0 auto" }}>
       <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4 }}>🏆 Leaderboard</div>
       <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", marginBottom:18 }}>The top collectors in the Bazooka community. Climb the ranks.</div>
+
+      {/* Username search — find friends and view their profile */}
+      <div style={{ position:"relative", marginBottom:18 }}>
+        <input
+          value={userSearch}
+          onChange={e=>setUserSearch(e.target.value)}
+          placeholder="🔍 Search collectors by username…"
+          style={{ width:"100%", background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:12, color:"#f6eef2", padding:"11px 16px", fontSize:14, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+        {userSearch.trim() && (() => {
+          const q = userSearch.trim().toLowerCase().replace(/^@/,"");
+          // Fuzzy match: exact > prefix > substring > subsequence (chars in order).
+          const fuzzyScore = (name) => {
+            const n = name.toLowerCase().replace(/^@/,"");
+            if (n === q) return 100;
+            if (n.startsWith(q)) return 80;
+            if (n.includes(q)) return 60;
+            // subsequence: all query chars appear in order
+            let qi = 0;
+            for (let i = 0; i < n.length && qi < q.length; i++) { if (n[i] === q[qi]) qi++; }
+            return qi === q.length ? 30 : 0;
+          };
+          const matches = (rows||[])
+            .map(r => ({ r, score: fuzzyScore(r.name) }))
+            .filter(x => x.score > 0)
+            .sort((a,b) => b.score - a.score || (b.r.collectionCount||0) - (a.r.collectionCount||0))
+            .slice(0,12)
+            .map(x => x.r);
+          return (
+            <div style={{ marginTop:8, background:"#1a1218", border:"1px solid rgba(255,255,255,0.12)", borderRadius:12, overflow:"hidden" }}>
+              {matches.length === 0
+                ? <div style={{ padding:"16px", textAlign:"center", color:"rgba(255,255,255,0.4)", fontSize:13 }}>No collectors found matching "{userSearch}"</div>
+                : matches.map(r => (
+                  <div key={r.uid} onClick={()=>{ onViewProfile&&onViewProfile(r.uid); setUserSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.05)" }} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    {r.photoURL
+                      ? <img src={r.photoURL} alt="" style={{ width:34, height:34, borderRadius:"50%", objectFit:"cover" }}/>
+                      : <div style={{ width:34, height:34, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>🃏</div>}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{r.name}</div>
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{(r.collectionCount||0).toLocaleString()} cards</div>
+                    </div>
+                    <span style={{ fontSize:11, color:"#E8317A", fontWeight:700 }}>View →</span>
+                  </div>
+                ))}
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Category toggle */}
       <div className="nav-bar" style={{ display:"flex", gap:8, marginBottom:18, overflowX:"auto", paddingBottom:4 }}>
@@ -26355,9 +26403,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"var(--bz-line)", Alt:"#FFFFFF", Super:"#F59E0B" };
   const DECK_SIZE = 60;
 
-  const inp = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10,
-    color:"var(--bz-ink)", padding:"9px 14px", fontSize:13, fontFamily:"'Trebuchet MS',sans-serif", outline:"none",
-    backdropFilter:"blur(10px)" };
+  const inp = { background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10,
+    color:"#f6eef2", padding:"9px 14px", fontSize:13, fontFamily:"'Trebuchet MS',sans-serif", outline:"none" };
 
   // Animate header in
   useEffect(() => { setTimeout(()=>setHeaderLoaded(true), 100); }, []);
@@ -29155,6 +29202,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
         </div>
       )}
       <style>{`
+        select option { background:#1a1218 !important; color:#f6eef2 !important; }
+        select { color:#f6eef2; }
         @keyframes lockPulse { 0%{transform:scale(0.5);opacity:0} 40%{transform:scale(1.3);opacity:1} 70%{transform:scale(0.95);opacity:1} 100%{transform:scale(1);opacity:1} }
         @keyframes lockFadeOut { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
         @keyframes cardDim { 0%{opacity:1} 30%{opacity:0.35} 100%{opacity:1} }
@@ -33877,6 +33926,130 @@ class AppErrorBoundary extends React.Component {
   }
 }
 
+// Public profile page at bazookadash.com/{username} — resolves the handle to a
+// uid, then shows the collector's public profile (stats, public cards, reviews).
+function PublicProfilePage({ username }) {
+  const [state, setState] = useState({ loading:true, uid:null, data:null, pubCards:{}, reviews:[], cards:[] });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const uname = String(username||"").toLowerCase();
+        const unameSnap = await getDoc(doc(db,"usernames",uname));
+        let uid = unameSnap.exists() ? unameSnap.data().uid : null;
+        if (!uid) {
+          const uSnap = await getDocs(query(collection(db,"users"), where("username","==",uname)));
+          if (!uSnap.empty) uid = uSnap.docs[0].id;
+        }
+        if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null})); return; }
+        const [userSnap, pubSnap, revSnap] = await Promise.all([
+          getDoc(doc(db,"users",uid)),
+          getDoc(doc(db,"boba_public",uid)),
+          getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
+        ]);
+        let allCards = [];
+        try { const c = localStorage.getItem("boba_checklist_cache_v3"); if(c) allCards = JSON.parse(c); } catch {}
+        if(alive) setState({
+          loading:false, uid,
+          data: userSnap.exists() ? userSnap.data() : {},
+          pubCards: pubSnap.exists() ? pubSnap.data() : {},
+          reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
+          cards: allCards,
+        });
+      } catch(e) { if(alive) setState(s=>({...s, loading:false })); }
+    })();
+    return () => { alive = false; };
+  }, [username]);
+
+  const TOKENS = ":root{ --bz-ink:#f6eef2; --bz-ink-2:#b9a9b2; --bz-ink-3:#7a6b74; --bz-line:rgba(255,255,255,0.08); }";
+  const wrap = (children) => (
+    <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 90% 50% at 50% 0%, rgba(232,49,122,0.12), transparent 60%), #08000a", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#f6eef2", padding:"32px 16px 60px" }}>
+      <style>{TOKENS}</style>
+      <div style={{ maxWidth:620, margin:"0 auto" }}>
+        <a href="/cards" style={{ display:"inline-flex", alignItems:"center", gap:8, marginBottom:20, textDecoration:"none" }}>
+          <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{ height:44, width:"auto", filter:"drop-shadow(0 4px 16px rgba(232,49,122,0.35))" }} onError={e=>{e.currentTarget.style.display="none";}}/>
+        </a>
+        {children}
+      </div>
+    </div>
+  );
+
+  if (state.loading) return wrap(<div style={{ textAlign:"center", padding:"60px", color:"rgba(255,255,255,0.5)" }}>Loading profile…</div>);
+  if (!state.uid || !state.data) return wrap(
+    <div style={{ textAlign:"center", padding:"60px 20px" }}>
+      <div style={{ fontSize:40, marginBottom:12 }}>🔍</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:6 }}>No collector found</div>
+      <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:20 }}>We couldn't find a collector named "{username}".</div>
+      <a href="/leaderboard" style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", textDecoration:"none", borderRadius:10, padding:"10px 22px", fontSize:13, fontWeight:800 }}>Browse the Leaderboard →</a>
+    </div>
+  );
+
+  const d = state.data;
+  const name = d.username ? ("@"+d.username) : (d.displayName ? d.displayName.split(" ")[0] : "Collector");
+  const photoURL = d.photoURL || "";
+  const avgRating = state.reviews.length ? (state.reviews.reduce((s,r)=>s+(r.rating||0),0)/state.reviews.length) : 0;
+  const pubIds = Object.keys(state.pubCards).filter(id=>state.pubCards[id]);
+  const pubObjs = pubIds.map(id => state.cards.find(c=>c.id===id)).filter(Boolean);
+
+  return wrap(
+    <>
+      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:22 }}>
+        {photoURL
+          ? <img src={photoURL} alt="" style={{ width:72, height:72, borderRadius:"50%", objectFit:"cover", border:"2px solid rgba(232,49,122,0.4)" }}/>
+          : <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, fontWeight:900, color:"#fff" }}>{name.replace("@","").charAt(0).toUpperCase()}</div>}
+        <div>
+          <div style={{ fontSize:26, fontWeight:900 }}>{name}</div>
+          {state.reviews.length > 0 && <div style={{ fontSize:13, color:"#FBBF24", marginTop:3 }}>{"★".repeat(Math.round(avgRating))}{"☆".repeat(5-Math.round(avgRating))} <span style={{ color:"rgba(255,255,255,0.4)" }}>({state.reviews.length} review{state.reviews.length!==1?"s":""})</span></div>}
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:22 }}>
+        {[["Cards",d.collectionCount||0,"#E8317A"],["Rainbows",d.rainbowCount||0,"#FBBF24"],["1/1s",d.oneOfOneCount||0,"#C084FC"]].map(([l,v,c])=>(
+          <div key={l} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:"16px", textAlign:"center" }}>
+            <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {pubObjs.length > 0 && (
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Public Collection · {pubObjs.length} cards</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))", gap:6 }}>
+            {pubObjs.slice(0,80).map(c => (
+              <div key={c.id} title={[c.hero,c.treatment,c.weapon].filter(Boolean).join(" · ")} style={{ aspectRatio:"3/4", borderRadius:6, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)" }}>
+                {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:9, color:"rgba(255,255,255,0.4)", padding:2, textAlign:"center" }}>{c.hero}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize:12, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Review History</div>
+        {state.reviews.length === 0
+          ? <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>No reviews yet.</div>
+          : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {state.reviews.slice(0,20).map(r => (
+                <div key={r.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"10px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:12, color:"#FBBF24" }}>{"★".repeat(r.rating||0)}{"☆".repeat(5-(r.rating||0))}</span>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}</span>
+                  </div>
+                  {r.comment && <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", marginTop:4 }}>{r.comment}</div>}
+                  {r.buyerName && <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:3 }}>— {r.buyerName}</div>}
+                </div>
+              ))}
+            </div>}
+      </div>
+
+      <div style={{ marginTop:28, textAlign:"center" }}>
+        <a href="/cards" style={{ color:"#E8317A", textDecoration:"none", fontSize:13, fontWeight:700 }}>Start your own collection on Bazooka →</a>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <AppErrorBoundary>
@@ -34426,6 +34599,16 @@ function AppInner() {
 
   // Homepage at root — the public front door
   if (window.location.pathname === "/" || window.location.pathname === "") return <PublicHomepage />;
+
+  // bazookadash.com/{username} — public profile page. Must come after all known
+  // routes so it only catches a bare single-segment path that isn't reserved.
+  {
+    const RESERVED = new Set(["cards","rainbow","supers","1of1","34","wants","market","messages","friends","team","ledger","leaderboard","deck","bugs","playbook","swancity","sell","privacy","chases","showcase","dashboard","quote","login","home","index"]);
+    const seg = (window.location.pathname||"").replace(/^\/+|\/+$/g,"");
+    if (seg && !seg.includes("/") && !RESERVED.has(seg.toLowerCase())) {
+      return <PublicProfilePage username={seg} />;
+    }
+  }
 
   // Any unknown path that isn't the dashboard → send to homepage
   if (window.location.pathname !== "/dashboard") return <PublicHomepage />;
