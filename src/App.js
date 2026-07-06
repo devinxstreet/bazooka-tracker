@@ -26958,14 +26958,21 @@ function PublicCardDatabase({ swancity = false } = {}) {
     const name = builderName.trim();
     if (!name || builderTreatments.length === 0) return;
     const tid = (activeTrackerId && showTrackerBuilder==="edit") ? activeTrackerId : (Date.now().toString(36)+Math.random().toString(36).slice(2,7));
-    const tracker = { id: tid, name, treatments: builderTreatments };
-    const exists = customTrackers.find(t => t.id === tracker.id);
+    const existing = customTrackers.find(t => t.id === tid);
+    const tracker = { id: tid, name, treatments: builderTreatments, public: existing?.public || false };
+    const exists = !!existing;
     const next = exists ? customTrackers.map(t => t.id===tracker.id ? tracker : t) : [...customTrackers, tracker];
     setCustomTrackers(next);
     try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
     if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
     setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]);
     setActiveTrackerId(tracker.id);
+  }
+  async function toggleTrackerPublic(id) {
+    const next = customTrackers.map(t => t.id===id ? { ...t, public: !t.public } : t);
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
   }
   async function deleteCustomTracker(id) {
     if (!window.confirm("Delete this tracker?")) return;
@@ -31208,6 +31215,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
+                          <button onClick={()=>toggleTrackerPublic(tracker.id)} title={tracker.public?"Public — shows on your profile. Click to make private.":"Private. Click to make public on your profile."} style={{ background:tracker.public?"rgba(74,222,128,0.15)":"transparent", border:`1px solid ${tracker.public?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.15)"}`, color:tracker.public?"#4ade80":"rgba(255,255,255,0.5)", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{tracker.public?"👁 Public":"🔒 Private"}</button>
                           <button onClick={()=>{ setBuilderName(tracker.name); setBuilderTreatments(tracker.treatments); setActiveTrackerId(tracker.id); setShowTrackerBuilder("edit"); }} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                           <button onClick={()=>deleteCustomTracker(tracker.id)} style={{ background:"transparent", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
                         </div>
@@ -31223,7 +31231,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                           return (
                             <div key={r.hero} style={{ gridColumn: isExp ? "1 / -1" : "auto" }}>
                               {!isExp ? (
-                                <div onClick={()=>setExpandedTrackerHero(r.hero)} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
+                                <div onClick={()=>{ const start = (r.ownedCards[0] || r.allCards[0]); if(start && start.imageUrl){ setZoomFlipped(false); setZoomCard({ card:start, siblings:r.allCards, hero:r.hero }); } }} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
                                   <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
                                     {rep?.imageUrl
                                       ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:0.4, filter:r.complete?"none":"grayscale(70%)" }}/>
@@ -34026,19 +34034,24 @@ function PublicProfilePage({ username }) {
           if (!uSnap.empty) uid = uSnap.docs[0].id;
         }
         if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null})); return; }
-        const [userSnap, pubSnap, revSnap] = await Promise.all([
+        const [userSnap, pubSnap, revSnap, trkSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
           getDoc(doc(db,"boba_public",uid)),
           getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
+          getDoc(doc(db,"boba_trackers",uid)),
         ]);
         let allCards = [];
         try { const c = localStorage.getItem("boba_checklist_cache_v3"); if(c) allCards = JSON.parse(c); } catch {}
+        const allTrackers = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
+        const publicTrackers = allTrackers.filter(t => t.public);
         if(alive) setState({
           loading:false, uid,
           data: userSnap.exists() ? userSnap.data() : {},
           pubCards: pubSnap.exists() ? pubSnap.data() : {},
           reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
           cards: allCards,
+          trackers: publicTrackers,
+          ownedPub: pubSnap.exists() ? pubSnap.data() : {},
         });
       } catch(e) { if(alive) setState(s=>({...s, loading:false })); }
     })();
@@ -34095,6 +34108,37 @@ function PublicProfilePage({ username }) {
           </div>
         ))}
       </div>
+
+      {(state.trackers||[]).length > 0 && (
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Public Trackers</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {state.trackers.map(t => {
+              const treatSet = new Set(t.treatments||[]);
+              const heroes = [...new Set(state.cards.filter(c=>c.hero).map(c=>c.hero))];
+              const heroesInSet = heroes.filter(h => state.cards.some(c=>c.hero===h && treatSet.has(c.treatment)));
+              // Progress from the owner's PUBLIC cards (privacy-respecting)
+              const done = heroesInSet.filter(h => state.cards.some(c=>c.hero===h && treatSet.has(c.treatment) && state.ownedPub?.[c.id])).length;
+              const pct = heroesInSet.length ? Math.round(done/heroesInSet.length*100) : 0;
+              return (
+                <div key={t.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{t.name}</div>
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{(t.treatments||[]).join(" · ")}</div>
+                    </div>
+                    <span style={{ fontSize:18, fontWeight:900, color:done===heroesInSet.length&&heroesInSet.length>0?"#4ade80":"#FBBF24" }}>{done}/{heroesInSet.length}</span>
+                  </div>
+                  <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)" }}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginTop:6, fontStyle:"italic" }}>Progress reflects cards this collector has made public.</div>
+        </div>
+      )}
 
       {pubObjs.length > 0 && (
         <div style={{ marginBottom:22 }}>
