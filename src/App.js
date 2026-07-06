@@ -23487,6 +23487,7 @@ function guessPlayCategory(playName) {
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [dbsEdits, setDbsEdits] = useState({});
+  const [pbView, setPbView] = useState("grid"); // grid | list
   async function savePbDbs(cardId, val) {
     const v = val === "" ? "" : (parseFloat(val)||0);
     try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
@@ -23579,6 +23580,11 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     <option value="dbs_desc">{"DBS High\u2192Low"}</option>
                     <option value="dbs_asc">{"DBS Low\u2192High"}</option>
                   </select>
+                  <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.05)",borderRadius:8,padding:2}}>
+                    {[["grid","▦"],["list","☰"]].map(([v,ic])=>(
+                      <button key={v} onClick={()=>setPbView(v)} title={v==="grid"?"Card view":"List view"} style={{background:pbView===v?"#E8317A":"transparent",color:pbView===v?"#fff":"rgba(255,255,255,0.5)",border:"none",borderRadius:6,padding:"5px 10px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{ic}</button>
+                    ))}
+                  </div>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
                 {evt && (
@@ -23595,6 +23601,38 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                 )}
                 <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",paddingRight:4,paddingTop:12,paddingBottom:24}}>
                   {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
+                  pbView==="list"?
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 90px",gap:8,padding:"6px 12px",fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid rgba(255,255,255,0.1)",position:"sticky",top:0,background:"#0d0d0d",zIndex:2}}>
+                      <span>Play</span><span style={{textAlign:"center"}}>Type</span><span style={{textAlign:"center"}}>Cost</span><span style={{textAlign:"center"}}>DBS</span>
+                    </div>
+                    {pbAvail.map((c)=>{
+                      const playable=isPlay(c), bonus=isBonus(c);
+                      const wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
+                      const blocked=(playable&&(playFull||wouldExceed))||(bonus&&wouldExceed);
+                      const addIt=()=>{ if(blocked)return; if(playable)setPbCards(p=>[...p,{id:c.id,type:"play"}]); else if(bonus)setPbCards(p=>[...p,{id:c.id,type:"bonus"}]); };
+                      return (
+                        <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 90px",gap:8,alignItems:"center",padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                          <div onClick={addIt} style={{cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"var(--bz-ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero}</div>
+                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playAbility}</div>}
+                          </div>
+                          <span style={{textAlign:"center",fontSize:10,fontWeight:800,color:bonus?"#7B9CFF":"#E8317A"}}>{bonus?"BPL":"PLAY"}</span>
+                          <span style={{textAlign:"center",fontSize:12,color:"#FBBF24",fontWeight:700}}>{c.playCost!==undefined&&c.playCost!==""?c.playCost:"—"}</span>
+                          <div style={{textAlign:"center"}}>
+                            {_pbAdmin
+                              ? <input type="number" value={dbsEdits[c.id]!==undefined?dbsEdits[c.id]:(c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
+                                  onChange={e=>setDbsEdits(p=>({...p,[c.id]:e.target.value}))}
+                                  onBlur={e=>{ if(dbsEdits[c.id]!==undefined && String(dbsEdits[c.id])!==String(c.dbs??"")) savePbDbs(c.id,e.target.value); }}
+                                  placeholder="—"
+                                  style={{width:60,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:5,padding:"4px 6px",fontSize:12,fontWeight:800,fontFamily:"inherit",textAlign:"center"}}/>
+                              : <span style={{fontSize:12,fontWeight:800,color:"#C084FC"}}>{c.dbs!==undefined&&c.dbs!==""?c.dbs:"—"}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  :
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {pbAvail.map((c)=>{
                     const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#A855F7",wouldExceed=totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
@@ -23623,7 +23661,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                                   onMouseDown={e=>e.stopPropagation()}
                                   title="DBS (admin editable)"
                                   placeholder="DBS"
-                                  style={{width:42,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:4,padding:"1px 3px",fontSize:11,fontWeight:900,fontFamily:"inherit",textAlign:"center"}}/>
+                                  style={{width:42,background:"rgba(192,132,252,0.12)",border:"1px solid #C084FC66",color:"#C084FC",borderRadius:4,padding:"1px 3px",fontSize:11,fontWeight:900,fontFamily:"inherit",textAlign:"center",pointerEvents:"auto"}}/>
                               : (c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:11,fontWeight:900,color:"#C084FC",textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.dbs}</span>)}
                           </div>
                         </div>
@@ -26175,6 +26213,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [builderTreatments,setBuilderTreatments]= useState([]);
   const [expandedTrackerHero, setExpandedTrackerHero] = useState(null);
   const [zoomCard, setZoomCard] = useState(null);
+  const [zoomFlipped, setZoomFlipped] = useState(false);
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
@@ -29265,18 +29304,50 @@ function PublicCardDatabase({ swancity = false } = {}) {
       `}</style>
 
       {/* Comp Modal */}
-      {zoomCard && (
-        <div onClick={()=>setZoomCard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", cursor:"zoom-out" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"min(480px,90vw)", maxHeight:"88vh", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
-            <img src={zoomCard.imageUrl} alt={zoomCard.hero} style={{ maxWidth:"100%", maxHeight:"78vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:owned[zoomCard.id]?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":"none" }}/>
-            <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{zoomCard.hero}</div>
-              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>{[zoomCard.treatment, zoomCard.weapon, zoomCard.cardNum?`#${zoomCard.cardNum}`:""].filter(Boolean).join(" · ")} · {owned[zoomCard.id]?"✓ Have":"Missing"}</div>
+      {zoomCard && (() => {
+        const sibs = (zoomCard.siblings||[]).filter(s=>s.imageUrl);
+        const idx = Math.max(0, sibs.findIndex(s=>s.id===zoomCard.card.id));
+        const cur = sibs[idx] || zoomCard.card;
+        const have = !!owned[cur.id];
+        const go = (delta) => { const n = (idx+delta+sibs.length)%sibs.length; setZoomFlipped(false); setZoomCard({ ...zoomCard, card: sibs[n] }); };
+        // Collection photo: a user-uploaded lot photo of this card, if any
+        const myPhoto = (lotsForCard(cur.id).find(l=>l.photoUrl)||{}).photoUrl || null;
+        const canFlip = have && myPhoto;
+        return (
+        <div onClick={()=>{ setZoomCard(null); setZoomFlipped(false); }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px", cursor:"zoom-out" }}>
+          {sibs.length>1 && <button onClick={e=>{e.stopPropagation();go(-1);}} style={{ position:"fixed", left:16, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:30, width:52, height:52, borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>}
+          {sibs.length>1 && <button onClick={e=>{e.stopPropagation();go(1);}} style={{ position:"fixed", right:16, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:30, width:52, height:52, borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>}
+          <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"min(460px,92vw)", maxHeight:"92vh", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+            {/* Card (click to flip to your collection photo if owned) */}
+            <div onClick={()=>{ if(canFlip) setZoomFlipped(f=>!f); }} style={{ position:"relative", cursor:canFlip?"pointer":"default", perspective:"1200px" }} title={canFlip?"Click to see your card photo":""}>
+              <div style={{ position:"relative", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:zoomFlipped?"rotateY(180deg)":"none" }}>
+                <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:have?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":"none", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", display:zoomFlipped?"none":"block" }}/>
+                {zoomFlipped && myPhoto && <img src={myPhoto} alt="Your card" style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", border:"2px solid rgba(74,222,128,0.6)" }}/>}
+              </div>
+              {canFlip && <div style={{ position:"absolute", bottom:10, right:10, background:"rgba(0,0,0,0.75)", color:"#4ade80", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>🔄 {zoomFlipped?"official art":"your card"}</div>}
             </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{cur.hero}</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>{[cur.treatment, cur.weapon, cur.cardNum?`#${cur.cardNum}`:""].filter(Boolean).join(" · ")} · {have?"✓ Have":"Missing"}{sibs.length>1?` · ${idx+1}/${sibs.length}`:""}</div>
+            </div>
+            {/* Thumbnail strip of the hero's other cards */}
+            {sibs.length>1 && (
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center", maxWidth:"100%" }}>
+                {sibs.map((s,i)=>{
+                  const sHave = !!owned[s.id];
+                  return (
+                    <div key={s.id} onClick={e=>{ e.stopPropagation(); setZoomFlipped(false); setZoomCard({ ...zoomCard, card:s }); }} style={{ width:44, aspectRatio:"3/4", borderRadius:5, overflow:"hidden", cursor:"pointer", border:`2px solid ${i===idx?"#E8317A":sHave?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.15)"}`, opacity:sHave?1:0.5 }}>
+                      <img src={s.imageUrl} alt={s.weapon} style={{ width:"100%", height:"100%", objectFit:"cover", filter:sHave?"none":"grayscale(70%)" }}/>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <button onClick={()=>setZoomCard(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:26, width:44, height:44, borderRadius:"50%", cursor:"pointer" }}>×</button>
+          <button onClick={()=>{ setZoomCard(null); setZoomFlipped(false); }} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:26, width:44, height:44, borderRadius:"50%", cursor:"pointer" }}>×</button>
         </div>
-      )}
+        );
+      })()}
       {viewProfileUid && (
         <ProfileModal
           profileUid={viewProfileUid}
@@ -31174,7 +31245,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                                     {r.allCards.map(c => {
                                       const have = !!owned[c.id];
                                       return (
-                                        <div key={c.id} onClick={()=>c.imageUrl&&setZoomCard(c)} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden", cursor:c.imageUrl?"zoom-in":"default" }}>
+                                        <div key={c.id} onClick={()=>c.imageUrl&&setZoomCard({ card:c, siblings:r.allCards, hero:r.hero })} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden", cursor:c.imageUrl?"zoom-in":"default" }}>
                                           <div style={{ position:"relative", aspectRatio:"3/4" }}>
                                             {c.imageUrl
                                               ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:have?1:0.35, filter:have?"drop-shadow(0 0 10px rgba(74,222,128,0.4))":"grayscale(75%)" }}/>
