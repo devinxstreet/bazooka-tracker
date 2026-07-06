@@ -26078,6 +26078,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
   const [publicCards,   setPublicCards]   = useState({});
+  const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
   const [myUsername,    setMyUsername]    = useState("");
@@ -26094,8 +26095,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -26154,7 +26155,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", tradebait:"/tradebait", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
   useEffect(() => {
     if (swancity) return; // swancity stays on /swancity, tabs don't rewrite the URL
     const target = TAB_PATHS[activeTab] || "/cards";
@@ -26789,6 +26790,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           } catch(e){}
           setWantList(wSnap.exists() ? wSnap.data() : {});
           setPublicCards(prvSnap.exists() ? prvSnap.data() : {});
+          try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
           try { const umSnap = await getDoc(doc(db,"user_missing",u.uid)); setUserMissing(umSnap.exists() && Array.isArray(umSnap.data().cards) ? umSnap.data().cards : []); } catch(e){}
           try {
@@ -27016,6 +27018,13 @@ function PublicCardDatabase({ swancity = false } = {}) {
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setPublicCards(next);
     await setDoc(doc(db,"boba_public",user.uid), next);
+  }
+  async function toggleTradeBait(cardId) {
+    if (!user) { setSigningIn(true); return; }
+    const next = {...tradeBait};
+    if (next[cardId]) delete next[cardId]; else next[cardId]=true;
+    setTradeBait(next);
+    try { await setDoc(doc(db,"boba_tradebait",user.uid), next); } catch(e){ console.error("save tradebait failed:", e); }
   }
   // -- Lot (per-copy cost/value) tracking --
   // -- Collection CSV import --
@@ -29224,6 +29233,36 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   ))}
                   <button onClick={()=>toggleWant(c.id)} style={{ flex:1, minWidth:120, background:wantList[c.id]?"#1a0f00":"rgba(255,255,255,0.04)", border:`1.5px solid ${wantList[c.id]?"#FBBF24":"#333"}`, color:wantList[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{wantList[c.id]?"🎯 Wanted":"+ Want"}</button>
                 </div>
+
+                {/* Trade Bait flag + per-copy breakdown */}
+                {owned[c.id] && (
+                  <div style={{ marginTop:12 }}>
+                    <button onClick={()=>toggleTradeBait(c.id)} style={{ width:"100%", background:tradeBait[c.id]?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${tradeBait[c.id]?"#FBBF24":"#333"}`, color:tradeBait[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{tradeBait[c.id]?"🔁 In Trade Bait":"🔁 Flag as Trade Bait"}</button>
+                    {(() => {
+                      const cardLots = lotsForCard(c.id);
+                      const qty = owned[c.id]||1;
+                      if (cardLots.length === 0) return (
+                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:8, textAlign:"center" }}>You own {qty} — add cost/acquisition details with the 💰 lot button to track each copy.</div>
+                      );
+                      const fmt$ = n => n===null||n===undefined||n===""?"—":`$${(parseFloat(n)||0).toFixed(2)}`;
+                      return (
+                        <div style={{ marginTop:10, background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, overflow:"hidden" }}>
+                          <div style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>Your Copies ({cardLots.length})</div>
+                          {cardLots.map((l,i) => (
+                            <div key={l.id||i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:12 }}>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ color:"#fff", fontWeight:700 }}>Copy {i+1}{l.value?` · worth ${fmt$(l.value)}`:""}</div>
+                                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10 }}>Paid {fmt$(l.cost)}{l.method?` · ${l.method}`:""}{l.date?` · ${l.date}`:""}{l.notes?` · ${l.notes}`:""}</div>
+                              </div>
+                              {l.value&&l.cost&&<span style={{ fontSize:11, fontWeight:800, color:(parseFloat(l.value)-parseFloat(l.cost))>=0?"#4ade80":"#E8317A" }}>{(parseFloat(l.value)-parseFloat(l.cost))>=0?"+":""}{fmt$(parseFloat(l.value)-parseFloat(l.cost))}</span>}
+                            </div>
+                          ))}
+                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", padding:"8px 12px", fontStyle:"italic" }}>💡 Trade the higher-value copy to keep your cost basis low.</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -29877,6 +29916,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {id:"1of1",label:"💎 Secret 1/1s",badge:0},
               {id:"bojax34",label:"🅱️ /34 BoJax",badge:0},
               {id:"wants",label:"🎯 Want List",badge:Object.keys(wantList).length},
+              {id:"tradebait",label:"🔁 Trade Bait",badge:Object.keys(owned).filter(id=>owned[id]>1||tradeBait[id]).length},
             ])}
             {navGroup("play","Deck Builder",[
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
@@ -31402,6 +31442,52 @@ function PublicCardDatabase({ swancity = false } = {}) {
         })()}
 
         {/* WANTS TAB */}
+        {activeTab==="tradebait"&&(() => {
+          const baitCards = cards.filter(c => (owned[c.id]>1) || tradeBait[c.id]).sort((a,b)=>(a.hero||"").localeCompare(b.hero||""));
+          const q = (search||"").toLowerCase();
+          const shown = baitCards.filter(c => !q || `${c.hero} ${c.cardNum} ${c.treatment} ${c.weapon}`.toLowerCase().includes(q));
+          return (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>🔁 Trade Bait</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Your duplicates and cards you've flagged for trade · {baitCards.length} cards</div>
+              </div>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search…" style={{ background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, color:"#f6eef2", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            </div>
+            {baitCards.length===0 ? (
+              <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                <div style={{ fontSize:44, marginBottom:14 }}>🔁</div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:8 }}>No trade bait yet</div>
+                <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", maxWidth:380, margin:"0 auto", lineHeight:1.6 }}>Any card you own more than one of shows up here automatically. You can also flag any card as trade bait from your collection using the 🔁 button.</div>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(100px,1fr))":"repeat(auto-fill,minmax(140px,1fr))", gap:12 }}>
+                {shown.map(c => {
+                  const dupCount = owned[c.id]>1 ? owned[c.id]-1 : 0; // extras beyond the one you keep
+                  const manual = !!tradeBait[c.id];
+                  return (
+                    <div key={c.id} style={{ background:"var(--bz-s1)", border:"1.5px solid rgba(251,191,36,0.3)", borderRadius:12, overflow:"hidden" }}>
+                      <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
+                        {c.imageUrl
+                          ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                          : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:11, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{c.hero}</div>}
+                        {dupCount>0 && <div style={{ position:"absolute", top:6, left:6, background:"rgba(74,222,128,0.9)", color:"#000", borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:900 }}>×{owned[c.id]} own</div>}
+                        {manual && <div style={{ position:"absolute", top:6, right:6, background:"rgba(251,191,36,0.9)", color:"#000", borderRadius:20, padding:"2px 8px", fontSize:9, fontWeight:900 }}>flagged</div>}
+                      </div>
+                      <div style={{ padding:"8px 10px" }}>
+                        <div style={{ fontSize:12, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>{[c.weapon, c.cardNum?`#${c.cardNum}`:""].filter(Boolean).join(" · ")}{dupCount>0?` · ${dupCount} extra`:""}</div>
+                        <button onClick={()=>toggleTradeBait(c.id)} style={{ width:"100%", background:manual?"rgba(251,191,36,0.15)":"transparent", border:`1px solid ${manual?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.15)"}`, color:manual?"#FBBF24":"rgba(255,255,255,0.5)", borderRadius:6, padding:"4px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{manual?"✓ Flagged":"🔁 Flag"}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          );
+        })()}
         {activeTab==="wants"&&(
           <div>
             {Object.keys(wantList).length===0?(
@@ -34719,7 +34805,7 @@ function AppInner() {
   // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
   if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
