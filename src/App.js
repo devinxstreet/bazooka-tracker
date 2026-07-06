@@ -26174,6 +26174,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [builderName,      setBuilderName]      = useState("");
   const [builderTreatments,setBuilderTreatments]= useState([]);
   const [expandedTrackerHero, setExpandedTrackerHero] = useState(null);
+  const [zoomCard, setZoomCard] = useState(null);
   const [expandedHero,     setExpandedHero]     = useState(null);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all");
   const [superSetFilter,   setSuperSetFilter]   = useState("");
@@ -29264,6 +29265,18 @@ function PublicCardDatabase({ swancity = false } = {}) {
       `}</style>
 
       {/* Comp Modal */}
+      {zoomCard && (
+        <div onClick={()=>setZoomCard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", cursor:"zoom-out" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"min(480px,90vw)", maxHeight:"88vh", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+            <img src={zoomCard.imageUrl} alt={zoomCard.hero} style={{ maxWidth:"100%", maxHeight:"78vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:owned[zoomCard.id]?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":"none" }}/>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{zoomCard.hero}</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>{[zoomCard.treatment, zoomCard.weapon, zoomCard.cardNum?`#${zoomCard.cardNum}`:""].filter(Boolean).join(" · ")} · {owned[zoomCard.id]?"✓ Have":"Missing"}</div>
+            </div>
+          </div>
+          <button onClick={()=>setZoomCard(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:26, width:44, height:44, borderRadius:"50%", cursor:"pointer" }}>×</button>
+        </div>
+      )}
       {viewProfileUid && (
         <ProfileModal
           profileUid={viewProfileUid}
@@ -31120,7 +31133,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
                         <div>
                           <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
-                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero · tap a hero to flip through cards</div>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero · tap a hero to see every card</div>
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
@@ -31161,7 +31174,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                                     {r.allCards.map(c => {
                                       const have = !!owned[c.id];
                                       return (
-                                        <div key={c.id} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden" }}>
+                                        <div key={c.id} onClick={()=>c.imageUrl&&setZoomCard(c)} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden", cursor:c.imageUrl?"zoom-in":"default" }}>
                                           <div style={{ position:"relative", aspectRatio:"3/4" }}>
                                             {c.imageUrl
                                               ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:have?1:0.35, filter:have?"drop-shadow(0 0 10px rgba(74,222,128,0.4))":"grayscale(75%)" }}/>
