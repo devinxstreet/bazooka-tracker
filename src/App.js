@@ -26136,6 +26136,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const lastMilestoneRef = useRef(null);
   const [rainbowFx,     setRainbowFx]     = useState(null); // { name, cards:[] }
   const completedRainbowsRef = useRef(null); // snapshot of complete rainbow keys
+  const ownedUnsubRef = useRef(null); // live subscription to the user's collection
 
   // -- Playbook --
   const [pbCards,       setPbCards]       = useState([]);
@@ -26671,6 +26672,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
           ]);
           setOwned(ownSnap.exists() ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
+          // Live subscription so cards scanned on any device (e.g. phone) appear in
+          // the collection here instantly, without a refresh.
+          if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} }
+          ownedUnsubRef.current = onSnapshot(doc(db,"boba_owned",u.uid), snap => {
+            setOwned(snap.exists() ? snap.data() : {});
+          });
           try {
             const trkSnap = await getDoc(doc(db,"boba_trackers",u.uid));
             const list = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
@@ -26690,6 +26697,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           setOwnedDocId(u.uid);
         }
       } else {
+        if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} ownedUnsubRef.current = null; }
         setOwned({}); setOwnedDocId(null); setWantList({}); setPublicCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
       }
     });
@@ -30985,8 +30993,9 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   const treatSet = new Set(tracker.treatments);
                   const heroes = [...new Set(cards.filter(c=>c.hero).map(c=>c.hero))].sort();
                   const rows = heroes.map(hero => {
+                    const cardNumVal = c => { const m = String(c.cardNum||"").match(/\d+/); return m ? parseInt(m[0],10) : Number.MAX_SAFE_INTEGER; };
                     const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment))
-                      .sort((a,b)=>String(a.weapon||"").localeCompare(String(b.weapon||"")));
+                      .sort((a,b)=>{ const d = cardNumVal(a)-cardNumVal(b); return d!==0 ? d : String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}); });
                     const ownedMatch = hc.filter(c => owned[c.id]);
                     return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, allCards: hc, exists: hc.length>0 };
                   });
