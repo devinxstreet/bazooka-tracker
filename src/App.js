@@ -27197,6 +27197,50 @@ function PublicCardDatabase({ swancity = false } = {}) {
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+
+  function exportCollection() {
+    if (!user) { setSigningIn(true); return; }
+    const csvEsc = v => { const s = v===null||v===undefined ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+    const ownedIds = Object.keys(owned).filter(id => owned[id]);
+    let totalSpent = 0, totalValue = 0;
+    const rows = [];
+    ownedIds.forEach(id => {
+      const c = cards.find(x => x.id===id) || {};
+      const qty = parseInt(owned[id]) || 1;
+      const cardLots = lotsForCard(id);
+      if (cardLots.length > 0) {
+        // One row per lot (an owner may have multiple copies acquired differently)
+        cardLots.forEach(l => {
+          const cost = parseFloat(l.cost)||0, value = parseFloat(l.value)||0;
+          totalSpent += cost; totalValue += value;
+          rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", 1,
+            l.cost??"", l.value??"", (value-cost).toFixed(2), l.method||"", l.date||"", l.notes||""]);
+        });
+      } else {
+        // Owned but no financial lot recorded
+        rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", qty, "", "", "", "", "", ""]);
+      }
+    });
+    const header = ["Hero","Set","Treatment","Weapon","Card #","Qty","Cost","Value","Gain/Loss","Acquisition","Date","Notes"];
+    const totalCards = ownedIds.reduce((s,id)=>s+(parseInt(owned[id])||1),0);
+    const summary = [
+      [], ["SUMMARY"],
+      ["Total Cards", totalCards],
+      ["Total Spent", totalSpent.toFixed(2)],
+      ["Total Value", totalValue.toFixed(2)],
+      ["Total Gain/Loss", (totalValue-totalSpent).toFixed(2)],
+      ["Exported", new Date().toLocaleString()],
+    ];
+    const lines = [header, ...rows, ...summary].map(r => r.map(csvEsc).join(","));
+    const blob = new Blob([lines.join("\n")], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bazooka-collection-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [bulkImg, setBulkImg] = useState(null); // {files, setName} | null
   const [bulkProg, setBulkProg] = useState(null); // {done,total,matched,skipped,status}
@@ -29623,6 +29667,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
                     {"\uD83D\uDD04"}</button>
                   <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                     {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
+                  <button onClick={exportCollection} title="Export your collection (with cost/value) as a CSV" style={{background:"linear-gradient(135deg,rgba(251,191,36,0.16),rgba(232,49,122,0.12))",color:"#FBBF24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                    {isMobile ? "\u2B06" : "\u2B06 Export"}</button>
                   <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
                     title="Share your public collection page"
                     style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
