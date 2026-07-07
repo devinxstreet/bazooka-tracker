@@ -25286,7 +25286,6 @@ function PublicHomepage() {
           <a href="/sell" style={{ color:"rgba(255,255,255,0.5)", fontSize:13, textDecoration:"none" }}>Sell a Card</a>
         </div>
         <div style={{ fontSize:12, color:"rgba(255,255,255,0.25)" }}>© {new Date().getFullYear()} Bazooka Breaks · Bo Jackson Battle Arena Collector Database</div>
-        <a href="/dashboard" style={{ display:"inline-block", marginTop:10, color:"rgba(255,255,255,0.15)", fontSize:11, textDecoration:"none" }}>Team Login</a>
       </div>
     </div>
   );
@@ -34219,14 +34218,19 @@ function PublicProfilePage({ username }) {
     (async () => {
       try {
         const uname = String(username||"").toLowerCase().replace(/[^a-z0-9_]/g,"");
-        let uid = null; let permErr = false;
+        let uid = null; let permErr = false; const diag = [];
         // 1) usernames/{handle} doc
-        try { const s = await getDoc(doc(db,"usernames",uname)); if (s.exists()) uid = s.data().uid; } catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); console.warn("usernames read failed (Firestore rules must allow public read of 'usernames'):", e); }
+        try { const s = await getDoc(doc(db,"usernames",uname)); if (s.exists()){ uid = s.data().uid; diag.push("usernames:FOUND"); } else diag.push("usernames:empty"); }
+        catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); diag.push("usernames:ERR("+(e.code||e.message||"?")+")"); }
         // 2) users where username == handle (lowercase)
-        if (!uid) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",uname))); if(!s.empty) uid = s.docs[0].id; } catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); console.warn("users query failed (Firestore rules must allow public read of 'users'):", e); } }
-        // 3) users where username == raw (older records may keep original casing)
-        if (!uid && username && username !== uname) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",username))); if(!s.empty) uid = s.docs[0].id; } catch(e){} }
-        if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null, permErr })); return; }
+        if (!uid) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",uname))); if(!s.empty){ uid = s.docs[0].id; diag.push("users.lc:FOUND"); } else diag.push("users.lc:empty"); }
+          catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); diag.push("users.lc:ERR("+(e.code||e.message||"?")+")"); } }
+        // 3) users where username == raw casing
+        if (!uid && username && username !== uname) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",username))); if(!s.empty){ uid = s.docs[0].id; diag.push("users.raw:FOUND"); } else diag.push("users.raw:empty"); } catch(e){ diag.push("users.raw:ERR"); } }
+        // 4) boba_profiles fallback (some flows write handle here)
+        if (!uid) { try { const s = await getDocs(query(collection(db,"boba_profiles"), where("username","==",uname))); if(!s.empty){ uid = s.docs[0].id; diag.push("profiles:FOUND"); } else diag.push("profiles:empty"); } catch(e){ permErr = permErr || /permission|insufficient/i.test(e.message||""); diag.push("profiles:ERR("+(e.code||"?")+")"); } }
+        console.log("[profile lookup]", uname, "→", diag.join(" | "));
+        if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null, permErr, diag: diag.join(" · ") })); return; }
         const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
           getDoc(doc(db,"boba_public",uid)),
@@ -34278,6 +34282,7 @@ function PublicProfilePage({ username }) {
       <div style={{ fontSize:18, fontWeight:800, marginBottom:6 }}>No collector found</div>
       <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:20 }}>We couldn't find a collector named "{username}".</div>
       {state.permErr && <div style={{ fontSize:12, color:"#FBBF24", marginBottom:20, maxWidth:380, margin:"0 auto 20px", lineHeight:1.5 }}>⚠️ Public profiles are blocked by the database security rules. Firestore rules need to allow public read of the <b>usernames</b> and <b>users</b> collections.</div>}
+      {state.diag && <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:20, fontFamily:"monospace" }}>lookup: {state.diag}</div>}
       <a href="/leaderboard" style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", textDecoration:"none", borderRadius:10, padding:"10px 22px", fontSize:13, fontWeight:800 }}>Browse the Leaderboard →</a>
     </div>
   );
