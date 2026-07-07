@@ -23694,6 +23694,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   }
   const [pbEvent, setPbEvent] = useState("");
   const [pbSetFilter, setPbSetFilter] = useState("");
+  const [pbTypeFilter, setPbTypeFilter] = useState(""); // "", "play", "bonus", "paper", "htd"
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
   const evtPlaySet = evt ? new Set([...(evt.plays||[]), ...(evt.bonusPlays||[])].map(s=>s.toLowerCase().trim())) : null;
   const inEvent = c => !evtPlaySet || evtPlaySet.has((c.hero||"").toLowerCase().trim());
@@ -23766,7 +23767,16 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
     return { counts, total, playEntries, bonusEntries, avgDbs, avgCost };
   })();
 
-  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSetFilter&&c.setName!==pbSetFilter)return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
+  // Classify a play by sub-type using treatment + card number prefix
+  const pbCardType = (c) => {
+    const t=(c.treatment||"").toLowerCase();
+    const n=String(c.cardNum||"").replace(/^([A-Za-z]{1,2})\s*-\s*/,"").toUpperCase();
+    if (t.includes("bonus") || /^BPL/.test(n)) return "bonus";
+    if (t.includes("paper") ) return "paper";
+    if (t.includes("htd") || t.includes("home team discount") || /^HTD/.test(n)) return "htd";
+    return "play";
+  };
+  const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSetFilter&&c.setName!==pbSetFilter)return false;if(pbTypeFilter&&pbCardType(c)!==pbTypeFilter)return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   const pbSets=[...new Set(playCards.map(c=>c.setName).filter(Boolean))].sort();
   return (
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
@@ -23776,6 +23786,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   <select value={pbSetFilter} onChange={e=>setPbSetFilter(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbSetFilter?"#4ade80":"rgba(255,255,255,0.4)"}}>
                     <option value="">All Sets</option>
                     {pbSets.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={pbTypeFilter} onChange={e=>setPbTypeFilter(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbTypeFilter?"#C084FC":"rgba(255,255,255,0.4)"}}>
+                    <option value="">All Types</option>
+                    <option value="play">Plays</option>
+                    <option value="paper">Paper Plays</option>
+                    <option value="bonus">Bonus Plays</option>
+                    <option value="htd">HTD Plays</option>
                   </select>
                   <select value={pbEvent} onChange={e=>setPbEvent(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:pbEvent?"#F59E0B":"rgba(255,255,255,0.4)"}}>
                     <option value="">All Plays (no event)</option>
@@ -23836,7 +23853,11 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr 60px 55px 80px 70px",gap:8,alignItems:"center",padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
                           <div style={{minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:800,color:"#f6eef2",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero||"(unnamed play)"}</div>
-                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.45)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playAbility}</div>}
+                            <div style={{display:"flex",gap:6,alignItems:"center",marginTop:1}}>
+                              {c.setName&&<span style={{fontSize:9,fontWeight:700,color:"#C084FC",background:"rgba(192,132,252,0.12)",borderRadius:4,padding:"1px 6px",whiteSpace:"nowrap"}}>{c.setName}</span>}
+                              {c.cardNum&&<span style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>#{c.cardNum}</span>}
+                            </div>
+                            {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.45)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:2}}>{c.playAbility}</div>}
                           </div>
                           <span style={{textAlign:"center",fontSize:10,fontWeight:800,color:bonus?"#7B9CFF":"#E8317A"}}>{bonus?"BPL":"PLAY"}</span>
                           <span style={{textAlign:"center",fontSize:12,color:"#FBBF24",fontWeight:700}}>{c.playCost!==undefined&&c.playCost!==""?c.playCost:"—"}</span>
