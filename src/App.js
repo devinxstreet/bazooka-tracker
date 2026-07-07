@@ -23569,7 +23569,17 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const evt = pbEvent ? BOBA_EVENTS[pbEvent] : null;
   const evtPlaySet = evt ? new Set([...(evt.plays||[]), ...(evt.bonusPlays||[])].map(s=>s.toLowerCase().trim())) : null;
   const inEvent = c => !evtPlaySet || evtPlaySet.has((c.hero||"").toLowerCase().trim());
-  const playCards=cards.filter(c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="bonus plays"||t==="home team discount";});
+  // A card's number, with any set prefix stripped: "A - PL-79" -> "PL-79", "T-BPL-22" -> "BPL-22", "HTD-46" -> "HTD-46"
+  const _pbBaseNum = c => { let v=String(c.cardNum||"").trim(); v=v.replace(/^([A-Za-z]{1,2})\s*-\s*/,""); return v.toUpperCase(); };
+  // Bonus play: treatment mentions bonus, OR card number is a BPL
+  const isBonus = c => { const t=(c.treatment||"").toLowerCase(); const n=_pbBaseNum(c); return t.includes("bonus") || /^BPL/.test(n); };
+  // Regular play: treatment is play-ish (not bonus), OR card number is PL/HTD (not BPL)
+  const isPlay = c => {
+    const t=(c.treatment||"").toLowerCase(); const n=_pbBaseNum(c);
+    if (isBonus(c)) return false;
+    return t.includes("play") || t==="home team discount" || /^PL/.test(n) || /^HTD/.test(n);
+  };
+  const playCards=cards.filter(c=>isPlay(c)||isBonus(c));
   const pbEntryIds=new Set(pbCards.map(e=>e.id));
   const playCount=pbCards.filter(e=>e.type==="play").length;
   const bonusCount=pbCards.filter(e=>e.type==="bonus").length;
@@ -23577,8 +23587,6 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const pbResolved=pbCards.map(e=>({...e,card:cards.find(c=>c.id===e.id)})).filter(e=>e.card);
   const totalDbs=pbResolved.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
   const dbsLeft=PUBLIC_DBS_CAP-totalDbs, dbsPct=Math.min(totalDbs/PUBLIC_DBS_CAP*100,100), dbsOver=totalDbs>PUBLIC_DBS_CAP;
-  const isPlay=c=>{const t=(c.treatment||"").toLowerCase();return t==="plays"||t==="home team discount";};
-  const isBonus=c=>(c.treatment||"").toLowerCase()==="bonus plays";
   // Playbook coach — live, contextual guidance
   const pbCoach=(()=>{
     const tips=[];
