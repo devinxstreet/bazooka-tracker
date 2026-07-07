@@ -23670,11 +23670,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
       cards.forEach(c => {
         if (!c.hero || idsSetThisImport.has(c.id)) return;   // set directly this import → skip
         if (!isPlayCard(c)) return;
+        // INHERIT ONLY FILLS BLANKS — never overwrite a DBS that's already set (protects any
+        // hand-tuned values on reprints not in the CSV).
+        if (c.dbs!==undefined && c.dbs!=="" && !isNaN(parseFloat(c.dbs))) return;
         const nk = normStr(c.hero.replace(/\s*-?\s*htd\s*$/i,""));
         // A reprint prefers the non-HTD original; an HTD reprint prefers the HTD value.
         const inheritedDbs = _isHtdCard(c) ? (nameHtd[nk] ?? nameOriginal[nk]) : (nameOriginal[nk] ?? nameHtd[nk]);
         if (inheritedDbs===undefined) return;
-        if (String(c.dbs??"")===String(inheritedDbs)) return; // already correct
         batch.push({ id:c.id, update:{ dbs: inheritedDbs } });
         inherited++;
       });
