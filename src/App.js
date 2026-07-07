@@ -16038,7 +16038,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // Cracked-ice / shattered-glass foil for Alpha Blast set cards
   const _setLower = (c.setName||"").toLowerCase();
   const _iceIsPaper = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
-  const isIceFoil = (_setLower.includes("alpha blast") || _setLower.includes("blast")) && !_iceIsPaper && !(treatment.includes("play") && !treatment.includes("bonus"));
+  const isIceFoil = (_setLower.includes("alpha blast") || _setLower.includes("blast")) && !_iceIsPaper;
   // Base / paper cards have NO foil shine — only true foil treatments shimmer
   const _isPaperBase = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
   const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil/.test(treatment);
@@ -16053,58 +16053,31 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const iceShardsRef = useRef(null); // cached shard SVG data URL
 
   // Build a dense field of iridescent angular shards once (cached), matching the cracked-ice look.
-  function buildIceShards() {
-    if (iceShardsRef.current) return iceShardsRef.current;
-    try {
-    const W=300, H=420;
-    const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97)+ (String(c.id||"").charCodeAt(0)||0));
-    const cols=["#cdf3ff","#ffd9f6","#d9ffe9","#e6dcff","#daf0ff","#ffffff"];
-    // Scatter fracture nodes
-    const N=44, pts=[];
-    for(let i=0;i<N;i++) pts.push([rnd()*W, rnd()*H]);
-    // A few "impact" origins that cracks radiate from
-    const impacts=[[rnd()*W,rnd()*H],[rnd()*W,rnd()*H],[rnd()*W,rnd()*H]];
-    let lines="", facets="";
-    // Connect each node to its nearest few neighbours → a web of cracks
-    for(let i=0;i<N;i++){
-      const d=pts.map((p,j)=>[Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]),j]).sort((a,b)=>a[0]-b[0]);
-      const links=Math.min(2+((rnd()*2)|0), d.length-1);
-      for(let k=1;k<=links;k++){
-        if(!d[k]) continue;
-        const j=d[k][1]; if(j<=i) continue;
-        const col=cols[(rnd()*cols.length)|0];
-        // faint facet fill using the segment + an impact point (gives angular shards)
-        const imp=impacts[(rnd()*impacts.length)|0];
-        facets+=`<polygon points="${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)} ${pts[j][0].toFixed(1)},${pts[j][1].toFixed(1)} ${imp[0].toFixed(1)},${imp[1].toFixed(1)}" fill="${col}" opacity="${(0.05+rnd()*0.12).toFixed(3)}"/>`;
-        // the crack line itself — bright, thin
-        lines+=`<line x1="${pts[i][0].toFixed(1)}" y1="${pts[i][1].toFixed(1)}" x2="${pts[j][0].toFixed(1)}" y2="${pts[j][1].toFixed(1)}" stroke="${col}" stroke-width="${(0.6+rnd()*1.1).toFixed(2)}" opacity="${(0.5+rnd()*0.45).toFixed(2)}"/>`;
-      }
-    }
-    // Radiating cracks straight out of each impact point
-    impacts.forEach(imp=>{
-      const spokes=5+((rnd()*4)|0);
-      for(let s=0;s<spokes;s++){
-        const ang=rnd()*Math.PI*2, len=40+rnd()*130;
-        lines+=`<line x1="${imp[0].toFixed(1)}" y1="${imp[1].toFixed(1)}" x2="${(imp[0]+Math.cos(ang)*len).toFixed(1)}" y2="${(imp[1]+Math.sin(ang)*len).toFixed(1)}" stroke="#eaffff" stroke-width="${(0.5+rnd()*1).toFixed(2)}" opacity="${(0.4+rnd()*0.4).toFixed(2)}"/>`;
-      }
-    });
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${facets}${lines}</svg>`;
-    iceShardsRef.current="data:image/svg+xml;base64,"+btoa(svg);
-    return iceShardsRef.current;
-    } catch(e) { iceShardsRef.current = "data:image/svg+xml;base64,"+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'); return iceShardsRef.current; }
+  // Cracked-ice foil: layered angular facet gradients (no SVG dependency) + icy sheen.
+  function _iceBase(x, y) {
+    const hx = (x*100).toFixed(0), hy = (y*100).toFixed(0);
+    return [
+      // Shatter facets — overlapping angled slivers of pale iridescence
+      `repeating-linear-gradient(63deg, rgba(205,243,255,0.10) 0px, rgba(205,243,255,0.10) 2px, transparent 2px, transparent 13px)`,
+      `repeating-linear-gradient(112deg, rgba(255,217,246,0.09) 0px, rgba(255,217,246,0.09) 2px, transparent 2px, transparent 17px)`,
+      `repeating-linear-gradient(158deg, rgba(217,255,233,0.08) 0px, rgba(217,255,233,0.08) 2px, transparent 2px, transparent 21px)`,
+      `repeating-linear-gradient(9deg, rgba(230,220,255,0.08) 0px, rgba(230,220,255,0.08) 1.5px, transparent 1.5px, transparent 15px)`,
+      // Frosty crackle grain
+      `radial-gradient(circle at ${hx}% ${hy}%, rgba(255,255,255,0.18), transparent 45%)`,
+    ].join(", ");
   }
   function drawIceFoil(x, y) {
     if (!iceRef.current) return;
     const el = iceRef.current;
-    const hue = (x*300+y*60)%360;
+    const hue = (x*220 + y*80) % 360;
     el.style.backgroundImage = [
-      `radial-gradient(90% 60% at ${x*100}% ${y*100}%, hsla(${hue},90%,90%,0.30), transparent 50%)`,
-      `linear-gradient(${100+x*60}deg, transparent 38%, hsla(${(hue+40)%360},95%,88%,0.22) ${45+y*15}%, hsla(${(hue+180)%360},90%,86%,0.18) ${58+y*15}%, transparent 70%)`,
-      `url(${buildIceShards()})`,
-    ].join(",");
-    el.style.backgroundSize = "cover, cover, cover";
-    el.style.opacity = "0.55";
+      // Moving prismatic sheen band
+      `linear-gradient(${105+x*50}deg, transparent 32%, hsla(${hue},95%,90%,0.32) ${44+y*14}%, hsla(${(hue+180)%360},90%,88%,0.26) ${56+y*14}%, transparent 70%)`,
+      _iceBase(x, y),
+    ].join(", ");
+    el.style.opacity = "1";
   }
+
   function drawMetallicFoil(x, y) {
     if (!metallicRef.current) return;
     const el = metallicRef.current;
@@ -16206,7 +16179,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
-    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = `url(${buildIceShards()})`; iceRef.current.style.opacity = "0.45"; }
+    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = _iceBase(0.5, 0.4); iceRef.current.style.opacity = "0.7"; }
     else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
@@ -16251,7 +16224,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`url(${buildIceShards()})`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.45, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -23629,11 +23602,17 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         const playCost=costIdx>=0?(cols[costIdx]||"").replace(/^"|"$/g,"").trim():"";
         const rawName=nameIdx>=0?(cols[nameIdx]||"").replace(/^"|"$/g,"").trim():"";
         const prefixSet = PREFIX_TO_SET[playPrefix(rawNum)] || "";
-        // If admin forced a set, ONLY process rows belonging to it, and scope matching to that set.
+        // If admin forced a set, ONLY process rows belonging to it. Decide membership by the
+        // CSV card-number PREFIX (reliable) rather than comparing set-name strings (which may
+        // differ between the CSV/map and the DB, e.g. "Tecmo Bowl" vs "Tecmo Bowl Edition").
         const forcedSet = dbsImportSet || "";
         if (forcedSet) {
-          // skip CSV rows whose prefix maps to a different set (when the prefix is known)
-          if (prefixSet && normStr(prefixSet)!==normStr(forcedSet)) { skipped++; continue; }
+          // Which prefixes map to the forced set (via PREFIX_TO_SET)? Row must use one of them.
+          const prefixesForForced = Object.keys(PREFIX_TO_SET).filter(pk => normStr(PREFIX_TO_SET[pk])===normStr(forcedSet));
+          const rowPrefix = playPrefix(rawNum);
+          // If we know the forced set's prefixes and the row's prefix isn't one, skip.
+          // If we DON'T know (forced set not in the map), don't skip on prefix — rely on set-scope below.
+          if (prefixesForForced.length>0 && rowPrefix && !prefixesForForced.includes(rowPrefix)) { skipped++; continue; }
         }
         const resolvedSet = forcedSet || csvSet || prefixSet || "";
         const inScope = c => !resolvedSet || normStr(c.setName||"")===normStr(resolvedSet);
