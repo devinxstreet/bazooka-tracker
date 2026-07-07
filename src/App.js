@@ -29935,8 +29935,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 {userMissing.map((m,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:800,color:"var(--bz-ink)"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
-                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:"#f6eef2"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#FBBF24",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.65)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
                     </div>
                     {m.qty>1 && <span style={{fontSize:12,color:"#FBBF24",fontWeight:800,flexShrink:0}}>×{m.qty}</span>}
                   </div>
@@ -29965,8 +29965,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 {missingCards.map(m=>(
                   <div key={m.id} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.02)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:800,color:"var(--bz-ink)"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#7B9CFF",fontWeight:700}}> · {m.weapon}</span>:""}</div>
-                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:"#f6eef2"}}>{m.hero||"(unknown)"}{m.weapon?<span style={{color:"#7B9CFF",fontWeight:700}}> · {m.weapon}</span>:""}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.65)"}}>{[m.treatment,m.power?`${m.power}⚡`:"",m.cardNum?`#${m.cardNum}`:"",m.setName].filter(Boolean).join(" · ")}</div>
                       {Array.isArray(m.requestedBy)&&m.requestedBy.length>0 && <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:2}}>Requested by {m.requestedBy.length} collector{m.requestedBy.length!==1?"s":""}</div>}
                     </div>
                     <button onClick={()=>dismissMissingCard(m.id)} title="Mark as added / dismiss" style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
