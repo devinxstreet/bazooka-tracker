@@ -34217,14 +34217,14 @@ function PublicProfilePage({ username }) {
     (async () => {
       try {
         const uname = String(username||"").toLowerCase().replace(/[^a-z0-9_]/g,"");
-        let uid = null;
+        let uid = null; let permErr = false;
         // 1) usernames/{handle} doc
-        try { const s = await getDoc(doc(db,"usernames",uname)); if (s.exists()) uid = s.data().uid; } catch(e) { console.warn("usernames read failed (check Firestore rules allow public read of 'usernames'):", e); }
+        try { const s = await getDoc(doc(db,"usernames",uname)); if (s.exists()) uid = s.data().uid; } catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); console.warn("usernames read failed (Firestore rules must allow public read of 'usernames'):", e); }
         // 2) users where username == handle (lowercase)
-        if (!uid) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",uname))); if(!s.empty) uid = s.docs[0].id; } catch(e) { console.warn("users query failed (check rules allow public read of 'users'):", e); } }
-        // 3) users where username == raw (in case an older record kept original casing)
+        if (!uid) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",uname))); if(!s.empty) uid = s.docs[0].id; } catch(e) { permErr = permErr || /permission|insufficient/i.test(e.message||""); console.warn("users query failed (Firestore rules must allow public read of 'users'):", e); } }
+        // 3) users where username == raw (older records may keep original casing)
         if (!uid && username && username !== uname) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",username))); if(!s.empty) uid = s.docs[0].id; } catch(e){} }
-        if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null})); return; }
+        if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null, permErr })); return; }
         const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
           getDoc(doc(db,"boba_public",uid)),
@@ -34275,6 +34275,7 @@ function PublicProfilePage({ username }) {
       <div style={{ fontSize:40, marginBottom:12 }}>🔍</div>
       <div style={{ fontSize:18, fontWeight:800, marginBottom:6 }}>No collector found</div>
       <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:20 }}>We couldn't find a collector named "{username}".</div>
+      {state.permErr && <div style={{ fontSize:12, color:"#FBBF24", marginBottom:20, maxWidth:380, margin:"0 auto 20px", lineHeight:1.5 }}>⚠️ Public profiles are blocked by the database security rules. Firestore rules need to allow public read of the <b>usernames</b> and <b>users</b> collections.</div>}
       <a href="/leaderboard" style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", textDecoration:"none", borderRadius:10, padding:"10px 22px", fontSize:13, fontWeight:800 }}>Browse the Leaderboard →</a>
     </div>
   );
