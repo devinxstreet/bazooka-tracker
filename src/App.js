@@ -16055,15 +16055,38 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // Build a dense field of iridescent angular shards once (cached), matching the cracked-ice look.
   function buildIceShards() {
     if (iceShardsRef.current) return iceShardsRef.current;
-    const W=300, H=420; const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97));
-    const cols=["#bfeffff0","#ffd6f5f0","#d6ffe8f0","#e6d6fff0","#d6ecfff0","#fff8d6f0"];
-    let shards="";
-    for(let i=0;i<150;i++){
-      const cx=rnd()*W, cy=rnd()*H, s=3+rnd()*10, a=rnd()*Math.PI;
-      const p=(k)=>{ const ang=a+k*(1.6+rnd()*1.4), r=s*(0.5+rnd()); return `${(cx+Math.cos(ang)*r).toFixed(1)},${(cy+Math.sin(ang)*r).toFixed(1)}`; };
-      shards+=`<polygon points="${p(0)} ${p(1)} ${p(2)}" fill="${cols[(rnd()*cols.length)|0]}" opacity="${(0.2+rnd()*0.45).toFixed(2)}"/>`;
+    const W=300, H=420;
+    const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97)+ (String(c.id||"").charCodeAt(0)||0));
+    const cols=["#cdf3ff","#ffd9f6","#d9ffe9","#e6dcff","#daf0ff","#ffffff"];
+    // Scatter fracture nodes
+    const N=44, pts=[];
+    for(let i=0;i<N;i++) pts.push([rnd()*W, rnd()*H]);
+    // A few "impact" origins that cracks radiate from
+    const impacts=[[rnd()*W,rnd()*H],[rnd()*W,rnd()*H],[rnd()*W,rnd()*H]];
+    let lines="", facets="";
+    // Connect each node to its nearest few neighbours → a web of cracks
+    for(let i=0;i<N;i++){
+      const d=pts.map((p,j)=>[Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]),j]).sort((a,b)=>a[0]-b[0]);
+      const links=2+((rnd()*2)|0);
+      for(let k=1;k<=links;k++){
+        const j=d[k][1]; if(j<=i) continue;
+        const col=cols[(rnd()*cols.length)|0];
+        // faint facet fill using the segment + an impact point (gives angular shards)
+        const imp=impacts[(rnd()*impacts.length)|0];
+        facets+=`<polygon points="${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)} ${pts[j][0].toFixed(1)},${pts[j][1].toFixed(1)} ${imp[0].toFixed(1)},${imp[1].toFixed(1)}" fill="${col}" opacity="${(0.05+rnd()*0.12).toFixed(3)}"/>`;
+        // the crack line itself — bright, thin
+        lines+=`<line x1="${pts[i][0].toFixed(1)}" y1="${pts[i][1].toFixed(1)}" x2="${pts[j][0].toFixed(1)}" y2="${pts[j][1].toFixed(1)}" stroke="${col}" stroke-width="${(0.6+rnd()*1.1).toFixed(2)}" opacity="${(0.5+rnd()*0.45).toFixed(2)}"/>`;
+      }
     }
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${shards}</svg>`;
+    // Radiating cracks straight out of each impact point
+    impacts.forEach(imp=>{
+      const spokes=5+((rnd()*4)|0);
+      for(let s=0;s<spokes;s++){
+        const ang=rnd()*Math.PI*2, len=40+rnd()*130;
+        lines+=`<line x1="${imp[0].toFixed(1)}" y1="${imp[1].toFixed(1)}" x2="${(imp[0]+Math.cos(ang)*len).toFixed(1)}" y2="${(imp[1]+Math.sin(ang)*len).toFixed(1)}" stroke="#eaffff" stroke-width="${(0.5+rnd()*1).toFixed(2)}" opacity="${(0.4+rnd()*0.4).toFixed(2)}"/>`;
+      }
+    });
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${facets}${lines}</svg>`;
     iceShardsRef.current="data:image/svg+xml;base64,"+btoa(svg);
     return iceShardsRef.current;
   }
@@ -16180,7 +16203,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
-    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = `url(${buildIceShards()})`; iceRef.current.style.opacity = "0.12"; }
+    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = `url(${buildIceShards()})`; iceRef.current.style.opacity = "0.45"; }
     else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
@@ -16225,7 +16248,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`url(${buildIceShards()})`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.12, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`url(${buildIceShards()})`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.45, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
