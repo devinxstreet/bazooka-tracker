@@ -11970,7 +11970,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   if (dayPlans.length===0&&dayActuals.length===0) return (
                     <div key={ds} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bz-line)"}}>
                       <span style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-3)",width:90,flexShrink:0}}>{DOW_FULL[i]} {ds.slice(5)}</span>
-                      <span style={{fontSize:11,color:"#2a2a2a"}}>—</span>
+                      <span style={{fontSize:11,color:"#8a8a8a"}}>—</span>
                     </div>
                   );
                   return (
@@ -12182,7 +12182,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                         )}
 
                         {streamCount === 0 && (
-                          <div style={{ fontSize:11, color:"#2a2a2a", fontStyle:"italic" }}>—</div>
+                          <div style={{ fontSize:11, color:"#8a8a8a", fontStyle:"italic" }}>—</div>
                         )}
                       </div>
                     );
@@ -20585,7 +20585,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         {photoScan.detected && (
                           <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:6, borderTop:"1px solid var(--bz-line)", paddingTop:4 }}>
                             <div>Vision read: #{photoScan.detected.cardNum||"?"} · {photoScan.detected.hero||"?"} · {photoScan.detected.weapon||"?"}</div>
-                            {photoScan.detected.visualHints && <div style={{ color:"#2a2a2a", marginTop:2 }}>Visual: {photoScan.detected.visualHints}</div>}
+                            {photoScan.detected.visualHints && <div style={{ color:"#8a8a8a", marginTop:2 }}>Visual: {photoScan.detected.visualHints}</div>}
                           </div>
                         )}
                       </div>
