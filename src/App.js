@@ -26186,7 +26186,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
   const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
@@ -26246,7 +26246,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", tradebait:"/tradebait", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", tradebait:"/tradebait", intransit:"/intransit", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
   useEffect(() => {
     if (swancity) return; // swancity stays on /swancity, tabs don't rewrite the URL
     const target = TAB_PATHS[activeTab] || "/cards";
@@ -30160,6 +30160,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               {id:"bojax34",label:"🅱️ /34 BoJax",badge:0},
               {id:"wants",label:"🎯 Want List",badge:Object.keys(wantList).length},
               {id:"tradebait",label:"🔁 Trade Bait",badge:Object.keys(owned).filter(id=>owned[id]>1||tradeBait[id]).length},
+              {id:"intransit",label:"🚚 On the Way",badge:Object.keys(inTransit).length},
             ])}
             {navGroup("play","Deck Builder",[
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
@@ -31689,6 +31690,58 @@ function PublicCardDatabase({ swancity = false } = {}) {
         })()}
 
         {/* WANTS TAB */}
+        {activeTab==="intransit"&&(() => {
+          const transitIds = Object.keys(inTransit);
+          const transitCards = transitIds.map(id => ({ card: cards.find(c=>c.id===id) || {id, hero:"(unknown card)"}, info: inTransit[id] }))
+            .sort((a,b)=>(a.card.hero||"").localeCompare(b.card.hero||""));
+          const q = (search||"").toLowerCase();
+          const shown = transitCards.filter(x => !q || `${x.card.hero} ${x.card.cardNum} ${x.card.treatment} ${x.info.note||""}`.toLowerCase().includes(q));
+          const totalQty = transitIds.reduce((s,id)=>s+(parseInt(inTransit[id].qty)||1),0);
+          return (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6, flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>🚚 On the Way</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Cards you've bought and are waiting on · {transitIds.length} card{transitIds.length!==1?"s":""} · {totalQty} total incoming</div>
+              </div>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search…" style={{ background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, color:"#f6eef2", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            </div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)", fontStyle:"italic", marginBottom:14 }}>Not counted as owned until you mark them received.</div>
+            {transitIds.length===0 ? (
+              <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                <div style={{ fontSize:44, marginBottom:14 }}>🚚</div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:8 }}>Nothing on the way</div>
+                <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", maxWidth:400, margin:"0 auto", lineHeight:1.6 }}>When you buy a card, open it and hit "🚚 Mark as On the Way" (or use the truck button in the rainbow tracker). Everything you're waiting on shows up here so you don't double-buy.</div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {shown.map(({card:c, info}) => (
+                  <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, background:"rgba(96,165,250,0.06)", border:"1px solid rgba(96,165,250,0.25)", borderRadius:12, padding:"10px 12px", flexWrap:"wrap" }}>
+                    <div style={{ width:44, aspectRatio:"3/4", borderRadius:6, overflow:"hidden", background:"rgba(0,0,0,0.4)", flexShrink:0 }}>
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:14 }}>🃏</div>}
+                    </div>
+                    <div style={{ flex:1, minWidth:120 }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:"#fff" }}>{c.hero}</div>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{[c.treatment, c.weapon, c.cardNum?`#${c.cardNum}`:""].filter(Boolean).join(" · ")} · since {info.date||"?"}</div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <label style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>Qty</label>
+                      <input type="number" min="1" value={info.qty||1} onWheel={e=>e.currentTarget.blur()}
+                        onChange={e=>setTransit(c.id,{ ...info, qty: Math.max(1,parseInt(e.target.value)||1) })}
+                        style={{ width:50, background:"#241820", border:"1px solid rgba(255,255,255,0.18)", color:"#f6eef2", borderRadius:6, padding:"5px 6px", fontSize:12, fontFamily:"inherit", textAlign:"center" }}/>
+                    </div>
+                    <input value={info.note||""} placeholder="tracking / seller / ETA…"
+                      onChange={e=>setTransit(c.id,{ ...info, note: e.target.value })}
+                      style={{ flex:1, minWidth:140, background:"#241820", border:"1px solid rgba(255,255,255,0.18)", color:"#f6eef2", borderRadius:6, padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
+                    <button onClick={()=>markTransitArrived(c.id)} title="Mark received — adds to your collection" style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>✅ Arrived</button>
+                    <button onClick={()=>setTransit(c.id,null)} title="Remove (order fell through)" style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.5)", borderRadius:8, padding:"6px 10px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          );
+        })()}
         {activeTab==="tradebait"&&(() => {
           const baitCards = cards.filter(c => (owned[c.id]>1) || tradeBait[c.id]).sort((a,b)=>(a.hero||"").localeCompare(b.hero||""));
           const q = (search||"").toLowerCase();
@@ -35166,7 +35219,7 @@ function AppInner() {
   // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
   if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/market","/messages","/friends","/team","/ledger","/leaderboard"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/intransit","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
