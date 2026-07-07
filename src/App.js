@@ -16058,10 +16058,10 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const W=300, H=420; const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97));
     const cols=["#bfeffff0","#ffd6f5f0","#d6ffe8f0","#e6d6fff0","#d6ecfff0","#fff8d6f0"];
     let shards="";
-    for(let i=0;i<260;i++){
-      const cx=rnd()*W, cy=rnd()*H, s=3+rnd()*11, a=rnd()*Math.PI;
+    for(let i=0;i<150;i++){
+      const cx=rnd()*W, cy=rnd()*H, s=3+rnd()*10, a=rnd()*Math.PI;
       const p=(k)=>{ const ang=a+k*(1.6+rnd()*1.4), r=s*(0.5+rnd()); return `${(cx+Math.cos(ang)*r).toFixed(1)},${(cy+Math.sin(ang)*r).toFixed(1)}`; };
-      shards+=`<polygon points="${p(0)} ${p(1)} ${p(2)}" fill="${cols[(rnd()*cols.length)|0]}" opacity="${(0.3+rnd()*0.6).toFixed(2)}"/>`;
+      shards+=`<polygon points="${p(0)} ${p(1)} ${p(2)}" fill="${cols[(rnd()*cols.length)|0]}" opacity="${(0.2+rnd()*0.45).toFixed(2)}"/>`;
     }
     const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${shards}</svg>`;
     iceShardsRef.current="data:image/svg+xml;base64,"+btoa(svg);
@@ -16072,13 +16072,12 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const el = iceRef.current;
     const hue = (x*300+y*60)%360;
     el.style.backgroundImage = [
-      `radial-gradient(120% 80% at ${x*100}% ${y*100}%, hsla(${hue},90%,92%,0.55), transparent 55%)`,
-      `linear-gradient(${100+x*60}deg, transparent 30%, hsla(${(hue+40)%360},95%,90%,0.35) ${40+y*20}%, hsla(${(hue+180)%360},90%,88%,0.30) ${55+y*20}%, transparent 72%)`,
+      `radial-gradient(90% 60% at ${x*100}% ${y*100}%, hsla(${hue},90%,90%,0.30), transparent 50%)`,
+      `linear-gradient(${100+x*60}deg, transparent 38%, hsla(${(hue+40)%360},95%,88%,0.22) ${45+y*15}%, hsla(${(hue+180)%360},90%,86%,0.18) ${58+y*15}%, transparent 70%)`,
       `url(${buildIceShards()})`,
-      `linear-gradient(0deg, rgba(230,245,255,0.30), rgba(255,255,255,0.18))`,
     ].join(",");
-    el.style.backgroundSize = "cover, cover, cover, cover";
-    el.style.opacity = "1";
+    el.style.backgroundSize = "cover, cover, cover";
+    el.style.opacity = "0.55";
   }
   function drawMetallicFoil(x, y) {
     if (!metallicRef.current) return;
@@ -16181,7 +16180,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
-    else if (isIceFoil && iceRef.current) iceRef.current.style.opacity = "0.35";
+    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = `url(${buildIceShards()})`; iceRef.current.style.opacity = "0.12"; }
     else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
@@ -16226,7 +16225,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`radial-gradient(120% 80% at 50% 40%, rgba(214,236,255,0.4), transparent 55%), url(${buildIceShards()}), linear-gradient(0deg, rgba(230,245,255,0.28), rgba(255,255,255,0.16))`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.35, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`url(${buildIceShards()})`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.12, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -23550,6 +23549,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const [dbsEdits, setDbsEdits] = useState({});
   const [pbView, setPbView] = useState("grid"); // grid | list
   const [dbsImporting, setDbsImporting] = useState(false);
+  const [dbsImportSet, setDbsImportSet] = useState(""); // "" = auto (use CSV prefix); else force this set
   const [dbsStatus, setDbsStatus] = useState(null);
   async function savePbDbs(cardId, val) {
     const v = val === "" ? "" : (parseFloat(val)||0);
@@ -23591,7 +23591,9 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         const fk=normStr(c.cardNum); if(fk){ if(!fullMap[fk])fullMap[fk]=[]; fullMap[fk].push(c); }
         const bk=normStr(stripPrefix(c.cardNum)); if(bk){ if(!baseMap[bk])baseMap[bk]=[]; baseMap[bk].push(c); }
         const nk=normStr(c.hero); if(nk){ if(!nameMap[nk])nameMap[nk]=[]; nameMap[nk].push(c);} });
-      let updated=0, skipped=0, ambiguous=0; const batch=[];
+      let updated=0, skipped=0, ambiguous=0; const batch=[]; const missSamples=[];
+      // Diagnostic: log DB cardNum format so we can see if it matches the CSV format.
+      console.log("[DBS import] sample DB card numbers:", cards.slice(0,8).map(c=>`${c.cardNum} (${c.setName})`));
       for (let i=1;i<rows.length;i++){
         const cols=rows[i];
         const rawNum=(cols[cnIdx]||"").replace(/^"|"$/g,"").trim();
@@ -23600,28 +23602,40 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         const csvSet=setIdx>=0?(cols[setIdx]||"").replace(/^"|"$/g,"").trim():"";
         const playCost=costIdx>=0?(cols[costIdx]||"").replace(/^"|"$/g,"").trim():"";
         const rawName=nameIdx>=0?(cols[nameIdx]||"").replace(/^"|"$/g,"").trim():"";
-        const resolvedSet = csvSet || PREFIX_TO_SET[playPrefix(rawNum)] || "";
+        const prefixSet = PREFIX_TO_SET[playPrefix(rawNum)] || "";
+        // If admin forced a set, ONLY process rows belonging to it, and scope matching to that set.
+        const forcedSet = dbsImportSet || "";
+        if (forcedSet) {
+          // skip CSV rows whose prefix maps to a different set (when the prefix is known)
+          if (prefixSet && normStr(prefixSet)!==normStr(forcedSet)) { skipped++; continue; }
+        }
+        const resolvedSet = forcedSet || csvSet || prefixSet || "";
+        const inScope = c => !resolvedSet || normStr(c.setName||"")===normStr(resolvedSet);
 
         // 1) EXACT full-cardNum match (prefix included) — unique, no collision.
-        let matches = fullMap[normStr(rawNum)] || [];
-        // 2) Fallback: stripped number, but ONLY if we can narrow to exactly one by set.
+        let matches = (fullMap[normStr(rawNum)] || []).filter(inScope);
+        // 1b) If forced set, also try the STRIPPED number scoped to that set (handles DBs whose
+        //     stored cardNum has no prefix, e.g. "PL-55" living in the forced set).
+        if (matches.length===0 && forcedSet) {
+          matches = (baseMap[normStr(stripPrefix(rawNum))] || []).filter(inScope);
+        }
+        // 2) Fallback: stripped number, narrow to one by set.
         if (matches.length===0) {
-          const base = baseMap[normStr(stripPrefix(rawNum))] || [];
+          const base = (baseMap[normStr(stripPrefix(rawNum))] || []).filter(inScope);
           if (base.length===1) matches = base;
           else if (base.length>1 && resolvedSet) {
             const bySet = base.filter(c=>normStr(c.setName||"")===normStr(resolvedSet));
-            if (bySet.length===1) matches = bySet;    // unambiguous after set narrow
-            else { ambiguous++; continue; }            // still ambiguous → SKIP, don't guess
+            if (bySet.length===1) matches = bySet;
+            else { ambiguous++; continue; }
           } else if (base.length>1) { ambiguous++; continue; }
         }
-        // 3) Fallback: name — only if it resolves to exactly one card (optionally via set)
+        // 3) Fallback: name — resolves to exactly one card (scoped to set)
         let byName=false;
         if (matches.length===0 && rawName){
-          let nm = nameMap[normStr(rawName)] || [];
-          if (nm.length>1 && resolvedSet){ const bySet=nm.filter(c=>normStr(c.setName||"")===normStr(resolvedSet)); if(bySet.length>0) nm=bySet; }
+          let nm = (nameMap[normStr(rawName)] || []).filter(inScope);
           if (nm.length===1){ matches=nm; byName=true; } else if (nm.length>1){ ambiguous++; continue; }
         }
-        if (matches.length===0){ skipped++; continue; }
+        if (matches.length===0){ skipped++; if(missSamples.length<8) missSamples.push(rawNum); continue; }
         if (matches.length>1){ ambiguous++; continue; }   // never write to multiple cards for one row
         for (const m of matches){ const u={dbs}; if(playCost)u.playCost=playCost; batch.push({id:m.id,update:u}); updated++; }
       }
@@ -23668,7 +23682,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         try { await idbSetCards(nextCards, Date.now()); } catch(e){}
         try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e){}
       } catch(e){ console.warn("card refresh after DBS import failed", e); }
-      setDbsStatus({ msg:`✅ Updated ${updated}${inherited?` · ${inherited} reprints`:""}${ambiguous?` · ${ambiguous} ambiguous skipped`:""}${skipped?` · ${skipped} no-match`:""}`, ok:true });
+      if (missSamples.length) console.log("[DBS import] unmatched CSV card numbers (sample):", missSamples);
+      setDbsStatus({ msg:`✅ Updated ${updated}${inherited?` · ${inherited} reprints`:""}${ambiguous?` · ${ambiguous} ambiguous`:""}${skipped?` · ${skipped} no-match`:""}${updated===0?" — 0 matched! Check console for card-number format":""}`, ok: updated>0 });
     } catch(e){ console.error(e); setDbsStatus({ msg:"❌ Import failed: "+(e.message||"error"), ok:false }); }
     setDbsImporting(false);
   }
@@ -23773,6 +23788,12 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       <button key={v} onClick={()=>setPbView(v)} title={v==="grid"?"Card view":"List view"} style={{background:pbView===v?"#E8317A":"transparent",color:pbView===v?"#fff":"rgba(255,255,255,0.5)",border:"none",borderRadius:6,padding:"5px 10px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{ic}</button>
                     ))}
                   </div>
+                  {_pbAdmin && (
+                    <select value={dbsImportSet} onChange={e=>setDbsImportSet(e.target.value)} title="Force which set the DBS applies to (recommended). Auto uses the CSV's card-number prefix." style={{ background:"#241820", color:"#f6eef2", border:"1px solid #C084FC44", borderRadius:8, padding:"6px 8px", fontSize:11, fontFamily:"inherit", alignSelf:"center", maxWidth:180 }}>
+                      <option value="">Auto (by prefix)</option>
+                      {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
                   {_pbAdmin && (
                     <label title="Import DBS values from CSV (Card Number, Play Name, Cost, DBS Score)" style={{ background:"#1a0f1a", color:"#C084FC", border:"1px solid #C084FC44", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1, alignSelf:"center" }}>
                       {dbsImporting?"Importing…":"💰 Import DBS"}
