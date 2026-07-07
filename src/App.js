@@ -34269,6 +34269,7 @@ class AppErrorBoundary extends React.Component {
 function PublicProfilePage({ username }) {
   const [state, setState] = useState({ loading:true, uid:null, data:null, pubCards:{}, reviews:[], cards:[] });
   const [openTrackerId, setOpenTrackerId] = useState(null);
+  const [trackerSearch, setTrackerSearch] = useState("");
   const [profileZoom, setProfileZoom] = useState(null); // {card, siblings, hero}
   useEffect(() => {
     let alive = true;
@@ -34404,7 +34405,7 @@ function PublicProfilePage({ username }) {
               const isOpen = openTrackerId === t.id;
               return (
                 <div key={t.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, overflow:"hidden" }}>
-                  <div onClick={()=>setOpenTrackerId(isOpen?null:t.id)} style={{ padding:"14px 16px", cursor:"pointer" }}>
+                  <div onClick={()=>{ setOpenTrackerId(isOpen?null:t.id); setTrackerSearch(""); }} style={{ padding:"14px 16px", cursor:"pointer" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                       <div>
                         <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{isOpen?"▾ ":"▸ "}{t.name}</div>
@@ -34418,8 +34419,9 @@ function PublicProfilePage({ username }) {
                   </div>
                   {isOpen && (
                     <div style={{ padding:"0 12px 14px" }}>
+                      <input value={trackerSearch} onChange={e=>setTrackerSearch(e.target.value)} onClick={e=>e.stopPropagation()} placeholder="🔍 Search hero…" style={{ width:"100%", background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:8, color:"#f6eef2", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", marginBottom:10 }}/>
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))", gap:8 }}>
-                        {rows.map(r => {
+                        {rows.filter(r => !trackerSearch.trim() || r.hero.toLowerCase().includes(trackerSearch.trim().toLowerCase())).map(r => {
                           const rep = r.ownedCards[0] || r.allCards[0];
                           return (
                             <div key={r.hero} onClick={()=>{ if(rep?.imageUrl) setProfileZoom({ card:rep, siblings:r.allCards, hero:r.hero, ownedSet:pubIdSet }); }} style={{ background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.06)"}`, borderRadius:9, overflow:"hidden", cursor:rep?.imageUrl?"pointer":"default" }}>
