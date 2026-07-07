@@ -29455,10 +29455,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
           {sibs.length>1 && <button onClick={e=>{e.stopPropagation();go(1);}} style={{ position:"fixed", right:16, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:30, width:52, height:52, borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>}
           <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"min(460px,92vw)", maxHeight:"92vh", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
             {/* Card (click to flip to your collection photo if owned) */}
-            <div onClick={()=>{ if(canFlip) setZoomFlipped(f=>!f); }} style={{ position:"relative", cursor:canFlip?"pointer":"default", perspective:"1200px" }} title={canFlip?"Click to see your card photo":""}>
-              <div style={{ position:"relative", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:zoomFlipped?"rotateY(180deg)":"none" }}>
-                <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:have?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":onWay?"drop-shadow(0 0 20px rgba(251,191,36,0.6)) grayscale(35%)":"none", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", display:zoomFlipped?"none":"block" }}/>
-                {zoomFlipped && myPhoto && <img src={myPhoto} alt="Your card" style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", border:"2px solid rgba(74,222,128,0.6)" }}/>}
+            <div onClick={()=>{ if(canFlip) setZoomFlipped(f=>!f); }} style={{ position:"relative", cursor:canFlip?"pointer":"default", perspective:"1400px" }} title={canFlip?"Click to see your card photo":""}>
+              <div style={{ position:"relative", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:zoomFlipped?"rotateY(180deg)":"rotateY(0deg)" }}>
+                {/* Front: official art */}
+                <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:have?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":onWay?"drop-shadow(0 0 20px rgba(251,191,36,0.6)) grayscale(35%)":"none", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", display:"block" }}/>
+                {/* Back: your card photo — pre-rotated 180° so it reads correctly (not mirrored) after the flip */}
+                {myPhoto && <img src={myPhoto} alt="Your card" style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", border:"2px solid rgba(74,222,128,0.6)", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)" }}/>}
               </div>
               {canFlip && <div style={{ position:"absolute", bottom:10, right:10, background:"rgba(0,0,0,0.75)", color:"#4ade80", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>🔄 {zoomFlipped?"official art":"your card"}</div>}
             </div>
