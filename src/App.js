@@ -34266,6 +34266,8 @@ class AppErrorBoundary extends React.Component {
 // uid, then shows the collector's public profile (stats, public cards, reviews).
 function PublicProfilePage({ username }) {
   const [state, setState] = useState({ loading:true, uid:null, data:null, pubCards:{}, reviews:[], cards:[] });
+  const [openTrackerId, setOpenTrackerId] = useState(null);
+  const [profileZoom, setProfileZoom] = useState(null); // {card, siblings, hero}
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -34384,24 +34386,57 @@ function PublicProfilePage({ username }) {
             {state.trackers.map(t => {
               const treatSet = new Set(t.treatments||[]);
               const db = (state.fullCards && state.fullCards.length) ? state.fullCards : state.cards;
-              const heroes = [...new Set(db.filter(c=>c.hero).map(c=>c.hero))];
-              const heroesInSet = heroes.filter(h => db.some(c=>c.hero===h && treatSet.has(c.treatment)));
-              // Owned = heroes where the collector has made public a matching card (privacy-respecting).
               const pubIdSet = new Set(Object.keys(state.ownedPub||{}).filter(id=>state.ownedPub[id]));
-              const done = heroesInSet.filter(h => db.some(c=>c.hero===h && treatSet.has(c.treatment) && pubIdSet.has(c.id))).length;
-              const pct = heroesInSet.length ? Math.round(done/heroesInSet.length*100) : 0;
+              const cardNumVal = c => { const m = String(c.cardNum||"").match(/\d+/); return m ? parseInt(m[0],10) : Number.MAX_SAFE_INTEGER; };
+              // Build per-hero rows: which cards exist in this treatment, which are owned (public).
+              const heroes = [...new Set(db.filter(c=>c.hero && treatSet.has(c.treatment)).map(c=>c.hero))].sort();
+              const rows = heroes.map(hero => {
+                const hc = db.filter(c => c.hero===hero && treatSet.has(c.treatment))
+                  .sort((a,b)=>{ const d=cardNumVal(a)-cardNumVal(b); return d!==0?d:String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}); });
+                const ownedCards = hc.filter(c => pubIdSet.has(c.id));
+                return { hero, allCards:hc, ownedCards, complete: ownedCards.length>0, need: hc.length };
+              });
+              const done = rows.filter(r=>r.complete).length;
+              const total = rows.length;
+              const pct = total ? Math.round(done/total*100) : 0;
+              const isOpen = openTrackerId === t.id;
               return (
-                <div key={t.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:"14px 16px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <div>
-                      <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{t.name}</div>
-                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{(t.treatments||[]).join(" · ")}</div>
+                <div key={t.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, overflow:"hidden" }}>
+                  <div onClick={()=>setOpenTrackerId(isOpen?null:t.id)} style={{ padding:"14px 16px", cursor:"pointer" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{isOpen?"▾ ":"▸ "}{t.name}</div>
+                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{(t.treatments||[]).join(" · ")} · tap to see what's needed</div>
+                      </div>
+                      <span style={{ fontSize:18, fontWeight:900, color:done===total&&total>0?"#4ade80":"#FBBF24" }}>{done}/{total}</span>
                     </div>
-                    <span style={{ fontSize:18, fontWeight:900, color:done===heroesInSet.length&&heroesInSet.length>0?"#4ade80":"#FBBF24" }}>{done}/{heroesInSet.length}</span>
+                    <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden" }}>
+                      <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)" }}/>
+                    </div>
                   </div>
-                  <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden" }}>
-                    <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)" }}/>
-                  </div>
+                  {isOpen && (
+                    <div style={{ padding:"0 12px 14px" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))", gap:8 }}>
+                        {rows.map(r => {
+                          const rep = r.ownedCards[0] || r.allCards[0];
+                          return (
+                            <div key={r.hero} onClick={()=>{ if(rep?.imageUrl) setProfileZoom({ card:rep, siblings:r.allCards, hero:r.hero, ownedSet:pubIdSet }); }} style={{ background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.06)"}`, borderRadius:9, overflow:"hidden", cursor:rep?.imageUrl?"pointer":"default" }}>
+                              <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
+                                {rep?.imageUrl
+                                  ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:0.4, filter:r.complete?"none":"grayscale(75%)" }}/>
+                                  : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:9, color:"rgba(255,255,255,0.4)", padding:4, textAlign:"center" }}>{r.hero}</div>}
+                                <div style={{ position:"absolute", top:4, right:4, background:r.complete?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.7)", color:"#fff", borderRadius:20, padding:"1px 6px", fontSize:9, fontWeight:800 }}>{r.complete?"✓":"—"}</div>
+                                <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"10px 5px 4px" }}>
+                                  <div style={{ fontSize:9, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.hero}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:8, textAlign:"center" }}>Green = has it · Greyed = still needs it. Tap a hero to see the cards.</div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -34463,6 +34498,38 @@ function PublicProfilePage({ username }) {
       <div style={{ marginTop:28, textAlign:"center" }}>
         <a href="/cards" style={{ color:"#E8317A", textDecoration:"none", fontSize:13, fontWeight:700 }}>Start your own collection on Bazooka →</a>
       </div>
+
+      {profileZoom && (() => {
+        const sibs = (profileZoom.siblings||[]).filter(s=>s.imageUrl);
+        const idx = Math.max(0, sibs.findIndex(s=>s.id===profileZoom.card.id));
+        const cur = sibs[idx] || profileZoom.card;
+        const ownedSet = profileZoom.ownedSet || new Set();
+        const has = ownedSet.has(cur.id);
+        const go = (delta) => { const n=(idx+delta+sibs.length)%sibs.length; setProfileZoom({ ...profileZoom, card: sibs[n] }); };
+        return (
+        <div onClick={()=>setProfileZoom(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2147483600, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px", cursor:"zoom-out" }}>
+          {sibs.length>1 && <button onClick={e=>{e.stopPropagation();go(-1);}} style={{ position:"fixed", left:16, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:30, width:52, height:52, borderRadius:"50%", cursor:"pointer" }}>‹</button>}
+          {sibs.length>1 && <button onClick={e=>{e.stopPropagation();go(1);}} style={{ position:"fixed", right:16, top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:30, width:52, height:52, borderRadius:"50%", cursor:"pointer" }}>›</button>}
+          <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"min(440px,92vw)", maxHeight:"92vh", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+            <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"70vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:has?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":"grayscale(75%) opacity(0.6)" }}/>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{cur.hero}</div>
+              <div style={{ fontSize:12, color:has?"#4ade80":"rgba(255,255,255,0.6)" }}>{[cur.treatment, cur.weapon, cur.cardNum?`#${cur.cardNum}`:""].filter(Boolean).join(" · ")} · {has?"✓ Has it":"❌ Still needs this"}{sibs.length>1?` · ${idx+1}/${sibs.length}`:""}</div>
+            </div>
+            {sibs.length>1 && (
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center", maxWidth:"100%" }}>
+                {sibs.map((s,i)=>{ const sHas=ownedSet.has(s.id); return (
+                  <div key={s.id} onClick={e=>{ e.stopPropagation(); setProfileZoom({ ...profileZoom, card:s }); }} style={{ width:42, aspectRatio:"3/4", borderRadius:5, overflow:"hidden", cursor:"pointer", border:`2px solid ${i===idx?"#E8317A":sHas?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.15)"}`, opacity:sHas?1:0.5 }}>
+                    <img src={s.imageUrl} alt={s.weapon} style={{ width:"100%", height:"100%", objectFit:"cover", filter:sHas?"none":"grayscale(70%)" }}/>
+                  </div>
+                ); })}
+              </div>
+            )}
+          </div>
+          <button onClick={()=>setProfileZoom(null)} style={{ position:"fixed", top:20, right:24, background:"rgba(255,255,255,0.1)", border:"none", color:"#fff", fontSize:26, width:44, height:44, borderRadius:"50%", cursor:"pointer" }}>×</button>
+        </div>
+        );
+      })()}
     </>
   );
 }
