@@ -23645,26 +23645,35 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         for (const m of matches){ const u={dbs}; if(playCost)u.playCost=playCost; batch.push({id:m.id,update:u}); updated++; }
       }
 
-      // INHERIT PASS: reprints (e.g. Battle Trainer Kit) share a name with an original play but
-      // aren't in the CSV. Give a reprint the DBS of its namesake — but ONLY when every same-named
-      // play that has a DBS agrees on one value. If a name has conflicting DBS across sets
-      // (e.g. Flame Wall 105 vs 110), we do NOT guess — those are set directly by card number.
+      // INHERIT PASS: reprints (e.g. Tecmo Bowl or Battle Trainer Kit) share a name with an
+      // original play but aren't in the CSV. Give a reprint the DBS of its namesake. When the same
+      // name has DIFFERENT dbs across sets (e.g. an Alpha original vs its HTD variant), prefer the
+      // NON-HTD original value — that's what a plain reprint copies.
       const idsSetThisImport = new Set(batch.map(b=>b.id));
       const dbsSetByRow = {}; // id -> dbs just written
       batch.forEach(({id,update}) => { if(update.dbs!==undefined) dbsSetByRow[id]=update.dbs; });
-      const nameDbsValues = {}; // normalized name -> Set of dbs values seen
-      const addNameDbs = (hero, dbs) => { if(hero==null||dbs===undefined||dbs===""||isNaN(parseFloat(dbs)))return; const nk=normStr(hero); (nameDbsValues[nk]=nameDbsValues[nk]||new Set()).add(parseFloat(dbs)); };
-      cards.forEach(c => { const d = dbsSetByRow[c.id]!==undefined ? dbsSetByRow[c.id] : c.dbs; addNameDbs(c.hero, d); });
+      const _isHtdCard = c => { const t=(c.treatment||"").toLowerCase(); const h=(c.hero||"").toLowerCase(); const n=String(c.cardNum||"").replace(/^([A-Za-z]{1,2})\s*-\s*/,"").toUpperCase(); return t.includes("htd")||h.includes("htd")||/^HTD/.test(n); };
+      // For each play name: collect candidate dbs values, tagged by whether the source is HTD.
+      const nameOriginal = {}; // name -> dbs from a NON-HTD source (preferred)
+      const nameHtd = {};      // name -> dbs from an HTD source (fallback)
+      cards.forEach(c => {
+        if (!c.hero) return;
+        const d = dbsSetByRow[c.id]!==undefined ? dbsSetByRow[c.id] : c.dbs;
+        if (d===undefined || d==="" || isNaN(parseFloat(d))) return;
+        const nk = normStr(c.hero.replace(/\s*-?\s*htd\s*$/i,"")); // strip trailing "- htd" so it groups with its original
+        const val = parseFloat(d);
+        if (_isHtdCard(c)) { if(nameHtd[nk]===undefined) nameHtd[nk]=val; }
+        else { if(nameOriginal[nk]===undefined) nameOriginal[nk]=val; }
+      });
       const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); const n=String(c.cardNum||"").replace(/^([A-Za-z]{1,2})\s*-\s*/,"").toUpperCase(); return t.includes("play")||t==="home team discount"||/^(PL|BPL|HTD)/.test(n); };
-      let inherited=0, inheritConflicts=0;
+      let inherited=0;
       cards.forEach(c => {
         if (!c.hero || idsSetThisImport.has(c.id)) return;   // set directly this import → skip
         if (!isPlayCard(c)) return;
-        const nk = normStr(c.hero);
-        const vals = nameDbsValues[nk];
-        if (!vals || vals.size===0) return;
-        if (vals.size>1) { inheritConflicts++; return; }      // conflicting values → don't guess
-        const inheritedDbs = [...vals][0];
+        const nk = normStr(c.hero.replace(/\s*-?\s*htd\s*$/i,""));
+        // A reprint prefers the non-HTD original; an HTD reprint prefers the HTD value.
+        const inheritedDbs = _isHtdCard(c) ? (nameHtd[nk] ?? nameOriginal[nk]) : (nameOriginal[nk] ?? nameHtd[nk]);
+        if (inheritedDbs===undefined) return;
         if (String(c.dbs??"")===String(inheritedDbs)) return; // already correct
         batch.push({ id:c.id, update:{ dbs: inheritedDbs } });
         inherited++;
