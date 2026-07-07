@@ -16055,6 +16055,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // Build a dense field of iridescent angular shards once (cached), matching the cracked-ice look.
   function buildIceShards() {
     if (iceShardsRef.current) return iceShardsRef.current;
+    try {
     const W=300, H=420;
     const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97)+ (String(c.id||"").charCodeAt(0)||0));
     const cols=["#cdf3ff","#ffd9f6","#d9ffe9","#e6dcff","#daf0ff","#ffffff"];
@@ -16067,8 +16068,9 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     // Connect each node to its nearest few neighbours → a web of cracks
     for(let i=0;i<N;i++){
       const d=pts.map((p,j)=>[Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]),j]).sort((a,b)=>a[0]-b[0]);
-      const links=2+((rnd()*2)|0);
+      const links=Math.min(2+((rnd()*2)|0), d.length-1);
       for(let k=1;k<=links;k++){
+        if(!d[k]) continue;
         const j=d[k][1]; if(j<=i) continue;
         const col=cols[(rnd()*cols.length)|0];
         // faint facet fill using the segment + an impact point (gives angular shards)
@@ -16089,6 +16091,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${facets}${lines}</svg>`;
     iceShardsRef.current="data:image/svg+xml;base64,"+btoa(svg);
     return iceShardsRef.current;
+    } catch(e) { iceShardsRef.current = "data:image/svg+xml;base64,"+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'); return iceShardsRef.current; }
   }
   function drawIceFoil(x, y) {
     if (!iceRef.current) return;
@@ -34599,14 +34602,16 @@ function PublicProfilePage({ username }) {
         if (!uid) { try { const s = await getDocs(query(collection(db,"boba_profiles"), where("username","==",uname))); if(!s.empty){ uid = s.docs[0].id; diag.push("profiles:FOUND"); } else diag.push("profiles:empty"); } catch(e){ permErr = permErr || /permission|insufficient/i.test(e.message||""); diag.push("profiles:ERR("+(e.code||"?")+")"); } }
         console.log("[profile lookup]", uname, "→", diag.join(" | "));
         if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null, permErr, diag: diag.join(" · ") })); return; }
-        const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap] = await Promise.all([
+        const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap, transitSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
           getDoc(doc(db,"boba_public",uid)),
           getDoc(doc(db,"boba_public_cards",uid)),
           getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
           getDoc(doc(db,"boba_trackers",uid)),
           getDocs(query(collection(db,"marketplace"), where("status","==","active"), where("sellerUid","==",uid))),
+          getDoc(doc(db,"boba_intransit",uid)).catch(()=>null),
         ]);
+        const transitData = (transitSnap && transitSnap.exists) ? (transitSnap.exists() ? transitSnap.data() : {}) : {};
         const listings = listSnap.docs.map(d=>({id:d.id,...d.data()}));
         const allTrackers = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
         const publicTrackers = allTrackers.filter(t => t.public);
@@ -34629,6 +34634,7 @@ function PublicProfilePage({ username }) {
           pubCards: pubData,
           reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
           cards: enrichedCards,
+          transit: transitData,
           fullCards,
           trackers: publicTrackers,
           ownedPub: pubData,
@@ -34707,7 +34713,8 @@ function PublicProfilePage({ username }) {
                 const hc = db.filter(c => c.hero===hero && treatSet.has(c.treatment))
                   .sort((a,b)=>{ const d=cardNumVal(a)-cardNumVal(b); return d!==0?d:String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}); });
                 const ownedCards = hc.filter(c => pubIdSet.has(c.id));
-                return { hero, allCards:hc, ownedCards, complete: ownedCards.length>0, need: hc.length };
+                const transitCards = hc.filter(c => !pubIdSet.has(c.id) && (state.transit||{})[c.id]);
+                return { hero, allCards:hc, ownedCards, complete: ownedCards.length>0, hasTransit: transitCards.length>0, need: hc.length };
               });
               const done = rows.filter(r=>r.complete).length;
               const total = rows.length;
@@ -34734,12 +34741,12 @@ function PublicProfilePage({ username }) {
                         {rows.filter(r => !trackerSearch.trim() || r.hero.toLowerCase().includes(trackerSearch.trim().toLowerCase())).map(r => {
                           const rep = r.ownedCards[0] || r.allCards[0];
                           return (
-                            <div key={r.hero} onClick={()=>{ if(rep?.imageUrl) setProfileZoom({ card:rep, siblings:r.allCards, hero:r.hero, ownedSet:pubIdSet }); }} style={{ background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.06)"}`, borderRadius:9, overflow:"hidden", cursor:rep?.imageUrl?"pointer":"default" }}>
+                            <div key={r.hero} onClick={()=>{ if(rep?.imageUrl) setProfileZoom({ card:rep, siblings:r.allCards, hero:r.hero, ownedSet:pubIdSet }); }} style={{ background:r.complete?"rgba(74,222,128,0.06)":r.hasTransit?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":r.hasTransit?"rgba(251,191,36,0.6)":"rgba(255,255,255,0.06)"}`, borderRadius:9, overflow:"hidden", cursor:rep?.imageUrl?"pointer":"default" }}>
                               <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
                                 {rep?.imageUrl
-                                  ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:0.4, filter:r.complete?"none":"grayscale(75%)" }}/>
+                                  ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.5:0.4, filter:r.complete?"none":r.hasTransit?"grayscale(45%) sepia(25%)":"grayscale(75%)" }}/>
                                   : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:9, color:"rgba(255,255,255,0.4)", padding:4, textAlign:"center" }}>{r.hero}</div>}
-                                <div style={{ position:"absolute", top:4, right:4, background:r.complete?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.7)", color:"#fff", borderRadius:20, padding:"1px 6px", fontSize:9, fontWeight:800 }}>{r.complete?"✓":"—"}</div>
+                                <div style={{ position:"absolute", top:4, right:4, background:r.complete?"rgba(74,222,128,0.9)":r.hasTransit?"rgba(251,191,36,0.95)":"rgba(0,0,0,0.7)", color:r.hasTransit&&!r.complete?"#000":"#fff", borderRadius:20, padding:"1px 6px", fontSize:9, fontWeight:800 }}>{r.complete?"✓":r.hasTransit?"🚚":"—"}</div>
                                 <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"10px 5px 4px" }}>
                                   <div style={{ fontSize:9, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.hero}</div>
                                 </div>
