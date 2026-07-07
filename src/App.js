@@ -23516,6 +23516,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   async function savePbDbs(cardId, val) {
     const v = val === "" ? "" : (parseFloat(val)||0);
     try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
+    // Instant-everywhere via the live overrides doc
+    try { await setDoc(doc(db,"config","dbs_overrides"), { values: { [cardId]: v } }, { merge:true }); } catch(e){}
     try {
       const nextCards = cards.map(c => c.id===cardId ? { ...c, dbs: v } : c);
       if (setCards) setCards(nextCards);
@@ -23544,9 +23546,14 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
       const stripPrefix = s => { let v=String(s||"").trim(); v=v.replace(/^(htd)\s*-\s*/i,""); v=v.replace(/^([A-Za-z]{1,2})\s*-\s*/,""); return v.trim(); };
       const playPrefix = s => { const m=String(s||"").trim().match(/^(HTD|[A-Za-z]{1,2})\s*-/i); return m?m[1].toLowerCase():""; };
       const normStr = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-      const exactMap={}, nameMap={};
-      cards.forEach(c => { const k=normStr(c.cardNum); if(!exactMap[k])exactMap[k]=[]; exactMap[k].push(c); const nk=normStr(c.hero); if(nk){ if(!nameMap[nk])nameMap[nk]=[]; nameMap[nk].push(c);} });
-      let updated=0, skipped=0; const batch=[];
+      // fullMap: keyed by the WHOLE card number incl. prefix (apl55, gpl55, htd38…) — collision-proof.
+      // baseMap: keyed by the stripped number (pl55) — fallback only, may collide across sets.
+      const fullMap={}, baseMap={}, nameMap={};
+      cards.forEach(c => {
+        const fk=normStr(c.cardNum); if(fk){ if(!fullMap[fk])fullMap[fk]=[]; fullMap[fk].push(c); }
+        const bk=normStr(stripPrefix(c.cardNum)); if(bk){ if(!baseMap[bk])baseMap[bk]=[]; baseMap[bk].push(c); }
+        const nk=normStr(c.hero); if(nk){ if(!nameMap[nk])nameMap[nk]=[]; nameMap[nk].push(c);} });
+      let updated=0, skipped=0, ambiguous=0; const batch=[];
       for (let i=1;i<rows.length;i++){
         const cols=rows[i];
         const rawNum=(cols[cnIdx]||"").replace(/^"|"$/g,"").trim();
@@ -23556,19 +23563,65 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         const playCost=costIdx>=0?(cols[costIdx]||"").replace(/^"|"$/g,"").trim():"";
         const rawName=nameIdx>=0?(cols[nameIdx]||"").replace(/^"|"$/g,"").trim():"";
         const resolvedSet = csvSet || PREFIX_TO_SET[playPrefix(rawNum)] || "";
-        let matches = exactMap[normStr(stripPrefix(rawNum))] || [];
+
+        // 1) EXACT full-cardNum match (prefix included) — unique, no collision.
+        let matches = fullMap[normStr(rawNum)] || [];
+        // 2) Fallback: stripped number, but ONLY if we can narrow to exactly one by set.
+        if (matches.length===0) {
+          const base = baseMap[normStr(stripPrefix(rawNum))] || [];
+          if (base.length===1) matches = base;
+          else if (base.length>1 && resolvedSet) {
+            const bySet = base.filter(c=>normStr(c.setName||"")===normStr(resolvedSet));
+            if (bySet.length===1) matches = bySet;    // unambiguous after set narrow
+            else { ambiguous++; continue; }            // still ambiguous → SKIP, don't guess
+          } else if (base.length>1) { ambiguous++; continue; }
+        }
+        // 3) Fallback: name — only if it resolves to exactly one card (optionally via set)
         let byName=false;
-        if (matches.length===0 && rawName){ matches = nameMap[normStr(rawName)]||[]; byName=true; }
+        if (matches.length===0 && rawName){
+          let nm = nameMap[normStr(rawName)] || [];
+          if (nm.length>1 && resolvedSet){ const bySet=nm.filter(c=>normStr(c.setName||"")===normStr(resolvedSet)); if(bySet.length>0) nm=bySet; }
+          if (nm.length===1){ matches=nm; byName=true; } else if (nm.length>1){ ambiguous++; continue; }
+        }
         if (matches.length===0){ skipped++; continue; }
-        if (matches.length>1 && resolvedSet){ const bySet=matches.filter(c=>normStr(c.setName||"")===normStr(resolvedSet)); if(bySet.length>0) matches=bySet; }
-        if (byName && matches.length>1){ skipped++; continue; }
+        if (matches.length>1){ ambiguous++; continue; }   // never write to multiple cards for one row
         for (const m of matches){ const u={dbs}; if(playCost)u.playCost=playCost; batch.push({id:m.id,update:u}); updated++; }
       }
+
+      // INHERIT PASS: reprints (e.g. Battle Trainer Kit) share a name with an original play but
+      // aren't in the CSV. Give a reprint the DBS of its namesake — but ONLY when every same-named
+      // play that has a DBS agrees on one value. If a name has conflicting DBS across sets
+      // (e.g. Flame Wall 105 vs 110), we do NOT guess — those are set directly by card number.
+      const idsSetThisImport = new Set(batch.map(b=>b.id));
+      const dbsSetByRow = {}; // id -> dbs just written
+      batch.forEach(({id,update}) => { if(update.dbs!==undefined) dbsSetByRow[id]=update.dbs; });
+      const nameDbsValues = {}; // normalized name -> Set of dbs values seen
+      const addNameDbs = (hero, dbs) => { if(hero==null||dbs===undefined||dbs===""||isNaN(parseFloat(dbs)))return; const nk=normStr(hero); (nameDbsValues[nk]=nameDbsValues[nk]||new Set()).add(parseFloat(dbs)); };
+      cards.forEach(c => { const d = dbsSetByRow[c.id]!==undefined ? dbsSetByRow[c.id] : c.dbs; addNameDbs(c.hero, d); });
+      const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); const n=String(c.cardNum||"").replace(/^([A-Za-z]{1,2})\s*-\s*/,"").toUpperCase(); return t.includes("play")||t==="home team discount"||/^(PL|BPL|HTD)/.test(n); };
+      let inherited=0, inheritConflicts=0;
+      cards.forEach(c => {
+        if (!c.hero || idsSetThisImport.has(c.id)) return;   // set directly this import → skip
+        if (!isPlayCard(c)) return;
+        const nk = normStr(c.hero);
+        const vals = nameDbsValues[nk];
+        if (!vals || vals.size===0) return;
+        if (vals.size>1) { inheritConflicts++; return; }      // conflicting values → don't guess
+        const inheritedDbs = [...vals][0];
+        if (String(c.dbs??"")===String(inheritedDbs)) return; // already correct
+        batch.push({ id:c.id, update:{ dbs: inheritedDbs } });
+        inherited++;
+      });
+
       setDbsStatus({ msg:`Writing ${batch.length} cards…`, ok:null });
       for (let i=0;i<batch.length;i+=400){ const chunk=batch.slice(i,i+400); await Promise.all(chunk.map(({id,update})=>setDoc(doc(db,"boba_checklist",id),update,{merge:true}))); }
-      // The app reads cards from a cached static snapshot, NOT the live Firestore collection —
-      // so we must apply the updates to the in-memory card list AND regenerate the snapshot,
-      // or the DBS changes won't show even though Firestore was written.
+      // INSTANT-EVERYWHERE: also write DBS to the live config/dbs_overrides doc that every
+      // client subscribes to, so the change propagates immediately (no snapshot cache wait).
+      try {
+        const dbsMap = {}; batch.forEach(({id,update}) => { if (update.dbs !== undefined) dbsMap["values."+id] = update.dbs; });
+        if (Object.keys(dbsMap).length) await setDoc(doc(db,"config","dbs_overrides"), { values: {} }, { merge:true }).then(()=>updateDoc(doc(db,"config","dbs_overrides"), dbsMap));
+      } catch(e){ console.warn("dbs_overrides write failed", e); }
+      // Also update the local snapshot so a hard reload (cache) is consistent too.
       try {
         const updateById = {}; batch.forEach(({id,update}) => { updateById[id] = { ...(updateById[id]||{}), ...update }; });
         const nextCards = cards.map(c => updateById[c.id] ? { ...c, ...updateById[c.id] } : c);
@@ -23577,7 +23630,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
         try { await idbSetCards(nextCards, Date.now()); } catch(e){}
         try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e){}
       } catch(e){ console.warn("card refresh after DBS import failed", e); }
-      setDbsStatus({ msg:`✅ Updated ${updated} cards${skipped?` · ${skipped} skipped (no match)`:""}`, ok:true });
+      setDbsStatus({ msg:`✅ Updated ${updated}${inherited?` · ${inherited} reprints`:""}${ambiguous?` · ${ambiguous} ambiguous skipped`:""}${skipped?` · ${skipped} no-match`:""}`, ok:true });
     } catch(e){ console.error(e); setDbsStatus({ msg:"❌ Import failed: "+(e.message||"error"), ok:false }); }
     setDbsImporting(false);
   }
@@ -26181,6 +26234,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
+  const [dbsOverrides,  setDbsOverrides]  = useState(()=>{ try { const r=localStorage.getItem("dbs_overrides_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {cardId: dbs} — instant DBS updates for everyone
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
@@ -26599,6 +26653,23 @@ function PublicCardDatabase({ swancity = false } = {}) {
   }, []);
 
   // -- 1/1 claims (public) --
+  // Cards with any live DBS overrides applied on top of the base snapshot.
+  const cardsWithDbs = useMemo(() => {
+    if (!dbsOverrides || Object.keys(dbsOverrides).length === 0) return cards;
+    return cards.map(c => dbsOverrides[c.id] !== undefined ? { ...c, dbs: dbsOverrides[c.id] } : c);
+  }, [cards, dbsOverrides]);
+
+  // -- Live DBS overrides — a single tiny doc {cardId: dbs} that every client subscribes to,
+  // so admin DBS edits/imports show up INSTANTLY for everyone (no 5-min snapshot cache wait). --
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db,"config","dbs_overrides"), snap => {
+      const data = snap.exists() ? (snap.data().values || snap.data() || {}) : {};
+      setDbsOverrides(data);
+      try { localStorage.setItem("dbs_overrides_v1", JSON.stringify(data)); } catch(e){}
+    });
+    return ()=>unsub();
+  }, []);
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"oneof1_claims"), snap => {
       setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")));
@@ -31854,7 +31925,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           <PlaybookTab
             user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
-            setSigningIn={setSigningIn} cards={cards} setCards={setCards} owned={owned}
+            setSigningIn={setSigningIn} cards={cardsWithDbs} setCards={setCards} owned={owned}
             inp={inp} isMobile={isMobile}
             pbName={pbName} setPbName={setPbName} setPbCards={setPbCards}
             savedPlaybooks={savedPlaybooks} pbSaving={pbSaving} pbSaved={pbSaved} pbLoadId={pbLoadId}
