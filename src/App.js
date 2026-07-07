@@ -17,13 +17,22 @@ const EARLY_ACCESS_EMAILS = [
   "mikerfried@aol.com",
 ];
 // Dynamic allowlist loaded from Firestore (config/early_access) — editable in the admin UI
-// without a redeploy. Merged with the hardcoded list above.
+// without a redeploy. Once the Firestore doc exists it is the SOLE source of truth (so removals
+// stick); until then, the founding emails above act as the default seed.
 let DYNAMIC_EARLY_ACCESS = [];
-function setDynamicEarlyAccess(list) { DYNAMIC_EARLY_ACCESS = (list||[]).map(e=>String(e).toLowerCase().trim()).filter(Boolean); }
+let DYNAMIC_EARLY_ACCESS_LOADED = false;
+function setDynamicEarlyAccess(list, loaded) {
+  DYNAMIC_EARLY_ACCESS = (list||[]).map(e=>String(e).toLowerCase().trim()).filter(Boolean);
+  if (loaded) DYNAMIC_EARLY_ACCESS_LOADED = true;
+}
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
   if (!e) return false;
-  return e.endsWith("@bazookabreaks.com") || EARLY_ACCESS_EMAILS.includes(e) || DYNAMIC_EARLY_ACCESS.includes(e);
+  if (e.endsWith("@bazookabreaks.com")) return true;
+  // Once the Firestore list has loaded, it is authoritative (includes any removals).
+  if (DYNAMIC_EARLY_ACCESS_LOADED) return DYNAMIC_EARLY_ACCESS.includes(e);
+  // Before it loads, fall back to the founding seed + any cached list.
+  return EARLY_ACCESS_EMAILS.includes(e) || DYNAMIC_EARLY_ACCESS.includes(e);
 }
 // Seed the dynamic list from localStorage immediately (so the gate has it on first paint),
 // then refresh from Firestore in the background.
@@ -27010,10 +27019,16 @@ function PublicCardDatabase({ swancity = false } = {}) {
   useEffect(() => {
     // Keep the dynamic early-access allowlist fresh (admin-editable, no redeploy).
     const _eaUnsub = onSnapshot(doc(db,"config","early_access"), snap => {
-      const list = snap.exists() ? (snap.data().emails || []) : [];
-      setDynamicEarlyAccess(list);
-      try { localStorage.setItem("early_access_v1", JSON.stringify(list)); } catch(e){}
-      setEarlyAccessList(list);
+      if (snap.exists()) {
+        const list = snap.data().emails || [];
+        setDynamicEarlyAccess(list, true);   // Firestore is now authoritative
+        try { localStorage.setItem("early_access_v1", JSON.stringify(list)); } catch(e){}
+        setEarlyAccessList(list);
+      } else {
+        // No doc yet → show the founding emails as the starting list (still editable).
+        setDynamicEarlyAccess(EARLY_ACCESS_EMAILS, false);
+        setEarlyAccessList([...EARLY_ACCESS_EMAILS]);
+      }
     }, ()=>{});
     return () => { try{_eaUnsub();}catch(e){} };
   }, []);
@@ -29294,7 +29309,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>🔑 Early Access List</div>
               <button onClick={()=>setEarlyAccessModal(false)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",fontSize:22,cursor:"pointer"}}>×</button>
             </div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:16,lineHeight:1.5}}>People here can access the app while it's in early access. Your whole @bazookabreaks.com team always has access automatically — these are extra individual emails.</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:16,lineHeight:1.5}}>People here can access the app while it's in early access. Your whole @bazookabreaks.com team always has access automatically — this list is extra individual emails you can add or remove.</div>
             <div style={{display:"flex",gap:8,marginBottom:16}}>
               <input value={eaInput} onChange={e=>setEaInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addEarlyAccess();}} placeholder="email@example.com" style={{flex:1,background:"#241820",border:"1px solid rgba(255,255,255,0.18)",borderRadius:9,color:"#f6eef2",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={addEarlyAccess} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.5)",color:"#4ade80",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add</button>
@@ -29311,7 +29326,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 ))}
               </div>
             )}
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:16,lineHeight:1.5}}>Changes apply within a few seconds — no redeploy needed. (Four founding emails are built into the app and always have access.)</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:16,lineHeight:1.5}}>Changes apply within a few seconds — no redeploy needed.</div>
           </div>
         </div>
       )}
