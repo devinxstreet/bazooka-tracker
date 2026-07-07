@@ -16,11 +16,18 @@ const EARLY_ACCESS_EMAILS = [
   "matthewjessell@gmail.com",
   "mikerfried@aol.com",
 ];
+// Dynamic allowlist loaded from Firestore (config/early_access) — editable in the admin UI
+// without a redeploy. Merged with the hardcoded list above.
+let DYNAMIC_EARLY_ACCESS = [];
+function setDynamicEarlyAccess(list) { DYNAMIC_EARLY_ACCESS = (list||[]).map(e=>String(e).toLowerCase().trim()).filter(Boolean); }
 function hasEarlyAccess(email) {
   const e = (email || "").toLowerCase().trim();
   if (!e) return false;
-  return e.endsWith("@bazookabreaks.com") || EARLY_ACCESS_EMAILS.includes(e);
+  return e.endsWith("@bazookabreaks.com") || EARLY_ACCESS_EMAILS.includes(e) || DYNAMIC_EARLY_ACCESS.includes(e);
 }
+// Seed the dynamic list from localStorage immediately (so the gate has it on first paint),
+// then refresh from Firestore in the background.
+try { const _cached = JSON.parse(localStorage.getItem("early_access_v1")||"[]"); if(Array.isArray(_cached)) setDynamicEarlyAccess(_cached); } catch(e){}
 // ------------------------------------------------------------------------
 
 // Pre-fetch BoJax card images for loading screen — runs once at module load
@@ -26333,6 +26340,20 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [dbsOverrides,  setDbsOverrides]  = useState(()=>{ try { const r=localStorage.getItem("dbs_overrides_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {cardId: dbs} — instant DBS updates for everyone
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
+  const [earlyAccessList, setEarlyAccessList] = useState([]);
+  const [eaInput, setEaInput] = useState("");
+  const [earlyAccessModal, setEarlyAccessModal] = useState(false);
+  async function addEarlyAccess() {
+    const em = eaInput.toLowerCase().trim();
+    if (!em || !em.includes("@")) { alert("Enter a valid email."); return; }
+    if (earlyAccessList.includes(em)) { setEaInput(""); return; }
+    const next = [...earlyAccessList, em];
+    try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); setEaInput(""); } catch(e){ alert("Failed to save: "+e.message); }
+  }
+  async function removeEarlyAccess(em) {
+    const next = earlyAccessList.filter(x=>x!==em);
+    try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); } catch(e){ alert("Failed to remove: "+e.message); }
+  }
   const [owned,         setOwned]         = useState({});
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
@@ -26986,6 +27007,16 @@ function PublicCardDatabase({ swancity = false } = {}) {
     }; // end _dead (never called)
   }, []);
   // -- Auth + owned + wants + private --
+  useEffect(() => {
+    // Keep the dynamic early-access allowlist fresh (admin-editable, no redeploy).
+    const _eaUnsub = onSnapshot(doc(db,"config","early_access"), snap => {
+      const list = snap.exists() ? (snap.data().emails || []) : [];
+      setDynamicEarlyAccess(list);
+      try { localStorage.setItem("early_access_v1", JSON.stringify(list)); } catch(e){}
+      setEarlyAccessList(list);
+    }, ()=>{});
+    return () => { try{_eaUnsub();}catch(e){} };
+  }, []);
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
@@ -29256,6 +29287,34 @@ function PublicCardDatabase({ swancity = false } = {}) {
           </div>
         );
       })()}
+      {earlyAccessModal && (
+        <div onClick={()=>setEarlyAccessModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:2147483640,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#15101a",border:"1px solid rgba(74,222,128,0.3)",borderRadius:16,padding:24,maxWidth:440,width:"100%",maxHeight:"80vh",overflowY:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>🔑 Early Access List</div>
+              <button onClick={()=>setEarlyAccessModal(false)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",fontSize:22,cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:16,lineHeight:1.5}}>People here can access the app while it's in early access. Your whole @bazookabreaks.com team always has access automatically — these are extra individual emails.</div>
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <input value={eaInput} onChange={e=>setEaInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addEarlyAccess();}} placeholder="email@example.com" style={{flex:1,background:"#241820",border:"1px solid rgba(255,255,255,0.18)",borderRadius:9,color:"#f6eef2",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={addEarlyAccess} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.5)",color:"#4ade80",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add</button>
+            </div>
+            {earlyAccessList.length===0 ? (
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.35)",textAlign:"center",padding:"20px 0"}}>No extra emails yet. Add one above.</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {earlyAccessList.map(em => (
+                  <div key={em} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"9px 12px"}}>
+                    <span style={{fontSize:13,color:"#f6eef2",wordBreak:"break-all"}}>{em}</span>
+                    <button onClick={()=>removeEarlyAccess(em)} style={{background:"transparent",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:16,lineHeight:1.5}}>Changes apply within a few seconds — no redeploy needed. (Four founding emails are built into the app and always have access.)</div>
+          </div>
+        </div>
+      )}
       {resetModal && (
         <div onClick={()=>!resetting&&setResetModal(false)} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1.5px solid rgba(232,49,122,0.4)",borderRadius:16,padding:26,maxWidth:480,width:"100%"}}>
@@ -30298,6 +30357,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                               <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
                             </label>
                             <button onClick={async()=>{ setAdminMenuOpen(false); if(!window.confirm("Permanently fix weapon casing in the database? (ALT→Alt, FIRE→Fire, etc.) This rewrites affected card records.")) return; try{ setToast("Scanning for weapon casing dupes…"); const snap=await getDocs(collection(db,"boba_checklist")); let fixed=0; let batch=writeBatch(db); let inBatch=0; for(const d of snap.docs){ const w=d.data().weapon; if(!w) continue; const cw=canonWeapon(w); if(cw!==w){ batch.update(doc(db,"boba_checklist",d.id),{weapon:cw}); fixed++; inBatch++; if(inBatch>=400){ await batch.commit(); batch=writeBatch(db); inBatch=0; } } } if(inBatch>0) await batch.commit(); setToast(`✅ Fixed ${fixed} cards. Click 🔄 Refresh to reload.`); }catch(e){ alert("Failed: "+e.message); } }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔧 Fix Weapon Casing</button>
+                            <button onClick={()=>{ setEarlyAccessModal(true); setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#4ade80",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔑 Early Access List</button>
                             <button onClick={()=>{ setResetConfirmText(""); setResetModal(true); setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🧹 Reset Marketplace</button>
                             {(user?.email?.toLowerCase().includes("devin")||user?.email?.toLowerCase().includes("derrik")) && cards.length>0 && (
                               <button onClick={()=>{ try{ const blob=new Blob([JSON.stringify(cards)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="cards-data.json"; a.click(); URL.revokeObjectURL(url); }catch(e){alert("Export failed: "+e.message);} setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#71717a",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>⬇ Export cards-data.json</button>
