@@ -23507,7 +23507,7 @@ function guessPlayCategory(playName) {
   return "Misc";
 }
 
-function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
+function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, setCards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [dbsEdits, setDbsEdits] = useState({});
   const [pbView, setPbView] = useState("grid"); // grid | list
@@ -23516,6 +23516,12 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   async function savePbDbs(cardId, val) {
     const v = val === "" ? "" : (parseFloat(val)||0);
     try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
+    try {
+      const nextCards = cards.map(c => c.id===cardId ? { ...c, dbs: v } : c);
+      if (setCards) setCards(nextCards);
+      try { await writeCardSnapshot(nextCards, 300); } catch(e){}
+      try { idbSetCards(nextCards, Date.now()); } catch(e){}
+    } catch(e){}
   }
   async function importDbsCsv(file) {
     setDbsImporting(true); setDbsStatus({ msg:"Reading CSV…", ok:null });
@@ -23560,6 +23566,17 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
       }
       setDbsStatus({ msg:`Writing ${batch.length} cards…`, ok:null });
       for (let i=0;i<batch.length;i+=400){ const chunk=batch.slice(i,i+400); await Promise.all(chunk.map(({id,update})=>setDoc(doc(db,"boba_checklist",id),update,{merge:true}))); }
+      // The app reads cards from a cached static snapshot, NOT the live Firestore collection —
+      // so we must apply the updates to the in-memory card list AND regenerate the snapshot,
+      // or the DBS changes won't show even though Firestore was written.
+      try {
+        const updateById = {}; batch.forEach(({id,update}) => { updateById[id] = { ...(updateById[id]||{}), ...update }; });
+        const nextCards = cards.map(c => updateById[c.id] ? { ...c, ...updateById[c.id] } : c);
+        if (setCards) setCards(nextCards);
+        try { await writeCardSnapshot(nextCards, 300); } catch(e){ console.warn("snapshot rewrite failed", e); }
+        try { await idbSetCards(nextCards, Date.now()); } catch(e){}
+        try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e){}
+      } catch(e){ console.warn("card refresh after DBS import failed", e); }
       setDbsStatus({ msg:`✅ Updated ${updated} cards${skipped?` · ${skipped} skipped (no match)`:""}`, ok:true });
     } catch(e){ console.error(e); setDbsStatus({ msg:"❌ Import failed: "+(e.message||"error"), ok:false }); }
     setDbsImporting(false);
@@ -31837,7 +31854,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           <PlaybookTab
             user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
-            setSigningIn={setSigningIn} cards={cards} owned={owned}
+            setSigningIn={setSigningIn} cards={cards} setCards={setCards} owned={owned}
             inp={inp} isMobile={isMobile}
             pbName={pbName} setPbName={setPbName} setPbCards={setPbCards}
             savedPlaybooks={savedPlaybooks} pbSaving={pbSaving} pbSaved={pbSaved} pbLoadId={pbLoadId}
