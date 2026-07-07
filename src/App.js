@@ -26081,6 +26081,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [user,          setUser]          = useState(null);
   const [owned,         setOwned]         = useState({});
   const [publicCards,   setPublicCards]   = useState({});
+  const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
   const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
@@ -26989,6 +26990,29 @@ function PublicCardDatabase({ swancity = false } = {}) {
     setCustomTrackers(next);
     try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
     if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
+
+    // Making a rainbow/tracker public should make the cards it covers public too — that's the
+    // whole point. Recompute the set of "owned cards covered by any PUBLIC tracker" and union
+    // it with cards the user made public individually.
+    try {
+      const treatmentsOfPublicTrackers = new Set();
+      next.filter(t=>t.public).forEach(t => (t.treatments||[]).forEach(tr => treatmentsOfPublicTrackers.add(tr)));
+      // Which currently-public cards were auto-added by a tracker (so we can drop them when
+      // the tracker goes private). We tag them by keeping a separate record.
+      const trackerCoveredIds = new Set(
+        cards.filter(c => owned[c.id] && treatmentsOfPublicTrackers.has(c.treatment)).map(c=>c.id)
+      );
+      const manualIds = new Set(Object.keys(publicCards).filter(pid => publicCards[pid] && !trackerAutoPublic[pid]));
+      const nextPublic = {};
+      manualIds.forEach(pid => { nextPublic[pid] = true; });
+      trackerCoveredIds.forEach(pid => { nextPublic[pid] = true; });
+      // Remember which ids are tracker-driven so future toggles can distinguish them from manual.
+      const nextAuto = {}; trackerCoveredIds.forEach(pid => { nextAuto[pid] = true; });
+      setTrackerAutoPublic(nextAuto);
+      try { localStorage.setItem("trackerAutoPublic_v1", JSON.stringify(nextAuto)); } catch {}
+      setPublicCards(nextPublic);
+      await persistPublicCards(nextPublic);
+    } catch(e){ console.error("tracker auto-public failed:", e); }
   }
   async function deleteCustomTracker(id) {
     if (!window.confirm("Delete this tracker?")) return;
@@ -27065,15 +27089,12 @@ function PublicCardDatabase({ swancity = false } = {}) {
     })();
   }, [user, cards, publicCards]);
 
-  async function togglePrivate(cardId) {
+  // Write both the public flags and the denormalized snapshot for a given publicCards map.
+  async function persistPublicCards(nextPublic) {
     if (!user) return;
-    const next = {...publicCards};
-    if (next[cardId]) delete next[cardId]; else next[cardId]=true;
-    setPublicCards(next);
-    await setDoc(doc(db,"boba_public",user.uid), next);
-    // Denormalized snapshot so public profiles render with ZERO card-DB lookups.
+    await setDoc(doc(db,"boba_public",user.uid), nextPublic);
     try {
-      const publicIds = Object.keys(next).filter(id=>next[id]);
+      const publicIds = Object.keys(nextPublic).filter(id=>nextPublic[id]);
       const enriched = publicIds.map(id => {
         const c = cards.find(x=>x.id===id) || {};
         return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:c.imageUrl||"" };
@@ -27081,6 +27102,38 @@ function PublicCardDatabase({ swancity = false } = {}) {
       await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
     } catch(e){ console.error("public cards snapshot failed:", e); }
   }
+
+  async function togglePrivate(cardId) {
+    if (!user) return;
+    const next = {...publicCards};
+    if (next[cardId]) delete next[cardId]; else next[cardId]=true;
+    setPublicCards(next);
+    await persistPublicCards(next);
+  }
+  // Keep public cards in sync with public trackers: any owned card whose treatment is covered
+  // by a PUBLIC tracker stays public automatically (e.g. after scanning a new one in).
+  const trackerSyncRef = useRef("");
+  useEffect(() => {
+    if (!user || !cards.length) return;
+    const publicTrackerTreatments = new Set();
+    customTrackers.filter(t=>t.public).forEach(t => (t.treatments||[]).forEach(tr => publicTrackerTreatments.add(tr)));
+    if (publicTrackerTreatments.size === 0) return;
+    const shouldBePublic = cards.filter(c => owned[c.id] && publicTrackerTreatments.has(c.treatment)).map(c=>c.id);
+    // Only act if something new needs publishing
+    const missing = shouldBePublic.filter(id => !publicCards[id]);
+    if (missing.length === 0) return;
+    const sig = shouldBePublic.sort().join(",");
+    if (trackerSyncRef.current === sig) return;
+    trackerSyncRef.current = sig;
+    const nextPublic = {...publicCards};
+    const nextAuto = {...trackerAutoPublic};
+    missing.forEach(id => { nextPublic[id] = true; nextAuto[id] = true; });
+    setPublicCards(nextPublic);
+    setTrackerAutoPublic(nextAuto);
+    try { localStorage.setItem("trackerAutoPublic_v1", JSON.stringify(nextAuto)); } catch {}
+    persistPublicCards(nextPublic);
+  }, [user, cards, owned, customTrackers, publicCards]);
+
   async function toggleTradeBait(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...tradeBait};
@@ -34246,6 +34299,14 @@ function PublicProfilePage({ username }) {
         // Denormalized public cards — already carry image + metadata, so NO card-DB fetch.
         const enrichedCards = (pubCardsSnap.exists() && Array.isArray(pubCardsSnap.data().cards)) ? pubCardsSnap.data().cards : [];
 
+        // Full card DB — needed so public TRACKERS can compute their totals (e.g. how many
+        // gold-coin heroes exist). Try localStorage cache, then the CDN static file.
+        let fullCards = [];
+        try { const raw = localStorage.getItem("boba_checklist_cache_v3"); if (raw) { const p = JSON.parse(raw); fullCards = Array.isArray(p) ? p : (p.cards||[]); } } catch(e){}
+        if (fullCards.length === 0) {
+          try { const r = await fetch("/cards-data.json"); if (r.ok) fullCards = await r.json(); } catch(e){}
+        }
+
         // Everything needed is here in a handful of tiny doc reads — render instantly.
         if(alive) setState({
           loading:false, uid,
@@ -34253,6 +34314,7 @@ function PublicProfilePage({ username }) {
           pubCards: pubData,
           reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
           cards: enrichedCards,
+          fullCards,
           trackers: publicTrackers,
           ownedPub: pubData,
           listings,
@@ -34321,10 +34383,12 @@ function PublicProfilePage({ username }) {
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             {state.trackers.map(t => {
               const treatSet = new Set(t.treatments||[]);
-              const heroes = [...new Set(state.cards.filter(c=>c.hero).map(c=>c.hero))];
-              const heroesInSet = heroes.filter(h => state.cards.some(c=>c.hero===h && treatSet.has(c.treatment)));
-              // Progress from the owner's PUBLIC cards (privacy-respecting)
-              const done = heroesInSet.filter(h => state.cards.some(c=>c.hero===h && treatSet.has(c.treatment) && state.ownedPub?.[c.id])).length;
+              const db = (state.fullCards && state.fullCards.length) ? state.fullCards : state.cards;
+              const heroes = [...new Set(db.filter(c=>c.hero).map(c=>c.hero))];
+              const heroesInSet = heroes.filter(h => db.some(c=>c.hero===h && treatSet.has(c.treatment)));
+              // Owned = heroes where the collector has made public a matching card (privacy-respecting).
+              const pubIdSet = new Set(Object.keys(state.ownedPub||{}).filter(id=>state.ownedPub[id]));
+              const done = heroesInSet.filter(h => db.some(c=>c.hero===h && treatSet.has(c.treatment) && pubIdSet.has(c.id))).length;
               const pct = heroesInSet.length ? Math.round(done/heroesInSet.length*100) : 0;
               return (
                 <div key={t.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:"14px 16px" }}>
