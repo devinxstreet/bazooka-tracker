@@ -19943,6 +19943,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       const dbsIdx  = find(["dbs score","dbs_score","dbs","salary"]);
       const setIdx  = find(["set name","set","edition"]);
       const costIdx = find(["hot dog cost","hd cost","play cost","cost"]);
+      const nameIdx = find(["play name","name","play","card name"]);
 
       if (cnIdx < 0 || dbsIdx < 0) {
         setDbsStatus({ msg:`\u274C Couldn't find required columns. Found: ${headers.join(", ")}`, ok:false });
@@ -19955,11 +19956,23 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         "u": "2025 Alpha Update",
         "g": '2026 Edition "The Griffey Set"',
         "htd": "2025 Alpha Blast",
+        "t": "Tecmo Bowl Edition",
+        "la": "2024 Alpha Edition",
       };
 
       function stripPrefix(s) {
-        // Strip single-letter rarity prefix: "A - PL-59" - "PL-59", "G - BPL-3" - "BPL-3"
-        return String(s||"").replace(/^[A-Za-z]\s*-\s*/,"").trim();
+        // Strip set prefix in any of these forms:
+        //  "A - PL-59" -> "PL-59", "G - BPL-3" -> "BPL-3", "T-PL-53" -> "PL-53",
+        //  "HTD-46" -> "46", "LA - 20" -> "20"
+        let v = String(s||"").trim();
+        v = v.replace(/^(htd)\s*-\s*/i, "");          // HTD-46 -> 46
+        v = v.replace(/^([A-Za-z]{1,2})\s*-\s*/,"");   // A - / U - / G - / T- / LA -
+        return v.trim();
+      }
+      function playPrefix(s) {
+        // Return the leading set token: A, U, G, T, HTD, LA (lowercased)
+        const m = String(s||"").trim().match(/^(HTD|[A-Za-z]{1,2})\s*-/i);
+        return m ? m[1].toLowerCase() : "";
       }
       function normStr(s) {
         return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -19967,10 +19980,13 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
       // Build lookup map: normalized cardNum - [cards]
       const exactMap = {};
+      const nameMap = {};
       cards.forEach(c => {
         const k = normStr(c.cardNum);
         if (!exactMap[k]) exactMap[k] = [];
         exactMap[k].push(c);
+        const nk = normStr(c.hero); // play name is stored in the hero field for plays
+        if (nk) { if(!nameMap[nk]) nameMap[nk]=[]; nameMap[nk].push(c); }
       });
 
       let updated = 0, skipped = 0;
@@ -19987,24 +20003,31 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         const normNum  = normStr(baseNum);
         const csvSet   = setIdx >= 0 ? (cols[setIdx]||"").replace(/^"|"$/g,"").trim() : "";
         const playCost = costIdx >= 0 ? (cols[costIdx]||"").replace(/^"|"$/g,"").trim() : "";
+        const rawName  = nameIdx >= 0 ? (cols[nameIdx]||"").replace(/^"|"$/g,"").trim() : "";
 
-        const allMatches = exactMap[normNum] || [];
-        if (allMatches.length === 0) { skipped++; continue; }
-
-        // Extract rarity prefix: "G - BPL-6" - "g", "HTD-40" - "htd"
-        const prefixMatch = rawNum.match(/^([A-Za-z]+)\s*-\s*/);
-        const prefix = prefixMatch ? prefixMatch[1].toLowerCase() : "";
+        // Resolve the set from prefix (T-, HTD-, A -, etc.) or CSV set column
+        const prefix = playPrefix(rawNum);
         const prefixSet = PREFIX_TO_SET[prefix] || "";
-
-        // Narrow by set -- CSV Set column first, then prefix map as fallback
         const resolvedSet = csvSet || prefixSet;
-        let matches = allMatches;
-        if (allMatches.length > 1 && resolvedSet) {
-          const bySet = allMatches.filter(c =>
-            normStr(c.setName||"") === normStr(resolvedSet)
-          );
+
+        // PRIMARY: match by card number
+        let matches = exactMap[normNum] || [];
+        // FALLBACK: match by play name if card number found nothing
+        let matchedBy = "num";
+        if (matches.length === 0 && rawName) {
+          matches = nameMap[normStr(rawName)] || [];
+          matchedBy = "name";
+        }
+        if (matches.length === 0) { skipped++; continue; }
+
+        // Narrow by set when multiple candidates (critical for same-name-across-sets)
+        if (matches.length > 1 && resolvedSet) {
+          const bySet = matches.filter(c => normStr(c.setName||"") === normStr(resolvedSet));
           if (bySet.length > 0) matches = bySet;
         }
+        // If a name match still has multiple across sets and we couldn't narrow, skip to avoid
+        // writing DBS to the wrong set's copy.
+        if (matchedBy === "name" && matches.length > 1) { skipped++; continue; }
 
         for (const match of matches) {
           const update = { dbs };
@@ -23488,9 +23511,58 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [dbsEdits, setDbsEdits] = useState({});
   const [pbView, setPbView] = useState("grid"); // grid | list
+  const [dbsImporting, setDbsImporting] = useState(false);
+  const [dbsStatus, setDbsStatus] = useState(null);
   async function savePbDbs(cardId, val) {
     const v = val === "" ? "" : (parseFloat(val)||0);
     try { await setDoc(doc(db,"boba_checklist",cardId), { dbs: v }, { merge:true }); } catch(e) { console.error("save dbs failed", e); }
+  }
+  async function importDbsCsv(file) {
+    setDbsImporting(true); setDbsStatus({ msg:"Reading CSV…", ok:null });
+    try {
+      const text = await file.text();
+      const rows = text.split(/\r?\n/).filter(Boolean).map(r => {
+        const out=[]; let cur=""; let q=false;
+        for (const ch of r){ if(ch==='"') q=!q; else if(ch===',' && !q){ out.push(cur); cur=""; } else cur+=ch; }
+        out.push(cur); return out;
+      });
+      const headers = rows[0].map(h => h.toLowerCase().replace(/^"|"$/g,"").trim());
+      const find = keys => keys.reduce((f,k)=> f>=0?f:headers.indexOf(k), -1);
+      const cnIdx=find(["card number","card_num","card#","cardnum","card num"]);
+      const dbsIdx=find(["dbs score","dbs_score","dbs","salary"]);
+      const setIdx=find(["set name","set","edition"]);
+      const costIdx=find(["hot dog cost","hd cost","play cost","cost"]);
+      const nameIdx=find(["play name","name","play","card name"]);
+      if (cnIdx<0 || dbsIdx<0) { setDbsStatus({ msg:`❌ Missing columns. Found: ${headers.join(", ")}`, ok:false }); setDbsImporting(false); return; }
+      const PREFIX_TO_SET = { a:"2024 Alpha Edition", u:"2025 Alpha Update", g:'2026 Edition "The Griffey Set"', htd:"2025 Alpha Blast", t:"Tecmo Bowl Edition", la:"2024 Alpha Edition" };
+      const stripPrefix = s => { let v=String(s||"").trim(); v=v.replace(/^(htd)\s*-\s*/i,""); v=v.replace(/^([A-Za-z]{1,2})\s*-\s*/,""); return v.trim(); };
+      const playPrefix = s => { const m=String(s||"").trim().match(/^(HTD|[A-Za-z]{1,2})\s*-/i); return m?m[1].toLowerCase():""; };
+      const normStr = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      const exactMap={}, nameMap={};
+      cards.forEach(c => { const k=normStr(c.cardNum); if(!exactMap[k])exactMap[k]=[]; exactMap[k].push(c); const nk=normStr(c.hero); if(nk){ if(!nameMap[nk])nameMap[nk]=[]; nameMap[nk].push(c);} });
+      let updated=0, skipped=0; const batch=[];
+      for (let i=1;i<rows.length;i++){
+        const cols=rows[i];
+        const rawNum=(cols[cnIdx]||"").replace(/^"|"$/g,"").trim();
+        const dbs=parseFloat((cols[dbsIdx]||"").replace(/^"|"$/g,"").trim());
+        if (!rawNum || isNaN(dbs)) { skipped++; continue; }
+        const csvSet=setIdx>=0?(cols[setIdx]||"").replace(/^"|"$/g,"").trim():"";
+        const playCost=costIdx>=0?(cols[costIdx]||"").replace(/^"|"$/g,"").trim():"";
+        const rawName=nameIdx>=0?(cols[nameIdx]||"").replace(/^"|"$/g,"").trim():"";
+        const resolvedSet = csvSet || PREFIX_TO_SET[playPrefix(rawNum)] || "";
+        let matches = exactMap[normStr(stripPrefix(rawNum))] || [];
+        let byName=false;
+        if (matches.length===0 && rawName){ matches = nameMap[normStr(rawName)]||[]; byName=true; }
+        if (matches.length===0){ skipped++; continue; }
+        if (matches.length>1 && resolvedSet){ const bySet=matches.filter(c=>normStr(c.setName||"")===normStr(resolvedSet)); if(bySet.length>0) matches=bySet; }
+        if (byName && matches.length>1){ skipped++; continue; }
+        for (const m of matches){ const u={dbs}; if(playCost)u.playCost=playCost; batch.push({id:m.id,update:u}); updated++; }
+      }
+      setDbsStatus({ msg:`Writing ${batch.length} cards…`, ok:null });
+      for (let i=0;i<batch.length;i+=400){ const chunk=batch.slice(i,i+400); await Promise.all(chunk.map(({id,update})=>setDoc(doc(db,"boba_checklist",id),update,{merge:true}))); }
+      setDbsStatus({ msg:`✅ Updated ${updated} cards${skipped?` · ${skipped} skipped (no match)`:""}`, ok:true });
+    } catch(e){ console.error(e); setDbsStatus({ msg:"❌ Import failed: "+(e.message||"error"), ok:false }); }
+    setDbsImporting(false);
   }
   const [pbEvent, setPbEvent] = useState("");
   const [pbSetFilter, setPbSetFilter] = useState("");
@@ -23585,6 +23657,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       <button key={v} onClick={()=>setPbView(v)} title={v==="grid"?"Card view":"List view"} style={{background:pbView===v?"#E8317A":"transparent",color:pbView===v?"#fff":"rgba(255,255,255,0.5)",border:"none",borderRadius:6,padding:"5px 10px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{ic}</button>
                     ))}
                   </div>
+                  {_pbAdmin && (
+                    <label title="Import DBS values from CSV (Card Number, Play Name, Cost, DBS Score)" style={{ background:"#1a0f1a", color:"#C084FC", border:"1px solid #C084FC44", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:dbsImporting?"not-allowed":"pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity:dbsImporting?0.5:1, alignSelf:"center" }}>
+                      {dbsImporting?"Importing…":"💰 Import DBS"}
+                      <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
+                    </label>
+                  )}
+                  {dbsStatus && <span style={{ fontSize:11, fontWeight:700, color:dbsStatus.ok===true?"#4ade80":dbsStatus.ok===false?"#E8317A":"#FBBF24", alignSelf:"center" }}>{dbsStatus.msg}</span>}
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
                 {evt && (
