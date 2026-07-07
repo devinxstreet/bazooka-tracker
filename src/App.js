@@ -2665,18 +2665,18 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                     <div style={{ flex:1, minWidth:150, background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ fontSize:10, fontWeight:800, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>Max if all accept</div>
                       <div style={{ fontSize:22, fontWeight:900, color:"#fff", lineHeight:1.1 }}>{fmt(maxExposure)}</div>
-                      <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{activeQuotes.length} active quote{activeQuotes.length!==1?"s":""}</div>
+                      <div style={{ fontSize:10, color:"#a0a0a0", marginTop:2 }}>{activeQuotes.length} active quote{activeQuotes.length!==1?"s":""}</div>
                     </div>
                     <div style={{ flex:1, minWidth:130, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ fontSize:10, fontWeight:800, color:"var(--bz-ink-2)", textTransform:"uppercase", letterSpacing:1 }}>⏳ Awaiting</div>
                       <div style={{ fontSize:18, fontWeight:900, color:"#ccc", lineHeight:1.1 }}>{fmt(openTotal)}</div>
-                      <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{open.length} out for response</div>
+                      <div style={{ fontSize:10, color:"#a0a0a0", marginTop:2 }}>{open.length} out for response</div>
                     </div>
                     {accepted.length>0 && (
                       <div style={{ flex:1, minWidth:130, background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:10, padding:"10px 14px" }}>
                         <div style={{ fontSize:10, fontWeight:800, color:"#4ade80", textTransform:"uppercase", letterSpacing:1 }}>✅ Accepted</div>
                         <div style={{ fontSize:18, fontWeight:900, color:"#4ade80", lineHeight:1.1 }}>{fmt(acceptedTotal)}</div>
-                        <div style={{ fontSize:10, color:"#777", marginTop:2 }}>{accepted.length} committed to buy</div>
+                        <div style={{ fontSize:10, color:"#a0a0a0", marginTop:2 }}>{accepted.length} committed to buy</div>
                       </div>
                     )}
                   </div>
@@ -2769,7 +2769,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       {q.status==="countered" && (
                         <div style={{ borderTop:"1px solid var(--bz-line-2)", paddingTop:10, display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
                           <div style={{ flex:1, minWidth:160 }}>
-                            <label style={{ fontSize:10, fontWeight:700, color:"#777", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:6 }}>Your Counter Back ($)</label>
+                            <label style={{ fontSize:10, fontWeight:700, color:"#a0a0a0", textTransform:"uppercase", letterSpacing:1.5, display:"block", marginBottom:6 }}>Your Counter Back ($)</label>
                             <input
                               type="number" step="0.01" min="0"
                               value={bzCounterAmt[q.id]||""}
@@ -14763,7 +14763,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   const tot=mags+pack+tl+giveaway+insurance;
                   const line=(lbl,v)=> v>0 ? (
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
-                      <span style={{ color:"#777" }}>{lbl}</span><span style={{ color:"var(--bz-ink)" }}>${v.toFixed(2)}</span>
+                      <span style={{ color:"#a0a0a0" }}>{lbl}</span><span style={{ color:"var(--bz-ink)" }}>${v.toFixed(2)}</span>
                     </div>
                   ) : null;
                   return (
@@ -15343,7 +15343,7 @@ function PublicDeckBuilder() {
                 </select>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
-                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span></div>); }); })()}
+                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#aaa", fontWeight:700 }}>{i+1}</span></div>); }); })()}
               </div>
               {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button>}
             </div>
@@ -20596,7 +20596,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
             {/* First scan prompt if nothing yet */}
             {!photoScan && scanSession.length === 0 && (
-              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#222", fontSize:12, padding:16 }}>
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#aaa", fontSize:12, padding:16 }}>
                 Session log will appear here after your first scan
               </div>
             )}
@@ -21197,7 +21197,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 <div style={{ background:"var(--bz-s1)", border:"2px solid #F59E0B", borderRadius:20, padding:28, maxWidth:420, width:"100%" }} onClick={e=>e.stopPropagation()}>
                   <div style={{ fontSize:18, fontWeight:900, color:"#F59E0B", marginBottom:4 }}>🎯 Record Super Hit</div>
                   <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:18 }}>{recordModal.card.hero} #{recordModal.card.cardNum} · {recordModal.card.setName}</div>
-                  <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
+                  <div style={{ fontSize:12, color:"#a0a0a0", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
                   <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
                   <input autoFocus value={recordName} onChange={e=>setRecordName(e.target.value)} placeholder="e.g. @collector_mike"
                     style={{ width:"100%", background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
@@ -21412,7 +21412,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 <div style={{ background:"var(--bz-s1)", border:"2px solid #9333EA", borderRadius:20, padding:28, maxWidth:420, width:"100%" }} onClick={e=>e.stopPropagation()}>
                   <div style={{ fontSize:18, fontWeight:900, color:"#C084FC", marginBottom:4 }}>🎯 Record 1/1 Hit</div>
                   <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:18 }}>{recordModal.card.hero} #{recordModal.card.cardNum} · {recordModal.card.treatment}</div>
-                  <div style={{ fontSize:12, color:"#777", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
+                  <div style={{ fontSize:12, color:"#a0a0a0", marginBottom:14, lineHeight:1.6 }}>You're recording this hit as an admin. It goes straight into the tracker as verified — it does NOT add the card to your collection.</div>
                   <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#aaa", marginBottom:6 }}>Who pulled it? (name or Whatnot handle)</label>
                   <input autoFocus value={recordName} onChange={e=>setRecordName(e.target.value)} placeholder="e.g. @collector_mike"
                     style={{ width:"100%", background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
@@ -22231,7 +22231,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       }
                       return (
                         <div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                          <span style={{ fontSize:9, color:"#222", fontWeight:700 }}>{i+1}</span>
+                          <span style={{ fontSize:9, color:"#aaa", fontWeight:700 }}>{i+1}</span>
                         </div>
                       );
                     })})()}
@@ -23949,7 +23949,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         : `You need ${deckProgress.need-deckProgress.have} more eligible card${deckProgress.need-deckProgress.have!==1?"s":""}. Counts unique cards you own, max 6 per power level${goalLabel?`, ${goalLabel} only`:""}.`}
                     </div>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                      <span style={{fontSize:11,color:"#777",fontWeight:700}}>Goal:</span>
+                      <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
                       <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
                         <option value="none">No restrictions</option>
                         <option value="spec">Spec (≤160)</option>
@@ -25328,7 +25328,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
           <div>
             <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
             <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{card.hero}</div>
-            <div style={{ fontSize:11, color:"#777" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
+            <div style={{ fontSize:11, color:"#a0a0a0" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"var(--bz-ink-2)", fontSize:22, cursor:"pointer", lineHeight:1 }}>×</button>
         </div>
@@ -25383,21 +25383,21 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
           </div>
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Cost paid ($)</div>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cost paid ($)</div>
               <input type="number" inputMode="decimal" value={draft.cost} onChange={e=>setDraft({...draft,cost:e.target.value})} placeholder={draft.method==="purchased"||draft.method==="break"||draft.method==="pull"?"0.00":"—"} style={{...inp,width:"100%"}}/>
             </div>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Est. value ($)</div>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Est. value ($)</div>
               <input type="number" inputMode="decimal" value={draft.value} onChange={e=>setDraft({...draft,value:e.target.value})} placeholder="0.00" style={{...inp,width:"100%"}}/>
             </div>
           </div>
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Date</div>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date</div>
               <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})} style={{...inp,width:"100%"}}/>
             </div>
             <div style={{ flex:2 }}>
-              <div style={{ fontSize:10, color:"#777", marginBottom:3 }}>Notes (optional)</div>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Notes (optional)</div>
               <input value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="e.g. from John's break" style={{...inp,width:"100%"}}/>
             </div>
           </div>
@@ -25422,7 +25422,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
       <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:18, width:"min(420px,100%)", padding:"24px 26px" }}>
         <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:4 }}>Rate your seller</div>
         <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:2 }}>{sale.sellerName||"Seller"}</div>
-        <div style={{ fontSize:12, color:"#777", marginBottom:18 }}>{sale.cardName}{sale.price?` · $${Number(sale.price).toFixed(2)}`:""}</div>
+        <div style={{ fontSize:12, color:"#a0a0a0", marginBottom:18 }}>{sale.cardName}{sale.price?` · $${Number(sale.price).toFixed(2)}`:""}</div>
 
         <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:16 }}>
           {[1,2,3,4,5].map(n=>(
@@ -26238,6 +26238,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
 
   // -- Wants --
   const [wantList,      setWantList]      = useState({});
+  const [inTransit,     setInTransit]     = useState({}); // {cardId: {qty, note, date}} cards bought & on the way
 
   // -- Card FX (hunt / caught animations) --
   const [cardFx,        setCardFx]        = useState(null); // { type:"hunt"|"caught", card }
@@ -26784,7 +26785,16 @@ function PublicCardDatabase({ swancity = false } = {}) {
           // the collection here instantly, without a refresh.
           if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} }
           ownedUnsubRef.current = onSnapshot(doc(db,"boba_owned",u.uid), snap => {
-            setOwned(snap.exists() ? snap.data() : {});
+            const newOwned = snap.exists() ? snap.data() : {};
+            setOwned(newOwned);
+            // If a card that was "on the way" is now owned (e.g. just scanned), clear its transit flag.
+            setInTransit(prev => {
+              const ids = Object.keys(prev).filter(id => newOwned[id]);
+              if (ids.length === 0) return prev;
+              const next = {...prev}; ids.forEach(id => delete next[id]);
+              if (u) { try { setDoc(doc(db,"boba_intransit",u.uid), next); } catch(e){} }
+              return next;
+            });
           });
           try {
             const trkSnap = await getDoc(doc(db,"boba_trackers",u.uid));
@@ -26793,6 +26803,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
             try { localStorage.setItem("customTrackers_v1", JSON.stringify(list)); } catch {}
           } catch(e){}
           setWantList(wSnap.exists() ? wSnap.data() : {});
+          try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); } catch(e){}
           setPublicCards(prvSnap.exists() ? prvSnap.data() : {});
           try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
           setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
@@ -27016,12 +27027,60 @@ function PublicCardDatabase({ swancity = false } = {}) {
     if (!wasWanted) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"hunt", card }); }
     try { await setDoc(doc(db,"boba_wants",user.uid), next); } catch(e){ console.error("save want failed:", e); }
   }
+  async function setTransit(cardId, data) {
+    if (!user) { setSigningIn(true); return; }
+    const next = {...inTransit};
+    if (data === null) { delete next[cardId]; }
+    else { next[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().split("T")[0] }; }
+    setInTransit(next);
+    try { await setDoc(doc(db,"boba_intransit",user.uid), next); } catch(e){ console.error("save transit failed:", e); }
+  }
+  // Mark an in-transit card as arrived: bump owned qty and clear the transit flag
+  async function markTransitArrived(cardId) {
+    if (!user) return;
+    const t = inTransit[cardId];
+    const addQty = t?.qty || 1;
+    const nextOwned = {...owned};
+    nextOwned[cardId] = (parseInt(nextOwned[cardId])||0) + addQty;
+    setOwned(nextOwned);
+    try { await setDoc(doc(db,"boba_owned",user.uid), nextOwned); } catch(e){}
+    await setTransit(cardId, null);
+  }
+  // Backfill: existing users who made cards public before denormalization get their
+  // boba_public_cards snapshot written once, so their profile loads instantly.
+  const publicBackfilledRef = useRef(false);
+  useEffect(() => {
+    if (publicBackfilledRef.current) return;
+    if (!user || !cards.length) return;
+    const publicIds = Object.keys(publicCards).filter(id=>publicCards[id]);
+    if (publicIds.length === 0) return;
+    publicBackfilledRef.current = true;
+    (async () => {
+      try {
+        const enriched = publicIds.map(id => {
+          const c = cards.find(x=>x.id===id) || {};
+          return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:c.imageUrl||"" };
+        });
+        await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
+      } catch(e){}
+    })();
+  }, [user, cards, publicCards]);
+
   async function togglePrivate(cardId) {
     if (!user) return;
     const next = {...publicCards};
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setPublicCards(next);
     await setDoc(doc(db,"boba_public",user.uid), next);
+    // Denormalized snapshot so public profiles render with ZERO card-DB lookups.
+    try {
+      const publicIds = Object.keys(next).filter(id=>next[id]);
+      const enriched = publicIds.map(id => {
+        const c = cards.find(x=>x.id===id) || {};
+        return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:c.imageUrl||"" };
+      });
+      await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
+    } catch(e){ console.error("public cards snapshot failed:", e); }
   }
   async function toggleTradeBait(cardId) {
     if (!user) { setSigningIn(true); return; }
@@ -29056,7 +29115,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               <div style={{height:"100%",width:`${bulkProg.total?Math.round(bulkProg.done/bulkProg.total*100):0}%`,background:"linear-gradient(90deg,#E8317A,#4ade80)",transition:"width 0.3s"}}/>
             </div>
             <div style={{fontSize:13,color:"#ccc",marginBottom:6}}>{bulkProg.done} / {bulkProg.total} — <span style={{color:"#4ade80"}}>{bulkProg.matched} matched</span>{bulkProg.skipped?<span style={{color:"#FBBF24"}}>, {bulkProg.skipped} skipped</span>:null}</div>
-            <div style={{fontSize:11,color:"#777",minHeight:16,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{bulkProg.status}</div>
+            <div style={{fontSize:11,color:"#a0a0a0",minHeight:16,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{bulkProg.status}</div>
           </div>
         </div>
       )}
@@ -29155,6 +29214,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 </div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {c.power && <div style={{ fontSize:15, fontWeight:900, color:wc, background:wc+"18", border:`1px solid ${wc}44`, borderRadius:8, padding:"4px 12px" }}>{c.power}⚡ POWER</div>}
+                  {c.dbs!==undefined && c.dbs!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#C084FC", background:"rgba(192,132,252,0.12)", border:"1px solid #C084FC44", borderRadius:8, padding:"4px 12px" }}>DBS {c.dbs}</div>}
+                  {c.playCost!==undefined && c.playCost!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid #FBBF2444", borderRadius:8, padding:"4px 12px" }}>Cost {c.playCost}</div>}
                   {c.cardNum && <div style={{ fontSize:13, fontWeight:700, color:"#aaa", background:"#1a1a1a", borderRadius:8, padding:"5px 12px" }}>#{c.cardNum}</div>}
                 </div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -29198,11 +29259,11 @@ function PublicCardDatabase({ swancity = false } = {}) {
                     {bio.notes && <div style={{ fontSize:13, color:"#bbb", lineHeight:1.6 }}>{bio.notes}</div>}
                   </div>
                 )}
-                {skuLabel && <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:skuLabel.bg, border:`1px solid ${skuLabel.border}`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#777" }}>Found In:</span><span style={{ color:skuLabel.color }}>{skuLabel.label}</span></div>}
+                {skuLabel && <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:skuLabel.bg, border:`1px solid ${skuLabel.border}`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#a0a0a0" }}>Found In:</span><span style={{ color:skuLabel.color }}>{skuLabel.label}</span></div>}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:4 }}>
                   {user && (isDualTreatment ? (
                     <div style={{ flex:1, minWidth:200, display:"flex", flexDirection:"column", gap:6 }}>
-                      <div style={{ fontSize:10, fontWeight:800, color:"#777", textTransform:"uppercase", letterSpacing:1 }}>Add to collection — choose finish</div>
+                      <div style={{ fontSize:10, fontWeight:800, color:"#a0a0a0", textTransform:"uppercase", letterSpacing:1 }}>Add to collection — choose finish</div>
                       <div style={{ display:"flex", gap:6 }}>
                         {owned[c.id] ? (
                           <div style={{ flex:1, display:"flex", alignItems:"center", background:"rgba(74,222,128,0.15)", border:"1.5px solid #4ade80", borderRadius:10, overflow:"hidden" }}>
@@ -29237,6 +29298,23 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   ))}
                   <button onClick={()=>toggleWant(c.id)} style={{ flex:1, minWidth:120, background:wantList[c.id]?"#1a0f00":"rgba(255,255,255,0.04)", border:`1.5px solid ${wantList[c.id]?"#FBBF24":"#333"}`, color:wantList[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{wantList[c.id]?"🎯 Wanted":"+ Want"}</button>
                 </div>
+
+                {/* In-transit: warn if one's already on the way, and let you mark/unmark */}
+                {inTransit[c.id] ? (
+                  <div style={{ marginTop:12, background:"rgba(96,165,250,0.12)", border:"1.5px solid #60A5FA", borderRadius:10, padding:"12px 14px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                      <span style={{ fontSize:15 }}>🚚</span>
+                      <span style={{ fontSize:14, fontWeight:900, color:"#60A5FA" }}>{inTransit[c.id].qty>1?`${inTransit[c.id].qty} on the way!`:"One's already on the way!"}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.6)", marginBottom:10 }}>Marked {inTransit[c.id].date}{inTransit[c.id].note?` · ${inTransit[c.id].note}`:""} — don't double-buy.</div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>markTransitArrived(c.id)} style={{ flex:1, background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"7px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>✅ It arrived</button>
+                      <button onClick={()=>setTransit(c.id,null)} style={{ flex:1, background:"transparent", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.6)", borderRadius:8, padding:"7px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel order</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
+                )}
 
                 {/* Trade Bait flag + per-copy breakdown */}
                 {owned[c.id] && (
@@ -29366,6 +29444,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
         const idx = Math.max(0, sibs.findIndex(s=>s.id===zoomCard.card.id));
         const cur = sibs[idx] || zoomCard.card;
         const have = !!owned[cur.id];
+        const onWay = !have && !!inTransit[cur.id];
         const go = (delta) => { const n = (idx+delta+sibs.length)%sibs.length; setZoomFlipped(false); setZoomCard({ ...zoomCard, card: sibs[n] }); };
         // Collection photo: a user-uploaded lot photo of this card, if any
         const myPhoto = (lotsForCard(cur.id).find(l=>l.photoUrl)||{}).photoUrl || null;
@@ -29378,23 +29457,35 @@ function PublicCardDatabase({ swancity = false } = {}) {
             {/* Card (click to flip to your collection photo if owned) */}
             <div onClick={()=>{ if(canFlip) setZoomFlipped(f=>!f); }} style={{ position:"relative", cursor:canFlip?"pointer":"default", perspective:"1200px" }} title={canFlip?"Click to see your card photo":""}>
               <div style={{ position:"relative", transformStyle:"preserve-3d", transition:"transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform:zoomFlipped?"rotateY(180deg)":"none" }}>
-                <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:have?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":"none", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", display:zoomFlipped?"none":"block" }}/>
+                <img src={cur.imageUrl} alt={cur.hero} style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", filter:have?"drop-shadow(0 0 20px rgba(74,222,128,0.5))":onWay?"drop-shadow(0 0 20px rgba(251,191,36,0.6)) grayscale(35%)":"none", backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", display:zoomFlipped?"none":"block" }}/>
                 {zoomFlipped && myPhoto && <img src={myPhoto} alt="Your card" style={{ maxWidth:"100%", maxHeight:"72vh", objectFit:"contain", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.7)", border:"2px solid rgba(74,222,128,0.6)" }}/>}
               </div>
               {canFlip && <div style={{ position:"absolute", bottom:10, right:10, background:"rgba(0,0,0,0.75)", color:"#4ade80", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:800 }}>🔄 {zoomFlipped?"official art":"your card"}</div>}
             </div>
             <div style={{ textAlign:"center" }}>
               <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{cur.hero}</div>
-              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>{[cur.treatment, cur.weapon, cur.cardNum?`#${cur.cardNum}`:""].filter(Boolean).join(" · ")} · {have?"✓ Have":"Missing"}{sibs.length>1?` · ${idx+1}/${sibs.length}`:""}</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>{[cur.treatment, cur.weapon, cur.cardNum?`#${cur.cardNum}`:""].filter(Boolean).join(" · ")} · {have?"✓ Have":onWay?"🚚 On the way":"Missing"}{sibs.length>1?` · ${idx+1}/${sibs.length}`:""}</div>
             </div>
+            {/* Mark on the way / arrived (only when you don't own it yet) */}
+            {!have && (
+              onWay ? (
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={e=>{ e.stopPropagation(); markTransitArrived(cur.id); }} style={{ background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>✅ Got it</button>
+                  <button onClick={e=>{ e.stopPropagation(); setTransit(cur.id,null); }} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.6)", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                </div>
+              ) : (
+                <button onClick={e=>{ e.stopPropagation(); setTransit(cur.id,{qty:1,note:""}); }} style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.5)", color:"#FBBF24", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way</button>
+              )
+            )}
             {/* Thumbnail strip of the hero's other cards */}
             {sibs.length>1 && (
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center", maxWidth:"100%" }}>
                 {sibs.map((s,i)=>{
                   const sHave = !!owned[s.id];
+                  const sTransit = !sHave && !!inTransit[s.id];
                   return (
-                    <div key={s.id} onClick={e=>{ e.stopPropagation(); setZoomFlipped(false); setZoomCard({ ...zoomCard, card:s }); }} style={{ width:44, aspectRatio:"3/4", borderRadius:5, overflow:"hidden", cursor:"pointer", border:`2px solid ${i===idx?"#E8317A":sHave?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.15)"}`, opacity:sHave?1:0.5 }}>
-                      <img src={s.imageUrl} alt={s.weapon} style={{ width:"100%", height:"100%", objectFit:"cover", filter:sHave?"none":"grayscale(70%)" }}/>
+                    <div key={s.id} onClick={e=>{ e.stopPropagation(); setZoomFlipped(false); setZoomCard({ ...zoomCard, card:s }); }} style={{ width:44, aspectRatio:"3/4", borderRadius:5, overflow:"hidden", cursor:"pointer", border:`2px solid ${i===idx?"#E8317A":sHave?"rgba(74,222,128,0.5)":sTransit?"#FBBF24":"rgba(255,255,255,0.15)"}`, opacity:sHave?1:sTransit?0.7:0.5 }}>
+                      <img src={s.imageUrl} alt={s.weapon} style={{ width:"100%", height:"100%", objectFit:"cover", filter:sHave?"none":sTransit?"grayscale(40%) sepia(25%)":"grayscale(70%)" }}/>
                     </div>
                   );
                 })}
@@ -31097,6 +31188,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   {/* Public/Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
                     <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
+                      {inTransit[c.id] && <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>}
                       <button onClick={e=>{
                         e.stopPropagation();
                         togglePrivate(c.id);
@@ -31250,7 +31342,8 @@ function PublicCardDatabase({ swancity = false } = {}) {
                     const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment))
                       .sort((a,b)=>{ const d = cardNumVal(a)-cardNumVal(b); return d!==0 ? d : String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}); });
                     const ownedMatch = hc.filter(c => owned[c.id]);
-                    return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, allCards: hc, exists: hc.length>0 };
+                    const transitMatch = hc.filter(c => !owned[c.id] && inTransit[c.id]);
+                    return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, transitCards: transitMatch, hasTransit: transitMatch.length>0, allCards: hc, exists: hc.length>0 };
                   });
                   const inSet = rows.filter(r=>r.exists);
                   const done = inSet.filter(r=>r.complete).length;
@@ -31282,15 +31375,15 @@ function PublicCardDatabase({ swancity = false } = {}) {
                           return (
                             <div key={r.hero} style={{ gridColumn: isExp ? "1 / -1" : "auto" }}>
                               {!isExp ? (
-                                <div onClick={()=>{ const start = (r.ownedCards[0] || r.allCards[0]); if(start && start.imageUrl){ setZoomFlipped(false); setZoomCard({ card:start, siblings:r.allCards, hero:r.hero }); } }} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
+                                <div onClick={()=>{ const start = (r.ownedCards[0] || r.allCards[0]); if(start && start.imageUrl){ setZoomFlipped(false); setZoomCard({ card:start, siblings:r.allCards, hero:r.hero }); } }} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":r.hasTransit?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":r.hasTransit?"rgba(251,191,36,0.6)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
                                   <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
                                     {rep?.imageUrl
-                                      ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:0.4, filter:r.complete?"none":"grayscale(70%)" }}/>
+                                      ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.55:0.4, filter:r.complete?"none":r.hasTransit?"grayscale(45%) sepia(30%)":"grayscale(70%)" }}/>
                                       : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:11, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{r.hero}</div>}
-                                    <div style={{ position:"absolute", top:6, right:6, background:r.complete?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.7)", color:"#fff", borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:800 }}>{r.complete?"✅":"—"}</div>
+                                    <div style={{ position:"absolute", top:6, right:6, background:r.complete?"rgba(74,222,128,0.9)":r.hasTransit?"rgba(251,191,36,0.95)":"rgba(0,0,0,0.7)", color:r.hasTransit&&!r.complete?"#000":"#fff", borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:800 }}>{r.complete?"✅":r.hasTransit?"🚚":"—"}</div>
                                     <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"14px 8px 6px" }}>
                                       <div style={{ fontSize:11, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.hero}</div>
-                                      <div style={{ fontSize:9, color:r.complete?"#4ade80":"rgba(255,255,255,0.4)" }}>{r.ownedCards.length}/{r.need} owned</div>
+                                      <div style={{ fontSize:9, color:r.complete?"#4ade80":r.hasTransit?"#FBBF24":"rgba(255,255,255,0.4)" }}>{r.ownedCards.length}/{r.need} owned{r.hasTransit?` · ${r.transitCards.length} 🚚`:""}</div>
                                     </div>
                                   </div>
                                 </div>
@@ -34131,24 +34224,31 @@ function PublicProfilePage({ username }) {
           if (!uSnap.empty) uid = uSnap.docs[0].id;
         }
         if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null})); return; }
-        const [userSnap, pubSnap, revSnap, trkSnap] = await Promise.all([
+        const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
           getDoc(doc(db,"boba_public",uid)),
+          getDoc(doc(db,"boba_public_cards",uid)),
           getDocs(query(collection(db,"boba_reviews"), where("sellerUid","==",uid))),
           getDoc(doc(db,"boba_trackers",uid)),
+          getDocs(query(collection(db,"marketplace"), where("status","==","active"), where("sellerUid","==",uid))),
         ]);
-        let allCards = [];
-        try { const c = localStorage.getItem("boba_checklist_cache_v3"); if(c) allCards = JSON.parse(c); } catch {}
+        const listings = listSnap.docs.map(d=>({id:d.id,...d.data()}));
         const allTrackers = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
         const publicTrackers = allTrackers.filter(t => t.public);
+        const pubData = pubSnap.exists() ? pubSnap.data() : {};
+        // Denormalized public cards — already carry image + metadata, so NO card-DB fetch.
+        const enrichedCards = (pubCardsSnap.exists() && Array.isArray(pubCardsSnap.data().cards)) ? pubCardsSnap.data().cards : [];
+
+        // Everything needed is here in a handful of tiny doc reads — render instantly.
         if(alive) setState({
           loading:false, uid,
           data: userSnap.exists() ? userSnap.data() : {},
-          pubCards: pubSnap.exists() ? pubSnap.data() : {},
+          pubCards: pubData,
           reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
-          cards: allCards,
+          cards: enrichedCards,
           trackers: publicTrackers,
-          ownedPub: pubSnap.exists() ? pubSnap.data() : {},
+          ownedPub: pubData,
+          listings,
         });
       } catch(e) { if(alive) setState(s=>({...s, loading:false })); }
     })();
@@ -34234,6 +34334,25 @@ function PublicProfilePage({ username }) {
             })}
           </div>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginTop:6, fontStyle:"italic" }}>Progress reflects cards this collector has made public.</div>
+        </div>
+      )}
+
+      {(state.listings||[]).length > 0 && (
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>🛒 Available in Marketplace · {state.listings.length}</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))", gap:8 }}>
+            {state.listings.map(l => (
+              <a key={l.id} href="/market" style={{ textDecoration:"none", background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:8, overflow:"hidden", display:"block" }}>
+                <div style={{ aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
+                  {l.cardImage ? <img src={l.cardImage} alt={l.cardName} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:10, color:"rgba(255,255,255,0.4)", padding:4, textAlign:"center" }}>{l.cardName}</div>}
+                </div>
+                <div style={{ padding:"5px 7px" }}>
+                  <div style={{ fontSize:10, fontWeight:800, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{l.cardName||"Card"}</div>
+                  <div style={{ fontSize:11, fontWeight:800, color:"#4ade80" }}>{l.listType==="offer"?"OBO":`$${(l.askingPrice||0).toFixed(0)}`}</div>
+                </div>
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
