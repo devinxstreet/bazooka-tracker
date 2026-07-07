@@ -31338,7 +31338,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
           });
           const completedRainbows = groupStats.filter(g => g.complete).length;
           const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
-          const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : rainbowGroupBy === "treatmentWeapon" ? "Search treatment + weapon..." : "Search treatment...";
+          const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : rainbowGroupBy === "treatmentWeapon" ? "Search treatment + weapon..." : rainbowGroupBy === "custom" ? "🔍 Search hero..." : "Search treatment...";
           const filteredGroups = groupStats.filter(g => !search || g.key.toLowerCase().includes(search.toLowerCase()));
           const visibleGroups = filteredGroups.filter(g => {
             if(rainbowFilter === "complete") return g.complete;
@@ -31401,6 +31401,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                   });
                   const inSet = rows.filter(r=>r.exists);
                   const done = inSet.filter(r=>r.complete).length;
+                  const transitCount = inSet.filter(r=>!r.complete && r.hasTransit).length;
                   const pct = inSet.length ? Math.round(done/inSet.length*100) : 0;
                   const q = (search||"").toLowerCase();
                   const shown = inSet.filter(r => !q || r.hero.toLowerCase().includes(q));
@@ -31410,6 +31411,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
                         <div>
                           <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
                           <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero · tap a hero to see every card</div>
+                          {transitCount>0 && <div style={{ fontSize:11, color:"#FBBF24", fontWeight:700, marginTop:3 }}>🚚 {transitCount} on the way <span style={{ color:"rgba(255,255,255,0.35)", fontWeight:400 }}>(not counted as owned until received)</span></div>}
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <span style={{ fontSize:20, fontWeight:900, color: done===inSet.length && inSet.length>0 ? "#4ade80" : "#FBBF24" }}>{done}/{inSet.length}</span>
