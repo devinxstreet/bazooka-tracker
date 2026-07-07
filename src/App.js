@@ -34216,13 +34216,14 @@ function PublicProfilePage({ username }) {
     let alive = true;
     (async () => {
       try {
-        const uname = String(username||"").toLowerCase();
-        const unameSnap = await getDoc(doc(db,"usernames",uname));
-        let uid = unameSnap.exists() ? unameSnap.data().uid : null;
-        if (!uid) {
-          const uSnap = await getDocs(query(collection(db,"users"), where("username","==",uname)));
-          if (!uSnap.empty) uid = uSnap.docs[0].id;
-        }
+        const uname = String(username||"").toLowerCase().replace(/[^a-z0-9_]/g,"");
+        let uid = null;
+        // 1) usernames/{handle} doc
+        try { const s = await getDoc(doc(db,"usernames",uname)); if (s.exists()) uid = s.data().uid; } catch(e) { console.warn("usernames read failed (check Firestore rules allow public read of 'usernames'):", e); }
+        // 2) users where username == handle (lowercase)
+        if (!uid) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",uname))); if(!s.empty) uid = s.docs[0].id; } catch(e) { console.warn("users query failed (check rules allow public read of 'users'):", e); } }
+        // 3) users where username == raw (in case an older record kept original casing)
+        if (!uid && username && username !== uname) { try { const s = await getDocs(query(collection(db,"users"), where("username","==",username))); if(!s.empty) uid = s.docs[0].id; } catch(e){} }
         if (!uid) { if(alive) setState(s=>({...s, loading:false, uid:null})); return; }
         const [userSnap, pubSnap, pubCardsSnap, revSnap, trkSnap, listSnap] = await Promise.all([
           getDoc(doc(db,"users",uid)),
