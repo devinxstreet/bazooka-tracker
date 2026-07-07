@@ -16035,6 +16035,10 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   // Pixel/cyber sparkle foil for Helmet Icon cards
   const isPixelFoil    = treatment.includes("helmet icon");
   const isMetallicFoil = treatment.includes("metallic") || treatment.includes("inspired ink metallic");
+  // Cracked-ice / shattered-glass foil for Alpha Blast set cards
+  const _setLower = (c.setName||"").toLowerCase();
+  const _iceIsPaper = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
+  const isIceFoil = (_setLower.includes("alpha blast") || _setLower.includes("blast")) && !_iceIsPaper && !(treatment.includes("play") && !treatment.includes("bonus"));
   // Base / paper cards have NO foil shine — only true foil treatments shimmer
   const _isPaperBase = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
   const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil/.test(treatment);
@@ -16045,7 +16049,37 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const pixelCanvasRef = useRef(null);
   const pixelAnimRef = useRef(null);
   const metallicRef = useRef(null);
+  const iceRef = useRef(null);
+  const iceShardsRef = useRef(null); // cached shard SVG data URL
 
+  // Build a dense field of iridescent angular shards once (cached), matching the cracked-ice look.
+  function buildIceShards() {
+    if (iceShardsRef.current) return iceShardsRef.current;
+    const W=300, H=420; const rnd=(s=>()=>((s=Math.imul(48271,s)%2147483647)/2147483647))(2024+(String(c.id||"").length*97));
+    const cols=["#bfeffff0","#ffd6f5f0","#d6ffe8f0","#e6d6fff0","#d6ecfff0","#fff8d6f0"];
+    let shards="";
+    for(let i=0;i<260;i++){
+      const cx=rnd()*W, cy=rnd()*H, s=3+rnd()*11, a=rnd()*Math.PI;
+      const p=(k)=>{ const ang=a+k*(1.6+rnd()*1.4), r=s*(0.5+rnd()); return `${(cx+Math.cos(ang)*r).toFixed(1)},${(cy+Math.sin(ang)*r).toFixed(1)}`; };
+      shards+=`<polygon points="${p(0)} ${p(1)} ${p(2)}" fill="${cols[(rnd()*cols.length)|0]}" opacity="${(0.3+rnd()*0.6).toFixed(2)}"/>`;
+    }
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${shards}</svg>`;
+    iceShardsRef.current="data:image/svg+xml;base64,"+btoa(svg);
+    return iceShardsRef.current;
+  }
+  function drawIceFoil(x, y) {
+    if (!iceRef.current) return;
+    const el = iceRef.current;
+    const hue = (x*300+y*60)%360;
+    el.style.backgroundImage = [
+      `radial-gradient(120% 80% at ${x*100}% ${y*100}%, hsla(${hue},90%,92%,0.55), transparent 55%)`,
+      `linear-gradient(${100+x*60}deg, transparent 30%, hsla(${(hue+40)%360},95%,90%,0.35) ${40+y*20}%, hsla(${(hue+180)%360},90%,88%,0.30) ${55+y*20}%, transparent 72%)`,
+      `url(${buildIceShards()})`,
+      `linear-gradient(0deg, rgba(230,245,255,0.30), rgba(255,255,255,0.18))`,
+    ].join(",");
+    el.style.backgroundSize = "cover, cover, cover, cover";
+    el.style.opacity = "1";
+  }
   function drawMetallicFoil(x, y) {
     if (!metallicRef.current) return;
     const el = metallicRef.current;
@@ -16131,6 +16165,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (!noShine) {
       if (isPixelFoil) {
         startPixelAnim(x, y);
+      } else if (isIceFoil) {
+        drawIceFoil(x, y);
       } else if (isMetallicFoil) {
         drawMetallicFoil(x, y);
       } else {
@@ -16145,6 +16181,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
+    else if (isIceFoil && iceRef.current) iceRef.current.style.opacity = "0.35";
     else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
@@ -16188,7 +16225,8 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {isFoilTreatment && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
+            {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
+            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:`radial-gradient(120% 80% at 50% 40%, rgba(214,236,255,0.4), transparent 55%), url(${buildIceShards()}), linear-gradient(0deg, rgba(230,245,255,0.28), rgba(255,255,255,0.16))`, backgroundSize:"cover", mixBlendMode:"screen", opacity:0.35, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
