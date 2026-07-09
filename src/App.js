@@ -27,6 +27,39 @@ if (typeof document !== "undefined" && !document.getElementById("bz-global-token
   document.head.appendChild(_tok);
 }
 
+// Downscale + re-encode a user-uploaded image before it hits Firebase Storage.
+// A straight-from-phone photo can be 3-5MB; this typically brings it to ~150-400KB, which
+// massively cuts Storage cost, bandwidth, and load time at scale. Falls back to the original
+// file if anything goes wrong (so uploads never break).
+async function compressImage(file, { maxDim = 1400, quality = 0.82 } = {}) {
+  try {
+    if (!file || !file.type || !file.type.startsWith("image/")) return file;
+    if (file.type === "image/gif") return file; // don't flatten animations
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
+    });
+    const img = await new Promise((res, rej) => {
+      const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = dataUrl;
+    });
+    let { width, height } = img;
+    if (width <= maxDim && height <= maxDim && file.size < 400 * 1024) return file; // already small
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const w = Math.round(width * scale), h = Math.round(height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", quality));
+    if (!blob) return file;
+    // If compression somehow made it bigger, keep the original.
+    if (blob.size >= file.size) return file;
+    return new File([blob], (file.name || "photo").replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (e) {
+    console.warn("image compression failed, using original:", e);
+    return file;
+  }
+}
+
 const EARLY_ACCESS_EMAILS = [
   "christopher.e.ohara@gmail.com",
   "sydxelyse@icloud.com",
@@ -21065,7 +21098,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   try { 
     const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
     const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
-    await uploadBytes(r2, file);
+    const _cfile = await compressImage(file);
+    await uploadBytes(r2, _cfile);
     const url = await getDownloadURL(r2);
     await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
     try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
@@ -21154,7 +21188,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   try { 
     const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
     const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
-    await uploadBytes(r2, file);
+    const _cfile = await compressImage(file);
+    await uploadBytes(r2, _cfile);
     const url = await getDownloadURL(r2);
     await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
     try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
@@ -22674,7 +22709,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   try { 
     const safe = (card.treatment||"t").replace(/[^a-zA-Z0-9]/g,"_");
     const r2 = ref(storage, `boba_cards/manual/${card.id}_${safe}.png`);
-    await uploadBytes(r2, file);
+    const _cfile = await compressImage(file);
+    await uploadBytes(r2, _cfile);
     const url = await getDownloadURL(r2);
     await setDoc(doc(db,"boba_checklist",card.id), { imageUrl:url }, {merge:true});
     try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
@@ -25991,7 +26027,8 @@ function OnboardingModal({ user, onComplete, inp }) {
     setUploading(true);
     try {
       const sref = ref(storage, `profile_pics/${user.uid}/${uid()}.jpg`);
-      await uploadBytes(sref, file);
+      const _cfile = await compressImage(file);
+      await uploadBytes(sref, _cfile);
       const url = await getDownloadURL(sref);
       await setDoc(doc(db,"users",user.uid), { photoURL: url }, { merge:true });
       try { localStorage.setItem("bazooka_photo_" + user.uid, url); } catch(e) {}
@@ -27840,7 +27877,8 @@ See you in there!
       const safe = `${card.setName||"set"}_${card.cardNum||"x"}_${card.treatment||"t"}`.replace(/[^a-zA-Z0-9_]/g,"_");
       // Cache-bust the storage path so the new image URL is unique (avoids stale CDN/browser cache showing the old pic)
       const storageRef2 = ref(storage, `boba_cards/manual/${safe}_${Date.now()}.png`);
-      await uploadBytes(storageRef2, file);
+      const _cfile = await compressImage(file);
+      await uploadBytes(storageRef2, _cfile);
       const url = await getDownloadURL(storageRef2);
       await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
       // Update the UI immediately — this page and the open modal
@@ -27916,7 +27954,8 @@ See you in there!
     setResubmitting(true);
     try {
       const sref = ref(storage, `${coll}/${card.id}_${Date.now()}.jpg`);
-      await uploadBytes(sref, file);
+      const _cfile = await compressImage(file);
+      await uploadBytes(sref, _cfile);
       const url = await getDownloadURL(sref);
       await setDoc(doc(db, coll, card.id), { photoUrl: url, photoUpdatedAt: new Date().toISOString() }, { merge: true });
       setToast("📸 Photo updated — thank you!");
@@ -28001,7 +28040,8 @@ See you in there!
       let done = 0;
       for (const { file, serial } of toUpload) {
         const sref = ref(storage, `bojax34_claims/${serial}_${Date.now()}.jpg`);
-        await uploadBytes(sref, file);
+        const _cfile = await compressImage(file);
+        await uploadBytes(sref, _cfile);
         const photoUrl = await getDownloadURL(sref);
         await setDoc(doc(db,"bojax34_claims",String(serial)), {
           serial: Number(serial),
@@ -28168,7 +28208,8 @@ See you in there!
         const fsId = card.fsId || card.id;
         const ext = (file.name.split(".").pop()||"png").toLowerCase();
         const storageRef2 = ref(storage, `boba_cards/${fsId}.${ext}`);
-        await uploadBytes(storageRef2, file);
+        const _cfile = await compressImage(file);
+        await uploadBytes(storageRef2, _cfile);
         const url = await getDownloadURL(storageRef2);
         await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
         matched++; done++;
@@ -28617,7 +28658,8 @@ See you in there!
     try {
       const path = `marketplace_photos/${user.uid}/${uid()}_${(file.name||"photo").replace(/[^a-zA-Z0-9.]/g,"_")}`;
       const sref = ref(storage, path);
-      await uploadBytes(sref, file);
+      const _cfile = await compressImage(file);
+      await uploadBytes(sref, _cfile);
       const url = await getDownloadURL(sref);
       setListPhotos(prev => [...prev, { url }]);
     } catch(e) { console.error("photo upload failed:", e); alert("Photo upload failed — please try again."); }
