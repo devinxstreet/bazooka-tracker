@@ -10,6 +10,23 @@ import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage
 // --- Early-access allowlist ---------------------------------------------
 // Until June 18, only @bazookabreaks.com team + these specific emails can get in.
 // Add any individual emails you want to grant early access to (lowercase).
+// Ensure the Bazooka design tokens (--bz-ink etc.) are ALWAYS defined document-wide, on every
+// page/route — otherwise any `var(--bz-ink)` text falls back to a dark default and reads as
+// black-on-black. Injected once at module load, before any component renders.
+if (typeof document !== "undefined" && !document.getElementById("bz-global-tokens")) {
+  const _tok = document.createElement("style");
+  _tok.id = "bz-global-tokens";
+  _tok.textContent = `:root{
+    --bz-bg:#0b0709; --bz-s1:#130d11; --bz-s2:#1a1218; --bz-s3:#241820;
+    --bz-line:rgba(255,255,255,0.06); --bz-line-2:rgba(255,255,255,0.11);
+    --bz-ink:#f6eef2; --bz-ink-2:#c9bdc4; --bz-ink-3:#9a8a94;
+    --bz-pink:#E8317A; --bz-pink-hot:#ff4d94; --bz-pink-dim:rgba(232,49,122,0.14); --bz-pink-line:rgba(232,49,122,0.30);
+    --bz-green:#34d399; --bz-amber:#fbbf24; --bz-blue:#7c9cff; --bz-violet:#a78bfa;
+    --bz-radius:16px; --bz-radius-sm:11px;
+  }`;
+  document.head.appendChild(_tok);
+}
+
 const EARLY_ACCESS_EMAILS = [
   "christopher.e.ohara@gmail.com",
   "sydxelyse@icloud.com",
@@ -25596,7 +25613,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
           <div>
             <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
             <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{card.hero}</div>
-            <div style={{ fontSize:11, color:"#a0a0a0" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
+            <div style={{ fontSize:11, color:"#c9bdc4" }}>#{card.cardNum}{card.treatment?` · ${card.treatment}`:""}</div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"var(--bz-ink-2)", fontSize:22, cursor:"pointer", lineHeight:1 }}>×</button>
         </div>
@@ -25632,7 +25649,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
                     {l.cost!=null && <span style={{ color:"#E8317A" }}> · ${l.cost}</span>}
                     {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
                   </div>
-                  <div style={{ fontSize:10, color:"#999" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
+                  <div style={{ fontSize:10, color:"#b0b0b0" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
                 </div>
                 <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                 <button onClick={()=>onRemove(l.id)} style={{ background:"none", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>×</button>
@@ -25674,7 +25691,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
             {editId && <button onClick={()=>{setEditId(null);setDraft(blank);}} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>}
           </div>
         </div>
-        <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:12, textAlign:"center" }}>Adding cost & value helps build BoBA's live comp data 📊</div>
+        <div style={{ fontSize:10, color:"#9a8a94", marginTop:12, textAlign:"center" }}>Adding cost & value helps build BoBA's live comp data 📊</div>
       </div>
     </div>
   );
@@ -26352,12 +26369,32 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [earlyAccessList, setEarlyAccessList] = useState([]);
   const [eaInput, setEaInput] = useState("");
   const [earlyAccessModal, setEarlyAccessModal] = useState(false);
+  const [eaCopied, setEaCopied] = useState("");
+  function buildInviteMessage(em) {
+    return `You've got early access to Bazooka Dash! 🎉
+
+Head to bazookadash.com and sign in with this email (${em}) — you'll be able to track your BoBA collection, build rainbows, and more.
+
+See you in there!
+— Bazooka`;
+  }
+  function copyInvite(em) {
+    const msg = buildInviteMessage(em);
+    try {
+      navigator.clipboard.writeText(msg).then(()=>{ setEaCopied(em); setTimeout(()=>setEaCopied(""),2000); });
+    } catch(e) {
+      // Fallback for older browsers
+      const ta=document.createElement("textarea"); ta.value=msg; document.body.appendChild(ta); ta.select();
+      try{document.execCommand("copy"); setEaCopied(em); setTimeout(()=>setEaCopied(""),2000);}catch(_){}
+      document.body.removeChild(ta);
+    }
+  }
   async function addEarlyAccess() {
     const em = eaInput.toLowerCase().trim();
     if (!em || !em.includes("@")) { alert("Enter a valid email."); return; }
     if (earlyAccessList.includes(em)) { setEaInput(""); return; }
     const next = [...earlyAccessList, em];
-    try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); setEaInput(""); } catch(e){ alert("Failed to save: "+e.message); }
+    try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); setEaInput(""); copyInvite(em); } catch(e){ alert("Failed to save: "+e.message); }
   }
   async function removeEarlyAccess(em) {
     const next = earlyAccessList.filter(x=>x!==em);
@@ -29314,6 +29351,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
               <input value={eaInput} onChange={e=>setEaInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addEarlyAccess();}} placeholder="email@example.com" style={{flex:1,background:"#241820",border:"1px solid rgba(255,255,255,0.18)",borderRadius:9,color:"#f6eef2",padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={addEarlyAccess} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.5)",color:"#4ade80",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add</button>
             </div>
+            <div style={{fontSize:11,color:"#7c9cff",marginTop:-8,marginBottom:16}}>💡 Adding someone auto-copies a ready-to-send invite message — just paste it into a text or email to them.</div>
             {earlyAccessList.length===0 ? (
               <div style={{fontSize:13,color:"rgba(255,255,255,0.35)",textAlign:"center",padding:"20px 0"}}>No extra emails yet. Add one above.</div>
             ) : (
@@ -29321,7 +29359,10 @@ function PublicCardDatabase({ swancity = false } = {}) {
                 {earlyAccessList.map(em => (
                   <div key={em} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"9px 12px"}}>
                     <span style={{fontSize:13,color:"#f6eef2",wordBreak:"break-all"}}>{em}</span>
-                    <button onClick={()=>removeEarlyAccess(em)} style={{background:"transparent",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Remove</button>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>copyInvite(em)} style={{background:eaCopied===em?"rgba(74,222,128,0.15)":"rgba(124,156,255,0.12)",border:`1px solid ${eaCopied===em?"rgba(74,222,128,0.5)":"rgba(124,156,255,0.4)"}`,color:eaCopied===em?"#4ade80":"#7c9cff",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{eaCopied===em?"✓ Copied":"📋 Copy invite"}</button>
+                      <button onClick={()=>removeEarlyAccess(em)} style={{background:"transparent",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Remove</button>
+                    </div>
                   </div>
                 ))}
               </div>
