@@ -26538,6 +26538,7 @@ See you in there!
   const [builderName,      setBuilderName]      = useState("");
   const [builderTreatments,setBuilderTreatments]= useState([]);
   const [expandedTrackerHero, setExpandedTrackerHero] = useState(null);
+  const [trackerStatusFilter, setTrackerStatusFilter] = useState("all"); // all | owned | transit | missing
   const [zoomCard, setZoomCard] = useState(null);
   const [zoomFlipped, setZoomFlipped] = useState(false);
   const [expandedHero,     setExpandedHero]     = useState(null);
@@ -31792,7 +31793,14 @@ See you in there!
                   const transitCount = inSet.filter(r=>!r.complete && r.hasTransit).length;
                   const pct = inSet.length ? Math.round(done/inSet.length*100) : 0;
                   const q = (search||"").toLowerCase();
-                  const shown = inSet.filter(r => !q || r.hero.toLowerCase().includes(q));
+                  const shown = inSet.filter(r => {
+                    if (q && !r.hero.toLowerCase().includes(q)) return false;
+                    if (trackerStatusFilter==="owned"   && !r.complete) return false;
+                    if (trackerStatusFilter==="transit" && !(r.hasTransit && !r.complete)) return false;
+                    if (trackerStatusFilter==="missing" && (r.complete || r.hasTransit)) return false;
+                    return true;
+                  });
+                  const missingCount = inSet.filter(r=>!r.complete && !r.hasTransit).length;
                   return (
                     <div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
@@ -31811,7 +31819,18 @@ See you in there!
                       <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
                         <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
                       </div>
+                      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+                        {[
+                          ["all", `All (${inSet.length})`, "#f6eef2"],
+                          ["owned", `✅ Have (${done})`, "#4ade80"],
+                          ["transit", `🚚 On the way (${transitCount})`, "#FBBF24"],
+                          ["missing", `❌ Missing (${missingCount})`, "#E8317A"],
+                        ].map(([key,label,col]) => (
+                          <button key={key} onClick={()=>setTrackerStatusFilter(key)} style={{ background: trackerStatusFilter===key ? col : "transparent", border:`1px solid ${trackerStatusFilter===key ? col : "rgba(255,255,255,0.15)"}`, color: trackerStatusFilter===key ? (key==="all"||key==="owned"||key==="transit"?"#0b0709":"#fff") : "rgba(255,255,255,0.6)", borderRadius:20, padding:"5px 13px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>{label}</button>
+                        ))}
+                      </div>
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10 }}>
+                        {shown.length===0 && <div style={{ gridColumn:"1 / -1", textAlign:"center", padding:"30px 10px", color:"rgba(255,255,255,0.4)", fontSize:13 }}>{trackerStatusFilter==="missing"?"🎉 Nothing missing in this view!":trackerStatusFilter==="transit"?"Nothing on the way right now.":trackerStatusFilter==="owned"?"None owned yet in this set.":"No heroes match."}</div>}
                         {shown.map(r => {
                           const isExp = expandedTrackerHero === r.hero;
                           // Representative card for the tile: prefer an owned one, else first
