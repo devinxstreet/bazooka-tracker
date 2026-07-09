@@ -27355,19 +27355,22 @@ See you in there!
     }
   }, [owned, cards]);
 
-  // Infinite scroll (rAF-throttled; stops bumping page once everything is shown)
+  // Infinite scroll (rAF-throttled; stops bumping page once everything is shown).
+  // Reads the current filtered length from a ref so this effect never depends on
+  // `filtered` (which is declared later — referencing it here caused a TDZ crash).
+  const filteredLenRef = useRef(0);
   useEffect(() => {
     let ticking = false;
     function check() {
       ticking = false;
       if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<600) {
-        setPage(p => (p*PAGE_SIZE >= filtered.length ? p : p+1));
+        setPage(p => (p*PAGE_SIZE >= filteredLenRef.current ? p : p+1));
       }
     }
     function onScroll() { if(!ticking){ ticking=true; requestAnimationFrame(check); } }
     window.addEventListener("scroll",onScroll,{passive:true});
     return ()=>window.removeEventListener("scroll",onScroll);
-  }, [filtered.length]);
+  }, []);
 
   // -- Helpers --
   async function saveCustomTracker() {
@@ -29035,6 +29038,7 @@ See you in there!
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
+  filteredLenRef.current = filtered.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
   const uniqueOwned=Object.keys(owned).filter(_ownedKeyValid).length;
