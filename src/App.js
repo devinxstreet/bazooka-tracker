@@ -29883,6 +29883,7 @@ See you in there!
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
         .boba-card-hover:hover .boba-quickadd { opacity: 1 !important; }
+        .pub-card-grid > *:hover .boba-priv-dim { opacity: 0; }
         @media (hover: none) { .boba-quickadd { opacity: 1 !important; } }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
@@ -31659,7 +31660,7 @@ See you in there!
             ) : (
             <div className={animsOn?"pub-card-grid":"pub-card-grid no-anim"} style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
-                <div key={c.id} style={{position:"relative", contentVisibility:"auto", containIntrinsicSize:`${Math.round(cardSize*1.4)}px`}}>
+                <div key={c.id} style={{position:"relative"}}>
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
@@ -31679,7 +31680,7 @@ See you in there!
                   )}
                   {/* Owned cards are private by default — subtle dim + lock until made public */}
                   {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
-                    <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5}}/>
+                    <div className="boba-priv-dim" style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5,transition:"opacity 0.2s ease"}}/>
                   )}
                   {/* Public/Private toggle + list button on owned cards */}
                   {owned[c.id]&&(
