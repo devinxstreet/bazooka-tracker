@@ -16084,6 +16084,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   const currentTilt = useRef({ x:0, y:0 });
   const targetTilt  = useRef({ x:0, y:0 });
   const isHovering  = useRef(false);
+  const hoverAmt    = useRef(0);
 
   // No shine for paper (non-foil base) cards and Plays (but Bonus Plays still shine)
   const treatment = (c.treatment||"").toLowerCase();
@@ -16253,10 +16254,25 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   function onMouseEnter() { isHovering.current = true; if(cardRef.current) cardRef.current.style.willChange="transform"; startAnimation(); }
   function animate() {
     const cur = currentTilt.current, tgt = targetTilt.current;
-    cur.x += (tgt.x - cur.x) * 0.1; cur.y += (tgt.y - cur.y) * 0.1;
-    if (cardRef.current && !isFlipped) { cardRef.current.style.transition = "box-shadow 0.2s ease"; cardRef.current.style.transform = `perspective(600px) rotateX(${cur.x}deg) rotateY(${cur.y}deg) scale3d(1.04,1.04,1.04)`; }
-    if (Math.abs(tgt.x-cur.x)>0.05||Math.abs(tgt.y-cur.y)>0.05||isHovering.current) { animRef.current = requestAnimationFrame(animate); }
-    else { animRef.current = null; cur.x = 0; cur.y = 0; if(cardRef.current && !isFlipped) { cardRef.current.style.transition = ""; cardRef.current.style.transform = ""; cardRef.current.style.willChange = "auto"; } }
+    cur.x += (tgt.x - cur.x) * 0.12; cur.y += (tgt.y - cur.y) * 0.12;
+    // Smooth hover amount (0..1) so lift + scale ease in AND out instead of snapping.
+    const wantHover = isHovering.current ? 1 : 0;
+    hoverAmt.current += (wantHover - hoverAmt.current) * 0.15;
+    const h = hoverAmt.current;
+    if (cardRef.current && !isFlipped) {
+      // No perspective() here — the wrapper (.boba-card-hover) already supplies it.
+      // Baking a second perspective() in caused the warped tilt. Lift is a real translateY.
+      const lift = h * -8;
+      const scale = 1 + h * 0.05;
+      cardRef.current.style.transform = `translateY(${lift.toFixed(2)}px) rotateX(${cur.x.toFixed(2)}deg) rotateY(${cur.y.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+    }
+    const settled = Math.abs(tgt.x-cur.x)<0.05 && Math.abs(tgt.y-cur.y)<0.05 && h<0.01 && !isHovering.current;
+    if (!settled) {
+      animRef.current = requestAnimationFrame(animate);
+    } else {
+      animRef.current = null; cur.x = 0; cur.y = 0; hoverAmt.current = 0;
+      if(cardRef.current && !isFlipped) { cardRef.current.style.transform = ""; cardRef.current.style.willChange = "auto"; }
+    }
   }
   function handleClick() {
     if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
@@ -16285,7 +16301,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
   if (c.imageUrl) {
     return (
       <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
-        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer" }} onClick={handleClick}>
+        <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"box-shadow 0.2s ease", transformStyle:"preserve-3d", borderRadius:10, cursor:"pointer" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
             <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
