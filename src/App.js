@@ -35140,7 +35140,13 @@ function AppInner() {
 
   // Auth listener
   useEffect(() => {
-    return onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
+    // Safety net: on mobile/slow networks, Firebase's first onAuthStateChanged callback
+    // can be badly delayed (Safari cookie throttling, cold connections). Never let that
+    // block the UI — flip authReady after 3.5s no matter what. The real callback still
+    // runs and updates `user` when it eventually arrives.
+    const authTimeout = setTimeout(() => setAuthReady(true), 3500);
+    const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); clearTimeout(authTimeout); });
+    return () => { clearTimeout(authTimeout); unsub(); };
   }, []);
 
   const [dataLoaded, setDataLoaded] = useState({}); // tracks which tab groups have been subscribed
@@ -35561,7 +35567,8 @@ function AppInner() {
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
-  // While auth is still resolving, hold gated pages so we don't flash the wall at team members
+  // While auth is still resolving, hold gated pages so we don't flash the wall at team members.
+  // authReady is capped at 3.5s by the auth listener's timeout, so this can never hang forever.
   if (ACCESS_PAUSED && !authReady && _gatedPaths.includes(_path)) {
     return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#08000a", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
   }
