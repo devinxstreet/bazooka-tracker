@@ -29695,6 +29695,11 @@ See you in there!
                     )}
                   </div>
                 ) : (
+                  <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"var(--bz-s1)", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
+                    <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
+                    <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                  </div>
+                )}
                 {isDualTreatment && c.imageUrl && (
                   <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
                     <button onClick={()=>setModalFoilView("paper")} style={{ background:modalFoilView==="paper"?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:modalFoilView==="paper"?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📄 Paper</button>
