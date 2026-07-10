@@ -25230,11 +25230,11 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
           // cache it
           try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:true, sales:data.sales||[], summary:data.summary||null, fetchedAt:new Date().toISOString() },{merge:true}); } catch(e){}
         } else {
-          setEbay({ status:"unavailable", sales:[], summary:null });
+          setEbay({ status:"unavailable", sales:[], summary:null, debug:`api said: ${data.reason||"?"} ${data.status||""}`.trim() });
           // cache the "unavailable" state briefly too, so we don't hammer a not-yet-approved API
           try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:false, reason:data.reason||"", fetchedAt:new Date().toISOString() },{merge:true}); } catch(e){}
         }
-      } catch(e){ if(!cancelled) setEbay({ status:"unavailable", sales:[], summary:null }); }
+      } catch(e){ if(!cancelled) setEbay({ status:"unavailable", sales:[], summary:null, debug:`fetch threw: ${String(e.message||e).slice(0,80)}` }); }
     })();
     return ()=>{ cancelled=true; };
   }, [compCard]);
@@ -25347,6 +25347,9 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
         {/* eBay SOLD comps (live from Marketplace Insights API, cached). Hidden until approved. */}
         {ebay.status==="loading" && (
           <div style={{marginBottom:24,fontSize:12,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"10px 0"}}>Loading eBay sold comps…</div>
+        )}
+        {ebay.status==="unavailable" && ebay.debug && (
+          <div style={{marginBottom:24,fontSize:11,color:"#FBBF24",textAlign:"center",padding:"8px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:8,fontFamily:"monospace"}}>eBay comps unavailable — {ebay.debug}</div>
         )}
         {ebay.status==="ok" && ebay.summary && (
           <div style={{marginBottom:24}}>
