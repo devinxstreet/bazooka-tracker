@@ -20702,11 +20702,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         {isComplete?"\uD83C\uDF08 ":""}{imp.setName}
                       </span>
                       <div style={{ flex:1, height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
-                        <div style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s",
-                          background: isComplete
-                            ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
-                            : "linear-gradient(90deg,#E8317A,#7B2FF7)"
-                        }}/>
+                        <div className="bz-rainbow-fill" style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s" }}/>
                       </div>
                       <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
                         {setOwned}/{setCards.length} · {setPct}%
@@ -21168,7 +21164,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   </div>
                 </div>
                 <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
-                  <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                  <div className="bz-rainbow-fill" style={{ width:`${pct}%`, height:"100%", transition:"width .3s" }}/>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
                   {inSet.map(r => (
@@ -21350,11 +21346,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         )}
                         {/* Rainbow progress bar */}
                         <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                          <div style={{
-                            width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                            background: complete
-                              ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
-                              : pct > 50 ? "linear-gradient(90deg,#E8317A,#7B2FF7)" : "#E8317A"
+                          <div className="bz-rainbow-fill" style={{
+                            width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                           }}/>
                         </div>
                       </div>
@@ -21448,9 +21441,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         </div>
                       </div>
                       <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                        <div style={{
-                          width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                          background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                        <div className="bz-rainbow-fill" style={{
+                          width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                         }}/>
                       </div>
                     </div>
@@ -22107,7 +22099,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   <div key={t} style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <span style={{ fontSize:11, color:p===100?"#4ade80":"var(--bz-ink-2)", minWidth:200, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p===100?"\uD83C\uDF08 ":""}{t}</span>
                     <div style={{ flex:1, height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                      <div style={{ width:`${p}%`, height:"100%", borderRadius:3, background:p===100?"linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)":p>50?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)" }}/>
+                      <div className="bz-rainbow-fill" style={{ width:`${p}%`, height:"100%", borderRadius:3 }}/>
                     </div>
                     <span style={{ fontSize:11, fontWeight:700, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", minWidth:80, textAlign:"right" }}>{o}/{total} ({p}%)</span>
                     {missing > 0 && <span style={{ fontSize:10, color:"#E8317A", minWidth:60, textAlign:"right" }}>-{missing}</span>}
@@ -22938,6 +22930,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             {viewMode === "cards" && (loading ? (
         <div>
           <style>{`
+            @keyframes bzRainbowSlide { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+            .bz-rainbow-fill {
+              background: linear-gradient(90deg,#EF4444,#F97316,#FBBF24,#4ade80,#22D3EE,#60A5FA,#A855F7,#F472B6,#EF4444);
+              background-size: 200% 100%;
+              animation: bzRainbowSlide 3s linear infinite;
+            }
             @keyframes skeletonShimmer {
               0% { background-position: -400px 0; }
               100% { background-position: 400px 0; }
@@ -24749,10 +24747,16 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                     {deckProgress.am && (
                       <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:10,fontSize:11,lineHeight:1.7,color:"#ddd"}}>
-                        <div style={{fontWeight:800,color:"#FBBF24",marginBottom:4}}>Apex Madness build (up to 70)</div>
-                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> core cards ({deckProgress.am.completedInserts} insert{deckProgress.am.completedInserts!==1?"s":""} complete at 10 each)</div>
-                        <div>• <strong>{deckProgress.am.apexCount}</strong> apex unlocked — {deckProgress.am.completedInserts} from complete inserts{deckProgress.am.hotDogSlots>0?` + ${deckProgress.am.hotDogSlots} from foiled Hot Dogs`:""}</div>
-                        <div style={{color:"#999"}}>• Foiled Hot Dogs owned: {deckProgress.am.foiledHotDogs} (each unlocks 1 extra apex, max 4)</div>
+                        <div style={{fontWeight:800,color:"#FBBF24",marginBottom:4}}>Apex Madness build (up to 70) — smart pick</div>
+                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> core cards · <strong>{deckProgress.am.completedInserts}/6</strong> inserts unlocked</div>
+                        <div>• <strong>{deckProgress.am.apexCount}</strong> apex in deck — {deckProgress.am.completedInserts} from unlocked inserts{deckProgress.am.hotDogApexAdded>0?` + ${deckProgress.am.hotDogApexAdded} from foiled Hot Dogs`:""}</div>
+                        {deckProgress.am.insertList && deckProgress.am.insertList.length>0 && (
+                          <div style={{marginTop:4}}>• Built inserts (best apex first): {deckProgress.am.insertList.map(x=>`${x.insert} (⚡${x.apexPower})`).join(", ")}</div>
+                        )}
+                        {deckProgress.am.nearInserts && deckProgress.am.nearInserts.length>0 && (
+                          <div style={{marginTop:4,color:"#60A5FA"}}>💡 Closest to unlock next: {deckProgress.am.nearInserts.map(x=>`${x.insert} (${x.have}/10 core, ⚡${x.bestApexPower} apex waiting)`).join(" · ")}</div>
+                        )}
+                        <div style={{color:"#999",marginTop:4}}>• Foiled Hot Dogs owned: {deckProgress.am.foiledHotDogs} (each unlocks 1 extra apex, max 4)</div>
                       </div>
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -26011,6 +26015,12 @@ function PublicHomepage() {
         <a href="https://bazookavault.com" style={{ fontSize:13, fontWeight:800, color:"#fff", background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:20, padding:"5px 14px", textDecoration:"none", whiteSpace:"nowrap" }}>Visit the current collector's database → bazookavault.com</a>
       </div>
       <style>{`
+        @keyframes bzRainbowSlide { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+        .bz-rainbow-fill {
+          background: linear-gradient(90deg,#EF4444,#F97316,#FBBF24,#4ade80,#22D3EE,#60A5FA,#A855F7,#F472B6,#EF4444);
+          background-size: 200% 100%;
+          animation: bzRainbowSlide 3s linear infinite;
+        }
         @keyframes homeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
         @keyframes homeGlow { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
         @keyframes homeFadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -29827,61 +29837,98 @@ See you in there!
       return copies > usedElsewhere;
     };
 
-    // ── APEX MADNESS: structured build ──
-    // 6 inserts × 10 core (<160) = 60. Each full insert unlocks its highest apex (>160) = up to 6.
-    // Each owned FOILED HOT DOG unlocks 1 more apex from any insert (highest available), capped at 4.
-    // Ceiling = 70.
+    // ── APEX MADNESS: SMART structured build ──
+    // Work backwards from your best apex cards. For each apex (highest power first), check if you
+    // own 10 core (<160) of that same insert to unlock it. If yes, lock that insert in (10 core + apex).
+    // If no, skip to your next-best apex. Stop at 6 fully-unlockable inserts. Never pad with partials.
+    // Then each owned FOILED HOT DOG adds 1 more apex from any insert (highest left), capped at 4. Ceiling 70.
     if (dtype === "apexmadness") {
       const base = cards.filter(c => isOwned(c) && isAvailable(c) && !isPlayCard(c)
         && (!weaponFilter || canonWeapon(c.weapon)===canonWeapon(weaponFilter)));
-      // Group by insert (treatment)
-      const byInsert = {};
-      base.forEach(c => { const t=(c.treatment||"—"); (byInsert[t]=byInsert[t]||[]).push(c); });
+      const insertOf = c => (c.treatment || "—");
 
-      const chosen = [];
-      const usedKeys = new Set();
-      const completedInserts = []; // inserts that reached a full 10 core
-      // Build core: for each insert, take up to 10 unique core (<160) cards, max 6 per power level.
-      Object.entries(byInsert).forEach(([insert, list]) => {
-        const core = list.filter(c => powerOf(c) < 160).sort((a,b)=>powerOf(b)-powerOf(a));
+      // Pre-group core (<160) and apex (>160) by insert.
+      const coreByInsert = {}; const apexByInsert = {};
+      base.forEach(c => {
+        const t = insertOf(c);
+        if (powerOf(c) > 160) (apexByInsert[t] = apexByInsert[t]||[]).push(c);
+        else (coreByInsert[t] = coreByInsert[t]||[]).push(c);
+      });
+
+      // Helper: pick up to N unique core for an insert (dedup, max 6 per power level).
+      const pickCore = (insert, n, usedKeys) => {
+        const list = (coreByInsert[insert]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a));
         const seen=new Set(); const perPower={}; const picked=[];
-        for (const c of core) {
+        for (const c of list) {
           const k=dupKey(c); if(seen.has(k)||usedKeys.has(k)) continue;
           const p=String(c.power||"0"); if((perPower[p]||0)>=6) continue;
           seen.add(k); perPower[p]=(perPower[p]||0)+1; picked.push(c);
-          if(picked.length>=10) break;
+          if(picked.length>=n) break;
         }
-        if(picked.length===10){ completedInserts.push(insert); picked.forEach(c=>{chosen.push(c);usedKeys.add(dupKey(c));}); }
-        else { // partial insert still counts toward the 60 core, but no apex unlock
-          picked.forEach(c=>{chosen.push(c);usedKeys.add(dupKey(c));});
-        }
-      });
+        return picked;
+      };
+      // Count how many unique core an insert *could* field (for the "closest" hint).
+      const coreAvail = insert => pickCore(insert, 999, new Set()).length;
 
-      // Insert-unlocked apexes: for each COMPLETED insert, add its highest owned apex (>160).
+      // Rank all apexes best-first. Each apex points at its insert.
+      const allApex = base.filter(c=>powerOf(c)>160).sort((a,b)=>powerOf(b)-powerOf(a));
+
+      const chosen = [];
+      const usedKeys = new Set();
       const apexUsed = new Set();
-      completedInserts.forEach(insert => {
-        const apexes = (byInsert[insert]||[]).filter(c=>powerOf(c)>160 && !apexUsed.has(dupKey(c)))
-          .sort((a,b)=>powerOf(b)-powerOf(a));
-        if(apexes[0]){ chosen.push(apexes[0]); apexUsed.add(dupKey(apexes[0])); }
-      });
+      const completedInserts = [];   // {insert, apex}
+      const lockedInserts = new Set();
 
-      // Hot-dog apexes: each owned FOILED Hot Dog unlocks 1 more apex from ANY insert (highest left), cap 4.
+      // Walk apexes high→low; build the insert if it has 10 core available and we're under 6 inserts.
+      for (const apex of allApex) {
+        if (completedInserts.length >= 6) break;
+        const insert = insertOf(apex);
+        if (lockedInserts.has(insert)) continue;      // one apex per insert here
+        if (apexUsed.has(dupKey(apex))) continue;
+        const core = pickCore(insert, 10, usedKeys);
+        if (core.length < 10) continue;               // can't unlock — try next-best apex
+        // Lock it in: 10 core + this apex.
+        core.forEach(c=>{ chosen.push(c); usedKeys.add(dupKey(c)); });
+        chosen.push(apex); apexUsed.add(dupKey(apex));
+        lockedInserts.add(insert);
+        completedInserts.push({ insert, apexPower: apex.power });
+      }
+
+      // Foiled Hot Dog apex slots — each adds the next-best remaining apex from ANY insert, cap 4.
       const foiledHotDogs = base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"]).length;
       const hotDogSlots = Math.min(4, foiledHotDogs);
-      if(hotDogSlots>0){
-        const remainingApex = base.filter(c=>powerOf(c)>160 && !apexUsed.has(dupKey(c)))
-          .sort((a,b)=>powerOf(b)-powerOf(a));
-        for(let i=0;i<hotDogSlots && i<remainingApex.length;i++){
-          chosen.push(remainingApex[i]); apexUsed.add(dupKey(remainingApex[i]));
+      let hotDogApexAdded = 0;
+      if (hotDogSlots > 0) {
+        for (const apex of allApex) {
+          if (hotDogApexAdded >= hotDogSlots) break;
+          if (apexUsed.has(dupKey(apex))) continue;
+          chosen.push(apex); apexUsed.add(dupKey(apex)); hotDogApexAdded++;
         }
       }
 
-      const coreCount = chosen.filter(c=>powerOf(c)<160).length;
+      // "Closest to unlockable" — inserts you don't have yet, ranked by best apex you own + core you have.
+      const nearInserts = Object.keys(apexByInsert)
+        .filter(ins => !lockedInserts.has(ins))
+        .map(ins => {
+          const bestApex = (apexByInsert[ins]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a))[0];
+          return { insert: ins, have: coreAvail(ins), need: 10, bestApexPower: bestApex?bestApex.power:null };
+        })
+        .filter(x => x.bestApexPower != null && x.have < 10 && x.have > 0)
+        .sort((a,b)=>(parseFloat(b.bestApexPower)||0)-(parseFloat(a.bestApexPower)||0))
+        .slice(0,4);
+
+      const coreCount = chosen.filter(c=>powerOf(c)<=160).length;
       const apexCount = chosen.filter(c=>powerOf(c)>160).length;
       return {
-        have: chosen.length, need: 60, // 60 core is the "complete" bar; apexes are bonus unlocks
+        have: chosen.length, need: 60,
         cards: chosen, perPower:{}, ownedEligible: base.length,
-        am:{ coreCount, apexCount, completedInserts: completedInserts.length, foiledHotDogs, hotDogSlots, ceiling:70 },
+        am:{
+          coreCount, apexCount,
+          completedInserts: completedInserts.length,
+          insertList: completedInserts,
+          foiledHotDogs, hotDogSlots, hotDogApexAdded,
+          nearInserts, ceiling:70,
+        },
       };
     }
 
@@ -32741,7 +32788,7 @@ See you in there!
                         </div>
                       </div>
                       <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
-                        <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                        <div className="bz-rainbow-fill" style={{ width:`${pct}%`, height:"100%", transition:"width .3s" }}/>
                       </div>
                       <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
                         {[
