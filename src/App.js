@@ -23282,7 +23282,55 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
   );
 }
 
-function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned, inp, inviteToTeam, teamDecks, savedDecks, submitDeckToTeam, withdrawTeamDeck, swapOffers, offerSwap, dismissSwapOffer }) {
+function LendForm({ members, myCards, onLend, inp, WEAPON_COLORS }) {
+  const [borrowerUid, setBorrowerUid] = useState("");
+  const [cardSearch, setCardSearch] = useState("");
+  const [pickedCard, setPickedCard] = useState(null);
+  const matches = cardSearch.trim()
+    ? myCards.filter(c=>`${c.hero} ${c.cardNum} ${c.treatment} ${c.power}`.toLowerCase().includes(cardSearch.toLowerCase())).slice(0,6)
+    : [];
+  const borrower = members.find(m=>m.uid===borrowerUid);
+  function submit() {
+    if(!borrower||!pickedCard) return;
+    onLend(borrower, pickedCard);
+    setBorrowerUid(""); setCardSearch(""); setPickedCard(null);
+  }
+  return (
+    <div style={{background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:12,padding:12}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#7B9CFF",marginBottom:8}}>Lend one of your cards</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-start"}}>
+        <select value={borrowerUid} onChange={e=>setBorrowerUid(e.target.value)} style={{...inp,fontSize:12,padding:"7px 9px",flex:"1 1 140px"}}>
+          <option value="">Lend to…</option>
+          {members.map(m=><option key={m.uid} value={m.uid}>{m.displayName}</option>)}
+        </select>
+        <div style={{flex:"2 1 220px",position:"relative"}}>
+          {pickedCard?(
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px"}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#fff",flex:1}}>{pickedCard.hero} {pickedCard.power}⚡ {pickedCard.treatment||""}</span>
+              <button onClick={()=>{setPickedCard(null);setCardSearch("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:14}}>×</button>
+            </div>
+          ):(
+            <>
+              <input value={cardSearch} onChange={e=>setCardSearch(e.target.value)} placeholder="Search your card…" style={{...inp,fontSize:12,padding:"7px 9px",width:"100%"}}/>
+              {matches.length>0&&(
+                <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,background:"#16161f",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,marginTop:3,maxHeight:180,overflowY:"auto"}}>
+                  {matches.map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return (
+                    <div key={c.id} onClick={()=>{setPickedCard(c);setCardSearch("");}} style={{padding:"7px 10px",fontSize:12,cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,0.04)",color:"#ddd"}}>
+                      <span style={{color:wc,fontWeight:700}}>{c.hero}</span> {c.power}⚡ · {c.treatment||"—"} {c.cardNum?`· #${c.cardNum}`:""}
+                    </div>
+                  );})}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <button onClick={submit} disabled={!borrower||!pickedCard} style={{background:borrower&&pickedCard?"linear-gradient(135deg,#7B9CFF,#7B2FF7)":"rgba(255,255,255,0.05)",color:borrower&&pickedCard?"#fff":"rgba(255,255,255,0.3)",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:borrower&&pickedCard?"pointer":"not-allowed",fontFamily:"inherit",flexShrink:0}}>Log Loan</button>
+      </div>
+    </div>
+  );
+}
+
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned, inp, inviteToTeam, teamDecks, savedDecks, submitDeckToTeam, withdrawTeamDeck, swapOffers, offerSwap, dismissSwapOffer, teamLoans, lendCard, markLoanReturned, deleteLoan }) {
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -23565,6 +23613,69 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           </div>
                         )
                       )}
+
+                      {/* Borrowed-card ledger — who lent what to whom, so cards get returned */}
+                      {(()=>{
+                        const teamLoansList=(teamLoans||[]).filter(l=>l.teamId===team.id);
+                        const active=teamLoansList.filter(l=>l.status==="active").sort((a,b)=>(b.lentAt||"").localeCompare(a.lentAt||""));
+                        const returned=teamLoansList.filter(l=>l.status==="returned").sort((a,b)=>(b.returnedAt||"").localeCompare(a.returnedAt||""));
+                        // Lend form: owner lends one of THEIR owned cards to a teammate
+                        const otherMembers=allMembers.filter(m=>m.uid!==user.uid);
+                        const myLendableCards=cards.filter(c=>owned&&owned[c.id]).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+                        return (
+                          <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:16,padding:20,marginTop:16,backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:4}}>🔄 Borrowed Card Ledger</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:14}}>Track cards lent between teammates so they get back to the rightful owner.</div>
+
+                            {/* Lend a card */}
+                            {otherMembers.length>0&&myLendableCards.length>0&&(
+                              <LendForm members={otherMembers} myCards={myLendableCards} onLend={(borrower,card)=>lendCard(team,borrower,card)} inp={inp} WEAPON_COLORS={WEAPON_COLORS}/>
+                            )}
+
+                            {/* Active loans */}
+                            {active.length>0?(
+                              <div style={{marginTop:14}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"#FBBF24",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Out on loan ({active.length})</div>
+                                {active.map(l=>{
+                                  const iAmLender=l.lenderUid===user.uid;
+                                  return (
+                                    <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,marginBottom:6}}>
+                                      <div style={{width:30,height:40,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
+                                        {l.cardImage?<img src={l.cardImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%"}}/>}
+                                      </div>
+                                      <div style={{flex:1,minWidth:0}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{l.cardLabel}</div>
+                                        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}><strong style={{color:"#7B9CFF"}}>{l.lenderName}</strong> → <strong style={{color:"#C084FC"}}>{l.borrowerName}</strong>{l.lentAt?` · ${new Date(l.lentAt).toLocaleDateString()}`:""}</div>
+                                      </div>
+                                      {iAmLender?(
+                                        <button onClick={()=>markLoanReturned(l)} style={{fontSize:11,background:"rgba(74,222,128,0.15)",border:"1px solid #4ade80",color:"#4ade80",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0}}>✓ Returned</button>
+                                      ):(
+                                        <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",flexShrink:0}}>owner marks return</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ):(
+                              <div style={{marginTop:14,fontSize:12,color:"rgba(255,255,255,0.3)",textAlign:"center",padding:"10px 0"}}>No cards currently out on loan.</div>
+                            )}
+
+                            {/* Returned history */}
+                            {returned.length>0&&(
+                              <div style={{marginTop:14}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Returned ({returned.length})</div>
+                                {returned.slice(0,8).map(l=>(
+                                  <div key={l.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+                                    <span style={{color:"#4ade80"}}>✓</span>
+                                    <span style={{flex:1}}>{l.cardLabel} · {l.lenderName} → {l.borrowerName}</span>
+                                    {l.lenderUid===user.uid&&<button onClick={()=>deleteLoan(l.id)} title="Remove from history" style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>×</button>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -26841,6 +26952,7 @@ See you in there!
   // This is the ONLY card data teammates can see about each other — collections stay private.
   const [teamDecks,     setTeamDecks]     = useState({}); // { uid: { cardIds:[], deckName, submittedAt } }
   const [swapOffers,    setSwapOffers]    = useState([]); // offers I've made or received to resolve conflicts
+  const [teamLoans,     setTeamLoans]     = useState([]); // borrowed-card ledger for my teams
   const [newTeamName,   setNewTeamName]   = useState("");
   const [inviteEmail,   setInviteEmail]   = useState("");
   const [inviteStatus,  setInviteStatus]  = useState(null);
@@ -27409,6 +27521,10 @@ See you in there!
       // Swap offers involving my teams (I can help, or someone offered to help me)
       onSnapshot(query(collection(db,"swap_offers"), where("memberUids","array-contains",uid2)),
         snap => setSwapOffers(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Borrowed-card ledger for my teams (who lent what to whom)
+      onSnapshot(query(collection(db,"team_loans"), where("memberUids","array-contains",uid2)),
+        snap => setTeamLoans(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid2), where("status","==","pending")),
         snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -28824,6 +28940,28 @@ See you in there!
   }
   async function dismissSwapOffer(offerId) {
     try { await deleteDoc(doc(db,"swap_offers",offerId)); } catch(e){ console.error("dismiss offer failed:",e); }
+  }
+  // Owner logs "I lent this card to a teammate." Only the lender can create/return their loans.
+  async function lendCard(team, borrower, card) {
+    if(!user||!team||!borrower||!card)return;
+    const id=uid();
+    await setDoc(doc(db,"team_loans",id),{
+      id, teamId:team.id,
+      lenderUid:user.uid, lenderName:user.displayName||user.email,
+      borrowerUid:borrower.uid, borrowerName:borrower.displayName||borrower.email,
+      cardId:card.id, cardLabel:`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim(),
+      cardImage:card.imageUrl||"",
+      status:"active", lentAt:new Date().toISOString(), returnedAt:null,
+      memberUids:team.memberUids||[],
+    });
+  }
+  async function markLoanReturned(loan) {
+    if(!user||!loan)return;
+    try { await setDoc(doc(db,"team_loans",loan.id),{status:"returned",returnedAt:new Date().toISOString()},{merge:true}); }
+    catch(e){ console.error("mark returned failed:",e); }
+  }
+  async function deleteLoan(loanId) {
+    try { await deleteDoc(doc(db,"team_loans",loanId)); } catch(e){ console.error("delete loan failed:",e); }
   }
   async function inviteToTeam(team) {
     if(!inviteEmail.trim())return;
@@ -32580,6 +32718,7 @@ See you in there!
             cards={cards} owned={owned}
             teamDecks={teamDecks} savedDecks={savedDecks} submitDeckToTeam={submitDeckToTeam} withdrawTeamDeck={withdrawTeamDeck}
             swapOffers={swapOffers} offerSwap={offerSwap} dismissSwapOffer={dismissSwapOffer}
+            teamLoans={teamLoans} lendCard={lendCard} markLoanReturned={markLoanReturned} deleteLoan={deleteLoan}
             inp={inp} inviteToTeam={inviteToTeam}
           />
         )}
