@@ -25206,6 +25206,9 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
     const cacheId=`ebay_${c.id}`.replace(/[^a-zA-Z0-9_]/g,"_");
     (async()=>{
       setEbay({ status:"loading", sales:[], summary:null });
+      // Stamp this card as recently viewed (merge, so it works on hit or miss). The nightly
+      // refresh job uses lastViewedAt + query to decide which cards to keep fresh.
+      try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, lastViewedAt:new Date().toISOString() },{merge:true}); } catch(e){}
       // 1) Try Firestore cache first (fresh within 24h)
       try {
         const snap=await getDoc(doc(db,"ebay_comps",cacheId));
@@ -25225,11 +25228,11 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
         if(data.ok){
           setEbay({ status:"ok", sales:data.sales||[], summary:data.summary||null });
           // cache it
-          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:true, sales:data.sales||[], summary:data.summary||null, fetchedAt:new Date().toISOString() }); } catch(e){}
+          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:true, sales:data.sales||[], summary:data.summary||null, fetchedAt:new Date().toISOString() },{merge:true}); } catch(e){}
         } else {
           setEbay({ status:"unavailable", sales:[], summary:null });
           // cache the "unavailable" state briefly too, so we don't hammer a not-yet-approved API
-          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:false, reason:data.reason||"", fetchedAt:new Date().toISOString() }); } catch(e){}
+          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:false, reason:data.reason||"", fetchedAt:new Date().toISOString() },{merge:true}); } catch(e){}
         }
       } catch(e){ if(!cancelled) setEbay({ status:"unavailable", sales:[], summary:null }); }
     })();
@@ -30341,6 +30344,7 @@ See you in there!
                   </div>
                 ) : (
                   <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
+                  <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
                 )}
 
                 {/* Trade Bait flag + per-copy breakdown */}
