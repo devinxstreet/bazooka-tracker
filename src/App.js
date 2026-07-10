@@ -23954,7 +23954,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[]}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -24013,9 +24013,13 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                       <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
                         <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>{"\uD83D\uDC64"}</div>
                         <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}{f.isFamily&&<span style={{marginLeft:6,fontSize:9,fontWeight:800,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:5,padding:"1px 6px"}}>👪 FAMILY</span>}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
                         </div>
+                        <button onClick={()=>toggleFamily(f)} title={f.isFamily?"Family — you can use their available cards in your decks. Click to remove.":"Mark as family to use their available cards in your decks"}
+                          style={{background:f.isFamily?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${f.isFamily?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.08)"}`,color:f.isFamily?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                          {f.isFamily?"👪 Family":"+ Family"}
+                        </button>
                         <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
                           style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
                           {viewingFriend===f.friendUid?"Hide":"\uD83D\uDC41 View"}
@@ -24025,6 +24029,33 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                   }
                 </div>
 
+                {/* Borrowed cards paper trail (family lending) */}
+                {borrowLedger.filter(l=>l.status==="borrowed").length>0 && (
+                  <div style={{marginTop:8,marginBottom:20,background:"rgba(192,132,252,0.06)",border:"1px solid rgba(192,132,252,0.25)",borderRadius:14,padding:16}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#C084FC",marginBottom:4}}>👪 Borrowed Cards — Paper Trail</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:12}}>Family cards currently in your decks, and yours in theirs. After a tournament, this tells you whose card is whose.</div>
+                    {borrowLedger.filter(l=>l.status==="borrowed").map(l=>{
+                      const iBorrowed = l.borrowerUid===user.uid;
+                      return (
+                        <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"rgba(0,0,0,0.2)",borderRadius:10,marginBottom:6}}>
+                          <div style={{width:28,height:38,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>{l.cardImage?<img src={l.cardImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:null}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{l.cardLabel}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>
+                              {iBorrowed
+                                ? <>You borrowed from <strong style={{color:"#C084FC"}}>{l.ownerName}</strong></>
+                                : <><strong style={{color:"#7B9CFF"}}>{l.borrowerName}</strong> borrowed yours</>}
+                              {l.deckName?` · ${l.deckName}`:""}
+                            </div>
+                          </div>
+                          {iBorrowed
+                            ? <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",flexShrink:0}}>remove from deck to return</span>
+                            : <span style={{fontSize:10,color:"#FBBF24",flexShrink:0}}>out on loan</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {viewingFriend&&(()=>{
                   const f=friends.find(fr=>fr.friendUid===viewingFriend);
                   const fo=friendOwned[viewingFriend]||{};
@@ -24635,7 +24666,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, computeDeckProgress }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -24882,11 +24913,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
+                    const _fam = !isOwned && familyOwnerByCard[c.id];
                     return (
-                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:`Add ${c.hero}`}
-                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
+                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:(_fam?`Borrow ${c.hero} from ${_fam.name}`:`Add ${c.hero}`)}
+                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
                         onMouseEnter={e=>{if(ok){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}}}
-                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
+                        {_fam && <div style={{position:"absolute",top:5,left:5,zIndex:5,background:"rgba(192,132,252,0.92)",color:"#fff",borderRadius:6,padding:"2px 6px",fontSize:8,fontWeight:800,backdropFilter:"blur(4px)"}}>👪 {(_fam.name||"").split(" ")[0]}</div>}
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                           : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{c.treatment}</div></div>}
@@ -27244,6 +27277,10 @@ See you in there!
   const [addStatus,     setAddStatus]     = useState(null);
   const [friendOwned,   setFriendOwned]   = useState({});
   const [viewingFriend, setViewingFriend] = useState(null);
+  // Family members' cards available to borrow: {famUid: {ownerName, cardIds:Set-as-array}}.
+  // = cards they own that are NOT locked in any of their saved decks.
+  const [familyAvail,   setFamilyAvail]   = useState({});
+  const [borrowLedger,  setBorrowLedger]  = useState([]); // family card borrows involving me
 
   // -- Teams --
   const [teams,         setTeams]         = useState([]);
@@ -27809,10 +27846,10 @@ See you in there!
     const uid2 = user.uid;
     const unsubs = [
       onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
+        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail,isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to"})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
+        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to",isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","pending")),
         snap => setFriendReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -27880,6 +27917,117 @@ See you in there!
       if (snap.exists()) setFriendOwned(prev=>({...prev,[f.friendUid]:snap.data()}));
     });
   }, [friends]);
+
+  // Family members' BORROWABLE cards, computed LIVE = owned but not in any of their saved decks.
+  // Uses real-time subscriptions so scanning a card (updates boba_owned) or editing a deck
+  // (updates boba_decks) instantly recomputes what's available to borrow — just like your own
+  // collection updates live.
+  const familyRawRef = useRef({}); // { famUid: { owned:{}, locked:{}, name } }
+  useEffect(() => {
+    const familyMembers = friends.filter(f => f.isFamily);
+    if (!familyMembers.length) { familyRawRef.current = {}; setFamilyAvail({}); return; }
+
+    // Recompute the derived availability map from whatever raw data we currently have.
+    const recompute = () => {
+      const next = {};
+      Object.entries(familyRawRef.current).forEach(([famUid, raw]) => {
+        const theirOwned = raw.owned || {};
+        const locked = raw.locked || {};
+        const avail = {};
+        Object.keys(theirOwned).forEach(cid => {
+          const cleanId = String(cid).replace(/::foil$/,"");
+          const copies = parseInt(theirOwned[cid])||1;
+          const lockedN = locked[cleanId]||0;
+          if (copies > lockedN) avail[cleanId] = copies - lockedN;
+        });
+        next[famUid] = { ownerName: raw.name, cards: avail };
+      });
+      setFamilyAvail(next);
+    };
+
+    // Seed raw entries and subscribe two live listeners per family member.
+    const unsubs = [];
+    familyMembers.forEach(f => {
+      const uid2 = f.friendUid;
+      if (!familyRawRef.current[uid2]) familyRawRef.current[uid2] = { owned:{}, locked:{}, name:f.friendName };
+      else familyRawRef.current[uid2].name = f.friendName;
+
+      // Live: their owned collection
+      unsubs.push(onSnapshot(doc(db,"boba_owned",uid2), snap => {
+        familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,locked:{}}), owned: snap.exists()?snap.data():{} };
+        recompute();
+      }));
+      // Live: their saved decks → which card copies are locked
+      unsubs.push(onSnapshot(query(collection(db,"boba_decks"), where("userId","==",uid2)), snap => {
+        const lockedCount = {};
+        snap.forEach(d => { const seen=new Set(); (d.data().cardIds||[]).forEach(cid=>{ if(seen.has(cid))return; seen.add(cid); lockedCount[cid]=(lockedCount[cid]||0)+1; }); });
+        familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,owned:{}}), locked: lockedCount };
+        recompute();
+      }));
+    });
+
+    // Drop raw entries for anyone no longer family.
+    const stillFamily = new Set(familyMembers.map(f=>f.friendUid));
+    Object.keys(familyRawRef.current).forEach(uid2 => { if(!stillFamily.has(uid2)) delete familyRawRef.current[uid2]; });
+    recompute();
+
+    return () => { unsubs.forEach(u => { try{u();}catch(e){} }); };
+  }, [friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(",")]);// eslint-disable-line react-hooks/exhaustive-deps
+
+  // Borrow ledger: card loans between me and family (as borrower or owner).
+  useEffect(() => {
+    if(!user) return;
+    const unsub = onSnapshot(query(collection(db,"borrow_ledger"), where("participantUids","array-contains",user.uid)),
+      snap => setBorrowLedger(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.borrowedAt||"").localeCompare(a.borrowedAt||"")))
+    );
+    return ()=>unsub();
+  }, [user]);
+
+  // Auto paper-trail: whenever the working deck contains a family member's card, ensure a
+  // borrow_ledger entry exists (borrower=me, owner=them). Remove entries for family cards no
+  // longer in the deck. Keyed by borrower+card so it's idempotent.
+  useEffect(() => {
+    if (!user) return;
+    // Build owner lookup fresh (familyAvail may have updated).
+    const ownerByCard = {};
+    Object.entries(familyAvail).forEach(([famUid, info]) => {
+      Object.keys(info.cards||{}).forEach(cid => { if(!owned[cid] && !ownerByCard[cid]) ownerByCard[cid]={uid:famUid,name:info.ownerName}; });
+    });
+    const t = setTimeout(async () => {
+      try {
+        // Family cards currently in my deck
+        const inDeckFamily = deckCards.filter(cid => ownerByCard[cid]);
+        // Desired ledger doc ids
+        const want = new Set(inDeckFamily.map(cid => `${user.uid}_${cid}`));
+        // Read my current active borrow entries
+        const snap = await getDocs(query(collection(db,"borrow_ledger"), where("borrowerUid","==",user.uid), where("status","==","borrowed")));
+        const have = new Set();
+        snap.forEach(d => {
+          have.add(d.id);
+          if (!want.has(d.id)) { // no longer in deck → mark returned
+            setDoc(doc(db,"borrow_ledger",d.id),{status:"returned",returnedAt:new Date().toISOString()},{merge:true}).catch(()=>{});
+          }
+        });
+        // Add new borrows
+        for (const cid of inDeckFamily) {
+          const id = `${user.uid}_${cid}`;
+          if (have.has(id)) continue;
+          const card = cards.find(x=>x.id===cid);
+          const owner = ownerByCard[cid];
+          await setDoc(doc(db,"borrow_ledger",id),{
+            id, borrowerUid:user.uid, borrowerName:user.displayName||user.email,
+            ownerUid:owner.uid, ownerName:owner.name,
+            cardId:cid, cardLabel: card?`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim():cid,
+            cardImage: card?.imageUrl||"",
+            deckName: deckName||"(unsaved deck)",
+            status:"borrowed", borrowedAt:new Date().toISOString(),
+            participantUids:[user.uid, owner.uid],
+          },{merge:true});
+        }
+      } catch(e){ console.error("borrow ledger sync failed:",e); }
+    }, 800);
+    return ()=>clearTimeout(t);
+  }, [deckCards, familyAvail, user, deckName]);
 
   // Upsert profile on login
   useEffect(() => {
@@ -29245,6 +29393,17 @@ See you in there!
     await setDoc(doc(db,"friend_requests",req.id),{status:accept?"accepted":"declined"},{merge:true});
     if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
   }
+  // Mark/unmark a friend as family. Writes my uid into the relationship's familyBy array,
+  // which grants ME access to THEIR available cards in the deck builder.
+  async function toggleFamily(f) {
+    if(!user||!f?.id) return;
+    try {
+      const snap = await getDoc(doc(db,"friend_requests",f.id));
+      const cur = snap.exists() ? (snap.data().familyBy||[]) : [];
+      const next = cur.includes(user.uid) ? cur.filter(u=>u!==user.uid) : [...cur, user.uid];
+      await setDoc(doc(db,"friend_requests",f.id),{familyBy:next},{merge:true});
+    } catch(e){ console.error("toggleFamily failed:",e); }
+  }
 
   // -- Teams --
   async function createTeam() {
@@ -29784,6 +29943,21 @@ See you in there!
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
   // you own — own 3 and up to 3 decks can each run one.
+  // Family cards you can borrow, merged for the deck builder.
+  // familyOwnerByCard: cardId -> {uid,name} of the family member lending it (first available owner).
+  // deckOwnedMerged: your owned map PLUS family-available copies, so the builder treats them as usable.
+  const familyOwnerByCard = {};
+  const deckOwnedMerged = { ...owned };
+  Object.entries(familyAvail).forEach(([famUid, info]) => {
+    Object.entries(info.cards||{}).forEach(([cid, copies]) => {
+      if (!owned[cid] && !familyOwnerByCard[cid]) {
+        // You don't own it yourself — surface the family copy.
+        familyOwnerByCard[cid] = { uid: famUid, name: info.ownerName, copies };
+        deckOwnedMerged[cid] = (deckOwnedMerged[cid]||0) + copies;
+      }
+    });
+  });
+
   const otherDeckUse = {};
   (savedDecks||[]).forEach(d => {
     if (d.id === deckLoadId) return; // skip the deck being edited
@@ -29798,9 +29972,9 @@ See you in there!
     if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
     if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
     if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
-    // Cross-deck copy lock: if you own this card, every copy already committed to another
-    // deck is unavailable here. (Unowned cards aren't locked, so you can still plan decks.)
-    const _copies = (owned && owned[c.id]) ? owned[c.id] : 0;
+    // Cross-deck copy lock: counts YOUR copies plus any family copies you can borrow.
+    // Every copy already committed to another deck is unavailable here.
+    const _copies = (deckOwnedMerged && deckOwnedMerged[c.id]) ? deckOwnedMerged[c.id] : 0;
     const _usedElsewhere = otherDeckUse[c.id] || 0;
     if(_copies > 0 && _usedElsewhere >= _copies){
       return {ok:false, reason: _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
@@ -33115,6 +33289,7 @@ See you in there!
             deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
+            familyOwnerByCard={familyOwnerByCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
@@ -33199,7 +33374,7 @@ See you in there!
             addEmail={addEmail} setAddEmail={setAddEmail}
             addStatus={addStatus} setAddStatus={setAddStatus}
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
-            respondFriendReq={respondFriendReq}
+            respondFriendReq={respondFriendReq} toggleFamily={toggleFamily} borrowLedger={borrowLedger}
             sendFriendRequest={sendFriendRequest}
             cards={cards} owned={owned} publicCards={publicCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
