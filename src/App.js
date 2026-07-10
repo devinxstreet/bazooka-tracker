@@ -23448,20 +23448,26 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           </div>
                         )}
                         {isMe&&(
-                          <div style={{marginTop:10}}>
+                          <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
                             {sub?(
-                              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Deck: {sub.deckName}</span>
+                              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                                <span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>✓ {sub.deckName}</span>
                                 <button onClick={()=>withdrawTeamDeck(team)} style={{fontSize:10,background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Withdraw</button>
                               </div>
                             ):(
                               (savedDecks||[]).length>0?(
-                                <select onChange={e=>{ const d=(savedDecks||[]).find(x=>x.id===e.target.value); if(d) submitDeckToTeam(team,d); e.target.value=""; }} defaultValue="" style={{...inp,fontSize:11,padding:"6px 8px",width:"100%"}}>
-                                  <option value="" disabled>Submit a deck to the team…</option>
-                                  {(savedDecks||[]).map(d=><option key={d.id} value={d.id}>{d.name} ({d.cardCount||d.cardIds?.length||0})</option>)}
-                                </select>
+                                <div>
+                                  <div style={{fontSize:10,fontWeight:700,color:"#A855F7",marginBottom:5,textTransform:"uppercase",letterSpacing:0.5}}>📥 Submit your deck to the team</div>
+                                  <select onChange={e=>{ const d=(savedDecks||[]).find(x=>x.id===e.target.value); if(d) submitDeckToTeam(team,d); e.target.value=""; }} defaultValue="" style={{...inp,fontSize:12,padding:"8px 10px",width:"100%",border:"1px solid rgba(168,85,247,0.4)"}}>
+                                    <option value="" disabled>Choose a deck…</option>
+                                    {(savedDecks||[]).map(d=><option key={d.id} value={d.id}>{d.name} ({d.cardCount||d.cardIds?.length||0} cards)</option>)}
+                                  </select>
+                                </div>
                               ):(
-                                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>Build a deck in Deck Builder to submit it here.</div>
+                                <div style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:8,padding:"8px 10px"}}>
+                                  <div style={{fontSize:11,color:"#C084FC",fontWeight:700,marginBottom:2}}>No saved decks found for this account</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",lineHeight:1.4}}>Go to <strong>Deck Builder</strong>, build a deck, name it, and hit <strong>💾 Save Deck</strong>. It'll show up here. <span style={{color:"rgba(255,255,255,0.3)"}}>(Signed in as {user.email})</span></div>
+                                </div>
                               )
                             )}
                           </div>
