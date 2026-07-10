@@ -23435,6 +23435,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
                             <div style={{fontSize:11,color:sub?"#4ade80":"rgba(255,255,255,0.3)"}}>{sub?`✓ Deck submitted · ${submittedCards} cards`:"No deck submitted"}</div>
+                            <div style={{fontSize:8,color:isMe?"#4ade80":"rgba(255,120,120,0.7)",fontFamily:"monospace",marginTop:2}}>{isMe?"✓ this is you":`member uid ${(m.uid||"?").slice(0,6)}… ≠ you ${(user.uid||"?").slice(0,6)}…`}</div>
                           </div>
                           {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
                         </div>
