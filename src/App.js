@@ -25194,6 +25194,48 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
 }
 
 function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, listings}) {
+  // eBay sold comps (via /api/ebay-comps → Marketplace Insights). Cached in Firestore per card
+  // so we don't hit eBay on every view. Gracefully hidden until the API is approved.
+  const [ebay, setEbay] = useState({ status:"idle", sales:[], summary:null });
+  useEffect(()=>{
+    if(!compCard) return;
+    let cancelled=false;
+    const c=compCard;
+    // Build a focused query for this BoBA card.
+    const q=[c.hero, "Bo Jackson Battle Arena", c.treatment, c.cardNum?`#${c.cardNum}`:""].filter(Boolean).join(" ");
+    const cacheId=`ebay_${c.id}`.replace(/[^a-zA-Z0-9_]/g,"_");
+    (async()=>{
+      setEbay({ status:"loading", sales:[], summary:null });
+      // 1) Try Firestore cache first (fresh within 24h)
+      try {
+        const snap=await getDoc(doc(db,"ebay_comps",cacheId));
+        if(snap.exists()){
+          const d=snap.data();
+          if(d.fetchedAt && (Date.now()-new Date(d.fetchedAt).getTime())<24*3600*1000){
+            if(!cancelled) setEbay({ status:d.ok?"ok":"unavailable", sales:d.sales||[], summary:d.summary||null });
+            return;
+          }
+        }
+      } catch(e){}
+      // 2) Fetch live
+      try {
+        const resp=await fetch(`/api/ebay-comps?q=${encodeURIComponent(q)}&limit=60`);
+        const data=await resp.json();
+        if(cancelled) return;
+        if(data.ok){
+          setEbay({ status:"ok", sales:data.sales||[], summary:data.summary||null });
+          // cache it
+          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:true, sales:data.sales||[], summary:data.summary||null, fetchedAt:new Date().toISOString() }); } catch(e){}
+        } else {
+          setEbay({ status:"unavailable", sales:[], summary:null });
+          // cache the "unavailable" state briefly too, so we don't hammer a not-yet-approved API
+          try { await setDoc(doc(db,"ebay_comps",cacheId),{ cardId:c.id, query:q, ok:false, reason:data.reason||"", fetchedAt:new Date().toISOString() }); } catch(e){}
+        }
+      } catch(e){ if(!cancelled) setEbay({ status:"unavailable", sales:[], summary:null }); }
+    })();
+    return ()=>{ cancelled=true; };
+  }, [compCard]);
+
   if (!compCard) return null;
   const c = compCard;
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
@@ -25299,6 +25341,68 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
             </div>
           )}
         </div>
+        {/* eBay SOLD comps (live from Marketplace Insights API, cached). Hidden until approved. */}
+        {ebay.status==="loading" && (
+          <div style={{marginBottom:24,fontSize:12,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"10px 0"}}>Loading eBay sold comps…</div>
+        )}
+        {ebay.status==="ok" && ebay.summary && (
+          <div style={{marginBottom:24}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:800,color:"#E53238"}}>🏷 eBay Sold</div>
+              <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Actual completed sales on eBay</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+              {[{l:"Avg",v:`$${ebay.summary.avg.toFixed(2)}`,c:"#7B9CFF"},{l:"Median",v:`$${ebay.summary.median.toFixed(2)}`,c:"#C084FC"},{l:"High",v:`$${ebay.summary.high.toFixed(2)}`,c:"#4ade80"},{l:"# Sales",v:ebay.summary.count,c:"rgba(255,255,255,0.6)"}].map(({l,v,c:col})=>(
+                <div key={l} style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:16,fontWeight:900,color:col}}>{v}</div>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:3,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+                </div>
+              ))}
+            </div>
+            {ebay.sales.slice(0,4).map((s,i)=>(
+              <a key={i} href={s.url||"#"} target="_blank" rel="noopener noreferrer" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 4px",fontSize:11,color:"rgba(255,255,255,0.55)",textDecoration:"none",borderBottom:i<3?"1px solid rgba(255,255,255,0.04)":"none"}}>
+                <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:8}}>{s.title||"eBay sale"}</span>
+                <span style={{fontWeight:800,color:"#4ade80"}}>${s.price?.toFixed(2)}</span>
+                <span style={{marginLeft:8,color:"rgba(255,255,255,0.25)",fontSize:10}}>{s.soldDate?new Date(s.soldDate).toLocaleDateString():""}</span>
+              </a>
+            ))}
+          </div>
+        )}
+        {/* Multi-source price history chart — separate lines: in-app, eBay, similar */}
+        {(()=>{
+          const toPts=(arr,getP,getD)=>arr.map(x=>({p:getP(x),d:getD(x)})).filter(x=>x.p!=null&&x.d).sort((a,b)=>String(a.d).localeCompare(String(b.d)));
+          const inApp=toPts(exactSales,s=>s.price,s=>s.soldDate||s.soldAt);
+          const eb=toPts(ebay.sales||[],s=>s.price,s=>s.soldDate);
+          const sim=toPts(nearSales,s=>s.price,s=>s.soldDate||s.soldAt);
+          const all=[...inApp,...eb,...sim];
+          if(all.length<2) return null;
+          const prices=all.map(x=>x.p), dates=all.map(x=>new Date(x.d).getTime());
+          const pMin=Math.min(...prices),pMax=Math.max(...prices),dMin=Math.min(...dates),dMax=Math.max(...dates);
+          const W=480,H=140,pad=8;
+          const x=t=>pad+((new Date(t).getTime()-dMin)/(dMax-dMin||1))*(W-2*pad);
+          const y=p=>H-pad-((p-pMin)/(pMax-pMin||1))*(H-2*pad);
+          const line=(pts,color)=>pts.length<2?null:(
+            <polyline points={pts.map(pt=>`${x(pt.d)},${y(pt.p)}`).join(" ")} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round"/>
+          );
+          const dots=(pts,color)=>pts.map((pt,i)=><circle key={i} cx={x(pt.d)} cy={y(pt.p)} r="2.5" fill={color}/>);
+          return (
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",marginBottom:10}}>📈 Price History</div>
+              <div style={{background:"rgba(0,0,0,0.35)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px"}}>
+                <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto",display:"block"}}>
+                  {line(sim,"#FBBF24")}{dots(sim,"#FBBF24")}
+                  {line(eb,"#E53238")}{dots(eb,"#E53238")}
+                  {line(inApp,"#4ade80")}{dots(inApp,"#4ade80")}
+                </svg>
+                <div style={{display:"flex",gap:14,marginTop:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,color:"#4ade80",fontWeight:700}}>● In-app</span>
+                  <span style={{fontSize:10,color:"#E53238",fontWeight:700}}>● eBay</span>
+                  <span style={{fontSize:10,color:"#FBBF24",fontWeight:700}}>● Similar</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         {/* eBay sold listings — opens real eBay search */}
         {(()=>{
           const q = encodeURIComponent(`Bo Battle Arena ${c.hero||""} ${c.weapon||""} ${c.treatment||""}`.replace(/\s+/g," ").trim());
