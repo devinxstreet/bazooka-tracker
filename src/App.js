@@ -24672,6 +24672,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
+  const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
@@ -24736,7 +24737,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); if(user&&owned){ const hasOwned = cards.some(c=>!deckSet.has(c.id)&&(c.treatment||"").toLowerCase()===(n.t||"").toLowerCase()&&n.p&&n.p.includes(String(c.power||""))&&owned[c.id]); if(hasOwned) setDeckOwnedOnly(true); } };
   const deckAvail = cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
-    if(deckOwnedOnly && !(owned && owned[c.id])) return false;
+    if(deckFamilyOnly && !familyOwnerByCard[c.id]) return false;
+    if(deckOwnedOnly && !(owned && owned[c.id]) && !familyOwnerByCard[c.id]) return false;
     if(deckFilterW && c.weapon!==deckFilterW) return false;
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
@@ -24747,7 +24749,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
   const deckVisible = deckAvail.slice(0, deckPage*DECK_PAGE_SIZE);
-  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckType]);
+  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
   return (
         <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
@@ -24823,6 +24825,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           ⚡ {done?"Build this deck":`Build with these ${deckProgress.have}`}
                         </button>
                         <span style={{fontSize:10.5,color:"#999"}}>loads them into My Deck → name it → Save</span>
+                        {deckProgress.familyCount>0 && <span style={{fontSize:10.5,color:"#C084FC",fontWeight:700}}>👪 includes {deckProgress.familyCount} borrowed family card{deckProgress.familyCount!==1?"s":""} (auto-logged to your paper trail)</span>}
                       </div>
                     )}
                     {progressExpanded && deckProgress.cards && (
@@ -24864,8 +24867,16 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{width:28,height:16,borderRadius:8,background:deckOwnedOnly?"#4ade80":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
                     <div style={{position:"absolute",top:2,left:deckOwnedOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
                   </div>
-                  <span style={{fontSize:12,fontWeight:700,color:deckOwnedOnly?"#4ade80":"rgba(255,255,255,0.6)"}}>My collection{deckOwnedOnly&&ownedCount>0?` (${ownedCount})`:""}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:deckOwnedOnly?"#4ade80":"rgba(255,255,255,0.6)"}}>My collection{Object.keys(familyOwnerByCard).length>0?" + family":""}{deckOwnedOnly&&ownedCount>0?` (${ownedCount})`:""}</span>
                 </div>
+                {Object.keys(familyOwnerByCard).length>0 && (
+                  <div onClick={()=>setDeckFamilyOnly(v=>!v)} title="Show only cards you can borrow from family" style={{display:"flex",alignItems:"center",gap:7,background:deckFamilyOnly?"rgba(192,132,252,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${deckFamilyOnly?"#C084FC":"#2a2a2a"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                    <div style={{width:28,height:16,borderRadius:8,background:deckFamilyOnly?"#C084FC":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                      <div style={{position:"absolute",top:2,left:deckFamilyOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:deckFamilyOnly?"#C084FC":"rgba(255,255,255,0.6)"}}>👪 Family ({Object.keys(familyOwnerByCard).length})</span>
+                  </div>
+                )}
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
               {(()=>{
@@ -24913,7 +24924,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
-                    const _fam = !isOwned && familyOwnerByCard[c.id];
+                    const _fam = familyOwnerByCard[c.id];
                     return (
                       <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:(_fam?`Borrow ${c.hero} from ${_fam.name}`:`Add ${c.hero}`)}
                         style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
@@ -27988,10 +27999,23 @@ See you in there!
   // longer in the deck. Keyed by borrower+card so it's idempotent.
   useEffect(() => {
     if (!user) return;
-    // Build owner lookup fresh (familyAvail may have updated).
+    // Build owner lookup fresh (familyAvail may have updated). A card counts as "borrowed from
+    // family" when you have no FREE copy of your own — i.e. you don't own it, or all your copies
+    // are committed to your OTHER saved decks — matching the deck builder's rule.
+    const usedInOtherDecks = {};
+    (savedDecks||[]).forEach(d => {
+      if (d.id === deckLoadId) return;
+      const seen = new Set();
+      (d.cardIds||[]).forEach(cid => { if(seen.has(cid))return; seen.add(cid); usedInOtherDecks[cid]=(usedInOtherDecks[cid]||0)+1; });
+    });
     const ownerByCard = {};
     Object.entries(familyAvail).forEach(([famUid, info]) => {
-      Object.keys(info.cards||{}).forEach(cid => { if(!owned[cid] && !ownerByCard[cid]) ownerByCard[cid]={uid:famUid,name:info.ownerName}; });
+      Object.keys(info.cards||{}).forEach(cid => {
+        if (ownerByCard[cid]) return;
+        const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
+        const myFree = Math.max(0, myCopies - (usedInOtherDecks[cid]||0));
+        if (myFree <= 0) ownerByCard[cid] = { uid:famUid, name:info.ownerName };
+      });
     });
     const t = setTimeout(async () => {
       try {
@@ -28027,7 +28051,7 @@ See you in there!
       } catch(e){ console.error("borrow ledger sync failed:",e); }
     }, 800);
     return ()=>clearTimeout(t);
-  }, [deckCards, familyAvail, user, deckName]);
+  }, [deckCards, familyAvail, user, deckName, savedDecks, deckLoadId]);
 
   // Upsert profile on login
   useEffect(() => {
@@ -29943,21 +29967,6 @@ See you in there!
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
   // you own — own 3 and up to 3 decks can each run one.
-  // Family cards you can borrow, merged for the deck builder.
-  // familyOwnerByCard: cardId -> {uid,name} of the family member lending it (first available owner).
-  // deckOwnedMerged: your owned map PLUS family-available copies, so the builder treats them as usable.
-  const familyOwnerByCard = {};
-  const deckOwnedMerged = { ...owned };
-  Object.entries(familyAvail).forEach(([famUid, info]) => {
-    Object.entries(info.cards||{}).forEach(([cid, copies]) => {
-      if (!owned[cid] && !familyOwnerByCard[cid]) {
-        // You don't own it yourself — surface the family copy.
-        familyOwnerByCard[cid] = { uid: famUid, name: info.ownerName, copies };
-        deckOwnedMerged[cid] = (deckOwnedMerged[cid]||0) + copies;
-      }
-    });
-  });
-
   const otherDeckUse = {};
   (savedDecks||[]).forEach(d => {
     if (d.id === deckLoadId) return; // skip the deck being edited
@@ -29966,6 +29975,25 @@ See you in there!
       if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
       seenInThisDeck.add(cid);
       otherDeckUse[cid] = (otherDeckUse[cid]||0) + 1;
+    });
+  });
+
+  // Family cards you can borrow, merged for the deck builder. A family copy surfaces when EITHER
+  // you don't own the card, OR you own it but all your copies are committed to other decks — so
+  // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
+  const familyOwnerByCard = {};
+  const deckOwnedMerged = { ...owned };
+  Object.entries(familyAvail).forEach(([famUid, info]) => {
+    Object.entries(info.cards||{}).forEach(([cid, copies]) => {
+      if (familyOwnerByCard[cid]) return; // first available family owner wins
+      const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
+      const myUsed = otherDeckUse[cid] || 0;
+      const myFree = Math.max(0, myCopies - myUsed);
+      // Surface the family copy if you have no free copy of your own.
+      if (myFree <= 0) {
+        familyOwnerByCard[cid] = { uid: famUid, name: info.ownerName, copies };
+        deckOwnedMerged[cid] = (deckOwnedMerged[cid]||0) + copies;
+      }
     });
   });
   function canAddToDeck(c){
@@ -30001,15 +30029,22 @@ See you in there!
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype) {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const specCap = (dtype==="spec"||dtype==="vegasbaby");
-    const isOwned = c => owned[c.id] || owned[c.id+"::foil"];
     const powerOf = c => parseFloat(c.power)||0;
-    // Cross-deck lock: a card is available only if you own more copies than are already
-    // committed to OTHER saved decks. (otherDeckUse counts copies used in other decks.)
+    // Ownership now spans YOUR cards + FAMILY cards you can borrow.
+    const isMine = c => owned[c.id] || owned[c.id+"::foil"];
+    const famOwner = c => (!isMine(c) && familyOwnerByCard[c.id]) ? familyOwnerByCard[c.id] : null;
+    const isOwned = c => isMine(c) || !!famOwner(c);
+    // Cross-deck lock: available copies = your copies + borrowable family copies, minus copies
+    // already committed to OTHER decks. Prefer your own; family fills the gap.
     const isAvailable = c => {
-      const copies = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const mine = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
+      const copies = mine + fam;
       const usedElsewhere = otherDeckUse[c.id] || 0;
       return copies > usedElsewhere;
     };
+    // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
+    const mineFirst = (a,b) => (isMine(b)?1:0) - (isMine(a)?1:0);
 
     // ── APEX MADNESS: SMART structured build ──
     // Work backwards from your best apex cards. For each apex (highest power first), check if you
@@ -30031,7 +30066,7 @@ See you in there!
 
       // Helper: pick up to N unique core for an insert (dedup, max 6 per power level).
       const pickCore = (insert, n, usedKeys) => {
-        const list = (coreByInsert[insert]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a));
+        const list = (coreByInsert[insert]||[]).slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
         const seen=new Set(); const perPower={}; const picked=[];
         for (const c of list) {
           const k=dupKey(c); if(seen.has(k)||usedKeys.has(k)) continue;
@@ -30045,7 +30080,7 @@ See you in there!
       const coreAvail = insert => pickCore(insert, 999, new Set()).length;
 
       // Rank all apexes best-first. Each apex points at its insert.
-      const allApex = base.filter(c=>powerOf(c)>160).sort((a,b)=>powerOf(b)-powerOf(a));
+      const allApex = base.filter(c=>powerOf(c)>160).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
 
       const chosen = [];
       const usedKeys = new Set();
@@ -30096,6 +30131,7 @@ See you in there!
       return {
         have: chosen.length, need: 60,
         cards: chosen, perPower:{}, ownedEligible: base.length,
+        familyCount: chosen.filter(c=>!isMine(c)&&famOwner(c)).length,
         am:{
           coreCount, apexCount,
           completedInserts: completedInserts.length,
@@ -30117,7 +30153,7 @@ See you in there!
       return true;
     });
     const seen = new Set(); const perPower = {}; const usable = [];
-    ownedCards.sort((a,b)=>powerOf(b)-powerOf(a));
+    ownedCards.sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
     for(const c of ownedCards){
       const k = dupKey(c);
       if(seen.has(k)) continue;
@@ -30126,7 +30162,7 @@ See you in there!
       seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
       if(usable.length >= DECK_SIZE) break;
     }
-    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable };
+    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable, familyCount: usable.filter(c=>!isMine(c)&&famOwner(c)).length };
   }
   const [deckGoalW, setDeckGoalW] = useState("");
   const [deckGoalT, setDeckGoalT] = useState("");
