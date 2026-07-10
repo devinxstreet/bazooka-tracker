@@ -23363,7 +23363,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                   </div>
                 )}
 
-                {activeTeam&&activeTeam.status!=="deleted"&&(()=>{
+                {activeTeam&&activeTeam.status!=="deleted"&&activeTeam.memberUids&&(()=>{
                   const team=activeTeam;
                   const starters=team.starters||team.members?.slice(0,4)||[];
                   const bench=team.bench||team.members?.slice(4)||[];
@@ -27518,7 +27518,7 @@ See you in there!
         snap => setSentReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid2)),
-        snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam&&t.length>0) setActiveTeam(t[0]); }
+        snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); const live=t.filter(x=>x.status!=="deleted"); setActiveTeam(prev=>{ if(prev && prev.status!=="deleted" && live.some(x=>x.id===prev.id)) return prev; return live[0]||null; }); }
       ),
       // Submitted team decks for any team I'm on (privacy-safe: only decks members chose to submit)
       onSnapshot(query(collection(db,"team_decks"), where("memberUids","array-contains",uid2)),
