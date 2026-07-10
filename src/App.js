@@ -17104,6 +17104,279 @@ function BroadcasterNotes({ cards=[] }) {
 // ── COMPANY DIRECTORY ────────────────────────────────────────────────────────
 const DIR_GROUPS = ["Bazooka Breaks","IMC / BoBA","Vendor","Other"];
 
+function SupplyLinks({ user, userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [links,   setLinks]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [name,    setName]    = useState("");
+  const [url,     setUrl]     = useState("");
+  const [category,setCategory]= useState("Boxes");
+  const [note,    setNote]    = useState("");
+  const [saving,  setSaving]  = useState(false);
+  const [filter,  setFilter]  = useState("All");
+
+  const CATEGORIES = ["Boxes","Mailers","Supplies","Toploaders/Sleeves","Shipping","Other"];
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"supply_links"), snap => {
+      setLinks(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+      setLoading(false);
+    });
+    return ()=>unsub();
+  }, []);
+
+  async function addLink() {
+    if(!name.trim()||!url.trim()||saving) return;
+    let cleanUrl=url.trim();
+    if(!/^https?:\/\//i.test(cleanUrl)) cleanUrl="https://"+cleanUrl;
+    setSaving(true);
+    try {
+      const id=uid();
+      await setDoc(doc(db,"supply_links",id),{
+        id, name:name.trim(), url:cleanUrl, category, note:note.trim(),
+        addedBy:user?.displayName||user?.email||"Someone", addedByUid:user?.uid||"",
+        createdAt:new Date().toISOString(),
+      });
+      setName(""); setUrl(""); setNote(""); setCategory("Boxes");
+    } catch(e){ console.error("add supply link failed:",e); }
+    setSaving(false);
+  }
+  async function removeLink(l) {
+    if(!(isAdmin || l.addedByUid===user?.uid)) return;
+    if(!window.confirm(`Remove "${l.name}"?`)) return;
+    try { await deleteDoc(doc(db,"supply_links",l.id)); } catch(e){ console.error(e); }
+  }
+
+  const shown = filter==="All" ? links : links.filter(l=>l.category===filter);
+  const catColor = { Boxes:"#E8317A", Mailers:"#7B9CFF", Supplies:"#4ade80", "Toploaders/Sleeves":"#FBBF24", Shipping:"#C084FC", Other:"#888" };
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ marginBottom:6, fontSize:22, fontWeight:900, color:"var(--bz-ink)" }}>🔗 Supply Links</div>
+      <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:20 }}>Shared links to boxes, mailers, and supplies. Anyone on the team can add one — paste a link, name it, and it's here for everyone.</div>
+
+      {/* Add form */}
+      <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:16, marginBottom:20 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Item name (e.g. Bubble Mailers 6x9)" style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+          <select value={category} onChange={e=>setCategory(e.target.value)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}>
+            {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="Paste the link (Amazon, Uline, etc.)" style={{ width:"100%", background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit", marginBottom:10, boxSizing:"border-box" }}/>
+        <div style={{ display:"flex", gap:10 }}>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional note (size, price, qty per pack…)" style={{ flex:1, background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+          <button onClick={addLink} disabled={!name.trim()||!url.trim()||saving} style={{ background:(name.trim()&&url.trim())?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:(name.trim()&&url.trim())?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:(name.trim()&&url.trim())?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}>{saving?"Adding…":"Add Link"}</button>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+        {["All",...CATEGORIES].map(c=>(
+          <button key={c} onClick={()=>setFilter(c)} style={{ background:filter===c?"var(--bz-pink-dim)":"transparent", color:filter===c?"var(--bz-pink-hot)":"var(--bz-ink-2)", border:`1px solid ${filter===c?"var(--bz-pink-hot)":"var(--bz-line)"}`, borderRadius:20, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{c}</button>
+        ))}
+      </div>
+
+      {/* List */}
+      {loading ? <div style={{ color:"var(--bz-ink-3)", textAlign:"center", padding:30 }}>Loading…</div> :
+        shown.length===0 ? <div style={{ color:"var(--bz-ink-3)", textAlign:"center", padding:30 }}>No links yet{filter!=="All"?` in ${filter}`:""}. Add the first one above.</div> :
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {shown.map(l=>(
+            <div key={l.id} style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:9, fontWeight:800, color:catColor[l.category]||"#888", background:`${catColor[l.category]||"#888"}18`, border:`1px solid ${catColor[l.category]||"#888"}33`, borderRadius:6, padding:"3px 8px", textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap" }}>{l.category}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink)" }}>{l.name}</div>
+                {l.note && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>{l.note}</div>}
+                <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>Added by {(l.addedBy||"").split(" ")[0]}</div>
+              </div>
+              <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", color:"var(--bz-pink-hot)", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>Open ↗</a>
+              {(isAdmin||l.addedByUid===user?.uid) && <button onClick={()=>removeLink(l)} title="Remove" style={{ background:"transparent", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:16 }}>×</button>}
+            </div>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+function InternalMessages({ user, userRole }) {
+  const [people,    setPeople]    = useState([]);   // team members (from directory + message history)
+  const [threads,   setThreads]   = useState([]);   // threads I'm part of
+  const [activeId,  setActiveId]  = useState(null);
+  const [messages,  setMessages]  = useState([]);
+  const [draft,     setDraft]     = useState("");
+  const [showNew,   setShowNew]   = useState(false);
+  const [newRecipients, setNewRecipients] = useState([]);
+  const [newGroupName,  setNewGroupName]  = useState("");
+  const meUid = user?.uid;
+  const meName = user?.displayName || user?.email || "Me";
+
+  // Load team members from the directory (people you can message)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"users"), snap => {
+      setPeople(snap.docs.map(d=>({uid:d.id,...d.data()})).filter(p=>p.uid!==meUid));
+    });
+    return ()=>unsub();
+  }, [meUid]);
+
+  // Load threads I'm a participant in
+  useEffect(() => {
+    if(!meUid) return;
+    const unsub = onSnapshot(query(collection(db,"dm_threads"), where("participantUids","array-contains",meUid)),
+      snap => setThreads(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.lastAt||"").localeCompare(a.lastAt||"")))
+    );
+    return ()=>unsub();
+  }, [meUid]);
+
+  // Load messages for the active thread
+  useEffect(() => {
+    if(!activeId) { setMessages([]); return; }
+    const unsub = onSnapshot(query(collection(db,"dm_messages"), where("threadId","==",activeId)),
+      snap => setMessages(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.sentAt||"").localeCompare(b.sentAt||"")))
+    );
+    return ()=>unsub();
+  }, [activeId]);
+
+  const activeThread = threads.find(t=>t.id===activeId);
+
+  function threadTitle(t) {
+    if(t.name) return t.name;
+    const others=(t.participants||[]).filter(p=>p.uid!==meUid);
+    return others.map(p=>(p.name||"").split(" ")[0]).join(", ")||"Conversation";
+  }
+
+  async function startThread() {
+    if(newRecipients.length===0) return;
+    const isGroup=newRecipients.length>1;
+    // For 1:1, reuse an existing thread if one exists
+    if(!isGroup){
+      const other=newRecipients[0];
+      const existing=threads.find(t=>!t.name && (t.participantUids||[]).length===2 && (t.participantUids||[]).includes(other.uid));
+      if(existing){ setActiveId(existing.id); setShowNew(false); setNewRecipients([]); return; }
+    }
+    const id=uid();
+    const participants=[{uid:meUid,name:meName},...newRecipients.map(r=>({uid:r.uid,name:r.name||r.displayName||r.email||"Member"}))];
+    await setDoc(doc(db,"dm_threads",id),{
+      id, name:isGroup?(newGroupName.trim()||"Group Chat"):"",
+      participants, participantUids:participants.map(p=>p.uid),
+      createdBy:meUid, createdAt:new Date().toISOString(), lastAt:new Date().toISOString(), lastText:"",
+    });
+    setActiveId(id); setShowNew(false); setNewRecipients([]); setNewGroupName("");
+  }
+
+  async function send() {
+    if(!draft.trim()||!activeThread) return;
+    const text=draft.trim();
+    setDraft("");
+    const mid=uid();
+    const now=new Date().toISOString();
+    try {
+      await setDoc(doc(db,"dm_messages",mid),{
+        id:mid, threadId:activeId, text,
+        fromUid:meUid, fromName:meName,
+        participantUids:activeThread.participantUids||[],
+        sentAt:now,
+      });
+      await setDoc(doc(db,"dm_threads",activeId),{ lastAt:now, lastText:text.slice(0,80) },{merge:true});
+    } catch(e){ console.error("send failed:",e); setDraft(text); }
+  }
+
+  function toggleRecipient(p) {
+    setNewRecipients(prev => prev.some(r=>r.uid===p.uid) ? prev.filter(r=>r.uid!==p.uid) : [...prev,p]);
+  }
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ marginBottom:6, fontSize:22, fontWeight:900, color:"var(--bz-ink)" }}>💬 Messages</div>
+      <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:16 }}>Private and group messages with the team. Direct messages are between you and one person; group chats include everyone you add.</div>
+
+      <div style={{ display:"flex", gap:14, height:520, border:"1px solid var(--bz-line)", borderRadius:14, overflow:"hidden", background:"var(--bz-s1)" }}>
+        {/* Thread list */}
+        <div style={{ width:280, borderRight:"1px solid var(--bz-line)", display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:12, borderBottom:"1px solid var(--bz-line)" }}>
+            <button onClick={()=>{ setShowNew(true); setActiveId(null); }} style={{ width:"100%", background:"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))", color:"#fff", border:"none", borderRadius:8, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ New Message</button>
+          </div>
+          <div style={{ flex:1, overflowY:"auto" }}>
+            {threads.length===0 ? <div style={{ padding:20, textAlign:"center", color:"var(--bz-ink-3)", fontSize:12 }}>No conversations yet.</div> :
+              threads.map(t=>(
+                <div key={t.id} onClick={()=>{ setActiveId(t.id); setShowNew(false); }} style={{ padding:"12px 14px", cursor:"pointer", borderBottom:"1px solid var(--bz-line)", background:activeId===t.id?"var(--bz-pink-dim)":"transparent" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:13 }}>{t.name?"👥":"👤"}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{threadTitle(t)}</span>
+                  </div>
+                  {t.lastText && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.lastText}</div>}
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Main pane */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+          {showNew ? (
+            <div style={{ padding:20, overflowY:"auto" }}>
+              <div style={{ fontSize:15, fontWeight:800, color:"var(--bz-ink)", marginBottom:12 }}>New Message</div>
+              <div style={{ fontSize:12, color:"var(--bz-ink-2)", marginBottom:8 }}>Pick who to message (select more than one for a group):</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14, maxHeight:220, overflowY:"auto" }}>
+                {people.length===0 ? <div style={{ color:"var(--bz-ink-3)", fontSize:12 }}>No other team members found yet.</div> :
+                  people.map(p=>{
+                    const sel=newRecipients.some(r=>r.uid===p.uid);
+                    const nm=p.displayName||p.name||p.email||"Member";
+                    return (
+                      <div key={p.uid} onClick={()=>toggleRecipient({uid:p.uid,name:nm})} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderRadius:8, cursor:"pointer", background:sel?"var(--bz-pink-dim)":"var(--bz-s2)", border:`1px solid ${sel?"var(--bz-pink-hot)":"var(--bz-line)"}` }}>
+                        <span style={{ width:24, height:24, borderRadius:"50%", background:"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))", display:"grid", placeItems:"center", fontSize:11, fontWeight:800, color:"#fff" }}>{nm.charAt(0)}</span>
+                        <span style={{ fontSize:13, color:"var(--bz-ink)", fontWeight:sel?700:400 }}>{nm}</span>
+                        {sel && <span style={{ marginLeft:"auto", color:"var(--bz-pink-hot)", fontWeight:800 }}>✓</span>}
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              {newRecipients.length>1 && (
+                <input value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="Group name (optional)" style={{ width:"100%", background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit", marginBottom:12, boxSizing:"border-box" }}/>
+              )}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={startThread} disabled={newRecipients.length===0} style={{ background:newRecipients.length?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:newRecipients.length?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:newRecipients.length?"pointer":"not-allowed", fontFamily:"inherit" }}>Start</button>
+                <button onClick={()=>{ setShowNew(false); setNewRecipients([]); }} style={{ background:"transparent", border:"1px solid var(--bz-line)", color:"var(--bz-ink-2)", borderRadius:8, padding:"10px 20px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+              </div>
+            </div>
+          ) : activeThread ? (
+            <>
+              <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--bz-line)", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:15 }}>{activeThread.name?"👥":"👤"}</span>
+                <span style={{ fontSize:15, fontWeight:800, color:"var(--bz-ink)" }}>{threadTitle(activeThread)}</span>
+                {activeThread.name && <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>· {(activeThread.participants||[]).length} members</span>}
+              </div>
+              <div style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:10 }}>
+                {messages.length===0 ? <div style={{ color:"var(--bz-ink-3)", fontSize:12, textAlign:"center", margin:"auto" }}>No messages yet. Say hi 👋</div> :
+                  messages.map(m=>{
+                    const mine=m.fromUid===meUid;
+                    return (
+                      <div key={m.id} style={{ alignSelf:mine?"flex-end":"flex-start", maxWidth:"75%" }}>
+                        {!mine && activeThread.name && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginBottom:2, marginLeft:4 }}>{(m.fromName||"").split(" ")[0]}</div>}
+                        <div style={{ background:mine?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:mine?"#fff":"var(--bz-ink)", borderRadius:14, padding:"9px 14px", fontSize:13, lineHeight:1.4, wordBreak:"break-word" }}>{m.text}</div>
+                        <div style={{ fontSize:9, color:"var(--bz-ink-3)", marginTop:2, textAlign:mine?"right":"left", padding:"0 4px" }}>{m.sentAt?new Date(m.sentAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):""}</div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              <div style={{ padding:12, borderTop:"1px solid var(--bz-line)", display:"flex", gap:8 }}>
+                <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }} placeholder="Type a message…" style={{ flex:1, background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"11px 14px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+                <button onClick={send} disabled={!draft.trim()} style={{ background:draft.trim()?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:draft.trim()?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:10, padding:"0 22px", fontSize:14, fontWeight:800, cursor:draft.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>Send</button>
+              </div>
+            </>
+          ) : (
+            <div style={{ flex:1, display:"grid", placeItems:"center", color:"var(--bz-ink-3)", fontSize:13, textAlign:"center", padding:20 }}>
+              <div>Select a conversation, or start a new one.<br/><span style={{ fontSize:11 }}>Direct messages and group chats live here.</span></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CompanyDirectory({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const [people,    setPeople]    = useState([]);
@@ -36003,6 +36276,8 @@ function AppInner() {
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","StreamerLite"] },
     { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin"] },
+    { id:"messages",   label:"Messages",     icon:"💬", roles:["Admin","Streamer","StreamerLite","Procurement","Shipping","Viewer"] },
+    { id:"supply",     label:"Supply Links", icon:"🔗", roles:["Admin","Streamer","StreamerLite","Procurement","Shipping","Viewer"] },
     { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
@@ -36245,6 +36520,8 @@ function AppInner() {
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
         {tab==="directory"  && <CompanyDirectory userRole={effectiveRole}/>}
+        {tab==="messages"   && <InternalMessages user={user} userRole={effectiveRole}/>}
+        {tab==="supply"     && <SupplyLinks user={user} userRole={effectiveRole}/>}
         {tab==="importer"   && <CardSetImporter userRole={effectiveRole}/>}
       </div>
         </div>{/* /bz-main */}
