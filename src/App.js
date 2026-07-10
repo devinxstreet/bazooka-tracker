@@ -24251,7 +24251,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckType]);
   return (
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
-            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
@@ -24394,7 +24394,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
+              <div className="deck-pb-cardlist" style={{paddingRight:4}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
@@ -26508,7 +26508,8 @@ See you in there!
   const [resubmitting,    setResubmitting]    = useState(false);
   const [modalFoilView, setModalFoilView] = useState("paper"); // "paper" | "foil" for dual-treatment cards
   const [myPhotoIdx,    setMyPhotoIdx]    = useState(0); // which of my own scan photos is showing in the modal
-  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); setMyPhotoIdx(0); }, [expandedCard]); // reset toggle each time a card opens
+  const [viewMyScan,    setViewMyScan]    = useState(false); // in the modal, show my scanned copy instead of the official art
+  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); setMyPhotoIdx(0); setViewMyScan(false); }, [expandedCard]); // reset toggle each time a card opens
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -29681,24 +29682,16 @@ See you in there!
         // Official admin imageUrl always takes priority; these only fill in when there's no official image.
         const myPhotos = (lots||[]).filter(l => l.cardId === c.id && l.photoUrl).map(l => l.photoUrl);
         const safePhotoIdx = myPhotos.length ? Math.min(myPhotoIdx, myPhotos.length-1) : 0;
-        const showMyPhoto = !c.imageUrl && myPhotos.length > 0;
+        const hasMyPhotos = myPhotos.length > 0;
+        // Show my own scan when there's no official art, OR when I've toggled to "my copy".
+        const showMyPhoto = hasMyPhotos && (!c.imageUrl || viewMyScan);
         return (
           <div onClick={()=>setExpandedCard(null)} style={{ position:"fixed", inset:0, zIndex:12000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
               <button onClick={()=>setExpandedCard(null)} style={{ position:"absolute", top:14, right:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, width:34, height:34, fontSize:18, cursor:"pointer", fontFamily:"inherit", zIndex:2 }}>×</button>
               {/* Big image */}
               <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
-                {c.imageUrl ? (
-                  <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
-                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
-                    {showFoil && (
-                      <>
-                        <div style={{ position:"absolute", inset:0, background:"linear-gradient(115deg, transparent 10%, rgba(255,255,255,0.25) 22%, rgba(255,220,100,0.45) 35%, rgba(100,255,180,0.4) 48%, rgba(100,200,255,0.45) 60%, rgba(200,100,255,0.42) 72%, rgba(255,100,180,0.4) 84%, transparent 95%)", backgroundSize:"250% 250%", mixBlendMode:"screen", pointerEvents:"none", animation:"foilSheen 3s linear infinite" }}/>
-                        <div style={{ position:"absolute", inset:0, background:"repeating-linear-gradient(115deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0) 3px, rgba(255,255,255,0.06) 6px)", mixBlendMode:"overlay", pointerEvents:"none" }}/>
-                      </>
-                    )}
-                  </div>
-                ) : showMyPhoto ? (
+                {showMyPhoto ? (
                   <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
                     <img src={myPhotos[safePhotoIdx]} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
                     {/* "Your scan" badge so it's clear this is your private photo, not the official art */}
@@ -29715,10 +29708,26 @@ See you in there!
                       </>
                     )}
                   </div>
+                ) : c.imageUrl ? (
+                  <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
+                    <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
+                    {showFoil && (
+                      <>
+                        <div style={{ position:"absolute", inset:0, background:"linear-gradient(115deg, transparent 10%, rgba(255,255,255,0.25) 22%, rgba(255,220,100,0.45) 35%, rgba(100,255,180,0.4) 48%, rgba(100,200,255,0.45) 60%, rgba(200,100,255,0.42) 72%, rgba(255,100,180,0.4) 84%, transparent 95%)", backgroundSize:"250% 250%", mixBlendMode:"screen", pointerEvents:"none", animation:"foilSheen 3s linear infinite" }}/>
+                        <div style={{ position:"absolute", inset:0, background:"repeating-linear-gradient(115deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0) 3px, rgba(255,255,255,0.06) 6px)", mixBlendMode:"overlay", pointerEvents:"none" }}/>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"var(--bz-s1)", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
                     <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
                     <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                  </div>
+                )}
+                {c.imageUrl && hasMyPhotos && (
+                  <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
+                    <button onClick={()=>setViewMyScan(false)} style={{ background:!viewMyScan?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:!viewMyScan?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🖼 Official</button>
+                    <button onClick={()=>setViewMyScan(true)} style={{ background:viewMyScan?"linear-gradient(135deg,#4ade80,#22c55e)":"transparent", color:viewMyScan?"#062b13":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📸 My copy{myPhotos.length>1?` (${myPhotos.length})`:""}</button>
                   </div>
                 )}
                 {isDualTreatment && c.imageUrl && (
