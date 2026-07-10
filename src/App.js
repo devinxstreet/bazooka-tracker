@@ -24747,6 +24747,14 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         ? `You own enough unique cards to fill a 60-card${goalLabel?` ${goalLabel}`:""} deck (max 6 per power level). 🎉`
                         : `You need ${deckProgress.need-deckProgress.have} more eligible card${deckProgress.need-deckProgress.have!==1?"s":""}. Counts unique cards you own, max 6 per power level${goalLabel?`, ${goalLabel} only`:""}.`}
                     </div>
+                    {deckProgress.am && (
+                      <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:10,fontSize:11,lineHeight:1.7,color:"#ddd"}}>
+                        <div style={{fontWeight:800,color:"#FBBF24",marginBottom:4}}>Apex Madness build (up to 70)</div>
+                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> core cards ({deckProgress.am.completedInserts} insert{deckProgress.am.completedInserts!==1?"s":""} complete at 10 each)</div>
+                        <div>• <strong>{deckProgress.am.apexCount}</strong> apex unlocked — {deckProgress.am.completedInserts} from complete inserts{deckProgress.am.hotDogSlots>0?` + ${deckProgress.am.hotDogSlots} from foiled Hot Dogs`:""}</div>
+                        <div style={{color:"#999"}}>• Foiled Hot Dogs owned: {deckProgress.am.foiledHotDogs} (each unlocks 1 extra apex, max 4)</div>
+                      </div>
+                    )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
                       <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
@@ -29809,23 +29817,83 @@ See you in there!
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype) {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const specCap = (dtype==="spec"||dtype==="vegasbaby");
-    // owned, eligible cards matching the chosen filters + deck-type power rule
+    const isOwned = c => owned[c.id] || owned[c.id+"::foil"];
+    const powerOf = c => parseFloat(c.power)||0;
+
+    // ── APEX MADNESS: structured build ──
+    // 6 inserts × 10 core (<160) = 60. Each full insert unlocks its highest apex (>160) = up to 6.
+    // Each owned FOILED HOT DOG unlocks 1 more apex from any insert (highest available), capped at 4.
+    // Ceiling = 70.
+    if (dtype === "apexmadness") {
+      const base = cards.filter(c => isOwned(c) && !isPlayCard(c)
+        && (!weaponFilter || canonWeapon(c.weapon)===canonWeapon(weaponFilter)));
+      // Group by insert (treatment)
+      const byInsert = {};
+      base.forEach(c => { const t=(c.treatment||"—"); (byInsert[t]=byInsert[t]||[]).push(c); });
+
+      const chosen = [];
+      const usedKeys = new Set();
+      const completedInserts = []; // inserts that reached a full 10 core
+      // Build core: for each insert, take up to 10 unique core (<160) cards, max 6 per power level.
+      Object.entries(byInsert).forEach(([insert, list]) => {
+        const core = list.filter(c => powerOf(c) < 160).sort((a,b)=>powerOf(b)-powerOf(a));
+        const seen=new Set(); const perPower={}; const picked=[];
+        for (const c of core) {
+          const k=dupKey(c); if(seen.has(k)||usedKeys.has(k)) continue;
+          const p=String(c.power||"0"); if((perPower[p]||0)>=6) continue;
+          seen.add(k); perPower[p]=(perPower[p]||0)+1; picked.push(c);
+          if(picked.length>=10) break;
+        }
+        if(picked.length===10){ completedInserts.push(insert); picked.forEach(c=>{chosen.push(c);usedKeys.add(dupKey(c));}); }
+        else { // partial insert still counts toward the 60 core, but no apex unlock
+          picked.forEach(c=>{chosen.push(c);usedKeys.add(dupKey(c));});
+        }
+      });
+
+      // Insert-unlocked apexes: for each COMPLETED insert, add its highest owned apex (>160).
+      const apexUsed = new Set();
+      completedInserts.forEach(insert => {
+        const apexes = (byInsert[insert]||[]).filter(c=>powerOf(c)>160 && !apexUsed.has(dupKey(c)))
+          .sort((a,b)=>powerOf(b)-powerOf(a));
+        if(apexes[0]){ chosen.push(apexes[0]); apexUsed.add(dupKey(apexes[0])); }
+      });
+
+      // Hot-dog apexes: each owned FOILED Hot Dog unlocks 1 more apex from ANY insert (highest left), cap 4.
+      const foiledHotDogs = base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"]).length;
+      const hotDogSlots = Math.min(4, foiledHotDogs);
+      if(hotDogSlots>0){
+        const remainingApex = base.filter(c=>powerOf(c)>160 && !apexUsed.has(dupKey(c)))
+          .sort((a,b)=>powerOf(b)-powerOf(a));
+        for(let i=0;i<hotDogSlots && i<remainingApex.length;i++){
+          chosen.push(remainingApex[i]); apexUsed.add(dupKey(remainingApex[i]));
+        }
+      }
+
+      const coreCount = chosen.filter(c=>powerOf(c)<160).length;
+      const apexCount = chosen.filter(c=>powerOf(c)>160).length;
+      return {
+        have: chosen.length, need: 60, // 60 core is the "complete" bar; apexes are bonus unlocks
+        cards: chosen, perPower:{}, ownedEligible: base.length,
+        am:{ coreCount, apexCount, completedInserts: completedInserts.length, foiledHotDogs, hotDogSlots, ceiling:70 },
+      };
+    }
+
+    // ── Other deck types: any eligible owned cards, deduped, cap 6/power ──
     const ownedCards = cards.filter(c => {
-      if(!owned[c.id] && !owned[c.id+"::foil"]) return false;
+      if(!isOwned(c)) return false;
       if(isPlayCard(c)) return false;
       if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
-      if(specCap && (parseFloat(c.power||0) > 160)) return false; // Spec/Vegas Baby: ≤160 only
+      if(specCap && (powerOf(c) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
     });
-    // dedupe (no duplicate hero|variation|power|weapon) and cap 6 per power level
     const seen = new Set(); const perPower = {}; const usable = [];
-    ownedCards.sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+    ownedCards.sort((a,b)=>powerOf(b)-powerOf(a));
     for(const c of ownedCards){
       const k = dupKey(c);
       if(seen.has(k)) continue;
       const p = String(c.power||"0");
-      if((perPower[p]||0) >= 6) continue; // cap 6 per power level
+      if((perPower[p]||0) >= 6) continue;
       seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
       if(usable.length >= DECK_SIZE) break;
     }
