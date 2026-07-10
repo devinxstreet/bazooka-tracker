@@ -30628,6 +30628,7 @@ See you in there!
                   <>
                   <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
                   <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
+                  {owned[c.id] && (<>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
                     <button onClick={()=>togglePrivate(c.id)} style={{ background:publicCards[c.id]?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1.5px solid ${publicCards[c.id]?"#4ade80":"#333"}`, color:publicCards[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{publicCards[c.id]?"👁 Public":"🔒 Private"}</button>
                     {myListings.find(l=>l.cardId===c.id) ? (
@@ -30637,6 +30638,7 @@ See you in there!
                     )}
                   </div>
                   <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:6, textAlign:"center" }}>{publicCards[c.id]?"Shown on your public profile.":"Only you can see this card. Make it public to show it off."}</div>
+                  </>)}
                   </>
                 )}
 
