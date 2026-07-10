@@ -26715,7 +26715,7 @@ See you in there!
     const next = earlyAccessList.filter(x=>x!==em);
     try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); } catch(e){ alert("Failed to remove: "+e.message); }
   }
-  const [owned,         setOwned]         = useState({});
+  const [owned,         setOwned]         = useState(()=>{ try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); return p&&p.owned?p.owned:{}; } } catch(e){} return {}; });
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
   const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
@@ -26730,6 +26730,17 @@ See you in there!
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
   const [ownedDocId,    setOwnedDocId]    = useState(null);
+  // Cache the owned collection locally so it paints INSTANTLY on next load instead of
+  // waiting for Firestore. Keyed by uid so a different account never sees stale data.
+  useEffect(()=>{
+    if(!user) return;
+    try { localStorage.setItem("boba_owned_cache_v1", JSON.stringify({ uid:user.uid, owned })); } catch(e){}
+  }, [owned, user]);
+  // On sign-in, if the cached collection belongs to a different account, drop it immediately.
+  useEffect(()=>{
+    if(!user) return;
+    try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); if(p && p.uid && p.uid!==user.uid){ setOwned({}); localStorage.removeItem("boba_owned_cache_v1"); } } } catch(e){}
+  }, [user]);
   const [signingIn,     setSigningIn]     = useState(false);
   // -- UI state persistence (per browser session) --
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
@@ -27496,6 +27507,7 @@ See you in there!
       } else {
         if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} ownedUnsubRef.current = null; }
         setOwned({}); setOwnedDocId(null); setWantList({}); setPublicCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
+        try { localStorage.removeItem("boba_owned_cache_v1"); } catch(e){}
       }
     });
   }, []);
