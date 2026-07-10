@@ -23435,7 +23435,6 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
                             <div style={{fontSize:11,color:sub?"#4ade80":"rgba(255,255,255,0.3)"}}>{sub?`✓ Deck submitted · ${submittedCards} cards`:"No deck submitted"}</div>
-                            <div style={{fontSize:8,color:isMe?"#4ade80":"rgba(255,120,120,0.7)",fontFamily:"monospace",marginTop:2}}>{isMe?"✓ this is you":`member uid ${(m.uid||"?").slice(0,6)}… ≠ you ${(user.uid||"?").slice(0,6)}…`}</div>
                           </div>
                           {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
                         </div>
@@ -23466,8 +23465,8 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                                 </div>
                               ):(
                                 <div style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:8,padding:"8px 10px"}}>
-                                  <div style={{fontSize:11,color:"#C084FC",fontWeight:700,marginBottom:2}}>No saved decks found for this account</div>
-                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",lineHeight:1.4}}>Go to <strong>Deck Builder</strong>, build a deck, name it, and hit <strong>💾 Save Deck</strong>. It'll show up here. <span style={{color:"rgba(255,255,255,0.3)"}}>(Signed in as {user.email})</span></div>
+                                  <div style={{fontSize:11,color:"#C084FC",fontWeight:700,marginBottom:2}}>No saved decks yet</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",lineHeight:1.4}}>Go to <strong>Deck Builder</strong>, build a deck, name it, and hit <strong>💾 Save Deck</strong>. It'll show up here to submit.</div>
                                 </div>
                               )
                             )}
