@@ -28326,8 +28326,8 @@ See you in there!
     const m = {
       "auth/invalid-email":"That doesn't look like a valid email.",
       "auth/user-not-found":"No account with that email. Try signing up instead.",
-      "auth/wrong-password":"Incorrect password. Try again or reset it.",
-      "auth/invalid-credential":"Email or password is incorrect.",
+      "auth/wrong-password":"Incorrect password. If you signed up with Google, use the Google button above instead — or reset your password.",
+      "auth/invalid-credential":"Email or password is incorrect. If you originally signed up with Google, use the Google button above instead.",
       "auth/email-already-in-use":"An account already exists with that email. Try signing in.",
       "auth/weak-password":"Password should be at least 6 characters.",
       "auth/too-many-requests":"Too many attempts. Wait a moment and try again.",
@@ -28341,7 +28341,7 @@ See you in there!
     if (!email) { setAuthErr("Enter your email."); return; }
     if (authMode === "reset") {
       setAuthBusy(true);
-      try { await sendPasswordResetEmail(auth, email); setAuthMsg("Password reset email sent! Check your inbox."); }
+      try { await sendPasswordResetEmail(auth, email); setAuthMsg("If this email has a password, a reset link is on its way — check your inbox (and spam). Signed up with Google? No email will come — just use the Google button instead."); }
       catch(e){ setAuthErr(authErrMsg(e.code)); }
       finally { setAuthBusy(false); }
       return;
@@ -29090,10 +29090,31 @@ See you in there!
   const powerCount={};inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={},treatApex={};
   if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  // -- Tournament rule: a physical copy can't be in two decks at once. --
+  // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
+  // deck currently being edited). A card locks only when other decks have used up every copy
+  // you own — own 3 and up to 3 decks can each run one.
+  const otherDeckUse = {};
+  (savedDecks||[]).forEach(d => {
+    if (d.id === deckLoadId) return; // skip the deck being edited
+    const seenInThisDeck = new Set();
+    (d.cardIds||[]).forEach(cid => {
+      if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
+      seenInThisDeck.add(cid);
+      otherDeckUse[cid] = (otherDeckUse[cid]||0) + 1;
+    });
+  });
   function canAddToDeck(c){
     if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
     if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
     if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
+    // Cross-deck copy lock: if you own this card, every copy already committed to another
+    // deck is unavailable here. (Unowned cards aren't locked, so you can still plan decks.)
+    const _copies = (owned && owned[c.id]) ? owned[c.id] : 0;
+    const _usedElsewhere = otherDeckUse[c.id] || 0;
+    if(_copies > 0 && _usedElsewhere >= _copies){
+      return {ok:false, reason: _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
+    }
     if((powerCount[c.power||"0"]||0)>=6)return{ok:false,reason:`Already 6 at power ${c.power}`};
     const p=parseFloat(c.power||0);
     if(isSpec&&p>160)return{ok:false,reason:`Power ${c.power} exceeds 160`};
@@ -30350,7 +30371,7 @@ See you in there!
             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",lineHeight:1.8}}>
               {authMode==="signin" && <>New here? <span onClick={()=>{setAuthMode("signup");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Create an account</span><br/><span onClick={()=>{setAuthMode("magic");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>Email me a sign-in link instead</span> · <span onClick={()=>{setAuthMode("reset");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>Forgot password?</span></>}
               {authMode==="signup" && <>Already have an account? <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Sign in</span></>}
-              {authMode==="reset" && <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>}
+              {authMode==="reset" && <><span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span><br/><span style={{color:"rgba(255,255,255,0.35)",fontSize:11}}>Signed up with Google? You don't have a password — just use the Google button above.</span></>}
               {authMode==="magic" && <><span style={{color:"rgba(255,255,255,0.5)"}}>We'll email you a link — click it to sign in, no password needed.</span><br/><span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span></>}
             </div>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:16,lineHeight:1.5}}>
