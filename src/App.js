@@ -29819,13 +29819,20 @@ See you in there!
     const specCap = (dtype==="spec"||dtype==="vegasbaby");
     const isOwned = c => owned[c.id] || owned[c.id+"::foil"];
     const powerOf = c => parseFloat(c.power)||0;
+    // Cross-deck lock: a card is available only if you own more copies than are already
+    // committed to OTHER saved decks. (otherDeckUse counts copies used in other decks.)
+    const isAvailable = c => {
+      const copies = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const usedElsewhere = otherDeckUse[c.id] || 0;
+      return copies > usedElsewhere;
+    };
 
     // ── APEX MADNESS: structured build ──
     // 6 inserts × 10 core (<160) = 60. Each full insert unlocks its highest apex (>160) = up to 6.
     // Each owned FOILED HOT DOG unlocks 1 more apex from any insert (highest available), capped at 4.
     // Ceiling = 70.
     if (dtype === "apexmadness") {
-      const base = cards.filter(c => isOwned(c) && !isPlayCard(c)
+      const base = cards.filter(c => isOwned(c) && isAvailable(c) && !isPlayCard(c)
         && (!weaponFilter || canonWeapon(c.weapon)===canonWeapon(weaponFilter)));
       // Group by insert (treatment)
       const byInsert = {};
@@ -29881,6 +29888,7 @@ See you in there!
     // ── Other deck types: any eligible owned cards, deduped, cap 6/power ──
     const ownedCards = cards.filter(c => {
       if(!isOwned(c)) return false;
+      if(!isAvailable(c)) return false; // cross-deck lock
       if(isPlayCard(c)) return false;
       if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
