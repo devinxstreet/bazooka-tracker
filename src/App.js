@@ -36449,7 +36449,7 @@ function AppInner() {
             const SECTIONS = [
               { title:"Overview", ids:["dashboard","comp","inventory","streams","buyers"] },
               { title:"Money",    ids:["campaigns","chases","performance","finance"] },
-              { title:"Ops",      ids:["shipping","broadcaster","checklist","directory","importer"] },
+              { title:"Ops",      ids:["shipping","broadcaster","messages","supply","checklist","directory","importer"] },
             ];
             const tabById = Object.fromEntries(ALL_TABS.map(t=>[t.id,t]));
             return SECTIONS.map(sec => {
