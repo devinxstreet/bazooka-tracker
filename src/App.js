@@ -16062,8 +16062,13 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
+  // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
+  // Foil/shine overlays only apply to the official art, not to a raw scan photo.
+  const _officialImg = c.imageUrl;
+  const _displayImg = _officialImg || myScanPhoto || null;
+  const _isScanImg = !_officialImg && !!myScanPhoto;
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
   const _canHover = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
@@ -16282,17 +16287,18 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     </div>
   );
 
-  if (c.imageUrl) {
+  if (_displayImg) {
     return (
       <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-            <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
+            {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
+            {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
-            {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {toggleOwned && (
@@ -26501,7 +26507,8 @@ See you in there!
   const [resubmitClaim,   setResubmitClaim]   = useState(null); // {coll, card} for re-uploading a better claim photo
   const [resubmitting,    setResubmitting]    = useState(false);
   const [modalFoilView, setModalFoilView] = useState("paper"); // "paper" | "foil" for dual-treatment cards
-  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); }, [expandedCard]); // reset toggle each time a card opens
+  const [myPhotoIdx,    setMyPhotoIdx]    = useState(0); // which of my own scan photos is showing in the modal
+  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); setMyPhotoIdx(0); }, [expandedCard]); // reset toggle each time a card opens
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -27823,6 +27830,12 @@ See you in there!
   const lotCountByCard = useMemo(() => {
     const m = {};
     for (const l of lots) { if(l && l.cardId) m[l.cardId] = (m[l.cardId]||0) + 1; }
+    return m;
+  }, [lots]);
+  // First scanned photo per card (private) — used as the tile image when there's no official art.
+  const scanPhotoByCard = useMemo(() => {
+    const m = {};
+    for (const l of lots) { if(l && l.cardId && l.photoUrl && !m[l.cardId]) m[l.cardId] = l.photoUrl; }
     return m;
   }, [lots]);
 
@@ -29643,6 +29656,11 @@ See you in there!
         const claimPending = claim1of1 && claim1of1.status === "pending";
         const oneOfOneLabel = isSuper ? "⭐ Super 1/1" : "💎 Secret 1/1";
         const claimerName = claim1of1 ? (claim1of1.submitterName || claim1of1.userName || "Anonymous") : "";
+        // My own scanned photos for this card (private — sourced from my lots, never shown to others).
+        // Official admin imageUrl always takes priority; these only fill in when there's no official image.
+        const myPhotos = (lots||[]).filter(l => l.cardId === c.id && l.photoUrl).map(l => l.photoUrl);
+        const safePhotoIdx = myPhotos.length ? Math.min(myPhotoIdx, myPhotos.length-1) : 0;
+        const showMyPhoto = !c.imageUrl && myPhotos.length > 0;
         return (
           <div onClick={()=>setExpandedCard(null)} style={{ position:"fixed", inset:0, zIndex:12000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
@@ -29659,12 +29677,24 @@ See you in there!
                       </>
                     )}
                   </div>
-                ) : (
-                  <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"var(--bz-s1)", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
-                    <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
-                    <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                ) : showMyPhoto ? (
+                  <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
+                    <img src={myPhotos[safePhotoIdx]} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
+                    {/* "Your scan" badge so it's clear this is your private photo, not the official art */}
+                    <div style={{ position:"absolute", top:10, left:10, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(4px)" }}>📸 Your scan{myPhotos.length>1?` · ${safePhotoIdx+1}/${myPhotos.length}`:""}</div>
+                    {myPhotos.length > 1 && (
+                      <>
+                        <button onClick={e=>{ e.stopPropagation(); setMyPhotoIdx(i => (i-1+myPhotos.length)%myPhotos.length); }} style={{ position:"absolute", top:"50%", left:8, transform:"translateY(-50%)", background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:38, height:38, fontSize:20, fontWeight:900, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>‹</button>
+                        <button onClick={e=>{ e.stopPropagation(); setMyPhotoIdx(i => (i+1)%myPhotos.length); }} style={{ position:"absolute", top:"50%", right:8, transform:"translateY(-50%)", background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:38, height:38, fontSize:20, fontWeight:900, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>›</button>
+                        <div style={{ position:"absolute", bottom:10, left:0, right:0, display:"flex", justifyContent:"center", gap:6, pointerEvents:"none" }}>
+                          {myPhotos.map((_,i)=>(
+                            <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:i===safePhotoIdx?"#4ade80":"rgba(255,255,255,0.4)" }}/>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
+                ) : (
                 {isDualTreatment && c.imageUrl && (
                   <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
                     <button onClick={()=>setModalFoilView("paper")} style={{ background:modalFoilView==="paper"?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:modalFoilView==="paper"?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📄 Paper</button>
@@ -31674,7 +31704,7 @@ See you in there!
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -32044,7 +32074,7 @@ See you in there!
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                             ))}
                           </div>
                           {user && (
@@ -32185,7 +32215,7 @@ See you in there!
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                 ))}
               </div>
             )}
