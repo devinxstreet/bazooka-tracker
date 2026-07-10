@@ -30135,28 +30135,39 @@ See you in there!
       // Count how many unique core an insert *could* field (for the "closest" hint).
       const coreAvail = insert => pickCore(insert, 999, new Set()).length;
 
-      // Rank all apexes best-first. Each apex points at its insert.
+      // Rank all apexes best-first (used for hot-dog slots + tiebreaks). Each apex points at its insert.
       const allApex = base.filter(c=>powerOf(c)>160).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
 
       const chosen = [];
       const usedKeys = new Set();
       const apexUsed = new Set();
-      const completedInserts = [];   // {insert, apex}
+      const completedInserts = [];   // {insert, apexPower}
       const lockedInserts = new Set();
 
-      // Walk apexes high→low; build the insert if it has 10 core available and we're under 6 inserts.
-      for (const apex of allApex) {
+      // COMPLETENESS-FIRST: only inserts that have BOTH a full 10 core AND at least one apex (>160)
+      // are eligible. Rank eligible inserts by how deep their core pool is (most complete first),
+      // then by best apex power as a tiebreak. Build the top 6.
+      const eligible = Object.keys(coreByInsert)
+        .map(insert => {
+          const apexes = (apexByInsert[insert]||[]).slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+          return {
+            insert,
+            coreDepth: coreAvail(insert),           // how many unique core you can field
+            bestApex: apexes[0] || null,
+          };
+        })
+        .filter(x => x.coreDepth >= 10 && x.bestApex)  // MUST have 10 core AND an apex
+        .sort((a,b) => (b.coreDepth - a.coreDepth) || ((parseFloat(b.bestApex.power)||0)-(parseFloat(a.bestApex.power)||0)));
+
+      for (const e of eligible) {
         if (completedInserts.length >= 6) break;
-        const insert = insertOf(apex);
-        if (lockedInserts.has(insert)) continue;      // one apex per insert here
-        if (apexUsed.has(dupKey(apex))) continue;
-        const core = pickCore(insert, 10, usedKeys);
-        if (core.length < 10) continue;               // can't unlock — try next-best apex
-        // Lock it in: 10 core + this apex.
+        const core = pickCore(e.insert, 10, usedKeys);
+        if (core.length < 10) continue;               // safety (copies may be shared across inserts)
+        if (apexUsed.has(dupKey(e.bestApex))) continue;
         core.forEach(c=>{ chosen.push(c); usedKeys.add(dupKey(c)); });
-        chosen.push(apex); apexUsed.add(dupKey(apex));
-        lockedInserts.add(insert);
-        completedInserts.push({ insert, apexPower: apex.power });
+        chosen.push(e.bestApex); apexUsed.add(dupKey(e.bestApex));
+        lockedInserts.add(e.insert);
+        completedInserts.push({ insert: e.insert, apexPower: e.bestApex.power });
       }
 
       // Foiled Hot Dog apex slots — each adds the next-best remaining apex from ANY insert, cap 4.
@@ -30171,15 +30182,16 @@ See you in there!
         }
       }
 
-      // "Closest to unlockable" — inserts you don't have yet, ranked by best apex you own + core you have.
+      // "Closest to unlockable" — inserts with an apex available where you're genuinely close on
+      // core (at least halfway). Ranked by fewest core still needed, so the most actionable show first.
       const nearInserts = Object.keys(apexByInsert)
         .filter(ins => !lockedInserts.has(ins))
         .map(ins => {
           const bestApex = (apexByInsert[ins]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a))[0];
           return { insert: ins, have: coreAvail(ins), need: 10, bestApexPower: bestApex?bestApex.power:null };
         })
-        .filter(x => x.bestApexPower != null && x.have < 10 && x.have > 0)
-        .sort((a,b)=>(parseFloat(b.bestApexPower)||0)-(parseFloat(a.bestApexPower)||0))
+        .filter(x => x.bestApexPower != null && x.have >= 5 && x.have < 10)  // has apex + at least halfway
+        .sort((a,b)=>(b.have - a.have) || ((parseFloat(b.bestApexPower)||0)-(parseFloat(a.bestApexPower)||0)))
         .slice(0,4);
 
       const coreCount = chosen.filter(c=>powerOf(c)<=160).length;
