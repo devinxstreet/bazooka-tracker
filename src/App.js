@@ -23282,7 +23282,7 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
   );
 }
 
-function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned, inp, inviteToTeam, teamDecks, savedDecks, submitDeckToTeam, withdrawTeamDeck, swapOffers, offerSwap, dismissSwapOffer }) {
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -23322,27 +23322,57 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                   const allMembers=[...starters,...bench];
                   const isOwner=team.createdBy===user.uid;
 
-                  // Apex conflict detection across all members
+                  // Apex conflict detection across SUBMITTED DECKS only (never raw collections).
                   const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+                  // Build each member's submitted apex cards from their team_decks entry.
+                  const memberApex={}; // uid -> [cards]
+                  allMembers.forEach(m=>{
+                    const sub=teamDecks[`${team.id}_${m.uid}`];
+                    if(!sub){ memberApex[m.uid]=null; return; } // hasn't submitted a deck
+                    const ids=new Set(sub.cardIds||[]);
+                    memberApex[m.uid]=cards.filter(c=>ids.has(c.id)&&parseFloat(c.power||0)>160);
+                  });
                   const apexMap={};
                   allMembers.forEach(m=>{
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
+                    (memberApex[m.uid]||[]).forEach(c=>{
                       const dk=dupKey2(c);
-                      if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
-                      apexMap[dk].members.push(m.displayName);
+                      if(!apexMap[dk])apexMap[dk]={card:c,members:[],key:dk};
+                      if(!apexMap[dk].members.includes(m.displayName)) apexMap[dk].members.push(m.displayName);
                     });
                   });
                   const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
+                  const submittedCount=allMembers.filter(m=>teamDecks[`${team.id}_${m.uid}`]).length;
+
+                  // My own coach: for each conflict, do I (from MY collection) have an unused apex
+                  // alternative for the same weapon slot that isn't already in my submitted deck?
+                  const mySub=teamDecks[`${team.id}_${user.uid}`];
+                  const mySubIds=new Set(mySub?.cardIds||[]);
+                  const myConflictKeys=new Set(conflicts.filter(cf=>cf.members.includes(user.displayName||user.email)).map(cf=>cf.key));
+                  const mySwapSuggestions={}; // conflictKey -> [alternative cards I own]
+                  conflicts.forEach(cf=>{
+                    const wc=(cf.card.weapon||"").toLowerCase();
+                    // alternatives: cards I own, apex, same weapon, different dupKey, not in my deck
+                    const alts=cards.filter(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===wc&&dupKey2(c)!==cf.key&&!mySubIds.has(c.id));
+                    if(alts.length) mySwapSuggestions[cf.key]=alts;
+                  });
+
+                  // Can I help teammates? For conflicts I'm NOT part of, do I own an unused card
+                  // that fills that slot? If so, *I* get prompted to offer it (nobody sees my cards).
+                  const canHelpWith=conflicts.filter(cf=>{
+                    if(cf.members.includes(user.displayName||user.email)) return false; // that's my own conflict
+                    const wc=(cf.card.weapon||"").toLowerCase();
+                    return cards.some(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===wc&&!mySubIds.has(c.id));
+                  });
 
                   // Drag state
                   let dragUid=null;
 
                   function MemberCard({m, slot, isDraggable}) {
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
-                    const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
                     const isMe=m.uid===user.uid;
+                    // Only their SUBMITTED deck is visible — never their collection.
+                    const sub=teamDecks[`${team.id}_${m.uid}`];
+                    const submittedCards=sub?(sub.cardIds||[]).length:0;
+                    const subApex=sub?cards.filter(c=>new Set(sub.cardIds||[]).has(c.id)&&parseFloat(c.power||0)>160):[];
                     const wc_starter="#A855F7", wc_bench="#7B9CFF";
                     const borderColor=slot==="starter"?wc_starter:wc_bench;
                     return (
@@ -23356,17 +23386,36 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"\uD83D\uDC64"}</div>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
+                            <div style={{fontSize:11,color:sub?"#4ade80":"rgba(255,255,255,0.3)"}}>{sub?`✓ Deck submitted · ${submittedCards} cards`:"No deck submitted"}</div>
                           </div>
                           {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
                         </div>
-                        {apexCards.length>0&&(
+                        {subApex.length>0&&(
                           <div>
-                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
+                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex in deck ({subApex.length})</div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
-                              {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
+                              {subApex.slice(0,5).map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                              {subApex.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{subApex.length-5}</span>}
                             </div>
+                          </div>
+                        )}
+                        {isMe&&(
+                          <div style={{marginTop:10}}>
+                            {sub?(
+                              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Deck: {sub.deckName}</span>
+                                <button onClick={()=>withdrawTeamDeck(team)} style={{fontSize:10,background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Withdraw</button>
+                              </div>
+                            ):(
+                              (savedDecks||[]).length>0?(
+                                <select onChange={e=>{ const d=(savedDecks||[]).find(x=>x.id===e.target.value); if(d) submitDeckToTeam(team,d); e.target.value=""; }} defaultValue="" style={{...inp,fontSize:11,padding:"6px 8px",width:"100%"}}>
+                                  <option value="" disabled>Submit a deck to the team…</option>
+                                  {(savedDecks||[]).map(d=><option key={d.id} value={d.id}>{d.name} ({d.cardCount||d.cardIds?.length||0})</option>)}
+                                </select>
+                              ):(
+                                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>Build a deck in Deck Builder to submit it here.</div>
+                              )
+                            )}
                           </div>
                         )}
                         {/* Move buttons */}
@@ -23463,16 +23512,23 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                         conflicts.length===0?(
                           <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
                             <div style={{fontSize:24,marginBottom:8}}>{"\u2705"}</div>
-                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
-                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
+                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{submittedCount<2?"Waiting on deck submissions":"No apex card conflicts"}</div>
+                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>{submittedCount<2?`${submittedCount}/${allMembers.length} members have submitted a deck. Conflicts show once at least 2 are in.`:"All submitted decks have unique apex cards"}</div>
                           </div>
                         ):(
                           <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
                             <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>{"\u26A0\uFE0F"}{conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
-                            {conflicts.map(({card,members:mems},i)=>{
+                            {conflicts.map(({card,members:mems,key},i)=>{
                               const wc=WEAPON_COLORS[card.weapon]||"#444";
+                              const myAlts=mySwapSuggestions[key]||[];
+                              const iAmInConflict=mems.includes(user.displayName||user.email);
+                              const iCanHelp=!iAmInConflict && cards.some(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===(card.weapon||"").toLowerCase()&&!mySubIds.has(c.id));
+                              const offersForThis=(swapOffers||[]).filter(o=>o.teamId===team.id&&o.conflictKey===key&&o.status==="open");
+                              const myHelpCard=iCanHelp?cards.find(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===(card.weapon||"").toLowerCase()&&!mySubIds.has(c.id)):null;
+                              const iAlreadyOffered=offersForThis.some(o=>o.fromUid===user.uid);
                               return (
-                                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <div key={i} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:12}}>
                                   <div style={{width:36,height:48,borderRadius:6,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
                                     {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
@@ -23480,6 +23536,29 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                                     <div style={{fontSize:13,fontWeight:700,color:"var(--bz-ink)"}}>{card.hero} · {card.power}{"\u26A1"} · {card.treatment}</div>
                                     <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
+                                  </div>
+                                  {/* My own swap: I'm in this conflict and own an unused alternative */}
+                                  {iAmInConflict&&myAlts.length>0&&(
+                                    <div style={{marginTop:8,marginLeft:48,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"7px 10px"}}>
+                                      <span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>💡 You can swap in: </span>
+                                      <span style={{fontSize:11,color:"#ddd"}}>{myAlts.slice(0,3).map(c=>`${c.hero} ${c.power}⚡`).join(", ")}</span>
+                                    </div>
+                                  )}
+                                  {/* I'm not in this conflict but could help — I choose to offer */}
+                                  {iCanHelp&&myHelpCard&&!iAlreadyOffered&&(
+                                    <div style={{marginTop:8,marginLeft:48,background:"rgba(123,156,255,0.08)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+                                      <span style={{fontSize:11,color:"#7B9CFF"}}>🤝 You own a card that fits this slot. Offer to help the team?</span>
+                                      <button onClick={()=>offerSwap(team,key,myHelpCard,null)} style={{fontSize:10,background:"rgba(123,156,255,0.2)",border:"1px solid #7B9CFF",color:"#7B9CFF",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Offer my card</button>
+                                    </div>
+                                  )}
+                                  {iAlreadyOffered&&<div style={{marginTop:8,marginLeft:48,fontSize:10,color:"#4ade80"}}>✓ You offered to help with this.</div>}
+                                  {/* Offers from teammates for this conflict */}
+                                  {offersForThis.filter(o=>o.fromUid!==user.uid).map(o=>(
+                                    <div key={o.id} style={{marginTop:8,marginLeft:48,background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.3)",borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                                      <span style={{fontSize:11,color:"#C084FC"}}>🎁 <strong>{o.fromName}</strong> can offer {o.cardLabel} for this slot</span>
+                                      {isOwner&&<button onClick={()=>dismissSwapOffer(o.id)} style={{fontSize:10,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit"}}>Dismiss</button>}
+                                    </div>
+                                  ))}
                                 </div>
                               );
                             })}
@@ -24564,6 +24643,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               if(pickSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||""));
               if(pickSort==="cardnum") return String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true});
               if(pickSort==="weapon") return String(a.weapon||"").localeCompare(String(b.weapon||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+              if(pickSort==="treatment") return String(a.treatment||"").localeCompare(String(b.treatment||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
               return 0;
             });
             return (
@@ -24573,7 +24653,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18,borderBottom:"2px solid #eee",paddingBottom:14}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontSize:12,fontWeight:700,color:"#666"}}>Sort:</span>
-                    {[["power","⚡ Power"],["cardnum","# Card No."],["weapon","🗡 Weapon"]].map(([k,label])=>(
+                    {[["power","⚡ Power"],["cardnum","# Card No."],["weapon","🗡 Weapon"],["treatment","✨ Treatment"]].map(([k,label])=>(
                       <button key={k} onClick={()=>setPickSort(k)} style={{background:pickSort===k?"#7B2FF7":"#f0f0f0",color:pickSort===k?"#fff":"#444",border:"none",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
                     ))}
                   </div>
@@ -24585,7 +24665,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {/* Header */}
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.3px"}}>{deckName||"My Deck"} — Pick List</div>
-                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":"weapon"}</div>
+                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":pickSort==="weapon"?"weapon":"treatment"}</div>
                 </div>
                 {/* Table */}
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -26757,6 +26837,10 @@ See you in there!
   // -- Teams --
   const [teams,         setTeams]         = useState([]);
   const [activeTeam,    setActiveTeam]    = useState(null);
+  // Submitted team decks: each member submits ONE deck. Keyed doc id `${teamId}_${uid}`.
+  // This is the ONLY card data teammates can see about each other — collections stay private.
+  const [teamDecks,     setTeamDecks]     = useState({}); // { uid: { cardIds:[], deckName, submittedAt } }
+  const [swapOffers,    setSwapOffers]    = useState([]); // offers I've made or received to resolve conflicts
   const [newTeamName,   setNewTeamName]   = useState("");
   const [inviteEmail,   setInviteEmail]   = useState("");
   const [inviteStatus,  setInviteStatus]  = useState(null);
@@ -27317,6 +27401,14 @@ See you in there!
       ),
       onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid2)),
         snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam&&t.length>0) setActiveTeam(t[0]); }
+      ),
+      // Submitted team decks for any team I'm on (privacy-safe: only decks members chose to submit)
+      onSnapshot(query(collection(db,"team_decks"), where("memberUids","array-contains",uid2)),
+        snap => { const m={}; snap.docs.forEach(d=>{ const v=d.data(); m[`${v.teamId}_${v.uid}`]=v; }); setTeamDecks(m); }
+      ),
+      // Swap offers involving my teams (I can help, or someone offered to help me)
+      onSnapshot(query(collection(db,"swap_offers"), where("memberUids","array-contains",uid2)),
+        snap => setSwapOffers(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid2), where("status","==","pending")),
         snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -28697,6 +28789,41 @@ See you in there!
     const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
     await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),starters:[me],bench:[],members:[me],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
     setNewTeamName("");
+  }
+  // Submit ONE of my saved decks to a team. Writes only the deck's cardIds — no collection data.
+  // memberUids mirrors the team roster so teammates' listeners can read it under Firestore rules.
+  async function submitDeckToTeam(team, deck) {
+    if(!user||!team||!deck)return;
+    const docId=`${team.id}_${user.uid}`;
+    await setDoc(doc(db,"team_decks",docId),{
+      id:docId, teamId:team.id, uid:user.uid,
+      displayName:user.displayName||user.email,
+      deckId:deck.id, deckName:deck.name||"Deck",
+      cardIds:deck.cardIds||[],
+      memberUids:team.memberUids||[],
+      submittedAt:new Date().toISOString(),
+    });
+  }
+  async function withdrawTeamDeck(team) {
+    if(!user||!team)return;
+    try { await deleteDoc(doc(db,"team_decks",`${team.id}_${user.uid}`)); } catch(e){ console.error("withdraw deck failed:",e); }
+  }
+  // I volunteer a card from MY collection to resolve a team conflict. Teammates never saw my
+  // collection — my own client detected I could help, and I chose to offer this specific card.
+  async function offerSwap(team, conflictKey, card, forUid) {
+    if(!user||!team||!card)return;
+    const id=uid();
+    await setDoc(doc(db,"swap_offers",id),{
+      id, teamId:team.id, conflictKey,
+      fromUid:user.uid, fromName:user.displayName||user.email,
+      toUid:forUid||null,
+      cardId:card.id, cardLabel:`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim(),
+      memberUids:team.memberUids||[],
+      status:"open", createdAt:new Date().toISOString(),
+    });
+  }
+  async function dismissSwapOffer(offerId) {
+    try { await deleteDoc(doc(db,"swap_offers",offerId)); } catch(e){ console.error("dismiss offer failed:",e); }
   }
   async function inviteToTeam(team) {
     if(!inviteEmail.trim())return;
@@ -32450,7 +32577,9 @@ See you in there!
             deleteTeam={deleteTeam} respondTeamInvite={respondTeamInvite}
             createTeam={createTeam}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
-            cards={cards} owned={owned} friendOwned={friendOwned}
+            cards={cards} owned={owned}
+            teamDecks={teamDecks} savedDecks={savedDecks} submitDeckToTeam={submitDeckToTeam} withdrawTeamDeck={withdrawTeamDeck}
+            swapOffers={swapOffers} offerSwap={offerSwap} dismissSwapOffer={dismissSwapOffer}
             inp={inp} inviteToTeam={inviteToTeam}
           />
         )}
