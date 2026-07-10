@@ -16308,18 +16308,7 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {toggleOwned && (
-              isOwned ? (
-                <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); setOwnedQty&&setOwnedQty(c.id,(ownedQty||1)+1); onCardActivity&&onCardActivity(); }}
-                  title={`Owned${(ownedQty||1)>1?` ×${ownedQty}`:""} — tap to add another copy`}
-                  style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
-                    width:isSmallCard?22:26, height:isSmallCard?22:26, borderRadius:"50%",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    background:"rgba(74,222,128,0.95)", color:"#062b13", border:"none",
-                    fontSize:isSmallCard?10:11, fontWeight:900, fontFamily:"inherit",
-                    boxShadow:"0 2px 6px rgba(0,0,0,0.5)", lineHeight:1 }}>
-                  {(ownedQty||1)>1?ownedQty:"✓"}
-                </button>
-              ) : (
+              isOwned ? null : (
                 <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
                   title="Add to your collection"
                   style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
@@ -29690,6 +29679,7 @@ See you in there!
     return true;
   }).sort((a,b)=>{
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+    if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
   });
@@ -30515,6 +30505,15 @@ See you in there!
                   <>
                   <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
                   <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
+                    <button onClick={()=>togglePrivate(c.id)} style={{ background:publicCards[c.id]?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1.5px solid ${publicCards[c.id]?"#4ade80":"#333"}`, color:publicCards[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{publicCards[c.id]?"👁 Public":"🔒 Private"}</button>
+                    {myListings.find(l=>l.cardId===c.id) ? (
+                      <button disabled style={{ background:"rgba(74,222,128,0.08)", border:"1.5px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"default" }}>💰 Listed</button>
+                    ) : (
+                      <button onClick={()=>setListModal(c)} style={{ background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💰 List for Sale</button>
+                    )}
+                  </div>
+                  <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:6, textAlign:"center" }}>{publicCards[c.id]?"Shown on your public profile.":"Only you can see this card. Make it public to show it off."}</div>
                   </>
                 )}
 
@@ -32303,10 +32302,11 @@ See you in there!
                   </>
                 )}
               </div>
-              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:150,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
-                <option value="power">{"Power \u2193"}</option>
+                <option value="power">{"Power (High \u2192 Low)"}</option>
+                <option value="powerAsc">{"Power (Low \u2192 High)"}</option>
                 <option value="setName">Set</option>
               </select>
               <div style={{display:"flex",gap:0,border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
@@ -32392,22 +32392,11 @@ See you in there!
                   {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
                     <div className="boba-priv-dim" style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5,transition:"opacity 0.2s ease"}}/>
                   )}
-                  {/* Public/Private toggle + list button on owned cards */}
-                  {owned[c.id]&&(
-                    <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
-                      {inTransit[c.id] && <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>}
-                      <button onClick={e=>{
-                        e.stopPropagation();
-                        togglePrivate(c.id);
-                        setPrivacyAnim(c.id);
-                        setTimeout(()=>setPrivacyAnim(null), 1300);
-                      }} title={publicCards[c.id]?"Public — tap to make private":"Private — tap to make public"}
-                        style={{background:publicCards[c.id]?"rgba(74,222,128,0.85)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700,transition:"background 0.2s"}}>
-                        {publicCards[c.id]?"\uD83D\uDC41":"\uD83D\uDD12"}
-                      </button>
-                      <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
-                        style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
-                        {"\uD83D\uDCB0"}</button>
+                  {/* In-transit indicator stays on the tile (at-a-glance, avoid double-buying).
+                      Public/private toggle + list-for-sale moved to the expanded card modal. */}
+                  {owned[c.id]&&inTransit[c.id]&&(
+                    <div style={{position:"absolute",top:6,left:6,zIndex:10}}>
+                      <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
                 </div>
