@@ -17211,10 +17211,13 @@ function InternalMessages({ user, userRole }) {
   const meUid = user?.uid;
   const meName = user?.displayName || user?.email || "Me";
 
-  // Load team members from the directory (people you can message)
+  // Load team members — STAFF ONLY. The internal dashboard is gated to @bazookabreaks.com,
+  // so internal messages must be too. Emails live on boba_profiles, so we read from there.
   useEffect(() => {
-    const unsub = onSnapshot(collection(db,"users"), snap => {
-      setPeople(snap.docs.map(d=>({uid:d.id,...d.data()})).filter(p=>p.uid!==meUid));
+    const unsub = onSnapshot(collection(db,"boba_profiles"), snap => {
+      const staff = snap.docs.map(d=>({uid:d.id,...d.data()}))
+        .filter(p => p.uid!==meUid && (p.email||"").toLowerCase().endsWith("@bazookabreaks.com"));
+      setPeople(staff);
     });
     return ()=>unsub();
   }, [meUid]);
