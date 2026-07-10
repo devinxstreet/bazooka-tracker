@@ -27283,6 +27283,14 @@ See you in there!
   const [listings,      setListings]      = useState([]);
   const [myListings,    setMyListings]    = useState([]);
   const [listModal,     setListModal]     = useState(null); // card being listed
+  // -- Bulk select --
+  const [selectMode,    setSelectMode]    = useState(false);
+  const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
+  const [bulkListModal, setBulkListModal] = useState(false);
+  const [bulkListPrice, setBulkListPrice] = useState("");
+  const [bulkListNote,  setBulkListNote]  = useState("");
+  const [bulkListType,  setBulkListType]  = useState("sale");
+  const [bulkBusy,      setBulkBusy]      = useState(false);
   // -- Messages --
   const [threads,       setThreads]       = useState([]);
   const [activeThread,  setActiveThread]  = useState(null);
@@ -28085,6 +28093,45 @@ See you in there!
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setPublicCards(next);
     await persistPublicCards(next);
+  }
+  // -- Bulk selection helpers --
+  function toggleSelect(cardId) {
+    setSelectedIds(prev => { const n=new Set(prev); if(n.has(cardId)) n.delete(cardId); else n.add(cardId); return n; });
+  }
+  function clearSelection(){ setSelectedIds(new Set()); }
+  function exitSelectMode(){ setSelectMode(false); setSelectedIds(new Set()); }
+  // Bulk make public / private — one write via the whole map.
+  async function bulkSetPublic(makePublic) {
+    if (!user || selectedIds.size===0) return;
+    const next = {...publicCards};
+    selectedIds.forEach(id => { if(makePublic) next[id]=true; else delete next[id]; });
+    setPublicCards(next);
+    await persistPublicCards(next);
+  }
+  // Bulk list selected owned cards for sale/trade at one price. Skips already-listed cards.
+  async function bulkListSelected() {
+    if (!user || selectedIds.size===0 || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const ids = [...selectedIds].filter(id => owned[id] && scanPhotoByCard[id] && !myListings.find(l=>l.cardId===id));
+      for (const id of ids) {
+        const c = cards.find(x=>x.id===id);
+        if(!c) continue;
+        const photoUrl = scanPhotoByCard[id];
+        const lid = uid();
+        await setDoc(doc(db,"marketplace",lid),{
+          id:lid, isOBO:bulkListType==="offer", cardId:c.id, cardName:c.hero, cardNum:c.cardNum,
+          cardTreatment:c.treatment, cardWeapon:c.weapon, cardPower:c.power, cardImage:c.imageUrl||null,
+          sellerPhotos:photoUrl?[photoUrl]:[], setName:c.setName, sellerUid:user.uid, sellerName:user.displayName||user.email,
+          askingPrice:bulkListType==="sale"?(parseFloat(bulkListPrice)||0):0,
+          listType:bulkListType, notes:bulkListNote.trim(), paymentInfo:"",
+          status:"active", createdAt:new Date().toISOString(), offerCount:0,
+        });
+      }
+      setBulkListModal(false); setBulkListPrice(""); setBulkListNote(""); setBulkListType("sale");
+      exitSelectMode();
+    } catch(e){ console.error("bulk list failed:",e); }
+    setBulkBusy(false);
   }
   // Keep public cards in sync with public trackers: any owned card whose treatment is covered
   // by a PUBLIC tracker stays public automatically (e.g. after scanning a new one in).
@@ -30716,6 +30763,46 @@ See you in there!
           listings={listings}
           />
 
+      {/* ── BULK ACTION BAR ── shows when in select mode with cards chosen */}
+      {selectMode && (
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw"}}>
+          <span style={{fontSize:13,fontWeight:800,color:"#7B9CFF",whiteSpace:"nowrap"}}>{selectedIds.size} selected</span>
+          <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
+          <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
+          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
+          <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+        </div>
+      )}
+
+      {/* ── BULK LIST MODAL ── */}
+      {bulkListModal && (()=>{
+        const eligibleCount = [...selectedIds].filter(id=>owned[id]&&scanPhotoByCard[id]&&!myListings.find(l=>l.cardId===id)).length;
+        return (
+        <div onClick={()=>!bulkBusy&&setBulkListModal(false)} style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#14141c",border:"1px solid rgba(123,156,255,0.3)",borderRadius:16,padding:24,maxWidth:420,width:"100%"}}>
+            <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>List {eligibleCount} cards</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:16}}>Applies one price and note to all selected cards. Each is listed with your scan photo. Cards without your photo, or already listed, are skipped.</div>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              {[["sale","💵 For Sale"],["trade","🔄 Trade"],["offer","📩 Open to Offers"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setBulkListType(v)} style={{flex:1,background:bulkListType===v?"rgba(123,156,255,0.2)":"transparent",border:`1px solid ${bulkListType===v?"#7B9CFF":"#333"}`,color:bulkListType===v?"#7B9CFF":"#888",borderRadius:8,padding:"8px 4px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+              ))}
+            </div>
+            {bulkListType==="sale" && (
+              <input value={bulkListPrice} onChange={e=>setBulkListPrice(e.target.value)} type="number" placeholder="Asking price (each) $" style={{width:"100%",background:"#0d0d12",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:8,padding:"11px 12px",fontSize:14,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+            )}
+            <textarea value={bulkListNote} onChange={e=>setBulkListNote(e.target.value)} placeholder="Optional note applied to all (condition, terms…)" rows={2} style={{width:"100%",background:"#0d0d12",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical"}}/>
+            <div style={{fontSize:11,color:"#4ade80",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:16,lineHeight:1.4}}>📸 Only cards where you've uploaded your own scan photo can be bulk-listed — each listing uses that photo. To list a card without a scan, use the single "List for Sale" flow and add a photo there.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={bulkListSelected} disabled={bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice)} style={{flex:1,background:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"#555":"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:800,cursor:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"not-allowed":"pointer",fontFamily:"inherit"}}>{bulkBusy?"Listing…":eligibleCount===0?"No eligible cards":"List All"}</button>
+              <button onClick={()=>setBulkListModal(false)} disabled={bulkBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
       {/* ── CARD FX OVERLAY ── */}
       {animsOn && cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
@@ -32314,6 +32401,7 @@ See you in there!
                 <button onClick={()=>setCardView("list")} title="List view" style={{background:cardView==="list"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="list"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>☰</button>
               </div>
               <button onClick={()=>setAnimsOn(v=>!v)} title={animsOn?"Animations on — tap to turn off the add-card celebration & effects":"Animations off — tap to turn back on"} style={{background:animsOn?"rgba(232,49,122,0.12)":"transparent",color:animsOn?"#E8317A":"rgba(255,255,255,0.35)",border:`1.5px solid ${animsOn?"rgba(232,49,122,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{animsOn?"✨ Animations On":"✨ Animations Off"}</button>
+              {user && <button onClick={()=>{ if(selectMode) exitSelectMode(); else setSelectMode(true); }} title="Select multiple cards for bulk actions" style={{background:selectMode?"rgba(123,156,255,0.2)":"transparent",color:selectMode?"#7B9CFF":"rgba(255,255,255,0.35)",border:`1.5px solid ${selectMode?"#7B9CFF":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{selectMode?"✕ Done":"☑️ Select"}</button>}
               {cardView==="grid" && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
                 <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
                 <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
@@ -32371,6 +32459,11 @@ See you in there!
             <div className={animsOn?"pub-card-grid":"pub-card-grid no-anim"} style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
+                  {selectMode && (
+                    <div onClick={e=>{ e.stopPropagation(); toggleSelect(c.id); }} style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
+                      <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
+                    </div>
+                  )}
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
