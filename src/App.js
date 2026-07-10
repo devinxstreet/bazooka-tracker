@@ -6996,7 +6996,18 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
 function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [metric, setMetric] = useState("gross");
   const [brand, setBrand] = useState("boba");
-  const streams2 = brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand);
+  const [period, setPeriod] = useState("all");
+  const now = new Date();
+  // Period filter
+  const inPeriod = s => {
+    if(!s.date) return false;
+    const d = parseLocalDate(s.date);
+    if(period==="month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    if(period==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q && d.getFullYear()===now.getFullYear(); }
+    if(period==="year")    return d.getFullYear()===now.getFullYear();
+    return true;
+  };
+  const streams2 = (brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand)).filter(inPeriod);
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const SESSION_TYPES = ["day","night","weekend","singles","event"];
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -7025,6 +7036,18 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   }).filter(Boolean);
 
   const getVal = (row,m) => m==="gross"?row.gross:m==="mm"?row.mm:row.newBuyers;
+
+  // By breaker (admin sees all; a rep sees just their own)
+  const byBreaker = (visibleBreakers.length?visibleBreakers:[...new Set(streams2.map(s=>s.breaker).filter(Boolean))]).map(bk=>{
+    const ds=streams2.filter(s=>s.breaker===bk);
+    if(!ds.length) return {breaker:bk,streams:0,gross:0,mm:0,newBuyers:0};
+    const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm=mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers=ds.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    return {breaker:bk,streams:ds.length,gross:gross/ds.length,mm,newBuyers:newBuyers/ds.length,totalGross:gross};
+  }).filter(b=>b.streams>0).sort((a,b)=>getVal(b,metric)-getVal(a,metric));
+
   const maxDay = Math.max(...byDay.map(d=>getVal(d,metric)),1);
   const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
 
@@ -7039,6 +7062,15 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
         {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
           <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
+      </div>
+
+      {/* Period filter */}
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+        <span style={{fontSize:12,color:"var(--bz-ink-3)"}}>Period:</span>
+        {[["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${period===id?"#4ade80":"#333"}`,color:period===id?"#4ade80":"#888",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+        <span style={{fontSize:11,color:"var(--bz-ink-3)",marginLeft:4}}>{streams2.length} streams</span>
       </div>
 
       {/* By day of week */}
@@ -7084,11 +7116,35 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
           })}
         </div>
       </div>
+
+      {/* By breaker */}
+      {byBreaker.length>0 && (
+        <div style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",marginBottom:14}}>Performance by Breaker</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {byBreaker.map(b=>{
+              const val=getVal(b,metric);
+              const maxB=Math.max(...byBreaker.map(x=>getVal(x,metric)),1);
+              const pct=maxB>0?val/maxB*100:0;
+              const col=metric==="mm"&&val?mmColor(val):"#7B9CFF";
+              return (
+                <div key={b.breaker} style={{display:"grid",gridTemplateColumns:"120px 1fr 100px 70px",gap:12,alignItems:"center"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>{b.breaker}</div>
+                  <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:col,borderRadius:4}}/>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:col,textAlign:"right"}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):"--"}</div>
+                  <div style={{fontSize:11,color:"var(--bz-ink-3)",textAlign:"right"}}>{b.streams} streams</div>
+                </div>
+              );
+            })}
+          </div>
+          {metric==="gross" && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:10}}>Bars show avg gross per stream. Total gross varies with volume.</div>}
+        </div>
+      )}
     </div>
   );
 }
-
-// ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
 // ── BUYER RETENTION ──────────────────────────────────────────────────────────
 // ── CAMPAIGN TRACKER ─────────────────────────────────────────────────────────
 const CAMPAIGN_CODE = "FIRSTTIME25";
