@@ -619,6 +619,12 @@ function GlobalStyles() {
       .bz-subitem.on{background:var(--bz-pink);color:#fff;}
       .bz-fin-card:hover{border-color:var(--bz-line-2)!important;transform:translateY(-2px);box-shadow:var(--bz-shadow);}
       .bz-mobile-menu{display:none;}
+      @media print {
+        body * { visibility: hidden !important; }
+        .pick-list-sheet, .pick-list-sheet * { visibility: visible !important; }
+        .pick-list-sheet { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; max-width: none !important; box-shadow: none !important; border-radius: 0 !important; padding: 12px 8px !important; margin: 0 !important; }
+        .pick-list-controls { display: none !important; }
+      }
       @media (max-width:900px){
         .bz-side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,0.6);background:#140d11!important;z-index:60;}
         .bz-side.open{transform:translateX(0);}
@@ -24178,6 +24184,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
+  const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
+  const [pickSort, setPickSort] = useState("power");         // "power" | "cardnum" | "weapon"
+  const [pickChecked, setPickChecked] = useState({});        // {cardId: true} — pulled cards (view-only, resets on close)
   const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
   const deckSet = new Set(deckCards);
@@ -24250,6 +24259,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const deckVisible = deckAvail.slice(0, deckPage*DECK_PAGE_SIZE);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckType]);
   return (
+        <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
               {user && deckProgress && (() => {
@@ -24448,6 +24458,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       {deckSaving?"Saving...":deckSaved?"✓ Saved":"💾 Save Deck"}</button>
                     <button onClick={newDeckTab} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
                   </div>
+                  {inDeck.length>0 && (
+                    <button onClick={()=>{ setPickChecked({}); setShowPickList(true); }} style={{width:"100%",marginTop:8,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:8,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📋 Pick List ({inDeck.length})</button>
+                  )}
                   {savedDecks.length>0 && (
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
                       {savedDecks.map(d=>(
@@ -24545,6 +24558,68 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {"\u2715 Clear deck"}</button>}
             </div>
           </div>
+          {showPickList && (()=>{
+            const pulled = inDeck.filter(c=>pickChecked[c.id]).length;
+            const sorted = [...inDeck].sort((a,b)=>{
+              if(pickSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||""));
+              if(pickSort==="cardnum") return String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true});
+              if(pickSort==="weapon") return String(a.weapon||"").localeCompare(String(b.weapon||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+              return 0;
+            });
+            return (
+            <div onClick={()=>setShowPickList(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
+              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:720,background:"#fff",color:"#111",borderRadius:12,padding:"28px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
+                {/* Screen-only controls (hidden when printing) */}
+                <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18,borderBottom:"2px solid #eee",paddingBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#666"}}>Sort:</span>
+                    {[["power","⚡ Power"],["cardnum","# Card No."],["weapon","🗡 Weapon"]].map(([k,label])=>(
+                      <button key={k} onClick={()=>setPickSort(k)} style={{background:pickSort===k?"#7B2FF7":"#f0f0f0",color:pickSort===k?"#fff":"#444",border:"none",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>window.print()} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print / Save PDF</button>
+                    <button onClick={()=>setShowPickList(false)} style={{background:"#f0f0f0",color:"#444",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+                  </div>
+                </div>
+                {/* Header */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.3px"}}>{deckName||"My Deck"} — Pick List</div>
+                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":"weapon"}</div>
+                </div>
+                {/* Table */}
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{borderBottom:"2px solid #111",textAlign:"left"}}>
+                      <th style={{padding:"7px 6px",width:34,textAlign:"center"}}>✓</th>
+                      <th style={{padding:"7px 6px"}}>Card #</th>
+                      <th style={{padding:"7px 6px"}}>Hero</th>
+                      <th style={{padding:"7px 6px",textAlign:"right"}}>Power</th>
+                      <th style={{padding:"7px 6px"}}>Weapon</th>
+                      <th style={{padding:"7px 6px"}}>Treatment</th>
+                      <th style={{padding:"7px 6px"}}>Set</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((c,i)=>(
+                      <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))} style={{borderBottom:"1px solid #e5e5e5",cursor:"pointer",background:pickChecked[c.id]?"#f3f0fb":(i%2?"#fafafa":"#fff")}}>
+                        <td style={{padding:"6px",textAlign:"center"}}><span style={{display:"inline-block",width:15,height:15,border:"1.5px solid #999",borderRadius:3,lineHeight:"13px",fontSize:11,color:"#7B2FF7",fontWeight:900}}>{pickChecked[c.id]?"✓":""}</span></td>
+                        <td style={{padding:"6px",fontFamily:"monospace",color:"#555"}}>{c.cardNum||"—"}</td>
+                        <td style={{padding:"6px",fontWeight:700,textDecoration:pickChecked[c.id]?"line-through":"none",color:pickChecked[c.id]?"#999":"#111"}}>{c.hero}</td>
+                        <td style={{padding:"6px",textAlign:"right",fontWeight:800}}>{c.power}</td>
+                        <td style={{padding:"6px"}}>{c.weapon||"—"}</td>
+                        <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
+                        <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{marginTop:16,fontSize:11,color:"#aaa",textAlign:"center"}}>Bazooka Dash · generated {new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
+            );
+          })()}
+        </>
   );
 }
 
