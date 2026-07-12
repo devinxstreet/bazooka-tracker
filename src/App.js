@@ -16851,22 +16851,26 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
 // EVERY tile (because flippedCard lives in the parent), rebuilding all their DOM + animations.
 // This comparator makes a tile re-render only when something about THAT tile actually changed —
 // notably, flippedCard only matters if it involves this card.
+// TEMP: count WHY cards re-render, so we stop guessing. window.__cardRerenders shows the tally.
+if (typeof window !== "undefined" && !window.__cardRerenders) window.__cardRerenders = {};
+const _bump = k => { if (typeof window !== "undefined") window.__cardRerenders[k] = (window.__cardRerenders[k]||0)+1; };
+
 const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
-  if (prev.c !== next.c) return false;
-  if (prev.isOwned !== next.isOwned) return false;
-  if (prev.ownedQty !== next.ownedQty) return false;
-  if (prev.isAdmin !== next.isAdmin) return false;
-  if (prev.lotCount !== next.lotCount) return false;
-  if (prev.myScanPhoto !== next.myScanPhoto) return false;
-  if (prev.kidTags !== next.kidTags) return false;
-  if (prev.kidGroups !== next.kidGroups) return false;
+  if (prev.c !== next.c) { _bump("c"); return false; }
+  if (prev.isOwned !== next.isOwned) { _bump("isOwned"); return false; }
+  if (prev.ownedQty !== next.ownedQty) { _bump("ownedQty"); return false; }
+  if (prev.isAdmin !== next.isAdmin) { _bump("isAdmin"); return false; }
+  if (prev.lotCount !== next.lotCount) { _bump("lotCount"); return false; }
+  if (prev.myScanPhoto !== next.myScanPhoto) { _bump("myScanPhoto"); return false; }
+  if (prev.kidTags !== next.kidTags) { _bump("kidTags"); return false; }
+  if (prev.kidGroups !== next.kidGroups) { _bump("kidGroups"); return false; }
   // Want status for THIS card only.
   const id = next.c?.id;
-  if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) return false;
+  if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) { _bump("wantList"); return false; }
   // Flip state only matters if this card is (or was) the flipped one.
   const wasFlipped = prev.flippedCard === id;
   const isFlipped  = next.flippedCard === id;
-  if (wasFlipped !== isFlipped) return false;
+  if (wasFlipped !== isFlipped) { _bump("flipped"); return false; }
   return true; // otherwise: skip the re-render
 });
 
@@ -35156,8 +35160,15 @@ See you in there!
                 </button>
               )}
               {_cardAdmin && (
-                <span style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginLeft:"auto",fontFamily:"monospace"}}>
-                  filter {__perf.current.filter.toFixed(0)}ms · family {__perf.current.familyMemo.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms · #{__perf.current.renders}
+                <span style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginLeft:"auto",fontFamily:"monospace",textAlign:"right",lineHeight:1.5}}>
+                  <div>filter {__perf.current.filter.toFixed(0)}ms · family {__perf.current.familyMemo.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms · #{__perf.current.renders}</div>
+                  <div style={{color:"#F472B6"}}>
+                    cards painted: {visibleCards.length} · re-render causes: {
+                      typeof window!=="undefined" && window.__cardRerenders
+                        ? (Object.entries(window.__cardRerenders).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k} ${v}`).join(" · ") || "none")
+                        : "—"
+                    }
+                  </div>
                 </span>
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:_cardAdmin?12:"auto"}}>{filtered.length.toLocaleString()} cards</span>
