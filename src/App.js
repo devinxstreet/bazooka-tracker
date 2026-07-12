@@ -25207,7 +25207,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
     if(deckFilterT && c.treatment!==deckFilterT) return false;
-    if(deckSearch && !`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase())) return false;
+    if(deckSearch){
+      const hay=[c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation].filter(Boolean).join(" ").toLowerCase();
+      const terms=deckSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      if(!terms.every(t=>hay.includes(t))) return false;
+    }
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
@@ -30439,7 +30443,16 @@ See you in there!
     if(filterOwned==="missing" &&  owned[c.id])  return false;
     if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
-    if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
+    // Multi-word search: every word must match SOMEWHERE on the card, in any order and across
+    // different fields. So "gronk steel" finds hero=Gronk + weapon=Steel, and "gronk helmet"
+    // finds hero=Gronk + treatment=...Helmet... A single substring match on the joined string
+    // couldn't do this, because the words live in separate fields and never sit next to each other.
+    if(search){
+      const hay = [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power]
+        .filter(Boolean).join(" ").toLowerCase();
+      const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+      return terms.every(t => hay.includes(t));
+    }
     return true;
   }).sort((a,b)=>{
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
