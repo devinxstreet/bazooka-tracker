@@ -25745,60 +25745,76 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       </div>
                     )}
 
-                    {/* WHAT'S MISSING — the cards that would finish the deck, and whether any are
-                        for sale right now. Cross-references live marketplace listings by cardId. */}
-                    {deckProgress?.missing?.length > 0 && (() => {
-                      const forSale = {};
-                      (listings||[]).forEach(l => {
-                        if(!l.cardId) return;
-                        const cur = forSale[l.cardId];
-                        const price = parseFloat(l.askingPrice)||0;
-                        // Keep the cheapest active listing per card.
-                        if(!cur || price < cur.price) forSale[l.cardId] = { price, listing:l };
+                    {/* WHAT'S MISSING — expressed as POWER SLOTS, because any legal card at that
+                        power fills the slot equally well. The marketplace lookup therefore searches
+                        for ANY card at that power in a legal set, rather than one arbitrary card. */}
+                    {deckProgress?.missingSlots?.length > 0 && (() => {
+                      const cardById = {};
+                      cards.forEach(c => { cardById[c.id] = c; });
+
+                      // For each missing power slot, find the cheapest live listing of ANY legal card
+                      // at that power. That's what actually completes the deck.
+                      const slots = deckProgress.missingSlots.map(slot => {
+                        const setOk = new Set(slot.sets);
+                        const matches = (listings||[])
+                          .map(l => {
+                            const c = cardById[l.cardId];
+                            if (!c) return null;
+                            if ((parseFloat(c.power)||0) !== slot.power) return null;
+                            if (!setOk.has(c.setName)) return null;
+                            return { listing:l, card:c, price: parseFloat(l.askingPrice)||0 };
+                          })
+                          .filter(Boolean)
+                          .sort((a,b)=>a.price-b.price);
+                        return { ...slot, matches };
                       });
-                      const missing = deckProgress.missing;
-                      const available = missing.filter(c => forSale[c.id]);
+                      const totalNeeded = slots.reduce((n,s)=>n+s.count, 0);
+                      const slotsWithStock = slots.filter(s=>s.matches.length>0).length;
+
                       return (
                         <div style={{marginTop:10,background:"rgba(123,156,255,0.06)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:10,padding:"12px 14px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                             <span style={{fontSize:12.5,fontWeight:800,color:"#7B9CFF"}}>🔎 What you're missing</span>
                             <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>
-                              {missing.length} card{missing.length!==1?"s":""} would complete this deck
+                              {totalNeeded} more card{totalNeeded!==1?"s":""} would complete this deck — any card at these power levels will do
                             </span>
-                            {available.length>0 && (
+                            {slotsWithStock>0 && (
                               <span style={{fontSize:11,fontWeight:800,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:12,padding:"2px 9px"}}>
-                                🛒 {available.length} on the marketplace now
+                                🛒 {slotsWithStock} available on the marketplace
                               </span>
                             )}
                           </div>
-                          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                            {missing.slice(0,10).map(c=>{
-                              const sale = forSale[c.id];
-                              const wc = WEAPON_COLORS[c.weapon] || "#888";
+                          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                            {slots.map(slot=>{
+                              const best = slot.matches[0];
                               return (
-                                <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"5px 8px",background:sale?"rgba(74,222,128,0.07)":"rgba(255,255,255,0.02)",border:`1px solid ${sale?"rgba(74,222,128,0.25)":"rgba(255,255,255,0.05)"}`,borderRadius:7}}>
-                                  <span style={{fontWeight:800,color:"var(--bz-ink)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.hero}</span>
-                                  <span style={{color:"var(--bz-ink-3)"}}>#{c.cardNum}</span>
-                                  {c.weapon && <span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
-                                  <span style={{color:"var(--bz-ink-3)"}}>{c.treatment}</span>
-                                  <span style={{fontWeight:800,color:"#FBBF24",marginLeft:"auto",whiteSpace:"nowrap"}}>{c.power}⚡</span>
-                                  {sale ? (
-                                    <button onClick={()=>setActiveTab&&setActiveTab("market")}
-                                      style={{background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"3px 10px",fontSize:10.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                                      🛒 ${sale.price.toFixed(0)}
-                                    </button>
-                                  ) : (
-                                    <span style={{fontSize:10,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>not listed</span>
+                                <div key={slot.power} style={{padding:"8px 10px",background:best?"rgba(74,222,128,0.07)":"rgba(255,255,255,0.02)",border:`1px solid ${best?"rgba(74,222,128,0.25)":"rgba(255,255,255,0.05)"}`,borderRadius:8}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                                    <span style={{fontSize:14,fontWeight:900,color:"#FBBF24",whiteSpace:"nowrap"}}>{slot.power}⚡</span>
+                                    <span style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>
+                                      ×{slot.count} needed
+                                    </span>
+                                    <span style={{fontSize:10.5,color:"var(--bz-ink-3)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                      any card at this power
+                                    </span>
+                                    {best ? (
+                                      <button onClick={()=>setActiveTab&&setActiveTab("market")}
+                                        style={{marginLeft:"auto",background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"4px 11px",fontSize:10.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                        🛒 {slot.matches.length} listed · from ${best.price.toFixed(0)}
+                                      </button>
+                                    ) : (
+                                      <span style={{marginLeft:"auto",fontSize:10,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>none listed</span>
+                                    )}
+                                  </div>
+                                  {best && (
+                                    <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                      cheapest: {best.card.hero} · #{best.card.cardNum} · {best.card.treatment} — ${best.price.toFixed(2)}
+                                    </div>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
-                          {missing.length>10 && (
-                            <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:6}}>
-                              +{missing.length-10} more
-                            </div>
-                          )}
                         </div>
                       );
                     })()}
@@ -31957,28 +31973,42 @@ See you in there!
       .sort((a,b)=>b.count-a.count);
 
     // ── WHAT'S MISSING ──────────────────────────────────────────────────────────────────────
-    // When the deck comes up short, work out which cards WOULD complete it: cards that pass every
-    // eligibility rule for this format (power window, weapon/treatment/set filters, not a Play) but
-    // that you don't own — or own only as copies already locked into other decks. Ranked strongest
-    // first, and respecting the same "max 6 per power level / no duplicate hero+power" deck rules,
-    // so the list is genuinely buildable rather than a dump of every card you lack.
-    let missing = [];
+    // Expressed as POWER SLOTS, not specific cards. Any legal card at a given power fills that slot
+    // equally well, so naming one particular card ("Deep Freeze #BFA-148") is arbitrary and makes
+    // the marketplace check almost useless — it'd only match that exact card. What you actually
+    // need is "a 150, another 150, and a 145", and then ANY card at that power in an allowed set
+    // will do.
+    //
+    // Slots are worked out by walking power levels high → low and taking whatever the per-power cap
+    // still allows, so the suggestion is the strongest legal deck you could reach.
+    let missingSlots = [];   // [{ power, count, sets:[...] }]
     const shortBy = Math.max(0, DECK_SIZE - usable.length);
     if (shortBy > 0) {
-      const seenM = new Set(seen);                 // don't suggest a dup of something already in
+      // Which sets are legal for this format/filters? The marketplace search is scoped to these.
+      const legalSets = [...new Set(
+        cards.filter(c => formatEligible(c)).map(c => c.setName).filter(Boolean)
+      )];
+
+      // Every power level that has at least one legal card, strongest first.
+      const powersAvail = [...new Set(
+        cards.filter(c => formatEligible(c)).map(c => powerOf(c)).filter(p => p > 0)
+      )].sort((a,b)=>b-a);
+
       const perPowerM = { ...perPower };
-      const pool = cards
-        .filter(c => formatEligible(c) && !(isOwned(c) && isAvailable(c)))  // fits the format, but not yours to play
-        .sort((a,b)=>powerOf(b)-powerOf(a));
-      for (const c of pool) {
-        if (missing.length >= shortBy) break;
-        const k = dupKey(c);
-        if (seenM.has(k)) continue;
-        const pk = String(c.power||"0");
-        if ((perPowerM[pk]||0) >= 6) continue;
-        seenM.add(k); perPowerM[pk]=(perPowerM[pk]||0)+1;
-        missing.push(c);
+      const bySlot = {};
+      let need = shortBy;
+      for (const p of powersAvail) {
+        if (need <= 0) break;
+        const room = PER_POWER - (perPowerM[String(p)] || 0);   // how many more can sit at this power
+        if (room <= 0) continue;
+        const take = Math.min(room, need);
+        bySlot[p] = (bySlot[p] || 0) + take;
+        perPowerM[String(p)] = (perPowerM[String(p)] || 0) + take;
+        need -= take;
       }
+      missingSlots = Object.entries(bySlot)
+        .map(([power,count]) => ({ power: Number(power), count, sets: legalSets }))
+        .sort((a,b)=>b.power-a.power);
     }
 
     return {
@@ -31987,7 +32017,7 @@ See you in there!
       treatUsed, // which inserts the deck ended up drawing from
       maxMode: !!maxMode, maxWindowLabel,
       maxShort: maxMode ? Math.max(0, DECK_SIZE - usable.length) : 0,
-      missing, // cards that would finish the deck but that you don't have
+      missingSlots, // the power slots you still need to fill, and which sets can fill them
       avgPower: usable.length ? Math.round(usable.reduce((s,c)=>s+powerOf(c),0)/usable.length) : 0,
       totalPower: usable.reduce((s,c)=>s+powerOf(c),0),
     };
