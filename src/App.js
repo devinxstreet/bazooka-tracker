@@ -30534,19 +30534,36 @@ See you in there!
       return searchTerms.every(t => hay.includes(t));
     }
     return true;
-  }).sort((a,b)=>{
-    if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
-    if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
-    if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
-    return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  // PERF: `owned` only changes the result when the Owned/Missing filter is active. Including it as
-  // a dependency unconditionally meant every single tap while adding cards re-filtered AND re-sorted
-  // the full 31k checklist — which is exactly the "adding cards feels slow" problem. Gate it: when
-  // the filter is "all", owned changes can't affect `filtered`, so don't recompute.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex, sortBy,
+  // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
+  // otherwise every tap while adding cards re-filters the entire 31k checklist.
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
-  const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
-  filteredLenRef.current = filtered.length;
+
+  // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
+  // called localeCompare() inside the comparator — full Unicode collation, ~500k+ times on a big
+  // list. It also re-ran parseFloat/parseInt/regex per comparison instead of once per card.
+  //
+  // Now: decorate each card with a precomputed primitive sort key, sort on that (plain number or
+  // string compare), then undecorate. Same order, a fraction of the cost.
+  const sorted = useMemo(() => {
+    const keyed = filtered.map(c => {
+      let k;
+      if (sortBy === "power" || sortBy === "powerAsc") k = parseFloat(c.power) || 0;
+      else if (sortBy === "cardNum") k = parseInt(String(c.cardNum||"").replace(/[^0-9]/g,"")||"0", 10);
+      else k = String(c[sortBy] ?? "").toLowerCase();
+      return { c, k };
+    });
+    const desc = (sortBy === "power");
+    keyed.sort((x, y) => {
+      if (x.k < y.k) return desc ? 1 : -1;
+      if (x.k > y.k) return desc ? -1 : 1;
+      return 0;
+    });
+    return keyed.map(o => o.c);
+  }, [filtered, sortBy]);
+
+  const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
+  filteredLenRef.current = sorted.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
   const uniqueOwned=Object.keys(owned).filter(_ownedKeyValid).length;
