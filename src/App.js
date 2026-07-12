@@ -31941,7 +31941,36 @@ See you in there!
                 {/* Trade Bait flag + per-copy breakdown */}
                 {owned[c.id] && (
                   <div style={{ marginTop:12 }}>
+                    {/* Whose card is it? Tag it to a kid's binder (or keep it yours). */}
+                    {kidGroups.length>0 && (
+                      <div style={{ marginBottom:10 }}>
+                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:700, marginBottom:6 }}>Whose card is this?</div>
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                          {[{id:null,name:"Mine",color:"#4ade80"}].concat(kidGroups).map(g=>{
+                            const on = (kidAssign[c.id]||null) === g.id;
+                            return (
+                              <button key={g.id||"mine"} onClick={()=>assignCardToKid(c.id, g.id)}
+                                style={{ background:on?`${g.color}22`:"rgba(255,255,255,0.04)", border:`1.5px solid ${on?g.color:"#333"}`, color:on?g.color:"#999", borderRadius:9, padding:"7px 13px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                {g.id?"🧒 ":""}{g.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {kidGroups.length===0 && (
+                      <button onClick={()=>setKidsModal(true)}
+                        style={{ width:"100%", background:"transparent", border:"1.5px dashed #333", color:"rgba(255,255,255,0.35)", borderRadius:10, padding:"9px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
+                        🧒 Collecting with a kid? Set up their collection
+                      </button>
+                    )}
                     <button onClick={()=>toggleTradeBait(c.id)} style={{ width:"100%", background:tradeBait[c.id]?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)", border:`1.5px solid ${tradeBait[c.id]?"#FBBF24":"#333"}`, color:tradeBait[c.id]?"#FBBF24":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{tradeBait[c.id]?"🔁 In Trade Bait":"🔁 Flag as Trade Bait"}</button>
+                    {/* Moved it on? Drops it from the active collection but keeps the record. */}
+                    <button onClick={()=>{ setExpandedCard(null); setSellModal(c); }}
+                      title="Sold, traded, or gave this away — keeps a record of having owned it"
+                      style={{ width:"100%", marginTop:8, background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                      ↗ Sold / Traded Away
+                    </button>
                     {(() => {
                       const cardLots = lotsForCard(c.id);
                       const qty = owned[c.id]||1;
@@ -32182,10 +32211,10 @@ See you in there!
 
       {/* ── KIDS MANAGER ──────────────────────────────────────────────────────────────────── */}
       {kidsModal && (
-        <div onClick={()=>setKidsModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:420}}>
-            <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>🧒 Kids' Collections</div>
-            <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+        <div onClick={()=>setKidsModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:420,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:4}}>🧒 Kids' Collections</div>
+            <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:16,lineHeight:1.6}}>
               Tag cards you own to a kid's binder. The cards stay in <strong>your</strong> collection and still count
               toward your totals and decks — the tag just tracks whose they are.
             </div>
@@ -32193,8 +32222,8 @@ See you in there!
               <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <span style={{width:10,height:10,borderRadius:"50%",background:g.color,flexShrink:0}}/>
                 <input defaultValue={g.name} onBlur={e=>renameKidGroup(g.id, e.target.value)}
-                  style={{flex:1,background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"7px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
-                <span style={{fontSize:11,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>
+                  style={{flex:1,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"7px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                <span style={{fontSize:11,color:"#9a9a9a",whiteSpace:"nowrap"}}>
                   {Object.keys(kidAssign).filter(cid=>kidAssign[cid]===g.id && owned[cid]).length} cards
                 </span>
                 <button onClick={()=>{ if(window.confirm(`Remove ${g.name}'s collection? The cards stay in your collection — only the tags are removed.`)) removeKidGroup(g.id); }}
@@ -32203,10 +32232,10 @@ See you in there!
             ))}
             <form onSubmit={e=>{e.preventDefault(); const v=e.target.kidname.value; if(addKidGroup(v)) e.target.reset();}} style={{display:"flex",gap:8,marginTop:12}}>
               <input name="kidname" placeholder="Add a kid's name…" autoComplete="off"
-                style={{flex:1,background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
+                style={{flex:1,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
               <button type="submit" style={{background:"#7B9CFF",color:"#04122e",border:"none",borderRadius:8,padding:"9px 16px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
             </form>
-            <button onClick={()=>setKidsModal(false)} style={{marginTop:16,width:"100%",background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+            <button onClick={()=>setKidsModal(false)} style={{marginTop:16,width:"100%",background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
           </div>
         </div>
       )}
@@ -32216,11 +32245,11 @@ See you in there!
         const c = sellModal;
         const have = parseInt(owned[c.id])||0;
         return (
-          <div onClick={()=>setSellModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:400}}>
-              <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:2}}>Move this card on</div>
-              <div style={{fontSize:12.5,color:"var(--bz-ink-2)",marginBottom:4}}>{c.hero} · #{c.cardNum} · {c.treatment}</div>
-              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+          <div onClick={()=>setSellModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:400,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+              <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:2}}>Move this card on</div>
+              <div style={{fontSize:12.5,color:"#c9c9c9",marginBottom:4}}>{c.hero} · #{c.cardNum} · {c.treatment}</div>
+              <div style={{fontSize:11,color:"#9a9a9a",marginBottom:16,lineHeight:1.6}}>
                 This drops it from your active collection but keeps the record — you'll still be able to see you
                 once owned it. You have <strong>{have}</strong> {have===1?"copy":"copies"}.
               </div>
@@ -32232,14 +32261,14 @@ See you in there!
               }}>
                 <div style={{display:"flex",gap:8,marginBottom:10}}>
                   <div style={{flex:1}}>
-                    <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>How many</label>
+                    <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>How many</label>
                     <input name="qty" type="number" min="1" max={have} defaultValue="1"
-                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
+                      style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
                   </div>
                   <div style={{flex:2}}>
-                    <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>What happened</label>
+                    <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>What happened</label>
                     <select name="reason" defaultValue="sold"
-                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",cursor:"pointer"}}>
+                      style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
                       <option value="sold">Sold</option>
                       <option value="traded">Traded</option>
                       <option value="gifted">Gifted</option>
@@ -32247,14 +32276,14 @@ See you in there!
                     </select>
                   </div>
                 </div>
-                <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>Price (optional)</label>
+                <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>Price (optional)</label>
                 <input name="price" type="number" step="0.01" placeholder="e.g. 45.00"
-                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",marginBottom:10}}/>
-                <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>Note (optional)</label>
+                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:10}}/>
+                <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>Note (optional)</label>
                 <input name="note" placeholder="Who to, what for…"
-                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",marginBottom:16}}/>
+                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16}}/>
                 <div style={{display:"flex",gap:8}}>
-                  <button type="button" onClick={()=>setSellModal(null)} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  <button type="button" onClick={()=>setSellModal(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                   <button type="submit" style={{flex:1,background:"#E8317A",border:"none",color:"#fff",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Confirm</button>
                 </div>
               </form>
@@ -32265,27 +32294,27 @@ See you in there!
 
       {/* ── FORMERLY OWNED ────────────────────────────────────────────────────────────────── */}
       {soldView && (
-        <div onClick={()=>setSoldView(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-            <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:2}}>📜 Formerly owned</div>
-            <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:14}}>
+        <div onClick={()=>setSoldView(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:2}}>📜 Formerly owned</div>
+            <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:14}}>
               Cards you've sold, traded, or given away. These don't count toward your collection — the record is just here so nothing is ever really lost.
             </div>
             {soldLog.length===0 ? (
-              <div style={{fontSize:12.5,color:"var(--bz-ink-3)",textAlign:"center",padding:"30px 0"}}>Nothing here yet.</div>
+              <div style={{fontSize:12.5,color:"#9a9a9a",textAlign:"center",padding:"30px 0"}}>Nothing here yet.</div>
             ) : (
               <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
                 {soldLog.map(e=>{
                   const c = cards.find(x=>x.id===e.cardId) || {};
                   const REASON = { sold:"Sold", traded:"Traded", gifted:"Gifted", lost:"Lost" };
                   return (
-                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:9}}>
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",background:"#0b0b0b",border:"1px solid #333",borderRadius:9}}>
                       {c.imageUrl && <img src={c.imageUrl} alt="" style={{width:32,height:44,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
                       <div style={{minWidth:0,flex:1}}>
-                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                          {c.hero || "Unknown card"} {c.cardNum?<span style={{color:"var(--bz-ink-3)",fontWeight:400}}>#{c.cardNum}</span>:null}
+                        <div style={{fontSize:12.5,fontWeight:700,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          {c.hero || "Unknown card"} {c.cardNum?<span style={{color:"#9a9a9a",fontWeight:400}}>#{c.cardNum}</span>:null}
                         </div>
-                        <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:2}}>
+                        <div style={{fontSize:10.5,color:"#9a9a9a",marginTop:2}}>
                           {REASON[e.reason]||e.reason}
                           {e.qty>1?` ×${e.qty}`:""}
                           {e.price?` · $${e.price.toFixed(2)}`:""}
@@ -32295,13 +32324,13 @@ See you in there!
                       </div>
                       <button onClick={()=>{ if(window.confirm("Put this card back in your collection?")) undoSell(e.id); }}
                         title="Undo — add it back to your collection"
-                        style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:6,padding:"4px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Undo</button>
+                        style={{background:"transparent",border:"1px solid #333",color:"#9a9a9a",borderRadius:6,padding:"4px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Undo</button>
                     </div>
                   );
                 })}
               </div>
             )}
-            <button onClick={()=>setSoldView(false)} style={{marginTop:14,width:"100%",background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+            <button onClick={()=>setSoldView(false)} style={{marginTop:14,width:"100%",background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
           </div>
         </div>
       )}
@@ -32311,10 +32340,10 @@ See you in there!
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {userMissingModal && (
         <div onClick={()=>setUserMissingModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(600px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #333",borderRadius:18,width:"min(600px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>⏳ Pending Cards</div>
-              <button onClick={()=>setUserMissingModal(false)} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+              <button onClick={()=>setUserMissingModal(false)} style={{background:"none",border:"none",color:"#c9c9c9",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
             </div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.5,marginBottom:18}}>These cards from your import aren't in our database yet, so they're not in your collection. We've flagged them for our team to add — once they're in, you can add them to your collection. Thanks for your patience!</div>
             {userMissing.length===0 ? (
@@ -32341,7 +32370,7 @@ See you in there!
       )}
       {missingCardsModal && (
         <div onClick={()=>setMissingCardsModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #333",borderRadius:18,width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>🗂️ Missing Cards</div>
               <button onClick={()=>setMissingCardsModal(false)} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
