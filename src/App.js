@@ -117,6 +117,44 @@ const CARD_TYPES = ["Giveaway Cards","Insurance Cards","First-Timer Cards","Chas
 
 
 const POOL_TYPES  = ["Giveaway Cards","Insurance Cards"]; // bulk pools
+
+// ── DECK FORMATS (BoBA 2026 National) ────────────────────────────────────────
+// Every format's rules in one place, so the builder, the legality check and the UI can't drift
+// apart. Anything not listed uses the default 60 cards / max 6 per power level.
+//
+//   size         deck size (max). Spec+ is 70; Blast is 30.
+//   powerCap     max power for any one Hero (Spec's 160). Absent = uncapped.
+//   perPower     max Heroes sharing a single power level.
+//   totalPower   cap on the deck's SUMMED power (Elite's 8,250).
+//   set          restrict to a single set (Blast → 2025 Alpha Blast).
+//   excludeSets  banned sets (Elite bans Trainer cards, i.e. the Battle Trainer Kit).
+//   treatment    restrict to one treatment (Power Glove).
+//   weapon       restrict to one weapon (Brawl).
+//   unique       no duplicate cards at all (Power Glove).
+//   minTreat     minimum number of cards per named treatment (GG HiLo needs 10 of each).
+//   coreSize/coreCap/highTiers → Spec+ only: a COMPLETE 60-card Spec-legal core is required
+//                before any high-power Hero counts, then up to 10 more with a hard cap at each
+//                power level (165 ×2, 170 ×2, one each of 175–200, nothing above 200).
+const DECK_FORMATS = {
+  none:        { label:"No Restrictions",         short:"—",           size:60, perPower:6 },
+  spec:        { label:"Spec (≤160 power)",       short:"SPEC",        size:60, perPower:6, powerCap:160 },
+  apex:        { label:"Apex (no power cap)",     short:"APEX",        size:60, perPower:6 },
+  elite:       { label:"Elite (8,250 total)",     short:"ELITE",       size:60, perPower:6, totalPower:8250,
+                 excludeSets:["2024 Battle Trainer Kit"] },
+  specplus:    { label:"Spec+ (60 core + 10)",    short:"SPEC+",       size:70, perPower:6,
+                 coreSize:60, coreCap:160,
+                 highTiers:{ 165:2, 170:2, 175:1, 180:1, 185:1, 190:1, 195:1, 200:1 } },
+  blast:       { label:"Blast (30 cards)",        short:"BLAST",       size:30, perPower:3, set:"2025 Alpha Blast" },
+  powerglove:  { label:"Power Glove (60 unique)", short:"POWER GLOVE", size:60, perPower:6, treatment:"Power Glove", unique:true },
+  brawl:       { label:"Brawl",                   short:"BRAWL",       size:60, perPower:6, weapon:"Brawl" },
+  gghilo:      { label:"GG HiLo",                 short:"GG HILO",     size:60, perPower:6,
+                 minTreat:{ "Grandma's Linoleum Battlefoil":10, "Great Grandma Linoleum Battlefoil":10, "Bubble Gum Battlefoil":10 } },
+  // Madness: start from a 60-card Spec deck. Every 10 matching Inserts (= treatments) unlocks one
+  // Apex Hero (>160), max 6. Four different Foil Hot Dogs unlock four more. Optimised = 70.
+  apexmadness: { label:"Apex Madness",            short:"MADNESS",     size:70, perPower:6,
+                 coreCap:160, insertUnlock:10, maxInsertUnlocks:6, hotDogUnlocks:4 },
+};
+const fmtOf = t => DECK_FORMATS[t] || DECK_FORMATS.none;
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
@@ -23151,8 +23189,14 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   style={{ ...S.inp, width:"auto", fontWeight:700, cursor:"pointer",
                     color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7": deckType==="apexmadness"?"#E8317A":"#888" }}>
                   <option value="none">No Restrictions</option>
-                  <option value="spec">{"Spec Deck (\u2264160 power)"}</option>
-                  <option value="apex">Apex Deck (no power limit)</option>
+                  <option value="spec">{"Spec (\u2264160 power)"}</option>
+                  <option value="apex">Apex (no power cap)</option>
+                  <option value="specplus">{"Spec+ (60 core + up to 10 high)"}</option>
+                  <option value="elite">{"Elite (8,250 total power)"}</option>
+                  <option value="brawl">Brawl (Brawl weapon only)</option>
+                  <option value="gghilo">{"GG HiLo (10+ of each GG insert)"}</option>
+                  <option value="powerglove">{"Power Glove (60 unique)"}</option>
+                  <option value="blast">{"Blast (30 cards, Alpha Blast)"}</option>
                   <option value="apexmadness">Apex Madness</option>
                 </select>
                 <span style={{ fontSize:12, color: inDeck.length===DECK_SIZE?"#4ade80":inDeck.length>DECK_SIZE?"#E8317A":"#FBBF24", fontWeight:700 }}>
@@ -23288,8 +23332,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
 
                   <div style={{ ...S.card }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)", marginBottom:10 }}>{"\u2694\uFE0F Deck Stats"}{deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":"#A855F7", fontWeight:700 }}>
-                      {deckType==="spec"?"SPEC":deckType==="apexmadness"?"APEX MADNESS":"APEX"}
+                  <div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)", marginBottom:10 }}>{"\u2694\uFE0F Deck Stats"}{deckType !== "none" && <span style={{ marginLeft:8, fontSize:10, color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"#A855F7", fontWeight:700 }}>
+                      {fmtOf(deckType).short}
                     </span>}
                   </div>
                   {/* Rule violations */}
@@ -25658,15 +25702,15 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     {deckProgress.am && (
                       <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:10,fontSize:11,lineHeight:1.7,color:"#ddd"}}>
                         <div style={{fontWeight:800,color:"#FBBF24",marginBottom:4}}>Apex Madness build (up to 70) — smart pick</div>
-                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> core cards · <strong>{deckProgress.am.completedInserts}/6</strong> inserts unlocked</div>
-                        <div>• <strong>{deckProgress.am.apexCount}</strong> apex in deck — {deckProgress.am.completedInserts} from unlocked inserts{deckProgress.am.hotDogApexAdded>0?` + ${deckProgress.am.hotDogApexAdded} from foiled Hot Dogs`:""}</div>
+                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> Spec core · <strong>{deckProgress.am.insertUnlocks}/6</strong> Apex unlocked from Inserts · <strong>{deckProgress.am.hotDogSlots}/4</strong> from Foil Hot Dogs</div>
+                        <div>• <strong>{deckProgress.am.apexCount}</strong> Apex Heroes in deck ({deckProgress.am.apexAdded}/{deckProgress.am.apexSlots} slots filled) — ceiling {deckProgress.am.ceiling}</div>
                         {deckProgress.am.insertList && deckProgress.am.insertList.length>0 && (
-                          <div style={{marginTop:4}}>• Built inserts (best apex first): {deckProgress.am.insertList.map(x=>`${x.insert} (⚡${x.apexPower})`).join(", ")}</div>
+                          <div style={{marginTop:4}}>• Inserts in deck: {deckProgress.am.insertList.map(x=>`${x.insert} ${x.count}${x.unlocks?` → ${x.unlocks} apex`:""}`).join(" · ")}</div>
                         )}
                         {deckProgress.am.nearInserts && deckProgress.am.nearInserts.length>0 && (
-                          <div style={{marginTop:4,color:"#60A5FA"}}>💡 Closest to unlock next: {deckProgress.am.nearInserts.map(x=>`${x.insert} (${x.have}/10 core, ⚡${x.bestApexPower} apex waiting)`).join(" · ")}</div>
+                          <div style={{marginTop:4,color:"#60A5FA"}}>💡 Closest to another unlock: {deckProgress.am.nearInserts.map(x=>`${x.insert} (${x.have}/${x.need})`).join(" · ")}</div>
                         )}
-                        <div style={{color:"#999",marginTop:4}}>• Foiled Hot Dogs owned: {deckProgress.am.foiledHotDogs} (each unlocks 1 extra apex, max 4)</div>
+                        <div style={{color:"#999",marginTop:4}}>• Foil Hot Dogs (different treatments): {deckProgress.am.foiledHotDogs} — four different ones unlock four extra Apex</div>
                       </div>
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -25912,10 +25956,50 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   );
                 }
                 const fmt = {
-                  none:{c:"rgba(255,255,255,0.5)",icon:"📋",title:"No Restrictions",rules:["Up to 60 cards","No duplicate cards","Max 6 cards at any power level"]},
-                  spec:{c:"#FBBF24",icon:"🛡️",title:"Spec Deck",rules:["Up to 60 cards","Power ceiling: 160 max (no cards above 160)","No power floor — go as low as you want","Max 6 cards at any power level"]},
-                  apex:{c:"#A855F7",icon:"⚡",title:"Apex Deck",rules:["Up to 60 cards","No power cap — cards can go as high as you want","Max 6 cards at any power level"]},
-                  apexmadness:{c:"#E8317A",icon:"🔥",title:"Apex Madness",rules:["Core cards = power 115–160","Apex cards = power above 160","Need 10 core cards of a treatment before adding an apex of it","Max 1 apex card per treatment","Up to 60 cards, max 6 at any power level"]},
+                  none:{c:"rgba(255,255,255,0.5)",icon:"\uD83D\uDCCB",title:"No Restrictions",rules:["Up to 60 cards","No duplicate cards","Max 6 cards at any power level"]},
+                  spec:{c:"#FBBF24",icon:"\uD83D\uDEE1\uFE0F",title:"Spec",rules:["Up to 60 cards","Power ceiling: 160 max","No power floor","Max 6 cards at any power level"]},
+                  apex:{c:"#A855F7",icon:"\u26A1",title:"Apex",rules:["Up to 60 cards","No power cap","Max 6 cards at any power level"]},
+                  specplus:{c:"#38BDF8",icon:"\u2795",title:"Spec+",rules:[
+                    "Up to 70 Heroes",
+                    "60 Heroes at \u2264160 power are REQUIRED \u2014 this Spec-legal core must be complete",
+                    "Then up to 10 higher Heroes: 165 (\u00D72), 170 (\u00D72), 175/180/185/190/195/200 (\u00D71 each)",
+                    "Nothing above 200 power",
+                    "Max 6 cards at any power level",
+                  ]},
+                  elite:{c:"#4ade80",icon:"\uD83D\uDC8E",title:"Elite",rules:[
+                    "Up to 60 cards",
+                    "8,250 TOTAL power \u2014 the whole deck must sum to 8,250 or less",
+                    "No Trainer cards (2024 Battle Trainer Kit is excluded)",
+                    "Starter cards allowed",
+                    "Max 6 cards at any power level",
+                  ]},
+                  brawl:{c:"#EF4444",icon:"\uD83E\uDD4A",title:"Brawl",rules:["Up to 60 cards","Every card must have the Brawl weapon","Max 6 cards at any power level"]},
+                  gghilo:{c:"#C084FC",icon:"\uD83D\uDC75",title:"GG HiLo",rules:[
+                    "Up to 60 cards",
+                    "No power cap",
+                    "Minimum 10 Grandma\u2019s Linoleum Battlefoil",
+                    "Minimum 10 Great Grandma Linoleum Battlefoil",
+                    "Minimum 10 Bubble Gum Battlefoil",
+                    "Max 6 cards at any power level",
+                  ]},
+                  powerglove:{c:"#FB923C",icon:"\uD83E\uDDE4",title:"Power Glove",rules:[
+                    "Exactly 60 cards",
+                    "Power Glove treatment only",
+                    "Every card must be UNIQUE \u2014 no duplicates at all",
+                    "Max 6 cards at any power level",
+                  ]},
+                  blast:{c:"#F472B6",icon:"\uD83D\uDCA5",title:"Blast",rules:[
+                    "30-card deck",
+                    "2025 Alpha Blast cards only",
+                    "Max 3 Heroes at any power level",
+                  ]},
+                  apexmadness:{c:"#E8317A",icon:"\uD83D\uDD25",title:"Apex Madness",rules:[
+                    "Start from a 60-card Spec deck (\u2264160 power)",
+                    "Every 10 matching Inserts in your deck unlocks one Apex Hero (>160) \u2014 max 6",
+                    "Four DIFFERENT Foil Hot Dogs unlock four more Apex Heroes",
+                    "A fully optimised deck is 70 Heroes (60 + 6 + 4)",
+                    "Max 6 cards at any power level",
+                  ]},
                 }[deckType] || {};
                 return (
                   <div style={{background:`${fmt.c}11`,border:`1px solid ${fmt.c}33`,borderRadius:10,padding:"10px 13px"}}>
@@ -31444,7 +31528,10 @@ See you in there!
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode, source="both") {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
-    const specCap = (dtype==="spec"||dtype==="vegasbaby");
+    const F = fmtOf(dtype);                       // this format's rules — see DECK_FORMATS
+    const DECK_SIZE  = F.size || 60;
+    const PER_POWER  = F.perPower || 6;
+    const specCap    = !!F.powerCap;              // Spec's ≤160 ceiling
     const isApexType = (dtype==="apex");
     // MAX DECK: enforce the format's real legal power window instead of just taking your top 60.
     //   Max Apex → 155+ only (155–200, plus 250s). Never pads with sub-155 cards.
@@ -31454,10 +31541,10 @@ See you in there!
       if(!maxMode) return true;
       const p = parseFloat(c.power)||0;
       if(isApexType) return p >= 155;
-      if(specCap)    return p >= 115 && p <= 160;
+      if(specCap)    return p >= 115 && p <= (F.powerCap||160);
       return true; // max mode has no defined window for other types
     };
-    const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : specCap ? "115–160" : "";
+    const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : specCap ? `115–${F.powerCap||160}` : "";
     const powerOf = c => parseFloat(c.power)||0;
     // Ownership now spans YOUR cards + FAMILY cards you can borrow.
     // Card source: "mine" = only my cards, "family" = only borrowable family cards,
@@ -31529,67 +31616,68 @@ See you in there!
       const completedInserts = [];   // {insert, apexPower}
       const lockedInserts = new Set();
 
-      // COMPLETENESS-FIRST: only inserts that have BOTH a full 10 core AND at least one apex (>160)
-      // are eligible. Rank eligible inserts by how deep their core pool is (most complete first),
-      // then by best apex power as a tiebreak. Build the top 6.
-      const eligible = Object.keys(coreByInsert)
-        .map(insert => {
-          const apexes = (apexByInsert[insert]||[]).slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
-          return {
-            insert,
-            coreDepth: coreAvail(insert),           // how many unique core you can field
-            bestApex: apexes[0] || null,
-          };
-        })
-        .filter(x => x.coreDepth >= 10 && x.bestApex)  // MUST have 10 core AND an apex
-        .sort((a,b) => (b.coreDepth - a.coreDepth) || ((parseFloat(b.bestApex.power)||0)-(parseFloat(a.bestApex.power)||0)));
+      // MADNESS (per the 2026 National rules): start from a 60-card SPEC deck (everything ≤160).
+      // Then "every 10 matching Inserts unlocks one Apex Hero (max 6)" — the unlock is driven by how
+      // many of each Insert (= treatment) are IN THE BUILT DECK, counted cumulatively across the
+      // whole deck. It is NOT "10 core of that insert plus an apex of that insert" — an unlocked
+      // Apex can be any Apex Hero you own. Four different Foil Hot Dogs unlock four more.
+      // A fully optimised deck is therefore 60 + 6 + 4 = 70.
 
-      for (const e of eligible) {
-        if (completedInserts.length >= 6) break;
-        const core = pickCore(e.insert, 10, usedKeys);
-        if (core.length < 10) continue;               // safety (copies may be shared across inserts)
-        if (apexUsed.has(dupKey(e.bestApex))) continue;
-        core.forEach(c=>{ chosen.push(c); usedKeys.add(dupKey(c)); });
-        chosen.push(e.bestApex); apexUsed.add(dupKey(e.bestApex));
-        lockedInserts.add(e.insert);
-        completedInserts.push({ insert: e.insert, apexPower: e.bestApex.power });
+      // 1. Build the strongest legal 60-card SPEC core (≤160, max 6 per power).
+      const coreSorted = base.filter(c=>powerOf(c)<=160).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      const perPowerAM = {};
+      for (const c of coreSorted) {
+        if (chosen.length >= 60) break;
+        const k = dupKey(c); if (usedKeys.has(k)) continue;
+        const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= 6) continue;
+        usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1;
+        chosen.push(c);
       }
 
-      // Foiled Hot Dog apex slots — each adds the next-best remaining apex from ANY insert, cap 4.
-      const foiledHotDogs = base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"]).length;
+      // 2. Count Inserts in the deck we just built. Every complete block of 10 unlocks one Apex.
+      const insertTally = {};
+      chosen.forEach(c => { const t = c.treatment || "—"; insertTally[t] = (insertTally[t]||0)+1; });
+      const insertList = Object.entries(insertTally)
+        .map(([insert,count]) => ({ insert, count, unlocks: Math.floor(count/10) }))
+        .sort((a,b)=>b.count-a.count);
+      const insertUnlocks = Math.min(6, insertList.reduce((n,x)=>n+x.unlocks, 0));
+
+      // 3. Foil Hot Dogs — four DIFFERENT ones unlock four more Apex slots.
+      const foilHotDogTreatments = new Set(
+        base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"])
+            .map(c => c.treatment)
+      );
+      const foiledHotDogs = foilHotDogTreatments.size;
       const hotDogSlots = Math.min(4, foiledHotDogs);
-      let hotDogApexAdded = 0;
-      if (hotDogSlots > 0) {
-        for (const apex of allApex) {
-          if (hotDogApexAdded >= hotDogSlots) break;
-          if (apexUsed.has(dupKey(apex))) continue;
-          chosen.push(apex); apexUsed.add(dupKey(apex)); hotDogApexAdded++;
-        }
+
+      // 4. Fill the unlocked Apex slots with your strongest Apex Heroes (>160), any insert.
+      const apexSlots = insertUnlocks + hotDogSlots;
+      let apexAdded = 0;
+      for (const apex of allApex) {
+        if (apexAdded >= apexSlots) break;
+        const k = dupKey(apex);
+        if (usedKeys.has(k) || apexUsed.has(k)) continue;
+        usedKeys.add(k); apexUsed.add(k);
+        chosen.push(apex); apexAdded++;
       }
 
-      // "Closest to unlockable" — inserts with an apex available where you're genuinely close on
-      // core (at least halfway). Ranked by fewest core still needed, so the most actionable show first.
-      const nearInserts = Object.keys(apexByInsert)
-        .filter(ins => !lockedInserts.has(ins))
-        .map(ins => {
-          const bestApex = (apexByInsert[ins]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a))[0];
-          return { insert: ins, have: coreAvail(ins), need: 10, bestApexPower: bestApex?bestApex.power:null };
-        })
-        .filter(x => x.bestApexPower != null && x.have >= 5 && x.have < 10)  // has apex + at least halfway
-        .sort((a,b)=>(b.have - a.have) || ((parseFloat(b.bestApexPower)||0)-(parseFloat(a.bestApexPower)||0)))
+      // "Closest to another unlock" — inserts sitting just short of the next block of 10.
+      const nearInserts = insertList
+        .map(x => ({ insert:x.insert, have:x.count, need:(Math.floor(x.count/10)+1)*10 }))
+        .filter(x => x.need - x.have <= 5 && x.have >= 5)
+        .sort((a,b)=>(a.need-a.have)-(b.need-b.have))
         .slice(0,4);
 
       const coreCount = chosen.filter(c=>powerOf(c)<=160).length;
       const apexCount = chosen.filter(c=>powerOf(c)>160).length;
       return {
-        have: chosen.length, need: 60,
-        cards: chosen, perPower:{}, ownedEligible: base.length,
+        have: chosen.length, need: 70,
+        cards: chosen, perPower: perPowerAM, ownedEligible: base.length,
         familyCount: chosen.filter(c=>!isMine(c)&&famOwner(c)).length,
         am:{
           coreCount, apexCount,
-          completedInserts: completedInserts.length,
-          insertList: completedInserts,
-          foiledHotDogs, hotDogSlots, hotDogApexAdded,
+          insertUnlocks, insertList: insertList.filter(x=>x.count>=5),
+          foiledHotDogs, hotDogSlots, apexAdded, apexSlots,
           nearInserts, ceiling:70,
         },
       };
@@ -31604,7 +31692,12 @@ See you in there!
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
       if(setFilter && setFilter.size>0 && !setFilter.has(c.setName)) return false; // set restriction
       if(!inMaxWindow(c)) return false; // max deck power window
-      if(specCap && (powerOf(c) > 160)) return false; // Spec/Vegas Baby: ≤160 only
+      // ── Format restrictions (see DECK_FORMATS) ──
+      if(F.powerCap && powerOf(c) > F.powerCap) return false;                     // Spec's ≤160
+      if(F.set && c.setName !== F.set) return false;                              // Blast → Alpha Blast only
+      if(F.excludeSets && F.excludeSets.includes(c.setName)) return false;        // Elite bans Trainer cards
+      if(F.treatment && c.treatment !== F.treatment) return false;                // Power Glove
+      if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon)) return false; // Brawl
       return true;
     };
     const ownedCards = cards.filter(c => isOwned(c) && isAvailable(c) && formatEligible(c));
@@ -31614,29 +31707,105 @@ See you in there!
     // never costs a point of power), then prefer your own card over a borrowed one.
     const treatCount = {};
     const seen = new Set(); const perPower = {}; const usable = [];
+    const seenCardIds = new Set();      // Power Glove: no duplicate CARDS, not just hero+power
+    let runningPower = 0;               // Elite: 8,250 total-power budget
 
-    // Bucket by power, walk tiers high → low.
-    const tiers = {};
-    ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
-    const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>b-a);
+    // Can this card still go in, given everything already picked?
+    const canTake = c => {
+      const k = dupKey(c);
+      if (seen.has(k)) return false;                                   // no duplicate hero+power+weapon
+      if (F.unique && seenCardIds.has(c.id)) return false;             // Power Glove: no duplicate card
+      const pk = String(c.power||"0");
+      if ((perPower[pk]||0) >= PER_POWER) return false;                // max N at any one power level
+      if (F.totalPower && runningPower + powerOf(c) > F.totalPower) return false; // Elite's budget
+      return true;
+    };
+    const take = c => {
+      seen.add(dupKey(c));
+      seenCardIds.add(c.id);
+      const pk = String(c.power||"0");
+      perPower[pk] = (perPower[pk]||0)+1;
+      treatCount[c.treatment||"—"] = (treatCount[c.treatment||"—"]||0)+1;
+      runningPower += powerOf(c);
+      usable.push(c);
+    };
 
-    for (const p of tierPowers) {
-      if (usable.length >= DECK_SIZE) break;
-      // Within this power tier, order by: treatment we already have most of, then my own cards.
-      const tier = tiers[p].slice().sort((a,b)=>{
-        const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
-        if (ct !== bt) return bt - ct;
-        return mineFirst(a,b);
-      });
-      for (const c of tier) {
+    // GG HILO — a minimum count of each named treatment is REQUIRED, so satisfy those quotas first.
+    // Taking the strongest cards blindly would happily build 60 Bubblegums and leave the deck
+    // illegal, so the quota comes before raw power.
+    if (F.minTreat) {
+      for (const [treat, need] of Object.entries(F.minTreat)) {
+        const pool = ownedCards
+          .filter(c => (c.treatment||"") === treat)
+          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+        let got = 0;
+        for (const c of pool) {
+          if (got >= need || usable.length >= DECK_SIZE) break;
+          if (!canTake(c)) continue;
+          take(c); got++;
+        }
+      }
+    }
+
+    // SPEC+ — the 60-card Spec-legal core (≤160) is MANDATORY and must be complete before any
+    // high-power Hero counts. Build it first, strongest-first, then layer the high tiers on top
+    // with their per-power caps (165 ×2, 170 ×2, one each of 175–200, nothing above 200).
+    if (F.coreSize && F.highTiers) {
+      const core = ownedCards
+        .filter(c => powerOf(c) <= F.coreCap)
+        .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      for (const c of core) {
+        if (usable.length >= F.coreSize) break;
+        if (!canTake(c)) continue;
+        take(c);
+      }
+      // Only once the core is COMPLETE do the high slots open up.
+      if (usable.length >= F.coreSize) {
+        const highUsed = {};
+        const highs = ownedCards
+          .filter(c => { const p = powerOf(c); return p > F.coreCap && F.highTiers[p]; })
+          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+        for (const c of highs) {
+          if (usable.length >= DECK_SIZE) break;
+          const p = powerOf(c);
+          const cap = F.highTiers[p] || 0;
+          if ((highUsed[p]||0) >= cap) continue;   // e.g. only one 180 allowed
+          if (!canTake(c)) continue;
+          take(c); highUsed[p] = (highUsed[p]||0)+1;
+        }
+      }
+    } else {
+      // Everything else: bucket by power, walk tiers high → low.
+      const tiers = {};
+      ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
+      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>b-a);
+
+      for (const p of tierPowers) {
         if (usable.length >= DECK_SIZE) break;
-        const k = dupKey(c);
-        if (seen.has(k)) continue;
-        const pk = String(c.power||"0");
-        if ((perPower[pk]||0) >= 6) continue; // max 6 at any one power level
-        seen.add(k); perPower[pk]=(perPower[pk]||0)+1;
-        treatCount[c.treatment||"—"] = (treatCount[c.treatment||"—"]||0)+1;
-        usable.push(c);
+        // Within this power tier, order by: treatment we already have most of, then my own cards.
+        const tier = tiers[p].slice().sort((a,b)=>{
+          const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
+          if (ct !== bt) return bt - ct;
+          return mineFirst(a,b);
+        });
+        for (const c of tier) {
+          if (usable.length >= DECK_SIZE) break;
+          if (!canTake(c)) continue;
+          take(c);
+        }
+      }
+      // ELITE — the total-power budget means the greedy high-first pass can strand the last few
+      // slots (nothing cheap enough left to fit). Backfill with the strongest cards that still fit
+      // under the remaining budget, so the deck reaches 60 rather than stopping short.
+      if (F.totalPower && usable.length < DECK_SIZE) {
+        const rest = ownedCards
+          .filter(c => !seen.has(dupKey(c)))
+          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+        for (const c of rest) {
+          if (usable.length >= DECK_SIZE) break;
+          if (!canTake(c)) continue;   // canTake already enforces the budget
+          take(c);
+        }
       }
     }
 
