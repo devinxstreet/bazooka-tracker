@@ -24722,7 +24722,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, computeDeckProgress }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -24884,6 +24884,28 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       </select>
                       {(deckGoalW||deckGoalT) && <button onClick={()=>{setDeckGoalW("");setDeckGoalT("");}} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                     </div>
+                    {/* Build Max Deck — enforce the format's legal power window (Apex 155+, Spec 115–160)
+                        instead of just grabbing your top 60 regardless of power. */}
+                    {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby") && (
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+                        <div onClick={()=>setDeckMaxMode(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,background:deckMaxMode?"rgba(251,191,36,0.14)":"rgba(255,255,255,0.03)",border:`1px solid ${deckMaxMode?"#FBBF24":"var(--bz-line-2)"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                          <div style={{width:28,height:16,borderRadius:8,background:deckMaxMode?"#FBBF24":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                            <div style={{position:"absolute",top:2,left:deckMaxMode?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                          </div>
+                          <span style={{fontSize:12,fontWeight:800,color:deckMaxMode?"#FBBF24":"rgba(255,255,255,0.6)"}}>⚡ Build max deck</span>
+                        </div>
+                        <span style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.5}}>
+                          {deckMaxMode
+                            ? <>Only <strong style={{color:"#FBBF24"}}>{deckType==="apex"?"155+":"115–160"}</strong> power cards — the legal {deckType==="apex"?"Apex":"Spec"} window. Won't pad with weaker cards.</>
+                            : <>Off: takes your top 60 regardless of power. Turn on to enforce the legal {deckType==="apex"?"Apex (155+)":"Spec (115–160)"} window.</>}
+                        </span>
+                      </div>
+                    )}
+                    {deckProgress.maxMode && deckProgress.maxShort>0 && (
+                      <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"9px 12px",fontSize:11,color:"#ffb3d0",lineHeight:1.5}}>
+                        ⚠️ Short by <strong>{deckProgress.maxShort}</strong> card{deckProgress.maxShort!==1?"s":""} — you only have {deckProgress.have} eligible cards in the {deckProgress.maxWindowLabel} window. Padding with weaker cards would make the deck illegal, so it's left short.
+                      </div>
+                    )}
                     {/* Set restriction — pick specific sets (e.g. Alpha Trilogy = Alpha-era only). Empty = all sets. */}
                     {(() => {
                       const allSets = Array.from(new Set(cards.map(c=>c.setName).filter(Boolean))).sort();
@@ -30122,9 +30144,22 @@ See you in there!
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
-  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter) {
+  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode) {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const specCap = (dtype==="spec"||dtype==="vegasbaby");
+    const isApexType = (dtype==="apex");
+    // MAX DECK: enforce the format's real legal power window instead of just taking your top 60.
+    //   Max Apex → 155+ only (155–200, plus 250s). Never pads with sub-155 cards.
+    //   Max Spec → 115–160 only (hard floor at 115).
+    // If you can't fill 60 inside the window, the deck comes up short (we surface the gap).
+    const inMaxWindow = c => {
+      if(!maxMode) return true;
+      const p = parseFloat(c.power)||0;
+      if(isApexType) return p >= 155;
+      if(specCap)    return p >= 115 && p <= 160;
+      return true; // max mode has no defined window for other types
+    };
+    const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : specCap ? "115–160" : "";
     const powerOf = c => parseFloat(c.power)||0;
     // Ownership now spans YOUR cards + FAMILY cards you can borrow.
     const isMine = c => owned[c.id] || owned[c.id+"::foil"];
@@ -30259,6 +30294,7 @@ See you in there!
       if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
       if(setFilter && setFilter.size>0 && !setFilter.has(c.setName)) return false; // set restriction
+      if(!inMaxWindow(c)) return false; // max deck power window
       if(specCap && (powerOf(c) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
     });
@@ -30302,12 +30338,15 @@ See you in there!
       have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable,
       familyCount: usable.filter(c=>!isMine(c)&&famOwner(c)).length,
       treatUsed, // which inserts the deck drew from, in order
+      maxMode: !!maxMode, maxWindowLabel,
+      maxShort: maxMode ? Math.max(0, DECK_SIZE - usable.length) : 0,
     };
   }
   const [deckGoalW, setDeckGoalW] = useState("");
   const [deckGoalT, setDeckGoalT] = useState("");
   const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
-  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets);
+  const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
+  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode);
 
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
@@ -33470,7 +33509,7 @@ See you in there!
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} computeDeckProgress={computeDeckProgress}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} computeDeckProgress={computeDeckProgress}
           />
         )}
 
