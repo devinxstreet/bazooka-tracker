@@ -35318,7 +35318,6 @@ See you in there!
           </>
         )}
         </div>
-        </div>
 
         {/* RAINBOW TRACKER TAB */}
         <div style={tabStyle("rainbow")}>
@@ -35882,7 +35881,8 @@ See you in there!
               WEAPON_COLORS={WEAPON_COLORS}
               setSigningIn={setSigningIn}
             />
-          </div>
+        )}
+        </div>
 
 
         {/* FRIENDS TAB */}
