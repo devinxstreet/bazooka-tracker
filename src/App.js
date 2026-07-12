@@ -34640,6 +34640,7 @@ See you in there!
             </div>
           );
         })()}
+        </div>
 
         {/* SUPERS TAB */}
         <div style={tabStyle("supers")}>
