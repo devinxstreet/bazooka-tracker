@@ -16124,7 +16124,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto }) {
+function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -16491,6 +16491,27 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     </div>
   );
 }
+
+// PERF: the card grid renders 100+ tiles. Without memo, flipping/hovering ONE card re-rendered
+// EVERY tile (because flippedCard lives in the parent), rebuilding all their DOM + animations.
+// This comparator makes a tile re-render only when something about THAT tile actually changed —
+// notably, flippedCard only matters if it involves this card.
+const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
+  if (prev.c !== next.c) return false;
+  if (prev.isOwned !== next.isOwned) return false;
+  if (prev.ownedQty !== next.ownedQty) return false;
+  if (prev.isAdmin !== next.isAdmin) return false;
+  if (prev.lotCount !== next.lotCount) return false;
+  if (prev.myScanPhoto !== next.myScanPhoto) return false;
+  // Want status for THIS card only.
+  const id = next.c?.id;
+  if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) return false;
+  // Flip state only matters if this card is (or was) the flipped one.
+  const wasFlipped = prev.flippedCard === id;
+  const isFlipped  = next.flippedCard === id;
+  if (wasFlipped !== isFlipped) return false;
+  return true; // otherwise: skip the re-render
+});
 
 const PLAYER_NOTES = {
   // AUTOGRAPHS
