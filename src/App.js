@@ -28778,30 +28778,48 @@ See you in there!
     setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
   }, [user]);
 
+  // PERF: a single id → card lookup, built once per card load. Several effects below need to check
+  // "is this owned id a real card?" for every owned key — doing that with cards.find() is an O(n×m)
+  // scan through 36k cards per key, which is what made adding cards crawl. Map lookups are O(1).
+  const cardById = useMemo(() => {
+    const m = new Map();
+    for (const c of cards) m.set(c.id, c);
+    return m;
+  }, [cards]);
+  const baseCardId = id => String(id).replace(/::foil$/,"");
+  // Cards grouped by hero (for rainbow completion). Built once per card load, not per owned change.
+  const heroGroups = useMemo(() => {
+    const g = {};
+    for (const c of cards) {
+      if (!c.hero) continue;
+      if ((c.treatment||"").toLowerCase() === "home team discount") continue;
+      (g[c.hero] = g[c.hero] || []).push(c);
+    }
+    return Object.values(g);
+  }, [cards]);
+
   // Write denormalized collection stats to the user doc (powers the leaderboard) — debounced
   useEffect(() => {
     if (!user || !cards.length) return;
     const t = setTimeout(async () => {
       try {
-        const ownedIds = Object.keys(owned).filter(id => cards.find(c=>c.id===String(id).replace(/::foil$/,"")));
+        const ownedIds = Object.keys(owned).filter(id => cardById.has(baseCardId(id)));
         const collectionCount = ownedIds.reduce((s,id)=>s+(owned[id]||1),0);
         const uniqueCount = ownedIds.length;
-        const oneOfOneCount = ownedIds.filter(id => { const c=cards.find(x=>x.id===id); return c && (String(c.notation||"").includes("1/1") || String(c.cardNum||"").includes("1/1")); }).length;
-        // rainbow groups fully owned
-        const groups = {};
-        cards.forEach(c => { const t2=(c.treatment||"").toLowerCase(); if(t2==="home team discount")return; if(!c.hero)return; (groups[c.hero]=groups[c.hero]||[]).push(c); });
+        const oneOfOneCount = ownedIds.filter(id => { const c=cardById.get(baseCardId(id)); return c && (String(c.notation||"").includes("1/1") || String(c.cardNum||"").includes("1/1")); }).length;
+        // rainbow groups fully owned (heroGroups is prebuilt once per card load — see above)
         let rainbowCount = 0;
-        Object.values(groups).forEach(g => { if(g.length>=2 && g.every(c=>owned[c.id])) rainbowCount++; });
+        heroGroups.forEach(g => { if(g.length>=2 && g.every(c=>owned[c.id])) rainbowCount++; });
         await setDoc(doc(db,"users",user.uid), { collectionCount, uniqueCount, oneOfOneCount, rainbowCount, statsUpdatedAt: Date.now() }, { merge:true });
       } catch(e) { console.error("stats denorm failed:", e); }
     }, 1500);
     return () => clearTimeout(t);
-  }, [owned, cards, user]);
+  }, [owned, cardById, heroGroups, user]);
 
   // Detect collection milestones -> celebratory toast
   useEffect(() => {
     if (!user || !cards.length) return;
-    const owNow = Object.keys(owned).filter(id=>cards.find(c=>c.id===String(id).replace(/::foil$/,""))).reduce((sum,id)=>sum+(owned[id]||1),0);
+    const owNow = Object.keys(owned).filter(id=>cardById.has(baseCardId(id))).reduce((sum,id)=>sum+(owned[id]||1),0);
     const COUNT_MILES = [10,25,50,100,150,200,250,300,400,500,750,1000];
     const pct = cards.length>0 ? (owNow/cards.length*100) : 0;
     const PCT_MILES = [10,25,50,75,90,100];
@@ -30827,6 +30845,16 @@ See you in there!
   // million comparisons per keystroke, which is exactly why typing felt frozen even when zero
   // cards were on screen. Build an id Set once and make the lookup O(1).
   const cardIdSet = useMemo(() => new Set(cards.map(c=>c.id)), [cards]);
+  // Kid chip counts — computed once per owned/assign change, not per chip per render.
+  const kidCounts = useMemo(() => {
+    const m = { __mine: 0 };
+    for (const cid of Object.keys(owned)) {
+      const tag = kidAssign[cid];
+      if (tag) m[tag] = (m[tag]||0) + 1;
+      else m.__mine += 1;
+    }
+    return m;
+  }, [owned, kidAssign]);
   const { uniqueOwned, totalOwned } = useMemo(() => {
     let uniq = 0, total = 0;
     for (const k of Object.keys(owned)) {
@@ -32224,7 +32252,7 @@ See you in there!
                 <input defaultValue={g.name} onBlur={e=>renameKidGroup(g.id, e.target.value)}
                   style={{flex:1,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"7px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
                 <span style={{fontSize:11,color:"#9a9a9a",whiteSpace:"nowrap"}}>
-                  {Object.keys(kidAssign).filter(cid=>kidAssign[cid]===g.id && owned[cid]).length} cards
+                  {kidCounts[g.id]||0} cards
                 </span>
                 <button onClick={()=>{ if(window.confirm(`Remove ${g.name}'s collection? The cards stay in your collection — only the tags are removed.`)) removeKidGroup(g.id); }}
                   style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>
@@ -33969,9 +33997,7 @@ See you in there!
                     const on = kidFilter===id;
                     const g = kidGroups.find(x=>x.id===id);
                     const col = g ? g.color : (id==="mine" ? "#4ade80" : "rgba(255,255,255,0.5)");
-                    const count = id==="all" ? null
-                      : id==="mine" ? Object.keys(owned).filter(cid=>!kidAssign[cid]).length
-                      : Object.keys(kidAssign).filter(cid=>kidAssign[cid]===id && owned[cid]).length;
+                    const count = id==="all" ? null : (id==="mine" ? (kidCounts.__mine||0) : (kidCounts[id]||0));
                     return (
                       <button key={id} onClick={()=>{setKidFilter(id);setPage(1);}}
                         style={{background:on?`${col}26`:"transparent",color:on?col:"rgba(255,255,255,0.4)",border:`1.5px solid ${on?col:"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
