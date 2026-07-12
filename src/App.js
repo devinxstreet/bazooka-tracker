@@ -35889,7 +35889,6 @@ See you in there!
         {activeTab==="leaderboard" && (
           <Leaderboard user={user} marketSales={marketSales} onViewProfile={setViewProfileUid} />
         )}
-        </div>
       </div>{/* end tab content */}
     </div>
   );
