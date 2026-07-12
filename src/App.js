@@ -18401,10 +18401,15 @@ function CardDeduper() {
       const all = snap.docs.map(d=>({id:d.id,...d.data()}));
       const by = {};
       all.forEach(c => {
-        // Same physical card = same set + same card number (normalized).
-        const num = String(c.cardNum||"").trim().toUpperCase();
-        if (!num) return;                     // no card number → can't dedupe safely, leave alone
-        const key = `${(c.setName||"").trim()}|${num}`;
+        // A card's true identity. Card number ALONE is not unique — in Tecmo Bowl (and others)
+        // the same number is reused across treatments/heroes. Two docs are only the same card if
+        // ALL of these match (normalized for case/spacing so spelling variants still collapse).
+        const n = v => String(v||"").trim().toLowerCase().replace(/\s+/g," ");
+        const key = [
+          n(c.setName), n(c.cardNum), n(c.hero), n(c.treatment), n(c.weapon), n(c.power),
+        ].join("|");
+        // Require at least a set + number + hero to consider it identifiable.
+        if (!n(c.cardNum) || !n(c.hero)) return;
         (by[key] = by[key]||[]).push(c);
       });
       const dupes = Object.entries(by)
@@ -18480,14 +18485,17 @@ function CardDeduper() {
               <div style={{fontSize:14,fontWeight:800,color:"#FBBF24",marginBottom:6}}>
                 Found {groups.length.toLocaleString()} duplicated cards · {totalDrop.toLocaleString()} extra copies to delete
               </div>
-              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:10}}>Examples (keeping the first, deleting the rest):</div>
-              {groups.slice(0,6).map(g=>(
-                <div key={g.key} style={{fontSize:11,color:"#ccc",padding:"6px 0",borderBottom:"1px solid #222"}}>
-                  <strong style={{color:"#7B9CFF"}}>{g.key}</strong> — {g.drop.length+1} copies
-                  <div style={{color:"#666",marginTop:2}}>
-                    keep: {g.keep.hero} / {g.keep.treatment||"—"} / {g.keep.weapon||"—"}{g.keep.imageUrl?" 🖼":""}
-                    {" · "}delete: {g.drop.map(d=>`${d.hero}/${d.treatment||"—"}`).join(", ").slice(0,80)}
+              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:10,lineHeight:1.6}}>
+                Every copy below is the <strong>same card</strong> (same set, number, hero, treatment, weapon and power) —
+                only genuinely identical entries are grouped. Check a few before deleting.
+              </div>
+              {groups.slice(0,8).map(g=>(
+                <div key={g.key} style={{fontSize:11,color:"#ccc",padding:"8px 0",borderBottom:"1px solid #222"}}>
+                  <div style={{color:"#7B9CFF",fontWeight:700,marginBottom:3}}>
+                    {g.keep.setName} · #{g.keep.cardNum} · {g.keep.hero} · {g.keep.treatment||"—"} · {g.keep.weapon||"—"} · {g.keep.power||"—"}⚡
                   </div>
+                  <div style={{color:"#4ade80"}}>keep 1{g.keep.imageUrl?" 🖼 (has art)":""}{(g.keep.mktValue||g.keep.marketValue)?" 💲":""}</div>
+                  <div style={{color:"#EF4444"}}>delete {g.drop.length} identical {g.drop.length===1?"copy":"copies"}{g.drop.some(d=>d.imageUrl)?" ⚠️ one has art — it will be kept instead":""}</div>
                 </div>
               ))}
               <button onClick={runDedupe} disabled={running}
