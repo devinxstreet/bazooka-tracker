@@ -28470,19 +28470,6 @@ See you in there!
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
   const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
   const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
-  // KEEP-ALIVE: once you've opened a tab, keep it MOUNTED (just hidden) so coming back is instant.
-  // Every tab was being torn down and rebuilt from scratch on each switch — for the card grid that
-  // meant destroying and re-creating hundreds of components and re-decoding every image, which is
-  // why moving between tabs never felt snappy. Tabs you never open cost nothing, so this doesn't
-  // bloat the DOM for people who only use one or two.
-  const [seenTabs, setSeenTabs] = useState(() => new Set());
-  useEffect(() => {
-    setSeenTabs(prev => prev.has(activeTab) ? prev : new Set(prev).add(activeTab));
-  }, [activeTab]);
-  // Render a tab if it's open now, or if it's been open before (so its DOM is still there).
-  const tabLive = t => activeTab === t || seenTabs.has(t);
-  const tabStyle = t => ({ display: activeTab === t ? "block" : "none" });
-
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -34176,8 +34163,7 @@ See you in there!
       <div style={{maxWidth:1400,margin:"0 auto",padding:20}}>
 
         {/* 1/1 TAB — reuse same logic as internal checklist */}
-        <div style={tabStyle("1of1")}>
-        {tabLive("1of1") && (() => {
+        {activeTab==="1of1" && (() => {
           const secret1of1Cards = cards.filter(c => c.notation === "Secret 1/1");
           const sets1of1 = [...new Set(secret1of1Cards.map(c=>c.setName).filter(Boolean))].sort();
           const claimMap1 = {};
@@ -34493,11 +34479,9 @@ See you in there!
             </div>
           );
         })()}
-        </div>
 
         {/* /34 BOJAX TAB */}
-        <div style={tabStyle("bojax34")}>
-        {tabLive("bojax34") && (() => {
+        {activeTab==="bojax34" && (() => {
           const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
           const bjCard = cards.find(c => (c.cardNum||"").toUpperCase()==="TBJ-B");
           const bySerial = {};
@@ -34640,11 +34624,9 @@ See you in there!
             </div>
           );
         })()}
-        </div>
 
         {/* SUPERS TAB */}
-        <div style={tabStyle("supers")}>
-        {tabLive("supers") && (()=>{
+        {activeTab==="supers" && (()=>{
           const isAdminUser = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || user?.email?.toLowerCase()==="swancitycards@gmail.com";
           const superCards = cards.filter(c => c.weapon === "Super" || (c.weapon||"").toUpperCase() === "SUPER");
           const superSets = [...new Set(superCards.map(c => c.setName).filter(Boolean))].sort();
@@ -35011,11 +34993,9 @@ See you in there!
             </div>
           );
         })()}
-        </div>
 
         {/* CARDS TAB */}
-        <div style={tabStyle("cards")}>
-        {tabLive("cards") && cards.length>0 && (
+        {activeTab==="cards" && cards.length>0 && (
           <>
             {user && cards.length>0 && (()=>{
               // Next-milestone framing so the bar always feels close & moving
@@ -35317,11 +35297,9 @@ See you in there!
             {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
           </>
         )}
-        </div>
 
         {/* RAINBOW TRACKER TAB */}
-        <div style={tabStyle("rainbow")}>
-        {tabLive("rainbow") && !loading && cards.length > 0 && (() => {
+        {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
           const normalizeTreatment = c => {
             const t = (c.treatment||"").toLowerCase();
             const num = String(c.cardNum||"").trim().toUpperCase();
@@ -35656,11 +35634,9 @@ See you in there!
             </div>
           );
         })()}
-        </div>
 
         {/* WANTS TAB */}
-        <div style={tabStyle("intransit")}>
-        {tabLive("intransit") && (() => {
+        {activeTab==="intransit" && (() => {
           const transitIds = Object.keys(inTransit);
           const transitCards = transitIds.map(id => ({ card: cards.find(c=>c.id===id) || {id, hero:"(unknown card)"}, info: inTransit[id] }))
             .sort((a,b)=>(a.card.hero||"").localeCompare(b.card.hero||""));
@@ -35712,9 +35688,7 @@ See you in there!
           </div>
           );
         })()}
-        </div>
-        <div style={tabStyle("tradebait")}>
-        {tabLive("tradebait") && (() => {
+        {activeTab==="tradebait" && (() => {
           const baitCards = cards.filter(c => (owned[c.id]>1) || tradeBait[c.id]).sort((a,b)=>(a.hero||"").localeCompare(b.hero||""));
           const q = (search||"").toLowerCase();
           const shown = baitCards.filter(c => !q || `${c.hero} ${c.cardNum} ${c.treatment} ${c.weapon}`.toLowerCase().includes(q));
@@ -35760,9 +35734,7 @@ See you in there!
           </div>
           );
         })()}
-        </div>
-        <div style={tabStyle("wants")}>
-        {tabLive("wants") && (
+        {activeTab==="wants" && (
           <div>
             {Object.keys(wantList).length===0?(
               <div style={{textAlign:"center",padding:"70px 20px"}}>
@@ -35785,11 +35757,9 @@ See you in there!
 
           </div>
         )}
-        </div>
 
         {/* DECK BUILDER TAB */}
-        <div style={tabStyle("deck")}>
-        {tabLive("deck") && (
+        {activeTab==="deck" && (
           <DeckBuilderTab
             user={user} deckCards={deckCards} setDeckCards={setDeckCards}
             deckName={deckName} setDeckName={setDeckName}
@@ -35808,11 +35778,9 @@ See you in there!
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
-        </div>
 
         {/* PLAYBOOK TAB */}
-        <div style={tabStyle("playbook")}>
-        {tabLive("playbook") && (
+        {activeTab==="playbook" && (
           <PlaybookTab
             user={user} pbCards={pbCards} pbSearch={pbSearch} setPbSearch={setPbSearch}
             pbSort={pbSort} setPbSort={setPbSort} WEAPON_COLORS={WEAPON_COLORS}
@@ -35823,11 +35791,9 @@ See you in there!
             savePbTab={savePbTab} deletePbTab={deletePbTab} loadPbTab={loadPbTab} newPbTab={newPbTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
           />
         )}
-        </div>
 
         {/* MARKET TAB */}
-        <div style={tabStyle("market")}>
-        {tabLive("market") && (
+        {activeTab==="market" && (
           <MarketTab
             user={user} myListings={myListings} listings={listings}
             onViewProfile={setViewProfileUid}
@@ -35882,12 +35848,10 @@ See you in there!
               setSigningIn={setSigningIn}
             />
         )}
-        </div>
 
 
         {/* FRIENDS TAB */}
-        <div style={tabStyle("friends")}>
-        {tabLive("friends") && (
+        {activeTab==="friends" && (
           <FriendsTab
             user={user} friends={friends} friendReqs={friendReqs} sentReqs={sentReqs}
             addEmail={addEmail} setAddEmail={setAddEmail}
@@ -35901,11 +35865,9 @@ See you in there!
           respondTeamInvite={respondTeamInvite}
           />
         )}
-        </div>
 
         {/* TEAM TAB */}
-        <div style={tabStyle("team")}>
-        {tabLive("team") && (
+        {activeTab==="team" && (
           <TeamTab
             user={user} teams={teams} activeTeam={activeTeam} setActiveTeam={setActiveTeam}
             newTeamName={newTeamName} setNewTeamName={setNewTeamName}
@@ -35922,14 +35884,10 @@ See you in there!
             inp={inp} inviteToTeam={inviteToTeam}
           />
         )}
-        </div>
-        <div style={tabStyle("ledger")}>
-        {tabLive("ledger") && (
+        {activeTab==="ledger" && (
           <AccountingLedger lots={lots} marketSales={marketSales} user={user} cards={cards} />
         )}
-        </div>
-        <div style={tabStyle("leaderboard")}>
-        {tabLive("leaderboard") && (
+        {activeTab==="leaderboard" && (
           <Leaderboard user={user} marketSales={marketSales} onViewProfile={setViewProfileUid} />
         )}
         </div>
