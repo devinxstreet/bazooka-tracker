@@ -25128,7 +25128,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, computeDeckProgress }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -25207,9 +25207,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
     if(deckFilterT && c.treatment!==deckFilterT) return false;
-    if(deckSearch){
+    if(deckSearchDebounced){
       const hay=[c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation].filter(Boolean).join(" ").toLowerCase();
-      const terms=deckSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      const terms=deckSearchDebounced.toLowerCase().split(/\s+/).filter(Boolean);
       if(!terms.every(t=>hay.includes(t))) return false;
     }
     const t=(c.treatment||"").toLowerCase();
@@ -25217,7 +25217,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
   // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
-  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch,
+  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchDebounced,
    deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
@@ -27620,6 +27620,15 @@ See you in there!
 
   // -- Cards/filter state --
   const [search,        setSearch]        = useState(savedUI.search ?? "");
+  // PERF: `search` drives a filter+sort over the full 31k-card checklist. Running that on every
+  // keystroke makes the input stutter — you type and the characters lag behind. So the text field
+  // is bound to `search` (instant, no lag) while the actual filtering keys off `searchDebounced`,
+  // which settles ~180ms after you stop typing.
+  const [searchDebounced, setSearchDebounced] = useState(savedUI.search ?? "");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 180);
+    return () => clearTimeout(t);
+  }, [search]);
   const debouncedSearch = useDebounce(search, 250);
   const [filterSet,     setFilterSet]     = useState(savedUI.filterSet ?? "");
   const [filterSubSet,  setFilterSubSet]  = useState(""); // e.g. L.A. / Philadelphia / Oklahoma City within a set
@@ -27875,6 +27884,12 @@ See you in there!
   function loadDeckTab(d) { setDeckLoadId(d.id); setDeckName(d.name||"My Deck"); setDeckCards(d.cardIds||[]); setDeckType(d.deckType||"none"); }
   function newDeckTab() { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
   const [deckSearch,    setDeckSearch]    = useState("");
+  // Same debounce as the card-database search — see note above.
+  const [deckSearchDebounced, setDeckSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDeckSearchDebounced(deckSearch), 180);
+    return () => clearTimeout(t);
+  }, [deckSearch]);
   const [deckFilterW,   setDeckFilterW]   = useState("");
   const [deckFilterP,   setDeckFilterP]   = useState(new Set());
   const [deckFilterS,   setDeckFilterS]   = useState("");
@@ -30481,10 +30496,10 @@ See you in there!
     // different fields. So "gronk steel" finds hero=Gronk + weapon=Steel, and "gronk helmet"
     // finds hero=Gronk + treatment=...Helmet... A single substring match on the joined string
     // couldn't do this, because the words live in separate fields and never sit next to each other.
-    if(search){
+    if(searchDebounced){
       const hay = [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power]
         .filter(Boolean).join(" ").toLowerCase();
-      const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+      const terms = searchDebounced.toLowerCase().split(/\s+/).filter(Boolean);
       return terms.every(t => hay.includes(t));
     }
     return true;
@@ -30497,7 +30512,7 @@ See you in there!
   // a dependency unconditionally meant every single tap while adding cards re-filtered AND re-sorted
   // the full 31k checklist — which is exactly the "adding cards feels slow" problem. Gate it: when
   // the filter is "all", owned changes can't affect `filtered`, so don't recompute.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchDebounced, sortBy,
        (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
   const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
   filteredLenRef.current = filtered.length;
@@ -34000,7 +34015,7 @@ See you in there!
             user={user} deckCards={deckCards} setDeckCards={setDeckCards}
             deckName={deckName} setDeckName={setDeckName}
             deckType={deckType} setDeckType={setDeckType}
-            deckSearch={deckSearch} setDeckSearch={setDeckSearch}
+            deckSearch={deckSearch} setDeckSearch={setDeckSearch} deckSearchDebounced={deckSearchDebounced}
             deckFilterW={deckFilterW} setDeckFilterW={setDeckFilterW}
             deckFilterP={deckFilterP} setDeckFilterP={setDeckFilterP}
             deckFilterS={deckFilterS} setDeckFilterS={setDeckFilterS}
