@@ -15043,19 +15043,32 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
 
       {/* Breaker filter -- admin only */}
-      {isAdmin && (
+      {isAdmin && (() => {
+        // Anyone with streams in the data, even if they're no longer on the active roster. A rep
+        // who leaves still has commission owed on the streams they ran — driving this list purely
+        // off BREAKERS made those people (and their money) invisible the moment they were removed.
+        const seen = [...new Set(visibleStreams.map(s=>s.breaker).filter(Boolean))];
+        const former = seen.filter(b => !BREAKERS.includes(b)).sort();
+        const chips = ["all", ...BREAKERS, ...former];
+        return (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {["all", ...BREAKERS].map(b => (
+          {chips.map(b => {
+            const isFormer = former.includes(b);
+            return (
             <button key={b} onClick={()=>{ setBreakerFilter(b); setViewStream(null); setEditing(null); }}
-              style={{ background:breakerFilter===b?"var(--bz-pink-dim)":"var(--bz-s1)", color:breakerFilter===b?"var(--bz-pink-hot)":"var(--bz-ink-2)", border:`1px solid ${breakerFilter===b?"var(--bz-pink-line)":"var(--bz-line)"}`, borderRadius:999, padding:"6px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
+              title={isFormer ? "No longer an active rep — shown because they still have streams (and commission) on record" : undefined}
+              style={{ background:breakerFilter===b?"var(--bz-pink-dim)":"var(--bz-s1)", color:breakerFilter===b?"var(--bz-pink-hot)":(isFormer?"var(--bz-ink-3)":"var(--bz-ink-2)"), border:`1px solid ${breakerFilter===b?"var(--bz-pink-line)":(isFormer?"var(--bz-line-2)":"var(--bz-line)")}`, borderRadius:999, padding:"6px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s", opacity:isFormer&&breakerFilter!==b?0.75:1 }}>
               {b === "all" ? "\uD83D\uDC65 All Breakers" : b}
+              {isFormer && <span style={{ marginLeft:5, fontSize:9, opacity:0.7 }}>(past)</span>}
               {b !== "all" && <span style={{ marginLeft:6, background:"var(--bz-s3)", color:"var(--bz-pink)", borderRadius:10, padding:"0 6px", fontSize:10 }}>
                 {visibleStreams.filter(s=>s.breaker===b).length}
               </span>}
             </button>
-          ))}
+            );
+          })}
         </div>
-      )}
+        );
+      })()}
 
       {/* Stream list */}
       {filteredStreams.length === 0
