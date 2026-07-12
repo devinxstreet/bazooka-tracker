@@ -18975,20 +18975,35 @@ function CardSetImporter({ userRole }) {
     }
     setImporting(false); setProgress(null); setErrors(errs);
     setResults({ written:totalWritten, skipped:totalSkipped, files:files.length });
-    // Also write a single CDN-served JSON snapshot for fast public page loads
+    // Also write a single CDN-served JSON snapshot for fast public page loads.
+    // NOTE: the app loads cards from this SNAPSHOT, not from boba_checklist directly. If the
+    // snapshot fails to regenerate, imported cards will NOT appear even though the import
+    // succeeded. So these failures must be loud, not swallowed.
     if (totalWritten > 0) {
+      const snapErrs = [];
       try {
-        setProgress({ done:0, total:1, label:"Writing CDN snapshot for fast public loads..." });
-        // Re-read all cards and write as single JSON to Storage
+        setProgress({ done:0, total:1, label:"Rebuilding card snapshot (this is what the app reads)..." });
         const snap2 = await getDocs(collection(db,"boba_checklist"));
         const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
-        const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
-        const snapRef = ref(storage, "card_data/boba_checklist.json");
-        await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
-        try { await writeCardSnapshot(all, 86400); } catch(e) {}
-        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
+
+        try {
+          const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
+          await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+        } catch(e) { snapErrs.push(`Snapshot upload failed (Storage): ${e.message}`); }
+
+        try { await writeCardSnapshot(all, 86400); }
+        catch(e) { snapErrs.push(`Gzipped snapshot failed: ${e.message}`); }
+
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); }
+        catch(e) { snapErrs.push(`Version bump failed (meta/cards_version): ${e.message} — without this, clients keep serving the OLD card list.`); }
+
         setProgress(null);
-      } catch(e) { console.warn("CDN snapshot write failed:", e); setProgress(null); }
+        if (snapErrs.length) setErrors(prev => [...prev, ...snapErrs]);
+        else setResults(prev => ({ ...(prev||{}), snapshot: all.length }));
+      } catch(e) {
+        setProgress(null);
+        setErrors(prev => [...prev, `Snapshot rebuild failed: ${e.message}. Cards were written to the database, but the app reads a snapshot — they won't appear until this succeeds.`]);
+      }
     }
     try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
   }
@@ -19432,6 +19447,43 @@ function CardSetImporter({ userRole }) {
         </div>
       )}
 
+      {/* Rebuild snapshot — the app reads a prebuilt snapshot, NOT boba_checklist directly.
+          If an import wrote cards but they don't show up, the snapshot is stale. Fix it here. */}
+      {mode==="data" && (
+      <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:16, marginTop:14 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>🔄 Rebuild Card Snapshot</div>
+        <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, lineHeight:1.6 }}>
+          The app loads cards from a prebuilt snapshot for speed — not straight from the database. If you imported
+          cards and they aren't showing up, the snapshot is stale. This rebuilds it from the live database and tells
+          everyone's browser to refetch.
+        </div>
+        <button onClick={async ()=>{
+          setImporting(true); setErrors([]); setResults(null);
+          const errs=[];
+          try {
+            setProgress({ done:0, total:1, label:"Reading all cards from the database..." });
+            const snap = await getDocs(collection(db,"boba_checklist"));
+            const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+            setProgress({ done:0, total:1, label:`Writing snapshot (${all.length.toLocaleString()} cards)...` });
+            try {
+              const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
+              await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+            } catch(e){ errs.push(`Storage upload failed: ${e.message}`); }
+            try { await writeCardSnapshot(all, 86400); } catch(e){ errs.push(`Gzipped snapshot failed: ${e.message}`); }
+            try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); }
+            catch(e){ errs.push(`Version bump failed: ${e.message} — clients will keep serving the old list.`); }
+            try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+            setErrors(errs);
+            if(!errs.length) setResults({ written:0, skipped:0, files:0, snapshot: all.length });
+          } catch(e){ setErrors([`Rebuild failed: ${e.message}`]); }
+          setImporting(false); setProgress(null);
+        }} disabled={importing}
+          style={{ background:importing?"#1a1a1a":"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:importing?"#555":"#fff", border:"none", borderRadius:8, padding:"10px 22px", fontSize:13, fontWeight:800, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit" }}>
+          {importing?"Working…":"Rebuild snapshot from database"}
+        </button>
+      </div>
+      )}
+
       {/* Merge sets mode */}
       {mode==="merge" && <SetMerger/>}
 
@@ -19454,7 +19506,9 @@ function CardSetImporter({ userRole }) {
           <div style={{ display:"flex", gap:24, marginBottom:10 }}>
             <div><div style={{ fontSize:22, fontWeight:900, color:"#4ade80" }}>{results.written.toLocaleString()}</div><div style={{ fontSize:10, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Written</div></div>
             {results.skipped>0&&<div><div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>{results.skipped.toLocaleString()}</div><div style={{ fontSize:10, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Skipped</div></div>}
+            {results.snapshot>0&&<div><div style={{ fontSize:22, fontWeight:900, color:"#7B9CFF" }}>{results.snapshot.toLocaleString()}</div><div style={{ fontSize:10, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>In Snapshot</div></div>}
           </div>
+          {results.snapshot>0 && <div style={{ fontSize:11, color:"#4ade80", marginBottom:6 }}>✓ Card snapshot rebuilt — the new cards will show up for everyone (hard-refresh if you still see the old list).</div>}
           {errors.slice(0,10).map((e,i)=><div key={i} style={{ fontSize:11, color:"#EF4444", marginTop:3 }}>⚠ {e}</div>)}
           {errors.length>10&&<div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>...and {errors.length-10} more</div>}
         </div>
