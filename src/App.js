@@ -34383,6 +34383,16 @@ See you in there!
                   <div style={{height:10,background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",position:"relative"}}>
                     <div style={{height:"100%",width:`${Math.min(milePct,100)}%`,background:"linear-gradient(90deg,#E8317A,#FBBF24)",borderRadius:6,transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)",boxShadow:"0 0 12px rgba(232,49,122,0.6)"}}/>
                   </div>
+                  {/* Cards you've moved on from. Lives with the collection stats — it's a fact about
+                      your collection's history, not a filter, so it doesn't belong in the filter row. */}
+                  {user && soldLog.length>0 && (
+                    <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
+                      <button onClick={()=>setSoldView(true)} title="Cards you've sold, traded or given away"
+                        style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.5)",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                        📜 Formerly owned ({soldLog.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -34479,13 +34489,17 @@ See you in there!
               {_cardAdmin && (
                 <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
-              {/* Kid collections — tag cards you own to a kid's binder. */}
-              {user && (
+              {/* Kid collections — whose binder a card lives in. Visually separated from the
+                  owned/missing filters above, since they answer a different question (and both
+                  rows had an "All" chip, which read as a duplicate). */}
+              {user && kidGroups.length>0 && (
                 <>
-                  {kidGroups.length>0 && [["all","All"],["mine","Mine"]].concat(kidGroups.map(g=>[g.id,g.name])).map(([id,label])=>{
+                  <div style={{width:1,height:20,background:"rgba(255,255,255,0.1)",margin:"0 2px"}}/>
+                  <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",fontWeight:700,whiteSpace:"nowrap"}}>Whose:</span>
+                  {[["all","Everyone"],["mine","Mine"]].concat(kidGroups.map(g=>[g.id,g.name])).map(([id,label])=>{
                     const on = kidFilter===id;
                     const g = kidGroups.find(x=>x.id===id);
-                    const col = g ? g.color : (id==="mine" ? "#4ade80" : "rgba(255,255,255,0.5)");
+                    const col = g ? g.color : (id==="mine" ? "#4ade80" : "#7B9CFF");
                     const count = id==="all" ? null : (id==="mine" ? (kidCounts.__mine||0) : (kidCounts[id]||0));
                     return (
                       <button key={id} onClick={()=>{setKidFilter(id);setPage(1);}}
@@ -34494,21 +34508,20 @@ See you in there!
                       </button>
                     );
                   })}
-                  <button onClick={()=>setKidsModal(true)} title="Set up collections for your kids"
+                  <button onClick={()=>setKidsModal(true)} title="Manage kids' collections"
                     style={{background:"transparent",color:"rgba(255,255,255,0.35)",border:"1.5px dashed rgba(255,255,255,0.12)",borderRadius:20,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                    {kidGroups.length>0 ? "⚙" : "🧒 Add a kid"}
+                    ⚙
                   </button>
                 </>
               )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
-                {user && soldLog.length>0 && (
-                  <button onClick={()=>setSoldView(true)} title="Cards you've sold, traded or given away"
-                    style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.35)",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>
-                    📜 Formerly owned ({soldLog.length})
-                  </button>
-                )}
-                {filtered.length.toLocaleString()} cards
-              </span>
+              {/* No kids set up yet — offer to create the first one. */}
+              {user && kidGroups.length===0 && (
+                <button onClick={()=>setKidsModal(true)} title="Collecting with your kids? Give them their own collection"
+                  style={{background:"transparent",color:"rgba(255,255,255,0.3)",border:"1.5px dashed rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                  🧒 Add a kid
+                </button>
+              )}
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
