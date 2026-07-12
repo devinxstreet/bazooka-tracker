@@ -18700,7 +18700,12 @@ function PrefixMapper() {
   const knownTreatments = useMemo(() => {
     if (!setName) return [];
     return Array.from(new Set(
-      allCards.filter(c => c.setName === setName).map(c => c.treatment).filter(Boolean)
+      allCards
+        .filter(c => c.setName === setName)
+        .map(c => c.treatment)
+        .filter(Boolean)
+        // Drop ability text that leaked into the treatment column — never suggest it as a value.
+        .filter(t => !String(t).trim().endsWith("."))
     )).sort();
   }, [allCards, setName]);
   const CARD_TYPES = ["Hero","Play","Hot Dog","Bonus Play","Home Team Discount"];
@@ -18738,8 +18743,13 @@ function PrefixMapper() {
         targets.slice(i,i+CHUNK).forEach(c => {
           const r = rules[prefixOf(c.cardNum)];
           const patch = {};
-          if (r.treatment) patch.treatment = r.treatment;
-          if (r.cardType)  patch.cardType  = r.cardType;
+          // "(clear)" wipes the field. Plays, Hot Dogs and Home Team Discounts have no treatment —
+          // a bad import left their ABILITY TEXT sitting in that column ("Discard your Hero...").
+          // Those values then pollute every treatment dropdown in the app, so they need removing,
+          // not renaming.
+          if (r.treatment === "(clear)") patch.treatment = "";
+          else if (r.treatment) patch.treatment = r.treatment;
+          if (r.cardType) patch.cardType = r.cardType;
           batch.update(doc(db,"boba_checklist",c.id), patch);
         });
         await batch.commit();
@@ -18796,6 +18806,14 @@ function PrefixMapper() {
                       <div style={{fontSize:10,color:"var(--bz-ink-3)"}}>{p.count} cards</div>
                     </div>
                     <div style={{fontSize:11,color:"var(--bz-ink-3)",minWidth:0}}>
+                      {/* A treatment that reads like a sentence isn't a treatment — it's a Play/HTD
+                          ability that a bad import dropped into the wrong column. Flag it loudly,
+                          because these values pollute every treatment dropdown in the app. */}
+                      {curT.some(([t])=>String(t).trim().endsWith(".")) && (
+                        <div style={{fontSize:10,fontWeight:800,color:"#EF4444",marginBottom:2}}>
+                          ⚠ ability text in the treatment field — set this to "(clear)"
+                        </div>
+                      )}
                       <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {curT.map(([t,n])=>`${t} (${n})`).join(", ")}
                       </div>
@@ -18811,6 +18829,7 @@ function PrefixMapper() {
                           that isn't there yet, which is exactly what you need when a whole prefix is
                           currently mislabelled (e.g. Plays sitting under "Battlefoil"). */}
                       <datalist id={`treat-${p.prefix}`}>
+                        <option value="(clear)"/>
                         {knownTreatments.map(t=><option key={t} value={t}/>)}
                       </datalist>
                     </div>
