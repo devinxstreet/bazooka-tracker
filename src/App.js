@@ -16455,7 +16455,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
     );
   }
   return (
-    <div style={{ aspectRatio:"3/4", background:isOwned?"#0a1a0a":"#111111", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isOwned?"#0a1a0a":"#111111", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
       {/* "Image coming soon" art placeholder — fills the card-art area */}
       <div style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
         <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
