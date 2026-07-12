@@ -28097,42 +28097,56 @@ See you in there!
     }, 12000);
 
     (async () => {
-      // 0. COLD-LOAD FAST PATH ONLY. /cards-data.json is a bundled placeholder for first paint —
-      // it does NOT carry imageUrl or the real Firestore doc ids, so it must never be treated as
-      // the source of truth (doing so blanks every card image and breaks the owned-cards mapping,
-      // since `owned` is keyed by the real doc id). Show it only when we have nothing else, and
-      // always let the live snapshot below replace it.
-      let staticCards = null;
-      try {
-        const cachedPeek = await withTimeout(idbGetCards(), 1500).catch(()=>null);
-        const haveIdb = cachedPeek && Array.isArray(cachedPeek.cards) && cachedPeek.cards.length>0;
-        if (!haveIdb) {
-          const rs = await withTimeout(fetch("/cards-data.json"), 4000);
-          if (rs.ok) {
-            const all = await rs.json();
-            if (Array.isArray(all) && all.length>0) {
-              staticCards = all;
-              setCards(all); setLoading(false);
-              // ts=0 so the freshness check always prefers live data over this placeholder.
-              idbSetCards(all, 0);
-            }
-          }
-        }
-      } catch(e) {}
-
-      // 1. Fallback: cached list from IndexedDB.
+      // 1. INSTANT: the cached real card list (real doc ids + images). This is what makes the page
+      // feel instant on a return visit — owned counts and art are correct immediately.
       let cacheHasCards = false;
       try {
         const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
-          if (!staticCards) { setCards(cached.cards); setLoading(false); }
+          setCards(cached.cards); setLoading(false);
           cacheHasCards = true;
         }
       } catch(e) {}
 
+      // 0b. FIRST-EVER VISIT ONLY: no cache at all. Paint the bundled /cards-data.json so the page
+      // isn't blank while the real snapshot downloads. This file has NO imageUrl and NOT the real
+      // Firestore doc ids, so it makes "owned" read wrong and cards look art-less — it is a
+      // placeholder, never the truth. Critically we do NOT write it to IndexedDB: caching it would
+      // make every subsequent load start from the broken data (2 owned, no images) until the
+      // snapshot lands.
+      if (!cacheHasCards) {
+        try {
+          const rs = await withTimeout(fetch("/cards-data.json"), 4000);
+          if (rs.ok) {
+            const all = await rs.json();
+            if (Array.isArray(all) && all.length>0) { setCards(all); setLoading(false); }
+          }
+        } catch(e) {}
+      }
+
       // 2. THE LIVE SNAPSHOT IS THE SOURCE OF TRUTH. It comes from Firestore, so it carries the
       // real doc ids (which `owned` is keyed by) and every imageUrl. Always pull it and let it
-      // replace whatever placeholder we rendered above.
+      // replace whatever we rendered above.
+      //
+      // FAST PATH: if our cached list already matches the server's card count, it's current —
+      // skip the multi-MB snapshot download entirely and keep what we already rendered. This is
+      // what makes a return visit instant instead of flashing wrong data for a few seconds while
+      // the whole card list re-downloads. (We publish `count` next to the version on every
+      // import/dedupe/rebuild, so this is a single tiny read.)
+      if (cacheHasCards) {
+        try {
+          const cached = await withTimeout(idbGetCards(), 1500);
+          const vSnap  = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
+          const serverCount = vSnap.exists() ? (vSnap.data().count || 0) : 0;
+          if (serverCount > 0 && cached?.cards?.length === serverCount) {
+            clearTimeout(hardStop);
+            done = true;
+            setLoading(false);
+            return; // cache is current — nothing to download
+          }
+        } catch(e) { /* couldn't verify — fall through and refresh */ }
+      }
+
       try {
         const all = await withTimeout(readCardSnapshot(true), 9000);
         if (all && all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
