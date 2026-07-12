@@ -23295,6 +23295,8 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
 }
 
 function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
+  // PERF: one id->card index, reused for every member lookup (see notes below).
+  const teamCardById = useMemo(() => { const m=new Map(); (cards||[]).forEach(c=>m.set(c.id,c)); return m; }, [cards]);
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -23334,12 +23336,21 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                   const allMembers=[...starters,...bench];
                   const isOwner=team.createdBy===user.uid;
 
+                  // PERF: build an id->card map ONCE. The old code did `cards.find(c=>c.id===id)`
+                  // inside a loop over every member's owned ids — an O(members × owned × cards)
+                  // scan (easily millions of ops with a few 500-card collections) recomputed on
+                  // every render. That's what made loading family/friends' cards crawl.
+                  const cardById = teamCardById;
+                  const ownedOf = m => (m.uid===user.uid ? owned : (friendOwned[m.uid]||{}));
+
                   // Apex conflict detection across all members
                   const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
                   const apexMap={};
                   allMembers.forEach(m=>{
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160).forEach(c=>{
+                    const mOwned=ownedOf(m);
+                    Object.keys(mOwned).forEach(id=>{
+                      const c=cardById.get(id);
+                      if(!c || parseFloat(c.power||0)<=160) return;
                       const dk=dupKey2(c);
                       if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
                       apexMap[dk].members.push(m.displayName);
@@ -23351,9 +23362,11 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                   let dragUid=null;
 
                   function MemberCard({m, slot, isDraggable}) {
-                    const mOwned=m.uid===user.uid?owned:(friendOwned[m.uid]||{});
-                    const totalCards=Object.keys(mOwned).filter(id=>cards.find(c=>c.id===id)).length;
-                    const apexCards=cards.filter(c=>mOwned[c.id]&&parseFloat(c.power||0)>160);
+                    const mOwned=ownedOf(m);
+                    // O(1) lookups instead of a full scan per owned id
+                    const ownedIds=Object.keys(mOwned);
+                    const totalCards=ownedIds.reduce((n,id)=>n+(cardById.has(id)?1:0),0);
+                    const apexCards=ownedIds.map(id=>cardById.get(id)).filter(c=>c&&parseFloat(c.power||0)>160);
                     const isMe=m.uid===user.uid;
                     const wc_starter="#A855F7", wc_bench="#7B9CFF";
                     const borderColor=slot==="starter"?wc_starter:wc_bench;
@@ -27325,14 +27338,33 @@ See you in there!
     return () => unsubs.forEach(u=>u());
   }, [user]);
 
-  // Load friend owned maps
+  // Load friend owned maps.
+  // PERF: previously this fired a separate setState per friend (N re-renders of the whole app,
+  // each re-rendering the card grid) and used a stale `friendOwned` closure to decide what to
+  // skip — so it could refetch repeatedly. Now: fetch only what's missing, in parallel, and
+  // commit ONE state update.
+  const friendOwnedLoaded = useRef(new Set());
   useEffect(() => {
     if (!friends.length) return;
-    friends.forEach(async f => {
-      if (friendOwned[f.friendUid]) return;
-      const snap = await getDoc(doc(db,"boba_owned",f.friendUid));
-      if (snap.exists()) setFriendOwned(prev=>({...prev,[f.friendUid]:snap.data()}));
-    });
+    const todo = friends.filter(f => f.friendUid && !friendOwnedLoaded.current.has(f.friendUid));
+    if (!todo.length) return;
+    todo.forEach(f => friendOwnedLoaded.current.add(f.friendUid)); // claim immediately (no double-fetch)
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(todo.map(async f => {
+        try {
+          const snap = await getDoc(doc(db,"boba_owned",f.friendUid));
+          return [f.friendUid, snap.exists() ? snap.data() : {}];
+        } catch(e) { return [f.friendUid, {}]; }
+      }));
+      if (cancelled) return;
+      setFriendOwned(prev => {
+        const next = { ...prev };
+        results.forEach(([uid,data]) => { next[uid] = data; });
+        return next;   // single update for all friends
+      });
+    })();
+    return () => { cancelled = true; };
   }, [friends]);
 
   // Upsert profile on login
