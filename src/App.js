@@ -25126,7 +25126,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -25331,6 +25331,28 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     {deckProgress.maxMode && deckProgress.maxShort>0 && (
                       <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"9px 12px",fontSize:11,color:"#ffb3d0",lineHeight:1.5}}>
                         ⚠️ Short by <strong>{deckProgress.maxShort}</strong> card{deckProgress.maxShort!==1?"s":""} — you only have {deckProgress.have} eligible cards in the {deckProgress.maxWindowLabel} window. Padding with weaker cards would make the deck illegal, so it's left short.
+                      </div>
+                    )}
+                    {/* Card source — which collection(s) the quick builder may draw from. Only shown
+                        when you actually have family cards available to borrow. */}
+                    {Object.keys(familyOwnerByCard).length>0 && (
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:10}}>
+                        <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Cards:</span>
+                        {[["mine","My collection"],["both","Mine + family"],["family","👪 Family only"]].map(([id,label])=>{
+                          const on = deckSource===id;
+                          const col = id==="family" ? "#C084FC" : id==="both" ? "#4ade80" : "#7B9CFF";
+                          return (
+                            <button key={id} onClick={()=>setDeckSource(id)}
+                              style={{background:on?`${col}26`:"transparent",border:`1px solid ${on?col:"var(--bz-line-2)"}`,color:on?col:"var(--bz-ink-3)",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>
+                          {deckSource==="mine" ? "Only cards you own — no borrowing."
+                            : deckSource==="family" ? "Only cards borrowed from family."
+                            : "Your cards first, family fills the gaps."}
+                        </span>
                       </div>
                     )}
                     {/* Set restriction — pick specific sets (e.g. Alpha Trilogy = Alpha-era only). Empty = all sets. */}
@@ -30499,11 +30521,6 @@ See you in there!
   // keystroke (~31k string allocations per character typed) — that's what made results lag behind
   // the input. Build the searchable text ONCE per card here; searching then becomes a plain
   // substring test against a ready-made string.
-  // TEMP PERF PROBE — shows where the time actually goes, on screen (no console needed).
-  const __perf = useRef({ filter:0, sort:0, render:0 });
-  const __renderStart = performance.now();
-  useEffect(() => { __perf.current.render = performance.now() - __renderStart; });
-
   const searchIndex = useMemo(() => {
     const m = new Map();
     for (const c of cards) {
@@ -30519,7 +30536,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => { const __t0 = performance.now(); const __r = cards.filter(c=>{
+  const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -30539,10 +30556,7 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  });
-  __perf.current.filter = performance.now()-__t0;
-  return __r;
-  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
 
   // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
@@ -30552,7 +30566,6 @@ See you in there!
   // Now: decorate each card with a precomputed primitive sort key, sort on that (plain number or
   // string compare), then undecorate. Same order, a fraction of the cost.
   const sorted = useMemo(() => {
-    const __t0 = performance.now();
     const keyed = filtered.map(c => {
       let k;
       if (sortBy === "power" || sortBy === "powerAsc") k = parseFloat(c.power) || 0;
@@ -30566,9 +30579,7 @@ See you in there!
       if (x.k > y.k) return desc ? -1 : 1;
       return 0;
     });
-    const __out = keyed.map(o => o.c);
-    __perf.current.sort = performance.now()-__t0;
-    return __out;
+    return keyed.map(o => o.c);
   }, [filtered, sortBy]);
 
   const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
@@ -30706,7 +30717,7 @@ See you in there!
   [cards, deckSet, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch]);
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
-  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode) {
+  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode, source="both") {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const specCap = (dtype==="spec"||dtype==="vegasbaby");
     const isApexType = (dtype==="apex");
@@ -30724,15 +30735,24 @@ See you in there!
     const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : specCap ? "115–160" : "";
     const powerOf = c => parseFloat(c.power)||0;
     // Ownership now spans YOUR cards + FAMILY cards you can borrow.
-    const isMine = c => owned[c.id] || owned[c.id+"::foil"];
-    const famOwner = c => (!isMine(c) && familyOwnerByCard[c.id]) ? familyOwnerByCard[c.id] : null;
+    // Card source: "mine" = only my cards, "family" = only borrowable family cards,
+    // "both" = mine first, family fills the gaps (the default).
+    const _srcMine   = (source !== "family");
+    const _srcFamily = (source !== "mine");
+    const isMine = c => _srcMine ? (owned[c.id] || owned[c.id+"::foil"]) : false;
+    const famOwner = c => {
+      if (!_srcFamily) return null;
+      // In "family only" mode we surface their cards regardless of whether I also own it.
+      if (source === "family") return familyOwnerByCard[c.id] || null;
+      return (!isMine(c) && familyOwnerByCard[c.id]) ? familyOwnerByCard[c.id] : null;
+    };
     const isOwned = c => isMine(c) || !!famOwner(c);
     // Cross-deck lock: available copies = your copies + borrowable family copies, minus copies
     // already committed to OTHER decks. Prefer your own; family fills the gap.
     // Uses allDeckUse (not otherDeckUse): the quick builder proposes a NEW deck, so a card sitting
     // in the deck currently open in the editor is unavailable too.
     const isAvailable = c => {
-      const mine = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const mine = (_srcMine && owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
       const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
       const copies = mine + fam;
       const usedElsewhere = allDeckUse[c.id] || 0;
@@ -30912,13 +30932,15 @@ See you in there!
   const [deckGoalT, setDeckGoalT] = useState("");
   const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
+  // Which cards the quick builder may draw from: "mine" | "both" | "family"
+  const [deckSource, setDeckSource] = useState("both");
   // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
   // running on EVERY render of the whole collector app — so hovering a card in the Card Database
   // re-scanned 31k cards. Memoized, and only computed when the deck tab is actually open.
   const deckProgress = useMemo(
-    () => (activeTab === "deck" ? computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode) : null),
+    () => (activeTab === "deck" ? computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, deckSource) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, owned, familyAvail, otherDeckUse, allDeckUse, cards]
+    [activeTab, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, deckSource, owned, familyAvail, otherDeckUse, allDeckUse, cards]
   );
 
 
@@ -33521,14 +33543,7 @@ See you in there!
               {_cardAdmin && (
                 <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>
-                {_cardAdmin && (
-                  <span style={{marginRight:10,color:"#FBBF24",fontWeight:700}}>
-                    filter {__perf.current.filter.toFixed(0)}ms · sort {__perf.current.sort.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms
-                  </span>
-                )}
-                {filtered.length.toLocaleString()} cards
-              </span>
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
@@ -34105,7 +34120,7 @@ See you in there!
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} computeDeckProgress={computeDeckProgress}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress}
           />
         )}
 
