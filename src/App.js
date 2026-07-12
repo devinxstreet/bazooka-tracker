@@ -25216,7 +25216,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
-  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch, owned]);
+  // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
+  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch,
+   deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
   return (
@@ -28714,6 +28716,33 @@ See you in there!
     if (activeTrackerId === id) setActiveTrackerId(null);
   }
 
+  // PERF: adding cards fast was laggy because EVERY tap awaited a Firestore write of the whole
+  // owned map (hundreds of entries re-uploaded per tap). Now the UI updates instantly and the
+  // save is debounced — rapid input coalesces into one write ~600ms after you stop.
+  const ownedSaveRef = useRef(null);
+  const pendingOwnedRef = useRef(null);
+  function queueOwnedSave(nextOwned) {
+    if (!user) return;
+    pendingOwnedRef.current = nextOwned;
+    if (ownedSaveRef.current) clearTimeout(ownedSaveRef.current);
+    ownedSaveRef.current = setTimeout(async () => {
+      const payload = pendingOwnedRef.current;
+      if (!payload) return;
+      try { await setDoc(doc(db,"boba_owned",user.uid), payload); }
+      catch(e){ console.error("save owned failed:", e); }
+    }, 600);
+  }
+  // Flush any pending save if the user leaves the page mid-burst.
+  useEffect(() => {
+    const flush = () => {
+      if (pendingOwnedRef.current && user) {
+        try { setDoc(doc(db,"boba_owned",user.uid), pendingOwnedRef.current); } catch(e){}
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => { window.removeEventListener("beforeunload", flush); flush(); };
+  }, [user]);
+
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...owned};
@@ -28721,7 +28750,7 @@ See you in there!
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setOwned(next);
     if (!wasOwned) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    try { await setDoc(doc(db,"boba_owned",user.uid), next); } catch(e){ console.error("save owned failed:", e); }
+    queueOwnedSave(next);
   }
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
@@ -28730,8 +28759,9 @@ See you in there!
     if (qty<=0) delete next[cardId]; else next[cardId]=qty;
     setOwned(next);
     if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    try { await setDoc(doc(db,"boba_owned",user.uid), next); } catch(e){ console.error("save owned qty failed:", e); }
+    queueOwnedSave(next);
   }
+  const wantSaveRef = useRef(null);
   async function toggleWant(cardId) {
     if (!user) { setSigningIn(true); return; }
     const next = {...wantList};
@@ -28739,7 +28769,11 @@ See you in there!
     if (next[cardId]) delete next[cardId]; else next[cardId]=1;
     setWantList(next);
     if (!wasWanted) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"hunt", card }); }
-    try { await setDoc(doc(db,"boba_wants",user.uid), next); } catch(e){ console.error("save want failed:", e); }
+    // Debounced, same reason as owned: don't await a full-map write on every tap.
+    if (wantSaveRef.current) clearTimeout(wantSaveRef.current);
+    wantSaveRef.current = setTimeout(async () => {
+      try { await setDoc(doc(db,"boba_wants",user.uid), next); } catch(e){ console.error("save want failed:", e); }
+    }, 600);
   }
   async function setTransit(cardId, data) {
     if (!user) { setSigningIn(true); return; }
@@ -30459,7 +30493,12 @@ See you in there!
     if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
+  // PERF: `owned` only changes the result when the Owned/Missing filter is active. Including it as
+  // a dependency unconditionally meant every single tap while adding cards re-filtered AND re-sorted
+  // the full 31k checklist — which is exactly the "adding cards feels slow" problem. Gate it: when
+  // the filter is "all", owned changes can't affect `filtered`, so don't recompute.
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy,
+       (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
   const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
   filteredLenRef.current = filtered.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
