@@ -4872,14 +4872,23 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
   // Check if a stream recap already exists for this breaker+date
   const [editingStreamId, setEditingStreamId] = useState(null);
 
-  // Find existing stream: match on breaker + date + channel (all three must match)
+  // The stream being edited. ONLY set when you explicitly pick one to edit.
+  //
+  // This used to also match on breaker+date+channel, which meant that picking the breaker and date
+  // for a SECOND stream that day would silently load the FIRST one into the form (and mark it
+  // saved) — so there was no way to log two streams on the same day. The save path already mints a
+  // fresh id for new recaps, so the data was never actually clobbered; the form just wouldn't let
+  // you enter one. Same-day streams are normal, so the form now stays empty unless you say
+  // otherwise.
   const existingStream = editingStreamId
     ? streams.find(s => s.id === editingStreamId)
-    : streams.find(s =>
-        s.breaker === breaker &&
-        s.date === date &&
-        channelOf(s) === channelOf({channel:recap.channel, breaker})
-      );
+    : null;
+
+  // Streams this breaker already has on this date. Surfaced so you can jump into one to edit it,
+  // rather than the form guessing for you.
+  const sameDayStreams = (breaker && date)
+    ? streams.filter(s => s.breaker === breaker && s.date === date)
+    : [];
 
   // Load existing stream into form when breaker/date changes
   useEffect(() => {
@@ -4899,7 +4908,9 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     } else {
       setProdUsage(EMPTY_USAGE);
     }
-  }, [breaker, date]);
+    // editingStreamId belongs here too: picking a stream to edit must pull it into the form, and
+    // clearing the selection must empty the form back out.
+  }, [breaker, date, editingStreamId]);
 
   function rf(k) {
     return v => {
@@ -5145,6 +5156,25 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 e.target.value="";
               }}/>
             </label>
+            )}
+            {/* Streams this breaker already logged today. Shown rather than auto-loaded, so a second
+                stream on the same day is easy to add and editing the first is still one click. */}
+            {!editingStreamId && sameDayStreams.length > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:11, color:"var(--bz-ink-3)", fontWeight:700 }}>
+                  {breaker} already has {sameDayStreams.length} stream{sameDayStreams.length!==1?"s":""} on {date}:
+                </span>
+                {sameDayStreams.map(s => (
+                  <button key={s.id} onClick={()=>setEditingStreamId(s.id)}
+                    title="Edit this stream instead of starting a new one"
+                    style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    ✏️ {s.streamName || s.channel || "Stream"}{s.grossRevenue?` · $${parseFloat(s.grossRevenue).toLocaleString()}`:""}
+                  </button>
+                ))}
+                <span style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>
+                  — or just fill the form below to add another
+                </span>
+              </div>
             )}
             {editingStreamId && existingStream && (
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
