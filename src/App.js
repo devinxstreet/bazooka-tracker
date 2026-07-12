@@ -28087,6 +28087,9 @@ See you in there!
       // 0. COLD-LOAD FAST PATH: a never-visited user has no IndexedDB cache. Try the static
       // /cards-data.json bundled with the site FIRST — it's served instantly from the CDN with
       // no Firebase round-trip — show it immediately, then refresh from the live snapshot below.
+      // IMPORTANT: this file is committed to the repo and can be months out of date (it will NOT
+      // contain cards added by a recent import). It's a first-paint placeholder ONLY — we stamp it
+      // with ts=0 so the freshness check below always treats it as stale and pulls live data.
       let shownFromStatic = false;
       try {
         const cachedPeek = await withTimeout(idbGetCards(), 1500).catch(()=>null);
@@ -28098,14 +28101,15 @@ See you in there!
             if (Array.isArray(all) && all.length>0) {
               setCards(all); setLoading(false);
               shownFromStatic = true;
-              idbSetCards(all, Date.now()); // seed the cache so next load is instant too
+              // ts=0 — never let the bundled file pose as a fresh cache.
+              idbSetCards(all, 0);
             }
           }
         }
       } catch(e) {}
 
       // 1. Instant cache from IndexedDB (timeout-guarded so a blocked DB can't hang us).
-      let cacheTs = 0, cacheHasCards = shownFromStatic;
+      let cacheTs = 0, cacheHasCards = false;
       try {
         const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
@@ -28113,6 +28117,10 @@ See you in there!
           cacheHasCards = true; cacheTs = cached.ts || 0;
         }
       } catch(e) {}
+      // NOTE: cacheTs stays 0 when we only have the STATIC bundled file. That file ships with the
+      // site and can be months out of date — it must never be treated as fresh, or newly imported
+      // cards will never appear. With cacheTs=0 the version check below always wins and we pull
+      // the live snapshot.
       // 2. Freshness check (timeout-guarded). If we have cache, trust it for the session and
       // only re-fetch when it's clearly old — the cache already shows instantly above, so we
       // never block the user on a re-download.
