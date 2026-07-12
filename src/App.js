@@ -25197,6 +25197,21 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return needs.slice(0,4);
   })();
   const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); if(user&&owned){ const hasOwned = cards.some(c=>!deckSet.has(c.id)&&(c.treatment||"").toLowerCase()===(n.t||"").toLowerCase()&&n.p&&n.p.includes(String(c.power||""))&&owned[c.id]); if(hasOwned) setDeckOwnedOnly(true); } };
+  // PERF: prebuild the searchable text once per card (see the note in the card database) so the
+  // deck search is a plain substring test instead of rebuilding 31k strings per keystroke.
+  const deckSearchIndex = useMemo(() => {
+    const m = new Map();
+    for (const c of cards) {
+      m.set(c.id, [c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation]
+        .filter(Boolean).join(" ").toLowerCase());
+    }
+    return m;
+  }, [cards]);
+  const deckSearchTerms = useMemo(
+    () => (deckSearchDebounced||"").toLowerCase().split(/\s+/).filter(Boolean),
+    [deckSearchDebounced]
+  );
+
   // PERF: filters + sorts the full 31k checklist. Memoized so hovering/adding a card doesn't
   // re-scan every card in the game.
   const deckAvail = useMemo(() => cards.filter(c=>{
@@ -25207,17 +25222,16 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
     if(deckFilterT && c.treatment!==deckFilterT) return false;
-    if(deckSearchDebounced){
-      const hay=[c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation].filter(Boolean).join(" ").toLowerCase();
-      const terms=deckSearchDebounced.toLowerCase().split(/\s+/).filter(Boolean);
-      if(!terms.every(t=>hay.includes(t))) return false;
+    if(deckSearchTerms.length){
+      const hay = deckSearchIndex.get(c.id) || "";
+      if(!deckSearchTerms.every(t=>hay.includes(t))) return false;
     }
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
   // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
-  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchDebounced,
+  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
    deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
@@ -27626,7 +27640,7 @@ See you in there!
   // which settles ~180ms after you stop typing.
   const [searchDebounced, setSearchDebounced] = useState(savedUI.search ?? "");
   useEffect(() => {
-    const t = setTimeout(() => setSearchDebounced(search), 180);
+    const t = setTimeout(() => setSearchDebounced(search), 60);
     return () => clearTimeout(t);
   }, [search]);
   const debouncedSearch = useDebounce(search, 250);
@@ -27887,7 +27901,7 @@ See you in there!
   // Same debounce as the card-database search — see note above.
   const [deckSearchDebounced, setDeckSearchDebounced] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setDeckSearchDebounced(deckSearch), 180);
+    const t = setTimeout(() => setDeckSearchDebounced(deckSearch), 60);
     return () => clearTimeout(t);
   }, [deckSearch]);
   const [deckFilterW,   setDeckFilterW]   = useState("");
@@ -30483,6 +30497,25 @@ See you in there!
   // PERF: this filters AND sorts the full 31k-card checklist. It was re-running on every single
   // render — so every hover/flip in the grid re-filtered and re-sorted 31k cards. That was the
   // source of the laggy hover and rough scrolling. Memoized to its real inputs.
+  // PERF: the search used to build + lowercase a string for EVERY one of the 31k cards on every
+  // keystroke (~31k string allocations per character typed) — that's what made results lag behind
+  // the input. Build the searchable text ONCE per card here; searching then becomes a plain
+  // substring test against a ready-made string.
+  const searchIndex = useMemo(() => {
+    const m = new Map();
+    for (const c of cards) {
+      m.set(c.id, [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power]
+        .filter(Boolean).join(" ").toLowerCase());
+    }
+    return m;
+  }, [cards]);
+
+  // Split the query once per search — not once per card.
+  const searchTerms = useMemo(
+    () => searchDebounced.toLowerCase().split(/\s+/).filter(Boolean),
+    [searchDebounced]
+  );
+
   const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
@@ -30496,11 +30529,9 @@ See you in there!
     // different fields. So "gronk steel" finds hero=Gronk + weapon=Steel, and "gronk helmet"
     // finds hero=Gronk + treatment=...Helmet... A single substring match on the joined string
     // couldn't do this, because the words live in separate fields and never sit next to each other.
-    if(searchDebounced){
-      const hay = [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power]
-        .filter(Boolean).join(" ").toLowerCase();
-      const terms = searchDebounced.toLowerCase().split(/\s+/).filter(Boolean);
-      return terms.every(t => hay.includes(t));
+    if(searchTerms.length){
+      const hay = searchIndex.get(c.id) || "";
+      return searchTerms.every(t => hay.includes(t));
     }
     return true;
   }).sort((a,b)=>{
@@ -30512,7 +30543,7 @@ See you in there!
   // a dependency unconditionally meant every single tap while adding cards re-filtered AND re-sorted
   // the full 31k checklist — which is exactly the "adding cards feels slow" problem. Gate it: when
   // the filter is "all", owned changes can't affect `filtered`, so don't recompute.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchDebounced, sortBy,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex, sortBy,
        (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
   const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
   filteredLenRef.current = filtered.length;
