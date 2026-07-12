@@ -35810,7 +35810,6 @@ See you in there!
           removeListing={removeListing}
           />
         )}
-        </div>
 
         {/* MESSAGES TAB */}
         {/* MESSAGES TAB - always mounted so thread listener stays active */}
