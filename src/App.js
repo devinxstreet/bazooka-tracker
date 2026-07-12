@@ -28390,6 +28390,14 @@ See you in there!
     const next = earlyAccessList.filter(x=>x!==em);
     try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); } catch(e){ alert("Failed to remove: "+e.message); }
   }
+  // TEMP PERF PROBE — declared FIRST so every memo below can safely write to it.
+  const __perf = useRef({ filter:0, sort:0, deckAvail:0, familyMemo:0, render:0, renders:0 });
+  const __t = performance.now();
+  useEffect(() => {
+    __perf.current.render = performance.now() - __t;
+    __perf.current.renders = (__perf.current.renders||0) + 1;
+  });
+
   const [owned,         setOwned]         = useState(()=>{ try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); return p&&p.owned?p.owned:{}; } } catch(e){} return {}; });
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
@@ -31559,7 +31567,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => cards.filter(c=>{
+  const filtered = useMemo(() => { const _t0=performance.now(); const _r = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -31592,7 +31600,10 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  });
+  __perf.current.filter = performance.now()-_t0;
+  return _r;
+  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
 
@@ -31780,6 +31791,7 @@ See you in there!
   // you don't own the card, OR you own it but all your copies are committed to other decks — so
   // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
   const { familyOwnerByCard, deckOwnedMerged } = useMemo(() => {
+    const _t0 = performance.now();
     const fam = {};
     const merged = { ...owned };
     Object.entries(familyAvail).forEach(([famUid, info]) => {
@@ -31794,6 +31806,7 @@ See you in there!
         }
       });
     });
+    __perf.current.familyMemo = performance.now()-_t0;
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
   }, [owned, familyAvail, otherDeckUse]);
   function canAddToDeck(c){
@@ -35099,7 +35112,12 @@ See you in there!
                   🧒 Add a kid
                 </button>
               )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
+              {_cardAdmin && (
+                <span style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginLeft:"auto",fontFamily:"monospace"}}>
+                  filter {__perf.current.filter.toFixed(0)}ms · family {__perf.current.familyMemo.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms · #{__perf.current.renders}
+                </span>
+              )}
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:_cardAdmin?12:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
